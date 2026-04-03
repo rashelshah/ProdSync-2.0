@@ -1,0 +1,519 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>ProdSync | Camera &amp; Asset Control</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@100;200;300;400;500;600;700;800;900&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "on-error": "#690005",
+                        "surface": "#131313",
+                        "error": "#ffb4ab",
+                        "on-surface-variant": "#c6c6c6",
+                        "on-primary-fixed-variant": "#e2e2e2",
+                        "background": "#131313",
+                        "on-secondary-container": "#e3e2e2",
+                        "primary-fixed": "#5d5f5f",
+                        "surface-container-low": "#1c1b1b",
+                        "on-tertiary": "#1a1c1c",
+                        "primary": "#ffffff",
+                        "surface-variant": "#353534",
+                        "on-tertiary-container": "#000000",
+                        "primary-container": "#d4d4d4",
+                        "outline-variant": "#474747",
+                        "error-container": "#93000a",
+                        "surface-tint": "#c6c6c7",
+                        "secondary-fixed": "#c7c6c6",
+                        "outline": "#919191",
+                        "on-tertiary-fixed": "#ffffff",
+                        "on-secondary-fixed": "#1a1c1c",
+                        "on-error-container": "#ffdad6",
+                        "on-secondary-fixed-variant": "#3a3c3c",
+                        "on-secondary": "#1a1c1c",
+                        "on-primary-container": "#000000",
+                        "inverse-on-surface": "#313030",
+                        "surface-container-lowest": "#0e0e0e",
+                        "surface-container-highest": "#353534",
+                        "on-primary": "#1a1c1c",
+                        "primary-fixed-dim": "#454747",
+                        "secondary-fixed-dim": "#ababab",
+                        "inverse-primary": "#5d5f5f",
+                        "on-surface": "#e5e2e1",
+                        "tertiary-container": "#909191",
+                        "tertiary-fixed": "#5d5f5f",
+                        "surface-bright": "#3a3939",
+                        "inverse-surface": "#e5e2e1",
+                        "on-primary-fixed": "#ffffff",
+                        "on-background": "#e5e2e1",
+                        "surface-container-high": "#2a2a2a",
+                        "on-tertiary-fixed-variant": "#e2e2e2",
+                        "surface-container": "#201f1f",
+                        "secondary-container": "#464747",
+                        "tertiary": "#e2e2e2",
+                        "secondary": "#c7c6c6",
+                        "tertiary-fixed-dim": "#454747",
+                        "surface-dim": "#131313"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.125rem",
+                        "lg": "0.25rem",
+                        "xl": "0.5rem",
+                        "full": "0.75rem"
+                    },
+                    "fontFamily": {
+                        "headline": ["Inter"],
+                        "body": ["Inter"],
+                        "label": ["Inter"]
+                    }
+                },
+            },
+        }
+    </script>
+<style>
+        body { font-family: 'Inter', sans-serif; }
+        .material-symbols-outlined { font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24; }
+        .glass-panel { background: rgba(19, 19, 19, 0.8); backdrop-filter: blur(24px); }
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+    </style>
+</head>
+<body class="bg-surface-container-lowest text-on-surface">
+<!-- TopNavBar -->
+<nav class="fixed top-0 w-full z-50 flex justify-between items-center px-8 h-16 w-full bg-[#131313]/80 backdrop-blur-xl border-b border-[#474747]/20 shadow-[0px_20px_40px_rgba(0,0,0,0.4)]">
+<div class="flex items-center gap-8">
+<span class="text-xl font-bold tracking-tighter text-white uppercase font-['Inter']">PRODSYNC</span>
+<div class="hidden md:flex gap-6 items-center">
+<a class="text-[#e5e2e1]/60 font-['Inter'] tracking-tight hover:text-white transition-colors duration-200" href="#">Dashboard</a>
+<a class="text-[#e5e2e1]/60 font-['Inter'] tracking-tight hover:text-white transition-colors duration-200" href="#">Logistics</a>
+<a class="text-white border-b-2 border-white pb-1 font-['Inter'] tracking-tight" href="#">Camera</a>
+<a class="text-[#e5e2e1]/60 font-['Inter'] tracking-tight hover:text-white transition-colors duration-200" href="#">Crew</a>
+</div>
+</div>
+<div class="flex items-center gap-4">
+<div class="relative flex items-center bg-surface-container-low px-3 py-1.5 rounded border border-outline-variant/20">
+<span class="material-symbols-outlined text-sm opacity-50 mr-2">search</span>
+<input class="bg-transparent border-none focus:ring-0 text-sm w-48 text-on-surface placeholder:text-outline" placeholder="Search assets..." type="text"/>
+</div>
+<button class="material-symbols-outlined text-on-surface-variant hover:text-white transition-colors">notifications</button>
+<button class="material-symbols-outlined text-on-surface-variant hover:text-white transition-colors">settings</button>
+<div class="w-8 h-8 rounded-full bg-surface-container-high overflow-hidden border border-outline-variant/30">
+<img class="w-full h-full object-cover" data-alt="Close-up portrait of a professional production manager with a serious expression, cinematic lighting, dark studio background" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCMqkOo1DyXVA1SkUhHCnubN_AArfdb0dmBjSDrR1Mv7q1yV-NwV-RZXyGm7rboK_O2rrMfzI_SkoOOgFmBH5vSu6BvcWEqiknIVi8UxKEaA1AE2OFL765NF1D-Hro86TEziRBm2IukAZVCqPp-BhjrWjdjB6JSIWvQRteLQSrsGf5u_a_3-vwkcDTW8-xjO1Sb_nCq2ispjtWMdwncfSECaJD5adxIvoKHvLN2MU2nGSWUuDod7IDztReF3yHfaFbLF9EOWZ_5dr-M"/>
+</div>
+</div>
+</nav>
+<!-- SideNavBar (Desktop Only) -->
+<aside class="hidden md:flex h-screen w-64 fixed left-0 top-0 pt-16 flex-col gap-2 p-4 bg-[#0e0e0e] border-r border-outline-variant/10">
+<div class="mb-6 px-2 pt-4">
+<div class="flex items-center gap-3 mb-1">
+<div class="w-8 h-8 bg-white flex items-center justify-center text-black font-black text-xs rounded-sm">SLT</div>
+<span class="text-lg font-black text-white font-['Inter']">Project Alpha</span>
+</div>
+<span class="text-[10px] uppercase tracking-[0.2em] text-outline ml-11">In Production</span>
+</div>
+<nav class="flex flex-col gap-1">
+<a class="flex items-center gap-3 px-3 py-2 text-[#e5e2e1]/50 hover:bg-[#2a2a2a]/50 hover:text-white transition-all rounded-md text-sm font-medium" href="#">
+<span class="material-symbols-outlined text-[20px]">dashboard</span> Dashboard
+            </a>
+<a class="flex items-center gap-3 px-3 py-2 text-[#e5e2e1]/50 hover:bg-[#2a2a2a]/50 hover:text-white transition-all rounded-md text-sm font-medium" href="#">
+<span class="material-symbols-outlined text-[20px]">local_shipping</span> Transport
+            </a>
+<a class="flex items-center gap-3 px-3 py-2 text-white bg-[#2a2a2a] rounded-md text-sm font-medium" href="#">
+<span class="material-symbols-outlined text-[20px]">videocam</span> Camera Assets
+            </a>
+<a class="flex items-center gap-3 px-3 py-2 text-[#e5e2e1]/50 hover:bg-[#2a2a2a]/50 hover:text-white transition-all rounded-md text-sm font-medium" href="#">
+<span class="material-symbols-outlined text-[20px]">payments</span> Crew Wages
+            </a>
+<a class="flex items-center gap-3 px-3 py-2 text-[#e5e2e1]/50 hover:bg-[#2a2a2a]/50 hover:text-white transition-all rounded-md text-sm font-medium" href="#">
+<span class="material-symbols-outlined text-[20px]">movie</span> Media Hub
+            </a>
+</nav>
+<button class="mt-4 mx-2 py-2 bg-primary text-on-primary text-xs font-bold uppercase tracking-wider rounded-sm active:scale-[0.98] transition-transform">
+            New Asset
+        </button>
+<div class="mt-auto pb-4 flex flex-col gap-1">
+<a class="flex items-center gap-3 px-3 py-2 text-[#e5e2e1]/50 hover:text-white text-sm font-medium transition-all" href="#">
+<span class="material-symbols-outlined text-[20px]">inventory_2</span> Archive
+            </a>
+<a class="flex items-center gap-3 px-3 py-2 text-[#e5e2e1]/50 hover:text-white text-sm font-medium transition-all" href="#">
+<span class="material-symbols-outlined text-[20px]">help_outline</span> Support
+            </a>
+</div>
+</aside>
+<!-- Main Content Canvas -->
+<main class="md:ml-64 pt-20 pb-12 px-8 min-h-screen">
+<!-- Header Section -->
+<header class="mb-10 flex flex-col md:flex-row md:items-end justify-between gap-6">
+<div>
+<h1 class="text-4xl font-extrabold tracking-tight text-white mb-1">Camera &amp; Asset Control</h1>
+<p class="text-on-surface-variant font-medium">Rental Tracking, Inventory &amp; On-Set Requests</p>
+</div>
+<div class="flex gap-3">
+<button class="flex items-center gap-2 px-4 py-2 bg-surface-container-high text-white text-sm font-semibold border border-outline-variant/20 hover:bg-surface-bright transition-colors rounded-sm">
+<span class="material-symbols-outlined text-lg">qr_code_scanner</span> Scan QR
+                </button>
+<button class="flex items-center gap-2 px-4 py-2 bg-primary text-on-primary text-sm font-bold border border-white hover:bg-primary-container transition-colors rounded-sm">
+<span class="material-symbols-outlined text-lg">add</span> Request Gear
+                </button>
+</div>
+</header>
+<!-- KPI Grid -->
+<section class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 mb-8">
+<div class="bg-surface-container p-5 rounded border border-outline-variant/10 shadow-sm">
+<p class="text-[10px] uppercase tracking-widest text-outline mb-1">Total Active Rentals</p>
+<div class="flex items-end gap-2">
+<span class="text-3xl font-bold text-white leading-none">142</span>
+<span class="text-xs text-primary/40 mb-1">Items</span>
+</div>
+</div>
+<div class="bg-surface-container p-5 rounded border border-outline-variant/10 shadow-sm">
+<p class="text-[10px] uppercase tracking-widest text-outline mb-1">Assets on Set</p>
+<div class="flex items-end gap-2">
+<span class="text-3xl font-bold text-white leading-none">89</span>
+<span class="material-symbols-outlined text-sm text-primary mb-1">videocam</span>
+</div>
+</div>
+<div class="bg-surface-container p-5 rounded border border-outline-variant/10 shadow-sm border-l-2 border-l-primary">
+<p class="text-[10px] uppercase tracking-widest text-outline mb-1">Assets Returned</p>
+<div class="flex items-end gap-2">
+<span class="text-3xl font-bold text-white leading-none">53</span>
+<span class="material-symbols-outlined text-sm text-outline mb-1">check_circle</span>
+</div>
+</div>
+<div class="bg-surface-container p-5 rounded border border-outline-variant/10 shadow-sm">
+<p class="text-[10px] uppercase tracking-widest text-outline mb-1">Rental Cost (Project)</p>
+<div class="flex items-end gap-2">
+<span class="text-3xl font-bold text-white leading-none">$128k</span>
+<span class="text-xs text-error mb-1">+12%</span>
+</div>
+</div>
+<div class="bg-surface-container p-5 rounded border border-outline-variant/10 shadow-sm">
+<p class="text-[10px] uppercase tracking-widest text-outline mb-1">Pending Requests</p>
+<div class="flex items-end gap-2">
+<span class="text-3xl font-bold text-error leading-none">07</span>
+<span class="material-symbols-outlined text-sm text-error mb-1">priority_high</span>
+</div>
+</div>
+</section>
+<!-- Main Dashboard Layout: Bento Grid Style -->
+<div class="grid grid-cols-12 gap-6">
+<!-- Left Column: Inventory & Requests -->
+<div class="col-span-12 lg:col-span-8 space-y-6">
+<!-- Active Inventory Tracker -->
+<div class="bg-surface-container-low rounded-lg overflow-hidden border border-outline-variant/10">
+<div class="px-6 py-4 flex justify-between items-center border-b border-outline-variant/10">
+<h2 class="text-lg font-bold text-white uppercase tracking-tighter">Active Inventory Tracker</h2>
+<div class="flex items-center gap-2">
+<button class="text-xs text-outline hover:text-white transition-colors">Export CSV</button>
+<div class="h-4 w-px bg-outline-variant/30"></div>
+<button class="text-xs text-outline hover:text-white transition-colors">View All</button>
+</div>
+</div>
+<div class="overflow-x-auto">
+<table class="w-full text-left">
+<thead class="bg-surface-container-lowest/50">
+<tr class="text-[10px] uppercase tracking-widest text-outline">
+<th class="px-6 py-4 font-semibold">Item Name</th>
+<th class="px-6 py-4 font-semibold">Category</th>
+<th class="px-6 py-4 font-semibold text-center">Qty</th>
+<th class="px-6 py-4 font-semibold">Rental Start</th>
+<th class="px-6 py-4 font-semibold">Status</th>
+</tr>
+</thead>
+<tbody class="divide-y divide-outline-variant/5">
+<tr class="group hover:bg-surface-container-high transition-colors">
+<td class="px-6 py-4 text-sm font-medium text-white flex items-center gap-3">
+<div class="w-10 h-10 bg-surface rounded flex items-center justify-center border border-outline-variant/20">
+<span class="material-symbols-outlined text-lg opacity-40">camera</span>
+</div>
+<div>
+                                            ARRI Alexa 35 Body
+                                            <div class="text-[10px] text-outline font-normal">SN: #49281-X</div>
+</div>
+</td>
+<td class="px-6 py-4 text-xs text-on-surface-variant">Camera Body</td>
+<td class="px-6 py-4 text-xs text-center font-mono">02</td>
+<td class="px-6 py-4 text-xs text-on-surface-variant">Oct 12, 08:00</td>
+<td class="px-6 py-4">
+<span class="px-2 py-1 bg-primary/10 text-primary text-[10px] font-bold rounded-sm border border-primary/20">ACTIVE</span>
+</td>
+</tr>
+<tr class="group hover:bg-surface-container-high transition-colors">
+<td class="px-6 py-4 text-sm font-medium text-white flex items-center gap-3">
+<div class="w-10 h-10 bg-surface rounded flex items-center justify-center border border-outline-variant/20">
+<span class="material-symbols-outlined text-lg opacity-40">lens</span>
+</div>
+<div>
+                                            Cooke S8/i 32mm T1.4
+                                            <div class="text-[10px] text-outline font-normal">SN: #CK-9921</div>
+</div>
+</td>
+<td class="px-6 py-4 text-xs text-on-surface-variant">Optics</td>
+<td class="px-6 py-4 text-xs text-center font-mono">01</td>
+<td class="px-6 py-4 text-xs text-on-surface-variant">Oct 14, 05:00</td>
+<td class="px-6 py-4">
+<span class="px-2 py-1 bg-error-container text-error text-[10px] font-bold rounded-sm border border-error/20">EXTRA DAY RISK</span>
+</td>
+</tr>
+<tr class="group hover:bg-surface-container-high transition-colors">
+<td class="px-6 py-4 text-sm font-medium text-white flex items-center gap-3">
+<div class="w-10 h-10 bg-surface rounded flex items-center justify-center border border-outline-variant/20">
+<span class="material-symbols-outlined text-lg opacity-40">settings</span>
+</div>
+<div>
+                                            Teradek Bolt 6 XT 750
+                                            <div class="text-[10px] text-outline font-normal">SN: #TD-1122</div>
+</div>
+</td>
+<td class="px-6 py-4 text-xs text-on-surface-variant">Video Link</td>
+<td class="px-6 py-4 text-xs text-center font-mono">03</td>
+<td class="px-6 py-4 text-xs text-on-surface-variant">Oct 10, 10:00</td>
+<td class="px-6 py-4">
+<span class="px-2 py-1 bg-surface-container-highest text-outline text-[10px] font-bold rounded-sm">RETURNED</span>
+</td>
+</tr>
+</tbody>
+</table>
+</div>
+</div>
+<!-- Emergency Gear Requests -->
+<div class="bg-surface-container-low rounded-lg border border-outline-variant/10">
+<div class="px-6 py-4 border-b border-outline-variant/10">
+<h2 class="text-lg font-bold text-white uppercase tracking-tighter">Emergency On-Set Requests</h2>
+</div>
+<div class="p-6 space-y-4">
+<div class="bg-surface p-4 border border-outline-variant/20 rounded flex justify-between items-center group">
+<div class="flex items-center gap-4">
+<div class="w-1 text-error h-10 bg-error rounded-full"></div>
+<div>
+<div class="text-sm font-bold text-white">RED V-Raptor XL Case (Backup)</div>
+<div class="text-xs text-outline">Requested by: Sarah J. (DP) • 5 mins ago</div>
+</div>
+</div>
+<div class="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+<button class="px-3 py-1.5 border border-outline-variant/30 text-[10px] font-bold uppercase rounded hover:bg-error-container hover:text-white transition-colors">Reject</button>
+<button class="px-3 py-1.5 bg-white text-black text-[10px] font-black uppercase rounded shadow-lg">Approve</button>
+</div>
+</div>
+<div class="bg-surface p-4 border border-outline-variant/20 rounded flex justify-between items-center group">
+<div class="flex items-center gap-4">
+<div class="w-1 text-primary h-10 bg-primary/20 rounded-full"></div>
+<div>
+<div class="text-sm font-bold text-white">4x Gold Mount 150Wh Batteries</div>
+<div class="text-xs text-outline">Requested by: Mike L. (AC) • 14 mins ago</div>
+</div>
+</div>
+<div class="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+<button class="px-3 py-1.5 border border-outline-variant/30 text-[10px] font-bold uppercase rounded hover:bg-error-container hover:text-white transition-colors">Reject</button>
+<button class="px-3 py-1.5 bg-white text-black text-[10px] font-black uppercase rounded shadow-lg">Approve</button>
+</div>
+</div>
+</div>
+</div>
+<!-- QR Code Activity Log -->
+<div class="bg-surface-container-low rounded-lg border border-outline-variant/10">
+<div class="px-6 py-4 border-b border-outline-variant/10">
+<h2 class="text-lg font-bold text-white uppercase tracking-tighter">QR Activity Log</h2>
+</div>
+<div class="p-6">
+<div class="space-y-6 relative before:absolute before:left-2 before:top-2 before:bottom-2 before:w-px before:bg-outline-variant/20">
+<div class="relative pl-8">
+<div class="absolute left-0 top-1 w-4 h-4 bg-primary rounded-full flex items-center justify-center">
+<span class="material-symbols-outlined text-[10px] text-on-primary font-bold">qr_code_2</span>
+</div>
+<div class="text-xs font-bold text-white">Asset Checked In</div>
+<div class="text-[10px] text-outline mb-1">10:42 AM • Stage 4 Landing</div>
+<div class="text-xs text-on-surface-variant bg-surface p-2 rounded-sm border border-outline-variant/10">OConnor 2575D Fluid Head (SN: #OC-882) returned by B. Miller</div>
+</div>
+<div class="relative pl-8">
+<div class="absolute left-0 top-1 w-4 h-4 bg-surface-variant rounded-full flex items-center justify-center">
+<span class="material-symbols-outlined text-[10px] text-white">qr_code_2</span>
+</div>
+<div class="text-xs font-bold text-white">Asset Checked Out</div>
+<div class="text-[10px] text-outline mb-1">09:15 AM • Grip Truck 2</div>
+<div class="text-xs text-on-surface-variant">SmallHD Cine 13" High-Bright (SN: #SHD-004) to M. Davis</div>
+</div>
+<div class="relative pl-8">
+<div class="absolute left-0 top-1 w-4 h-4 bg-error rounded-full flex items-center justify-center">
+<span class="material-symbols-outlined text-[10px] text-on-error">warning</span>
+</div>
+<div class="text-xs font-bold text-error">Unauthorized Scan</div>
+<div class="text-[10px] text-outline mb-1">08:50 AM • Main Entrance</div>
+<div class="text-xs text-error/80">Unknown asset ID #SCAN-VOID-01 detected in Loading Dock 1.</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+<!-- Right Column: Budget & Analytics -->
+<div class="col-span-12 lg:col-span-4 space-y-6">
+<!-- Alerts & Exceptions -->
+<div class="bg-surface-container-low rounded-lg border border-outline-variant/10 overflow-hidden">
+<div class="px-5 py-4 bg-error/5 border-b border-error/10 flex items-center gap-2">
+<span class="material-symbols-outlined text-error text-lg">warning</span>
+<h2 class="text-sm font-black text-error uppercase">Active Alerts</h2>
+</div>
+<div class="p-4 space-y-3">
+<div class="p-3 bg-error-container/20 border-l-2 border-error rounded-r-sm">
+<p class="text-xs font-bold text-white">Damage Reported</p>
+<p class="text-[10px] text-error/80">ARRI Master Prime 50mm has front element scratch reported in daily log.</p>
+</div>
+<div class="p-3 bg-surface-container-highest/40 border-l-2 border-tertiary rounded-r-sm">
+<p class="text-xs font-bold text-white">Budget Cap Warning</p>
+<p class="text-[10px] text-on-surface-variant">Camera rentals currently at 94% of allocated Phase 2 budget.</p>
+</div>
+<div class="p-3 bg-surface-container-highest/40 border-l-2 border-outline-variant rounded-r-sm">
+<p class="text-xs font-bold text-white">Unapproved Request</p>
+<p class="text-[10px] text-on-surface-variant">Steadicam Rig requested without Line Producer authorization.</p>
+</div>
+</div>
+</div>
+<!-- Rental Cost Timers -->
+<div class="bg-surface-container-low rounded-lg border border-outline-variant/10">
+<div class="px-5 py-4 border-b border-outline-variant/10">
+<h2 class="text-sm font-black text-white uppercase">Live Rental Clocks</h2>
+</div>
+<div class="p-5 space-y-4">
+<div class="flex flex-col gap-2">
+<div class="flex justify-between items-center text-xs">
+<span class="font-bold text-white">Daily Package A</span>
+<span class="font-mono text-primary">$4,250/day</span>
+</div>
+<div class="h-2 w-full bg-surface-container-highest rounded-full overflow-hidden">
+<div class="h-full bg-primary w-3/4"></div>
+</div>
+<div class="flex justify-between text-[10px] text-outline">
+<span>Cycle Start: 06:00 AM</span>
+<span>Billing in: 04h 22m</span>
+</div>
+</div>
+<div class="flex flex-col gap-2">
+<div class="flex justify-between items-center text-xs">
+<span class="font-bold text-white">Specialty Grip Kit</span>
+<span class="font-mono text-primary">$1,100/day</span>
+</div>
+<div class="h-2 w-full bg-surface-container-highest rounded-full overflow-hidden">
+<div class="h-full bg-error w-11/12"></div>
+</div>
+<div class="flex justify-between text-[10px] text-outline">
+<span>Cycle Start: 08:00 AM</span>
+<span class="text-error font-bold italic">Billing in: 00h 15m</span>
+</div>
+</div>
+</div>
+</div>
+<!-- Budget Impact Panel -->
+<div class="bg-surface-container-low rounded-lg border border-outline-variant/10 p-6">
+<h2 class="text-sm font-black text-white uppercase mb-4">Budget Impact</h2>
+<div class="space-y-4">
+<div>
+<div class="flex justify-between text-[10px] uppercase font-bold text-outline mb-2">
+<span>Camera Dept Budget</span>
+<span class="text-white">$450,000</span>
+</div>
+<div class="h-4 w-full bg-surface-container-highest rounded-sm p-0.5">
+<div class="h-full bg-primary/40 w-[68%] relative">
+<div class="absolute right-0 top-0 h-full w-px bg-white shadow-[0_0_8px_white]"></div>
+</div>
+</div>
+<div class="flex justify-between mt-2">
+<span class="text-[10px] text-outline">Used: $306k (68%)</span>
+<span class="text-[10px] text-on-surface-variant font-bold">Remaining: $144k</span>
+</div>
+</div>
+<div class="bg-primary/5 p-4 rounded border border-primary/10">
+<div class="text-[10px] font-black uppercase text-primary mb-1">Impact of New Request</div>
+<div class="flex justify-between items-end">
+<div class="text-lg font-bold text-white">+$12,400</div>
+<div class="text-[10px] text-outline italic">Est. Project Total: $318.4k</div>
+</div>
+</div>
+</div>
+</div>
+<!-- Usage & Cost Analytics (Mini Charts) -->
+<div class="bg-surface-container-low rounded-lg border border-outline-variant/10 p-6">
+<h2 class="text-sm font-black text-white uppercase mb-4">Rental Cost Trend</h2>
+<div class="h-32 w-full flex items-end gap-1.5">
+<div class="bg-surface-container-highest w-full h-1/2 group relative">
+<div class="absolute bottom-full left-1/2 -translate-x-1/2 mb-1 hidden group-hover:block text-[8px] bg-white text-black px-1 rounded font-bold">$12k</div>
+</div>
+<div class="bg-surface-container-highest w-full h-2/3 group relative">
+<div class="absolute bottom-full left-1/2 -translate-x-1/2 mb-1 hidden group-hover:block text-[8px] bg-white text-black px-1 rounded font-bold">$16k</div>
+</div>
+<div class="bg-surface-container-highest w-full h-3/4 group relative">
+<div class="absolute bottom-full left-1/2 -translate-x-1/2 mb-1 hidden group-hover:block text-[8px] bg-white text-black px-1 rounded font-bold">$18k</div>
+</div>
+<div class="bg-primary w-full h-[90%] group relative">
+<div class="absolute bottom-full left-1/2 -translate-x-1/2 mb-1 hidden group-hover:block text-[8px] bg-white text-black px-1 rounded font-bold">$22k</div>
+</div>
+<div class="bg-surface-container-highest w-full h-2/3 group relative">
+<div class="absolute bottom-full left-1/2 -translate-x-1/2 mb-1 hidden group-hover:block text-[8px] bg-white text-black px-1 rounded font-bold">$16k</div>
+</div>
+<div class="bg-surface-container-highest w-full h-3/5 group relative">
+<div class="absolute bottom-full left-1/2 -translate-x-1/2 mb-1 hidden group-hover:block text-[8px] bg-white text-black px-1 rounded font-bold">$14k</div>
+</div>
+<div class="bg-surface-container-highest w-full h-[85%] group relative">
+<div class="absolute bottom-full left-1/2 -translate-x-1/2 mb-1 hidden group-hover:block text-[8px] bg-white text-black px-1 rounded font-bold">$20k</div>
+</div>
+</div>
+<div class="flex justify-between mt-3 text-[9px] uppercase tracking-tighter text-outline font-bold">
+<span>Mon</span>
+<span>Tue</span>
+<span>Wed</span>
+<span class="text-white">Thu</span>
+<span>Fri</span>
+<span>Sat</span>
+<span>Sun</span>
+</div>
+</div>
+<!-- Quick Actions Grid -->
+<div class="grid grid-cols-2 gap-3">
+<button class="bg-surface-container p-4 rounded border border-outline-variant/10 text-left hover:bg-surface-container-high transition-all">
+<span class="material-symbols-outlined text-outline mb-2">add_shopping_cart</span>
+<div class="text-[10px] font-black uppercase text-white leading-tight">Create<br/>Order</div>
+</button>
+<button class="bg-surface-container p-4 rounded border border-outline-variant/10 text-left hover:bg-surface-container-high transition-all">
+<span class="material-symbols-outlined text-outline mb-2">qr_code</span>
+<div class="text-[10px] font-black uppercase text-white leading-tight">Batch<br/>Scan</div>
+</button>
+<button class="bg-surface-container p-4 rounded border border-outline-variant/10 text-left hover:bg-surface-container-high transition-all">
+<span class="material-symbols-outlined text-outline mb-2">report_problem</span>
+<div class="text-[10px] font-black uppercase text-white leading-tight">Report<br/>Damage</div>
+</button>
+<button class="bg-surface-container p-4 rounded border border-outline-variant/10 text-left hover:bg-surface-container-high transition-all">
+<span class="material-symbols-outlined text-outline mb-2">description</span>
+<div class="text-[10px] font-black uppercase text-white leading-tight">Inventory<br/>Report</div>
+</button>
+</div>
+</div>
+</div>
+</main>
+<!-- BottomNavBar (Mobile Only) -->
+<nav class="md:hidden fixed bottom-0 left-0 w-full h-16 glass-panel border-t border-outline-variant/20 flex items-center justify-around px-4 z-50">
+<button class="flex flex-col items-center gap-1 text-[#e5e2e1]/50">
+<span class="material-symbols-outlined">dashboard</span>
+<span class="text-[9px] font-bold">DASH</span>
+</button>
+<button class="flex flex-col items-center gap-1 text-white">
+<span class="material-symbols-outlined">videocam</span>
+<span class="text-[9px] font-bold">CAMERA</span>
+</button>
+<button class="w-12 h-12 -mt-8 bg-white rounded-full flex items-center justify-center text-black shadow-xl">
+<span class="material-symbols-outlined">qr_code_scanner</span>
+</button>
+<button class="flex flex-col items-center gap-1 text-[#e5e2e1]/50">
+<span class="material-symbols-outlined">local_shipping</span>
+<span class="text-[9px] font-bold">SHIP</span>
+</button>
+<button class="flex flex-col items-center gap-1 text-[#e5e2e1]/50">
+<span class="material-symbols-outlined">person</span>
+<span class="text-[9px] font-bold">ME</span>
+</button>
+</nav>
+</body></html>

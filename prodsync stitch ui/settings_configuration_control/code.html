@@ -1,0 +1,560 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Settings &amp; Configuration | ProdSync</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@100..900&amp;family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+          darkMode: "class",
+          theme: {
+            extend: {
+              "colors": {
+                      "outline-variant": "#474747",
+                      "on-tertiary-fixed-variant": "#e2e2e2",
+                      "primary-fixed": "#5d5f5f",
+                      "outline": "#919191",
+                      "tertiary-container": "#909191",
+                      "on-secondary": "#1a1c1c",
+                      "on-primary-fixed-variant": "#e2e2e2",
+                      "background": "#131313",
+                      "on-tertiary-container": "#000000",
+                      "on-secondary-fixed-variant": "#3a3c3c",
+                      "secondary-container": "#464747",
+                      "on-tertiary": "#1a1c1c",
+                      "surface-variant": "#353534",
+                      "on-surface-variant": "#c6c6c6",
+                      "surface-container": "#201f1f",
+                      "primary-fixed-dim": "#454747",
+                      "on-secondary-fixed": "#1a1c1c",
+                      "surface-container-lowest": "#0e0e0e",
+                      "surface": "#131313",
+                      "secondary-fixed-dim": "#ababab",
+                      "on-tertiary-fixed": "#ffffff",
+                      "on-error": "#690005",
+                      "inverse-primary": "#5d5f5f",
+                      "error-container": "#93000a",
+                      "primary-container": "#d4d4d4",
+                      "surface-container-high": "#2a2a2a",
+                      "tertiary-fixed": "#5d5f5f",
+                      "error": "#ffb4ab",
+                      "tertiary": "#e2e2e2",
+                      "secondary": "#c7c6c6",
+                      "inverse-surface": "#e5e2e1",
+                      "surface-dim": "#131313",
+                      "on-error-container": "#ffdad6",
+                      "on-background": "#e5e2e1",
+                      "inverse-on-surface": "#313030",
+                      "secondary-fixed": "#c7c6c6",
+                      "on-surface": "#e5e2e1",
+                      "surface-container-low": "#1c1b1b",
+                      "on-primary-container": "#000000",
+                      "primary": "#ffffff",
+                      "on-primary-fixed": "#ffffff",
+                      "tertiary-fixed-dim": "#454747",
+                      "on-secondary-container": "#e3e2e2",
+                      "surface-tint": "#c6c6c7",
+                      "surface-bright": "#3a3939",
+                      "on-primary": "#1a1c1c",
+                      "surface-container-highest": "#353534"
+              },
+              "borderRadius": {
+                      "DEFAULT": "0.125rem",
+                      "lg": "0.25rem",
+                      "xl": "0.5rem",
+                      "full": "0.75rem"
+              },
+              "fontFamily": {
+                      "headline": ["Inter"],
+                      "body": ["Inter"],
+                      "label": ["Inter"]
+              }
+            },
+          },
+        }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        body {
+            background-color: #131313;
+            color: #e5e2e1;
+            font-family: 'Inter', sans-serif;
+        }
+        .glass-nav {
+            background: rgba(19, 19, 19, 0.8);
+            backdrop-filter: blur(24px);
+        }
+        .ghost-border {
+            border: 1px solid rgba(71, 71, 71, 0.2);
+        }
+        .custom-scrollbar::-webkit-scrollbar {
+            width: 4px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+            background: #0e0e0e;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+            background: #474747;
+            border-radius: 2px;
+        }
+    </style>
+</head>
+<body class="antialiased custom-scrollbar">
+<!-- TopNavBar -->
+<nav class="fixed top-0 w-full z-50 glass-nav shadow-[0px_20px_40px_rgba(0,0,0,0.4)] flex justify-between items-center px-8 h-16 w-full border-b border-[#474747]/20">
+<div class="flex items-center gap-8">
+<span class="text-xl font-bold tracking-tighter text-white">ProdSync</span>
+<div class="hidden md:flex gap-6">
+<a class="text-[#e5e2e1]/60 font-inter text-sm hover:text-white transition-colors duration-200" href="#">Dashboard</a>
+<a class="text-white font-bold border-b-2 border-white font-inter text-sm" href="#">Settings</a>
+<a class="text-[#e5e2e1]/60 font-inter text-sm hover:text-white transition-colors duration-200" href="#">Production</a>
+</div>
+</div>
+<div class="flex items-center gap-4">
+<div class="flex items-center gap-2 px-3 py-1.5 bg-[#0e0e0e] ghost-border rounded-md">
+<span class="material-symbols-outlined text-sm text-[#919191]">search</span>
+<input class="bg-transparent border-none focus:ring-0 text-sm w-48 text-white placeholder-[#919191]" placeholder="Global Search..." type="text"/>
+</div>
+<div class="flex gap-3 text-[#e5e2e1]/60">
+<button class="material-symbols-outlined hover:text-white transition-opacity active:opacity-80">notifications</button>
+<button class="material-symbols-outlined hover:text-white transition-opacity active:opacity-80">settings</button>
+<button class="material-symbols-outlined hover:text-white transition-opacity active:opacity-80">help</button>
+</div>
+<div class="w-8 h-8 rounded-full overflow-hidden border border-outline-variant/30">
+<img alt="User Profile" data-alt="professional portrait of a production manager in a studio setting with cinematic rim lighting" src="https://lh3.googleusercontent.com/aida-public/AB6AXuAkvkxHk-x68uiq5rmFn9BLJFEDVeKFItRUGF7yt1t3ACV8G6ZjyGrQkUXDIbvQsAOCLiW6b4XztsdE9xXQbZL_33zWw3FUbwr3MfOxuwFW1QDF-hJgHapJBN-uvv3Q0NUzv21XblpwX9sljXV0ptRkFzW1SxhLYiES7gc1eAGsu6R219VqmZHf6fj4m2-MPFinAYka0MdL1gVtTa12aVdM2fsqHyJ5sf98wwae2IWGCr6CaRfFFs7MqcK_vp2dOqOiAWNpEOB0PdWp"/>
+</div>
+</div>
+</nav>
+<!-- SideNavBar -->
+<aside class="fixed left-0 h-full w-64 border-r border-[#474747]/20 bg-[#0e0e0e] flex flex-col h-full py-6 px-4 space-y-2 mt-16 hidden md:flex">
+<div class="mb-6 px-2">
+<h2 class="text-white font-black tracking-tighter text-lg">Project Setup</h2>
+<p class="text-[#e5e2e1]/70 text-xs font-inter tracking-wide">Production Control</p>
+</div>
+<nav class="flex-1 space-y-1">
+<a class="flex items-center gap-3 px-3 py-2 bg-[#2a2a2a] text-white rounded-md transition-all" href="#">
+<span class="material-symbols-outlined text-[20px]">group</span>
+<span class="font-inter text-sm font-medium">User Management</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2 text-[#e5e2e1]/70 hover:bg-[#131313] hover:text-white rounded-md transition-all" href="#">
+<span class="material-symbols-outlined text-[20px]">settings_applications</span>
+<span class="font-inter text-sm font-medium">Project Settings</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2 text-[#e5e2e1]/70 hover:bg-[#131313] hover:text-white rounded-md transition-all" href="#">
+<span class="material-symbols-outlined text-[20px]">payments</span>
+<span class="font-inter text-sm font-medium">Budget Config</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2 text-[#e5e2e1]/70 hover:bg-[#131313] hover:text-white rounded-md transition-all" href="#">
+<span class="material-symbols-outlined text-[20px]">timer</span>
+<span class="font-inter text-sm font-medium">OT Rules</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2 text-[#e5e2e1]/70 hover:bg-[#131313] hover:text-white rounded-md transition-all" href="#">
+<span class="material-symbols-outlined text-[20px]">location_on</span>
+<span class="font-inter text-sm font-medium">Geo-Fence</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2 text-[#e5e2e1]/70 hover:bg-[#131313] hover:text-white rounded-md transition-all" href="#">
+<span class="material-symbols-outlined text-[20px]">account_balance</span>
+<span class="font-inter text-sm font-medium">Payouts</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2 text-[#e5e2e1]/70 hover:bg-[#131313] hover:text-white rounded-md transition-all" href="#">
+<span class="material-symbols-outlined text-[20px]">notifications_active</span>
+<span class="font-inter text-sm font-medium">Notifications</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2 text-[#e5e2e1]/70 hover:bg-[#131313] hover:text-white rounded-md transition-all" href="#">
+<span class="material-symbols-outlined text-[20px]">lock_person</span>
+<span class="font-inter text-sm font-medium">Permissions</span>
+</a>
+</nav>
+<div class="pt-6 border-t border-[#474747]/20 space-y-1">
+<a class="flex items-center gap-3 px-3 py-2 text-[#e5e2e1]/70 hover:bg-[#131313] hover:text-white rounded-md transition-all" href="#">
+<span class="material-symbols-outlined text-[20px]">contact_support</span>
+<span class="font-inter text-sm font-medium">Support</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2 text-[#e5e2e1]/70 hover:bg-[#131313] hover:text-white rounded-md transition-all" href="#">
+<span class="material-symbols-outlined text-[20px]">logout</span>
+<span class="font-inter text-sm font-medium">Log Out</span>
+</a>
+</div>
+</aside>
+<!-- Main Canvas -->
+<main class="md:ml-64 pt-24 pb-12 px-8">
+<header class="mb-10 flex flex-col md:flex-row justify-between items-start md:items-end gap-4">
+<div>
+<h1 class="text-4xl md:text-5xl font-black tracking-tighter text-white mb-2">Settings &amp; Configuration</h1>
+<p class="text-[#919191] font-inter text-lg">Project Setup, Permissions &amp; System Controls</p>
+</div>
+<div class="flex gap-3">
+<button class="bg-[#2a2a2a] text-white px-5 py-2.5 rounded-md text-sm font-medium ghost-border hover:bg-[#353534] transition-colors flex items-center gap-2">
+<span class="material-symbols-outlined text-sm">download</span> Export Configuration
+                </button>
+<button class="bg-white text-[#1a1c1c] px-5 py-2.5 rounded-md text-sm font-bold hover:bg-[#d4d4d4] transition-colors flex items-center gap-2">
+<span class="material-symbols-outlined text-sm">add</span> Add New User
+                </button>
+</div>
+</header>
+<div class="grid grid-cols-12 gap-6">
+<!-- User Management Section -->
+<section class="col-span-12 lg:col-span-8 bg-[#1c1b1b] rounded-xl ghost-border overflow-hidden">
+<div class="p-6 border-b border-[#474747]/20 flex justify-between items-center">
+<h3 class="text-xl font-bold text-white flex items-center gap-2">
+<span class="material-symbols-outlined">group</span> User Management
+                    </h3>
+</div>
+<div class="overflow-x-auto">
+<table class="w-full text-left">
+<thead class="bg-[#0e0e0e] text-[#919191] text-xs font-label tracking-widest uppercase">
+<tr>
+<th class="px-6 py-4">Name</th>
+<th class="px-6 py-4">Role</th>
+<th class="px-6 py-4">Department</th>
+<th class="px-6 py-4">Phone</th>
+<th class="px-6 py-4">Status</th>
+</tr>
+</thead>
+<tbody class="divide-y divide-[#474747]/10">
+<tr class="hover:bg-[#2a2a2a] transition-colors">
+<td class="px-6 py-4 text-white font-medium">David Fincher</td>
+<td class="px-6 py-4"><span class="bg-[#2a2a2a] px-2 py-1 rounded text-[10px] text-white border border-[#474747]/40">EP</span></td>
+<td class="px-6 py-4 text-[#e5e2e1]/70 text-sm">Production</td>
+<td class="px-6 py-4 text-[#e5e2e1]/70 text-sm">+1 415 555 0123</td>
+<td class="px-6 py-4"><span class="flex items-center gap-1.5 text-green-400 text-xs"><span class="w-1.5 h-1.5 rounded-full bg-green-400"></span> Active</span></td>
+</tr>
+<tr class="hover:bg-[#2a2a2a] transition-colors">
+<td class="px-6 py-4 text-white font-medium">Thelma Schoonmaker</td>
+<td class="px-6 py-4"><span class="bg-[#2a2a2a] px-2 py-1 rounded text-[10px] text-white border border-[#474747]/40">HOD</span></td>
+<td class="px-6 py-4 text-[#e5e2e1]/70 text-sm">Editorial</td>
+<td class="px-6 py-4 text-[#e5e2e1]/70 text-sm">+1 415 555 0199</td>
+<td class="px-6 py-4"><span class="flex items-center gap-1.5 text-green-400 text-xs"><span class="w-1.5 h-1.5 rounded-full bg-green-400"></span> Active</span></td>
+</tr>
+<tr class="hover:bg-[#2a2a2a] transition-colors">
+<td class="px-6 py-4 text-white font-medium">Robert Richardson</td>
+<td class="px-6 py-4"><span class="bg-[#2a2a2a] px-2 py-1 rounded text-[10px] text-white border border-[#474747]/40">Crew</span></td>
+<td class="px-6 py-4 text-[#e5e2e1]/70 text-sm">Camera</td>
+<td class="px-6 py-4 text-[#e5e2e1]/70 text-sm">+1 415 555 0104</td>
+<td class="px-6 py-4"><span class="flex items-center gap-1.5 text-[#919191] text-xs"><span class="w-1.5 h-1.5 rounded-full bg-[#919191]"></span> On Leave</span></td>
+</tr>
+</tbody>
+</table>
+</div>
+</section>
+<!-- Project Settings & Quick Actions -->
+<aside class="col-span-12 lg:col-span-4 space-y-6">
+<section class="bg-[#1c1b1b] p-6 rounded-xl ghost-border">
+<h3 class="text-sm font-bold text-[#919191] uppercase tracking-widest mb-6">Quick Actions</h3>
+<div class="grid grid-cols-2 gap-3">
+<button class="flex flex-col items-center justify-center gap-2 p-4 bg-[#2a2a2a] rounded-lg hover:bg-[#353534] transition-all group">
+<span class="material-symbols-outlined text-white group-hover:scale-110 transition-transform">person_add</span>
+<span class="text-xs text-[#e5e2e1]/70">Add User</span>
+</button>
+<button class="flex flex-col items-center justify-center gap-2 p-4 bg-[#2a2a2a] rounded-lg hover:bg-[#353534] transition-all group">
+<span class="material-symbols-outlined text-white group-hover:scale-110 transition-transform">account_balance_wallet</span>
+<span class="text-xs text-[#e5e2e1]/70">Update Budget</span>
+</button>
+<button class="flex flex-col items-center justify-center gap-2 p-4 bg-[#2a2a2a] rounded-lg hover:bg-[#353534] transition-all group">
+<span class="material-symbols-outlined text-white group-hover:scale-110 transition-transform">history</span>
+<span class="text-xs text-[#e5e2e1]/70">Reset System</span>
+</button>
+<button class="flex flex-col items-center justify-center gap-2 p-4 bg-[#2a2a2a] rounded-lg hover:bg-[#353534] transition-all group">
+<span class="material-symbols-outlined text-white group-hover:scale-110 transition-transform">description</span>
+<span class="text-xs text-[#e5e2e1]/70">Audit Log</span>
+</button>
+</div>
+</section>
+<section class="bg-[#1c1b1b] p-6 rounded-xl ghost-border">
+<h3 class="text-lg font-bold text-white mb-4">Project Settings</h3>
+<div class="space-y-4">
+<div>
+<label class="text-[10px] text-[#919191] uppercase tracking-widest block mb-1">Project Title</label>
+<p class="text-white font-medium">NEON NOIR: SHADOWS</p>
+</div>
+<div class="flex justify-between">
+<div>
+<label class="text-[10px] text-[#919191] uppercase tracking-widest block mb-1">Start Date</label>
+<p class="text-white text-sm">Nov 12, 2024</p>
+</div>
+<div>
+<label class="text-[10px] text-[#919191] uppercase tracking-widest block mb-1">Status</label>
+<span class="bg-white text-[#1a1c1c] text-[10px] px-2 py-0.5 rounded-full font-black">SHOOTING</span>
+</div>
+</div>
+<div class="pt-4 flex gap-2">
+<button class="flex-1 text-xs py-2 bg-white text-black font-bold rounded">Edit</button>
+<button class="flex-1 text-xs py-2 border border-[#474747] text-white rounded">Archive</button>
+</div>
+</div>
+</section>
+</aside>
+<!-- Budget Configuration -->
+<section class="col-span-12 lg:col-span-7 bg-[#1c1b1b] p-6 rounded-xl ghost-border">
+<div class="flex justify-between items-center mb-8">
+<h3 class="text-xl font-bold text-white flex items-center gap-2">
+<span class="material-symbols-outlined">payments</span> Budget Configuration
+                    </h3>
+<button class="text-xs text-[#919191] hover:text-white transition-colors flex items-center gap-1">
+<span class="material-symbols-outlined text-sm">lock</span> Lock All Budgets
+                    </button>
+</div>
+<div class="space-y-6">
+<!-- Progress Item -->
+<div class="space-y-2">
+<div class="flex justify-between text-sm">
+<span class="text-white">Transport &amp; Logistics</span>
+<span class="text-[#919191]">$12,400 / $15,000</span>
+</div>
+<div class="h-1.5 w-full bg-[#0e0e0e] rounded-full overflow-hidden">
+<div class="h-full bg-white w-[82%]"></div>
+</div>
+</div>
+<div class="space-y-2">
+<div class="flex justify-between text-sm">
+<span class="text-white">Camera &amp; Optics</span>
+<span class="text-[#919191]">$45,000 / $50,000</span>
+</div>
+<div class="h-1.5 w-full bg-[#0e0e0e] rounded-full overflow-hidden">
+<div class="h-full bg-white w-[90%]"></div>
+</div>
+</div>
+<div class="space-y-2">
+<div class="flex justify-between text-sm">
+<span class="text-white">Art &amp; Wardrobe</span>
+<span class="text-[#919191]">$8,200 / $20,000</span>
+</div>
+<div class="h-1.5 w-full bg-[#0e0e0e] rounded-full overflow-hidden">
+<div class="h-full bg-white w-[41%]"></div>
+</div>
+</div>
+</div>
+</section>
+<!-- OT Rules Section -->
+<section class="col-span-12 lg:col-span-5 bg-[#1c1b1b] p-6 rounded-xl ghost-border">
+<h3 class="text-xl font-bold text-white mb-6 flex items-center gap-2">
+<span class="material-symbols-outlined">timer</span> Overtime (OT) Rules
+                </h3>
+<div class="space-y-6">
+<div class="flex justify-between items-center p-4 bg-[#0e0e0e] rounded-lg">
+<div>
+<p class="text-sm font-medium text-white">Shift Cutoff Time</p>
+<p class="text-[10px] text-[#919191]">Auto-start OT after this hour</p>
+</div>
+<input class="w-16 bg-[#2a2a2a] border-none rounded text-center text-sm font-bold text-white py-1" type="text" value="18:00"/>
+</div>
+<div class="flex justify-between items-center p-4 bg-[#0e0e0e] rounded-lg">
+<div>
+<p class="text-sm font-medium text-white">OT Multiplier</p>
+<p class="text-[10px] text-[#919191]">Hourly base rate x multiplier</p>
+</div>
+<div class="flex items-center gap-2">
+<span class="text-xs text-[#919191]">x</span>
+<input class="w-12 bg-[#2a2a2a] border-none rounded text-center text-sm font-bold text-white py-1" type="text" value="2.0"/>
+</div>
+</div>
+<div class="flex justify-between items-center">
+<p class="text-sm text-white">Enable Pre-alerts (30m)</p>
+<button class="w-10 h-5 bg-white rounded-full relative">
+<div class="absolute right-1 top-1 w-3 h-3 bg-[#131313] rounded-full"></div>
+</button>
+</div>
+</div>
+</section>
+<!-- Geo-Fence Section -->
+<section class="col-span-12 lg:col-span-8 bg-[#1c1b1b] p-6 rounded-xl ghost-border">
+<div class="flex justify-between items-start mb-6">
+<div>
+<h3 class="text-xl font-bold text-white flex items-center gap-2">
+<span class="material-symbols-outlined">location_on</span> Geo-Fence &amp; Location
+                        </h3>
+<p class="text-sm text-[#919191] mt-1">Manage physical perimeter for attendance &amp; payouts</p>
+</div>
+<div class="flex gap-4">
+<div class="text-right">
+<p class="text-[10px] text-[#919191] uppercase tracking-widest">Base Radius</p>
+<p class="text-white font-bold">500m</p>
+</div>
+<button class="w-10 h-10 bg-[#2a2a2a] rounded-full flex items-center justify-center text-white">
+<span class="material-symbols-outlined">edit_location_alt</span>
+</button>
+</div>
+</div>
+<div class="h-64 rounded-lg bg-[#0e0e0e] overflow-hidden relative border border-[#474747]/20">
+<!-- Map Placeholder Image -->
+<div class="absolute inset-0 opacity-40 grayscale contrast-125">
+<img class="w-full h-full object-cover" data-alt="minimalist black and white satellite map view of urban city grid with geometric street patterns" src="https://lh3.googleusercontent.com/aida-public/AB6AXuALqcI51oueyM21MH72G-25ymc5oEmn1ILYj8t2jQuVq4ANXJcKYjR3nPR2EG5Z9ylopNNoGBrgitMSRvjzVHX2cwGICH8sHyxPVIhKcHU9JQ6JyO-cCm2cV43GXZ_A88FpDz0gBlpXm135yYrufLQAKFiUMlEYgPipF_oo9oq1i_AkMF_hJgpc7LGZpYl_VfJHNsd1FP-yABenSP_5lPFpRLs-SUU1i0hKBICsr6X6DseyQ0KqVk2iX7IlGXYdRyYRFeEziyrk1L75"/>
+</div>
+<div class="absolute inset-0 flex items-center justify-center">
+<div class="w-32 h-32 rounded-full border-2 border-white/50 bg-white/5 flex items-center justify-center">
+<div class="w-2 h-2 rounded-full bg-white shadow-[0_0_10px_white]"></div>
+</div>
+</div>
+<div class="absolute bottom-4 left-4 bg-[#131313]/90 p-3 rounded-md border border-[#474747]/40 backdrop-blur-md">
+<p class="text-[10px] text-[#919191] uppercase tracking-widest mb-1">Current Base</p>
+<p class="text-xs text-white">Warner Bros Studio, Stage 4</p>
+</div>
+</div>
+</section>
+<!-- Payment & Payouts Section -->
+<section class="col-span-12 lg:col-span-4 bg-[#1c1b1b] p-6 rounded-xl ghost-border">
+<h3 class="text-xl font-bold text-white mb-6 flex items-center gap-2">
+<span class="material-symbols-outlined">account_balance</span> Payment &amp; Payouts
+                </h3>
+<div class="space-y-4">
+<div class="p-4 bg-[#0e0e0e] rounded-lg space-y-3">
+<label class="text-[10px] text-[#919191] uppercase tracking-widest">Payment Methods</label>
+<div class="flex gap-2">
+<span class="px-3 py-1 bg-[#2a2a2a] text-white text-[11px] rounded ghost-border">Cash</span>
+<span class="px-3 py-1 bg-[#2a2a2a] text-white text-[11px] rounded ghost-border">UPI</span>
+<span class="px-3 py-1 bg-[#2a2a2a] text-[#919191] text-[11px] rounded ghost-border opacity-50">Wire</span>
+</div>
+</div>
+<div class="p-4 bg-[#0e0e0e] rounded-lg">
+<div class="flex justify-between items-center">
+<span class="text-sm text-white">Default Batta</span>
+<span class="text-sm font-bold text-white">$45.00</span>
+</div>
+</div>
+<div class="p-4 bg-[#2a2a2a] rounded-lg border border-white/10">
+<label class="text-[10px] text-[#919191] uppercase tracking-widest block mb-2">Approval Threshold</label>
+<div class="flex items-center justify-between">
+<span class="text-xs text-white">Requests &gt; </span>
+<span class="text-lg font-black text-white">$50,000</span>
+</div>
+</div>
+</div>
+</section>
+<!-- Permissions & RBAC -->
+<section class="col-span-12 lg:col-span-6 bg-[#1c1b1b] p-6 rounded-xl ghost-border">
+<h3 class="text-xl font-bold text-white mb-6 flex items-center gap-2">
+<span class="material-symbols-outlined">lock_person</span> Permissions &amp; RBAC
+                </h3>
+<div class="overflow-x-auto">
+<table class="w-full text-center">
+<thead class="text-[10px] text-[#919191] uppercase tracking-widest">
+<tr>
+<th class="pb-4 text-left">Module</th>
+<th class="pb-4">View</th>
+<th class="pb-4">Edit</th>
+<th class="pb-4">Approve</th>
+</tr>
+</thead>
+<tbody class="text-sm">
+<tr class="border-t border-[#474747]/10">
+<td class="py-3 text-left text-white font-medium">Budgets</td>
+<td class="py-3 text-white"><span class="material-symbols-outlined text-[18px]">check_circle</span></td>
+<td class="py-3 text-[#919191]"><span class="material-symbols-outlined text-[18px]">radio_button_unchecked</span></td>
+<td class="py-3 text-[#919191]"><span class="material-symbols-outlined text-[18px]">radio_button_unchecked</span></td>
+</tr>
+<tr class="border-t border-[#474747]/10">
+<td class="py-3 text-left text-white font-medium">HOD Panel</td>
+<td class="py-3 text-white"><span class="material-symbols-outlined text-[18px]">check_circle</span></td>
+<td class="py-3 text-white"><span class="material-symbols-outlined text-[18px]">check_circle</span></td>
+<td class="py-3 text-[#919191]"><span class="material-symbols-outlined text-[18px]">radio_button_unchecked</span></td>
+</tr>
+<tr class="border-t border-[#474747]/10">
+<td class="py-3 text-left text-white font-medium">Executive</td>
+<td class="py-3 text-white"><span class="material-symbols-outlined text-[18px]">check_circle</span></td>
+<td class="py-3 text-white"><span class="material-symbols-outlined text-[18px]">check_circle</span></td>
+<td class="py-3 text-white"><span class="material-symbols-outlined text-[18px]">check_circle</span></td>
+</tr>
+</tbody>
+</table>
+</div>
+</section>
+<!-- Notification Settings -->
+<section class="col-span-12 lg:col-span-6 bg-[#1c1b1b] p-6 rounded-xl ghost-border">
+<h3 class="text-xl font-bold text-white mb-6 flex items-center gap-2">
+<span class="material-symbols-outlined">notifications_active</span> Notifications
+                </h3>
+<div class="space-y-4">
+<div class="flex items-center justify-between p-3 bg-[#0e0e0e] rounded-lg">
+<span class="text-sm text-white">Budget Alerts</span>
+<div class="flex gap-4">
+<div class="flex items-center gap-2">
+<span class="text-[10px] text-[#919191]">App</span>
+<div class="w-8 h-4 bg-white rounded-full relative"><div class="absolute right-0.5 top-0.5 w-3 h-3 bg-[#131313] rounded-full"></div></div>
+</div>
+<div class="flex items-center gap-2">
+<span class="text-[10px] text-[#919191]">SMS</span>
+<div class="w-8 h-4 bg-[#2a2a2a] rounded-full relative"><div class="absolute left-0.5 top-0.5 w-3 h-3 bg-[#919191] rounded-full"></div></div>
+</div>
+</div>
+</div>
+<div class="flex items-center justify-between p-3 bg-[#0e0e0e] rounded-lg">
+<span class="text-sm text-white">OT Violations</span>
+<div class="flex gap-4">
+<div class="flex items-center gap-2">
+<span class="text-[10px] text-[#919191]">App</span>
+<div class="w-8 h-4 bg-white rounded-full relative"><div class="absolute right-0.5 top-0.5 w-3 h-3 bg-[#131313] rounded-full"></div></div>
+</div>
+<div class="flex items-center gap-2">
+<span class="text-[10px] text-[#919191]">SMS</span>
+<div class="w-8 h-4 bg-white rounded-full relative"><div class="absolute right-0.5 top-0.5 w-3 h-3 bg-[#131313] rounded-full"></div></div>
+</div>
+</div>
+</div>
+<div class="flex items-center justify-between p-3 bg-[#0e0e0e] rounded-lg">
+<span class="text-sm text-white">Asset Movement</span>
+<div class="flex gap-4">
+<div class="flex items-center gap-2">
+<span class="text-[10px] text-[#919191]">App</span>
+<div class="w-8 h-4 bg-[#2a2a2a] rounded-full relative"><div class="absolute left-0.5 top-0.5 w-3 h-3 bg-[#919191] rounded-full"></div></div>
+</div>
+<div class="flex items-center gap-2">
+<span class="text-[10px] text-[#919191]">SMS</span>
+<div class="w-8 h-4 bg-[#2a2a2a] rounded-full relative"><div class="absolute left-0.5 top-0.5 w-3 h-3 bg-[#919191] rounded-full"></div></div>
+</div>
+</div>
+</div>
+</div>
+</section>
+<!-- Audit & Activity Logs -->
+<section class="col-span-12 bg-[#1c1b1b] p-6 rounded-xl ghost-border">
+<div class="flex justify-between items-center mb-6">
+<h3 class="text-xl font-bold text-white flex items-center gap-2">
+<span class="material-symbols-outlined">history_edu</span> Audit &amp; Activity Logs
+                    </h3>
+<button class="text-xs text-white border border-[#474747] px-3 py-1 rounded">View Full History</button>
+</div>
+<div class="space-y-4">
+<div class="flex items-center justify-between py-2 border-b border-[#474747]/10">
+<div class="flex items-center gap-3">
+<div class="w-8 h-8 rounded bg-white/5 flex items-center justify-center text-white"><span class="material-symbols-outlined text-sm">edit</span></div>
+<div>
+<p class="text-sm text-white font-medium">David F. <span class="text-[#919191] font-normal">updated Budget: Transport</span></p>
+<p class="text-[10px] text-[#474747]">10:45 AM • Nov 02, 2024</p>
+</div>
+</div>
+<span class="text-[10px] bg-white/10 text-white px-2 py-0.5 rounded">MODIFIED</span>
+</div>
+<div class="flex items-center justify-between py-2 border-b border-[#474747]/10">
+<div class="flex items-center gap-3">
+<div class="w-8 h-8 rounded bg-white/5 flex items-center justify-center text-white"><span class="material-symbols-outlined text-sm">person_add</span></div>
+<div>
+<p class="text-sm text-white font-medium">System <span class="text-[#919191] font-normal">added new user: Robert Richardson</span></p>
+<p class="text-[10px] text-[#474747]">09:12 AM • Nov 02, 2024</p>
+</div>
+</div>
+<span class="text-[10px] bg-green-500/20 text-green-400 px-2 py-0.5 rounded">CREATED</span>
+</div>
+<div class="flex items-center justify-between py-2">
+<div class="flex items-center gap-3">
+<div class="w-8 h-8 rounded bg-white/5 flex items-center justify-center text-white"><span class="material-symbols-outlined text-sm">security</span></div>
+<div>
+<p class="text-sm text-white font-medium">Thelma S. <span class="text-[#919191] font-normal">reset OT Multiplier to 2.0x</span></p>
+<p class="text-[10px] text-[#474747]">Yesterday • 05:30 PM</p>
+</div>
+</div>
+<span class="text-[10px] bg-white/10 text-white px-2 py-0.5 rounded">CONFIG_CHANGE</span>
+</div>
+</div>
+</section>
+</div>
+</main>
+<!-- Contextual FAB for Settings (Suppressed per rules as we are in Settings, but keeping for reference if it were Dashboard) -->
+<footer class="md:ml-64 p-8 border-t border-[#474747]/20 text-center">
+<p class="text-[10px] text-[#919191] uppercase tracking-[0.2em]">ProdSync © 2024 • Obsidian Precision Management</p>
+</footer>
+</body></html>

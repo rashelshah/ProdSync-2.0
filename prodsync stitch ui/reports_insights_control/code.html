@@ -1,0 +1,462 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>ProdSync | Reports &amp; Insights</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@100;300;400;500;600;700;800;900&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "secondary": "#c7c6c6",
+                        "on-tertiary-container": "#000000",
+                        "on-secondary-fixed-variant": "#3a3c3c",
+                        "surface-container-highest": "#353534",
+                        "surface-container": "#201f1f",
+                        "on-tertiary": "#1a1c1c",
+                        "on-secondary": "#1a1c1c",
+                        "surface-variant": "#353534",
+                        "surface-container-high": "#2a2a2a",
+                        "surface-container-low": "#1c1b1b",
+                        "on-secondary-container": "#e3e2e2",
+                        "tertiary-fixed-dim": "#454747",
+                        "surface-tint": "#c6c6c7",
+                        "background": "#131313",
+                        "on-primary-container": "#000000",
+                        "tertiary-container": "#909191",
+                        "on-error": "#690005",
+                        "inverse-surface": "#e5e2e1",
+                        "inverse-primary": "#5d5f5f",
+                        "primary-container": "#d4d4d4",
+                        "on-surface": "#e5e2e1",
+                        "on-secondary-fixed": "#1a1c1c",
+                        "tertiary-fixed": "#5d5f5f",
+                        "error-container": "#93000a",
+                        "inverse-on-surface": "#313030",
+                        "error": "#ffb4ab",
+                        "surface-bright": "#3a3939",
+                        "primary-fixed-dim": "#454747",
+                        "outline": "#919191",
+                        "on-tertiary-fixed-variant": "#e2e2e2",
+                        "on-tertiary-fixed": "#ffffff",
+                        "surface": "#131313",
+                        "on-primary-fixed-variant": "#e2e2e2",
+                        "on-error-container": "#ffdad6",
+                        "on-primary": "#1a1c1c",
+                        "on-primary-fixed": "#ffffff",
+                        "secondary-fixed-dim": "#ababab",
+                        "secondary-fixed": "#c7c6c6",
+                        "primary": "#ffffff",
+                        "on-surface-variant": "#c6c6c6",
+                        "surface-dim": "#131313",
+                        "on-background": "#e5e2e1",
+                        "secondary-container": "#464747",
+                        "surface-container-lowest": "#0e0e0e",
+                        "outline-variant": "#474747",
+                        "tertiary": "#e2e2e2",
+                        "primary-fixed": "#5d5f5f"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.125rem",
+                        "lg": "0.25rem",
+                        "xl": "0.5rem",
+                        "full": "0.75rem"
+                    },
+                    "fontFamily": {
+                        "headline": ["Inter"],
+                        "body": ["Inter"],
+                        "label": ["Inter"]
+                    }
+                },
+            },
+        }
+    </script>
+<style>
+        body { font-family: 'Inter', sans-serif; }
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 300, 'GRAD' 0, 'opsz' 24;
+        }
+    </style>
+</head>
+<body class="bg-surface-container-lowest text-on-surface">
+<!-- Sidebar Navigation -->
+<aside class="h-screen w-64 fixed left-0 top-0 bg-[#0e0e0e] flex flex-col py-8 border-r border-[#474747]/10 z-40">
+<div class="px-6 mb-10">
+<h2 class="text-lg font-bold text-white tracking-tighter">Production Suite</h2>
+<p class="text-[10px] font-sans font-medium tracking-widest uppercase text-[#e5e2e1]/40">Studio Unit A</p>
+</div>
+<nav class="flex-1 space-y-1">
+<a class="px-6 py-4 flex items-center gap-3 text-[#e5e2e1]/40 hover:text-white/80 hover:bg-[#131313] transition-all duration-200" href="#">
+<span class="material-symbols-outlined" data-icon="dashboard">dashboard</span>
+<span class="font-sans text-xs font-medium tracking-widest uppercase">Dashboard</span>
+</a>
+<a class="px-6 py-4 flex items-center gap-3 text-[#e5e2e1]/40 hover:text-white/80 hover:bg-[#131313] transition-all duration-200" href="#">
+<span class="material-symbols-outlined" data-icon="local_shipping">local_shipping</span>
+<span class="font-sans text-xs font-medium tracking-widest uppercase">Transport</span>
+</a>
+<a class="px-6 py-4 flex items-center gap-3 text-[#e5e2e1]/40 hover:text-white/80 hover:bg-[#131313] transition-all duration-200" href="#">
+<span class="material-symbols-outlined" data-icon="videocam">videocam</span>
+<span class="font-sans text-xs font-medium tracking-widest uppercase">Camera</span>
+</a>
+<a class="px-6 py-4 flex items-center gap-3 text-[#e5e2e1]/40 hover:text-white/80 hover:bg-[#131313] transition-all duration-200" href="#">
+<span class="material-symbols-outlined" data-icon="groups">groups</span>
+<span class="font-sans text-xs font-medium tracking-widest uppercase">Crew</span>
+</a>
+<a class="px-6 py-4 flex items-center gap-3 text-[#e5e2e1]/40 hover:text-white/80 hover:bg-[#131313] transition-all duration-200" href="#">
+<span class="material-symbols-outlined" data-icon="palette">palette</span>
+<span class="font-sans text-xs font-medium tracking-widest uppercase">Art</span>
+</a>
+<a class="px-6 py-4 flex items-center gap-3 text-[#e5e2e1]/40 hover:text-white/80 hover:bg-[#131313] transition-all duration-200" href="#">
+<span class="material-symbols-outlined" data-icon="checkroom">checkroom</span>
+<span class="font-sans text-xs font-medium tracking-widest uppercase">Wardrobe</span>
+</a>
+<a class="px-6 py-4 flex items-center gap-3 text-[#e5e2e1]/40 hover:text-white/80 hover:bg-[#131313] transition-all duration-200" href="#">
+<span class="material-symbols-outlined" data-icon="verified_user">verified_user</span>
+<span class="font-sans text-xs font-medium tracking-widest uppercase">Approvals</span>
+</a>
+<a class="px-6 py-4 flex items-center gap-3 bg-[#2a2a2a] text-white border-l-2 border-white transition-all duration-200" href="#">
+<span class="material-symbols-outlined" data-icon="analytics">analytics</span>
+<span class="font-sans text-xs font-medium tracking-widest uppercase">Reports</span>
+</a>
+<a class="px-6 py-4 flex items-center gap-3 text-[#e5e2e1]/40 hover:text-white/80 hover:bg-[#131313] transition-all duration-200" href="#">
+<span class="material-symbols-outlined" data-icon="settings">settings</span>
+<span class="font-sans text-xs font-medium tracking-widest uppercase">Settings</span>
+</a>
+</nav>
+<div class="px-6 pt-6 border-t border-[#474747]/10 mt-auto">
+<button class="w-full bg-primary text-on-primary py-3 rounded-lg text-xs font-bold uppercase tracking-widest hover:bg-primary-container transition-all">New Report</button>
+<div class="mt-6 space-y-4">
+<a class="flex items-center gap-3 text-[#e5e2e1]/40 hover:text-white text-[10px] uppercase tracking-widest" href="#">
+<span class="material-symbols-outlined text-sm" data-icon="history_edu">history_edu</span> Audit Log
+                </a>
+<a class="flex items-center gap-3 text-[#e5e2e1]/40 hover:text-white text-[10px] uppercase tracking-widest" href="#">
+<span class="material-symbols-outlined text-sm" data-icon="help_outline">help_outline</span> Help
+                </a>
+</div>
+</div>
+</aside>
+<!-- Top Navigation Bar -->
+<header class="fixed top-0 left-64 right-0 bg-[#131313]/80 backdrop-blur-xl border-b border-[#474747]/20 z-50 shadow-[0px_20px_40px_rgba(0,0,0,0.4)]">
+<div class="flex justify-between items-center w-full px-8 h-16">
+<div class="flex items-center gap-8">
+<span class="text-xl font-black tracking-tighter text-white uppercase">Obsidian Production</span>
+<div class="flex gap-6">
+<span class="font-sans tracking-tight text-xs uppercase text-white font-bold">Project: Alpha Noir</span>
+<span class="font-sans tracking-tight text-xs uppercase text-[#e5e2e1]/60">Stage: Post</span>
+</div>
+</div>
+<div class="flex items-center gap-6">
+<button class="text-[#e5e2e1]/60 hover:text-white transition-all scale-95 active:opacity-80">
+<span class="material-symbols-outlined" data-icon="search">search</span>
+</button>
+<button class="text-[#e5e2e1]/60 hover:text-white transition-all scale-95 active:opacity-80 relative">
+<span class="material-symbols-outlined" data-icon="notifications">notifications</span>
+<span class="absolute top-0 right-0 w-2 h-2 bg-error rounded-full"></span>
+</button>
+<div class="flex items-center gap-3 pl-4 border-l border-[#474747]/40">
+<div class="text-right">
+<p class="text-[10px] font-bold text-white uppercase tracking-tighter">Executive Producer</p>
+<p class="text-[8px] text-[#e5e2e1]/40 uppercase tracking-widest">P. Obsidian</p>
+</div>
+<img alt="Executive Producer Profile" class="w-8 h-8 rounded-full border border-outline-variant/20 object-cover" data-alt="close-up portrait of a professional man in a dark tailored suit against a charcoal background, cinematic lighting" src="https://lh3.googleusercontent.com/aida-public/AB6AXuB5LZ5LdiqR0D6WCOalgWX-RtFBLUNBJqJd9AWPd5LBmHvDS5Tf788dhl1xhBrOcUEU9x3Lk1WuEeDImw700xA1TrGE1u4rcmBvjwv7fT1sLkNAocBn47Ab4ws_5M-sEPlZHUX4HF29H1IY0wS7FlvIrHAqcagzBI_mTFcTgNK1fuynAgOa40qSvMDxEMRSBPY-QdebuiGAgpWq4P3Yyh2UCR_7ezHxkI-vUP8NxbRjGJ_Tggx2kOnOVU2Vp7Y9uzssfsAe2JwDRi8K"/>
+</div>
+</div>
+</div>
+</header>
+<!-- Main Content Area -->
+<main class="ml-64 pt-24 px-10 pb-20 max-w-[1600px]">
+<header class="mb-12 flex justify-between items-end">
+<div>
+<p class="text-[10px] uppercase tracking-[0.3em] text-[#e5e2e1]/40 mb-2">Internal Analytics</p>
+<h1 class="text-6xl font-black tracking-tighter text-white uppercase leading-none">Reports &amp;<br/>Insights</h1>
+</div>
+<div class="flex gap-3">
+<button class="px-6 py-3 bg-surface-container-high text-white text-xs font-bold uppercase tracking-widest flex items-center gap-2 rounded transition-all hover:bg-surface-bright">
+<span class="material-symbols-outlined text-sm" data-icon="filter_list">filter_list</span> Filter Period
+                </button>
+<button class="px-6 py-3 bg-primary text-on-primary text-xs font-bold uppercase tracking-widest flex items-center gap-2 rounded transition-all hover:bg-primary-container">
+<span class="material-symbols-outlined text-sm" data-icon="download">download</span> Export
+                </button>
+</div>
+</header>
+<!-- Financial Summary (Bento Style) -->
+<section class="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6 gap-px bg-outline-variant/20 border border-outline-variant/20 rounded mb-12 overflow-hidden shadow-2xl">
+<div class="bg-surface p-6">
+<p class="text-[9px] uppercase tracking-widest text-[#e5e2e1]/40 mb-4">Total Budget</p>
+<p class="text-2xl font-bold text-white">₹1.2Cr</p>
+</div>
+<div class="bg-surface p-6">
+<p class="text-[9px] uppercase tracking-widest text-[#e5e2e1]/40 mb-4">Total Spend</p>
+<p class="text-2xl font-bold text-white">₹85L</p>
+</div>
+<div class="bg-surface p-6 border-l border-outline-variant/10">
+<p class="text-[9px] uppercase tracking-widest text-[#e5e2e1]/40 mb-4">Variance</p>
+<p class="text-2xl font-bold text-white">₹35L</p>
+<span class="text-[8px] text-green-400 font-bold tracking-tighter uppercase">Under Budget</span>
+</div>
+<div class="bg-surface p-6">
+<p class="text-[9px] uppercase tracking-widest text-[#e5e2e1]/40 mb-4">Avg Daily Spend</p>
+<p class="text-2xl font-bold text-white">₹1.2L</p>
+</div>
+<div class="bg-surface p-6">
+<p class="text-[9px] uppercase tracking-widest text-[#e5e2e1]/40 mb-4">Cash Disbursed</p>
+<p class="text-2xl font-bold text-white">₹92L</p>
+</div>
+<div class="bg-surface p-6 border-l border-outline-variant/10">
+<p class="text-[9px] uppercase tracking-widest text-[#e5e2e1]/40 mb-4">Est Final Cost</p>
+<p class="text-2xl font-bold text-white">₹1.15Cr</p>
+</div>
+</section>
+<!-- Core Reports Grid -->
+<div class="grid grid-cols-12 gap-8 mb-12">
+<!-- Budget vs Actual Bar Chart -->
+<div class="col-span-12 lg:col-span-8 bg-surface-container-low p-8 border border-outline-variant/10">
+<div class="flex justify-between items-center mb-10">
+<h3 class="text-xs font-bold uppercase tracking-widest text-white">Budget vs Actual Spend by Department</h3>
+<div class="flex gap-4">
+<span class="flex items-center gap-2 text-[9px] uppercase tracking-widest text-[#e5e2e1]/40">
+<span class="w-2 h-2 bg-white"></span> Budget
+                        </span>
+<span class="flex items-center gap-2 text-[9px] uppercase tracking-widest text-[#e5e2e1]/40">
+<span class="w-2 h-2 bg-outline-variant"></span> Actual
+                        </span>
+</div>
+</div>
+<div class="space-y-8">
+<!-- Transport -->
+<div class="space-y-2">
+<div class="flex justify-between text-[10px] font-bold uppercase tracking-widest">
+<span>Transport</span>
+<span class="text-error font-black">+15% Overrun</span>
+</div>
+<div class="h-3 w-full bg-surface-container-highest rounded-sm overflow-hidden relative">
+<div class="absolute inset-y-0 left-0 bg-white w-[70%] z-10"></div>
+<div class="absolute inset-y-0 left-0 bg-error w-[85%] z-0"></div>
+</div>
+</div>
+<!-- Camera -->
+<div class="space-y-2">
+<div class="flex justify-between text-[10px] font-bold uppercase tracking-widest">
+<span>Camera</span>
+<span class="text-white/60">On Track</span>
+</div>
+<div class="h-3 w-full bg-surface-container-highest rounded-sm overflow-hidden relative">
+<div class="absolute inset-y-0 left-0 bg-white w-[80%] z-10"></div>
+<div class="absolute inset-y-0 left-0 bg-secondary/20 w-[78%] z-0"></div>
+</div>
+</div>
+<!-- Crew -->
+<div class="space-y-2">
+<div class="flex justify-between text-[10px] font-bold uppercase tracking-widest">
+<span>Crew</span>
+<span class="text-white/60">On Track</span>
+</div>
+<div class="h-3 w-full bg-surface-container-highest rounded-sm overflow-hidden relative">
+<div class="absolute inset-y-0 left-0 bg-white w-[90%] z-10"></div>
+<div class="absolute inset-y-0 left-0 bg-secondary/20 w-[85%] z-0"></div>
+</div>
+</div>
+<!-- Art -->
+<div class="space-y-2">
+<div class="flex justify-between text-[10px] font-bold uppercase tracking-widest">
+<span>Art</span>
+<span class="text-white/60">Under</span>
+</div>
+<div class="h-3 w-full bg-surface-container-highest rounded-sm overflow-hidden relative">
+<div class="absolute inset-y-0 left-0 bg-white w-[60%] z-10"></div>
+<div class="absolute inset-y-0 left-0 bg-secondary/20 w-[45%] z-0"></div>
+</div>
+</div>
+</div>
+</div>
+<!-- Variance & Exception Report -->
+<div class="col-span-12 lg:col-span-4 bg-surface-container-low p-8 border border-outline-variant/10">
+<h3 class="text-xs font-bold uppercase tracking-widest text-white mb-8">Exception Alerts</h3>
+<div class="space-y-6">
+<div class="flex gap-4 items-start p-4 bg-error-container/10 border-l-2 border-error">
+<span class="material-symbols-outlined text-error" data-icon="warning">warning</span>
+<div>
+<p class="text-[10px] font-bold text-white uppercase tracking-tight">Transport Budget Exceeded</p>
+<p class="text-[10px] text-error mt-1">Budget exceeded by 15% (₹4.2L) due to surge in fuel costs.</p>
+</div>
+</div>
+<div class="flex gap-4 items-start p-4 bg-surface-container-highest/50 border-l-2 border-white/20">
+<span class="material-symbols-outlined text-white/40" data-icon="info">info</span>
+<div>
+<p class="text-[10px] font-bold text-white uppercase tracking-tight">Outstation Allowances</p>
+<p class="text-[10px] text-[#e5e2e1]/40 mt-1">Unexpected travel requirements for Unit B at Ladakh site.</p>
+</div>
+</div>
+<div class="flex gap-4 items-start p-4 bg-error-container/10 border-l-2 border-error">
+<span class="material-symbols-outlined text-error" data-icon="error">error</span>
+<div>
+<p class="text-[10px] font-bold text-white uppercase tracking-tight">Camera Rental Overage</p>
+<p class="text-[10px] text-error mt-1">Extension of Anamorphic lens set for 3 additional days.</p>
+</div>
+</div>
+</div>
+</div>
+</div>
+<!-- Daily Burn & Production Progress -->
+<div class="grid grid-cols-12 gap-8 mb-12">
+<!-- Line Chart Mock for Daily Burn Rate -->
+<div class="col-span-12 lg:col-span-6 bg-surface-container-low p-8 border border-outline-variant/10 h-80 flex flex-col">
+<h3 class="text-xs font-bold uppercase tracking-widest text-white mb-6">Daily Burn Rate</h3>
+<div class="flex-1 w-full flex items-end justify-between gap-1 mt-4 px-2">
+<div class="w-1/12 bg-white/10 h-[40%] rounded-t-sm"></div>
+<div class="w-1/12 bg-white/10 h-[55%] rounded-t-sm"></div>
+<div class="w-1/12 bg-white/20 h-[50%] rounded-t-sm"></div>
+<div class="w-1/12 bg-white/30 h-[70%] rounded-t-sm"></div>
+<div class="w-1/12 bg-white/40 h-[65%] rounded-t-sm"></div>
+<div class="w-1/12 bg-white/50 h-[85%] rounded-t-sm"></div>
+<div class="w-1/12 bg-white/60 h-[80%] rounded-t-sm"></div>
+<div class="w-1/12 bg-white/70 h-[95%] rounded-t-sm"></div>
+<div class="w-1/12 bg-white/80 h-[90%] rounded-t-sm"></div>
+<div class="w-1/12 bg-white h-full rounded-t-sm"></div>
+<div class="w-1/12 bg-white/90 h-[85%] rounded-t-sm"></div>
+<div class="w-1/12 bg-white/70 h-[75%] rounded-t-sm"></div>
+</div>
+<div class="flex justify-between mt-4 text-[8px] uppercase tracking-widest text-[#e5e2e1]/30">
+<span>Oct 01</span>
+<span>Oct 15</span>
+<span>Today</span>
+</div>
+</div>
+<!-- Production Progress Chart -->
+<div class="col-span-12 lg:col-span-6 bg-surface-container-low p-8 border border-outline-variant/10 h-80 relative overflow-hidden">
+<div class="flex justify-between items-start mb-6">
+<h3 class="text-xs font-bold uppercase tracking-widest text-white">Production Progress</h3>
+<div class="px-2 py-1 bg-error-container text-white text-[8px] font-black uppercase tracking-tighter rounded">Delay Detected: -3 Days</div>
+</div>
+<div class="grid grid-cols-2 gap-8 h-full">
+<div class="flex flex-col items-center justify-center border-r border-outline-variant/10">
+<div class="relative w-32 h-32 flex items-center justify-center">
+<svg class="w-full h-full transform -rotate-90">
+<circle class="text-white/10" cx="64" cy="64" fill="transparent" r="58" stroke="currentColor" stroke-width="4"></circle>
+<circle class="text-white" cx="64" cy="64" fill="transparent" r="58" stroke="currentColor" stroke-dasharray="364.4" stroke-dashoffset="100" stroke-width="4"></circle>
+</svg>
+<div class="absolute text-center">
+<span class="text-2xl font-black text-white">72%</span>
+<p class="text-[8px] text-[#e5e2e1]/40 uppercase tracking-widest">Scenes shot</p>
+</div>
+</div>
+<p class="text-[10px] mt-4 font-bold text-white uppercase tracking-widest">Planned: 45 / Actual: 32</p>
+</div>
+<div class="flex flex-col justify-center space-y-4">
+<div class="p-3 bg-surface border border-outline-variant/10 rounded">
+<p class="text-[9px] uppercase tracking-widest text-[#e5e2e1]/40">Remaining Scenes</p>
+<p class="text-lg font-bold text-white">13 Scenes</p>
+</div>
+<div class="p-3 bg-surface border border-outline-variant/10 rounded">
+<p class="text-[9px] uppercase tracking-widest text-[#e5e2e1]/40">Estimated Wrap</p>
+<p class="text-lg font-bold text-white">Nov 12, 2023</p>
+</div>
+</div>
+</div>
+</div>
+</div>
+<!-- Departmental Efficiency Reports -->
+<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-12">
+<!-- Transport Efficiency -->
+<div class="bg-surface border border-outline-variant/10 p-6">
+<div class="flex items-center gap-2 mb-6">
+<span class="material-symbols-outlined text-sm text-white/40" data-icon="local_shipping">local_shipping</span>
+<h4 class="text-[10px] font-bold uppercase tracking-widest text-white">Transport Efficiency</h4>
+</div>
+<div class="space-y-4">
+<div class="flex justify-between items-center">
+<span class="text-[10px] text-[#e5e2e1]/40">KM Driven</span>
+<span class="text-[10px] font-bold text-white">12,450 km</span>
+</div>
+<div class="flex justify-between items-center">
+<span class="text-[10px] text-[#e5e2e1]/40">Fuel Cost</span>
+<span class="text-[10px] font-bold text-white">₹2.8L</span>
+</div>
+<div class="w-full h-1 bg-white/10 rounded-full mt-2">
+<div class="h-full bg-white w-3/4"></div>
+</div>
+</div>
+</div>
+<!-- Workforce Cost -->
+<div class="bg-surface border border-outline-variant/10 p-6">
+<div class="flex items-center gap-2 mb-6">
+<span class="material-symbols-outlined text-sm text-white/40" data-icon="groups">groups</span>
+<h4 class="text-[10px] font-bold uppercase tracking-widest text-white">Workforce Analysis</h4>
+</div>
+<div class="space-y-4">
+<div class="flex justify-between items-center">
+<span class="text-[10px] text-[#e5e2e1]/40">Standard Pay</span>
+<span class="text-[10px] font-bold text-white">₹42L</span>
+</div>
+<div class="flex justify-between items-center">
+<span class="text-[10px] text-[#e5e2e1]/40">OT Breakdown</span>
+<span class="text-[10px] font-bold text-error">₹6.5L</span>
+</div>
+<div class="w-full h-1 bg-white/10 rounded-full mt-2">
+<div class="h-full bg-error w-1/4"></div>
+</div>
+</div>
+</div>
+<!-- Asset & Rentals -->
+<div class="bg-surface border border-outline-variant/10 p-6">
+<div class="flex items-center gap-2 mb-6">
+<span class="material-symbols-outlined text-sm text-white/40" data-icon="videocam">videocam</span>
+<h4 class="text-[10px] font-bold uppercase tracking-widest text-white">Asset &amp; Rental</h4>
+</div>
+<div class="space-y-4">
+<div class="flex justify-between items-center">
+<span class="text-[10px] text-[#e5e2e1]/40">Active Rentals</span>
+<span class="text-[10px] font-bold text-white">42 Units</span>
+</div>
+<div class="flex justify-between items-center">
+<span class="text-[10px] text-[#e5e2e1]/40">Overdue Returns</span>
+<span class="text-[10px] font-bold text-error">03 Units</span>
+</div>
+<div class="w-full h-1 bg-white/10 rounded-full mt-2">
+<div class="h-full bg-white w-1/2"></div>
+</div>
+</div>
+</div>
+<!-- Prop/Wardrobe -->
+<div class="bg-surface border border-outline-variant/10 p-6">
+<div class="flex items-center gap-2 mb-6">
+<span class="material-symbols-outlined text-sm text-white/40" data-icon="palette">palette</span>
+<h4 class="text-[10px] font-bold uppercase tracking-widest text-white">Prop Status</h4>
+</div>
+<div class="space-y-4">
+<div class="flex justify-between items-center">
+<span class="text-[10px] text-[#e5e2e1]/40">Procured</span>
+<span class="text-[10px] font-bold text-white">94%</span>
+</div>
+<div class="flex justify-between items-center">
+<span class="text-[10px] text-[#e5e2e1]/40">In-Storage</span>
+<span class="text-[10px] font-bold text-white">650 Items</span>
+</div>
+<div class="w-full h-1 bg-white/10 rounded-full mt-2">
+<div class="h-full bg-white w-full"></div>
+</div>
+</div>
+</div>
+</div>
+<!-- Export & Audit Tools -->
+<section class="bg-surface-container-high/30 p-10 border-t border-outline-variant/20 rounded-t-xl flex flex-col md:flex-row items-center justify-between gap-8">
+<div>
+<h3 class="text-xl font-bold text-white tracking-tight mb-2">Generate Final Documentation</h3>
+<p class="text-[10px] text-[#e5e2e1]/40 uppercase tracking-widest">Reports verified for fiscal week ending Oct 27, 2023</p>
+</div>
+<div class="flex flex-wrap gap-4">
+<button class="px-8 py-4 bg-primary text-on-primary text-xs font-black uppercase tracking-widest rounded transition-all hover:bg-primary-container shadow-xl">Export Full Report (PDF)</button>
+<button class="px-8 py-4 bg-surface-container text-white border border-outline-variant/40 text-xs font-bold uppercase tracking-widest rounded transition-all hover:bg-surface-bright">Download Department Report</button>
+<button class="px-8 py-4 bg-surface-container text-white border border-outline-variant/40 text-xs font-bold uppercase tracking-widest rounded transition-all hover:bg-surface-bright flex items-center gap-2">
+<span class="material-symbols-outlined text-sm" data-icon="terminal">terminal</span> Generate Audit File
+                </button>
+</div>
+</section>
+</main>
+</body></html>

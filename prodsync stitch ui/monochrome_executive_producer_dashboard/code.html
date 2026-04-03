@@ -1,0 +1,501 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>ProdSync Executive Dashboard</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@100..900&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            "colors": {
+                    "on-primary-fixed-variant": "#e2e2e2",
+                    "secondary-container": "#464747",
+                    "inverse-on-surface": "#313030",
+                    "on-primary-container": "#000000",
+                    "outline": "#919191",
+                    "surface-container-low": "#1c1b1b",
+                    "on-secondary": "#1a1c1c",
+                    "on-surface-variant": "#c6c6c6",
+                    "primary-fixed-dim": "#454747",
+                    "surface-container": "#201f1f",
+                    "primary-container": "#d4d4d4",
+                    "background": "#131313",
+                    "tertiary": "#e2e2e2",
+                    "surface-container-highest": "#353534",
+                    "tertiary-fixed": "#5d5f5f",
+                    "primary-fixed": "#5d5f5f",
+                    "error-container": "#93000a",
+                    "on-tertiary-container": "#000000",
+                    "tertiary-container": "#909191",
+                    "surface-tint": "#c6c6c7",
+                    "on-background": "#e5e2e1",
+                    "on-tertiary-fixed": "#ffffff",
+                    "on-error-container": "#ffdad6",
+                    "on-surface": "#e5e2e1",
+                    "on-secondary-container": "#e3e2e2",
+                    "outline-variant": "#474747",
+                    "on-tertiary": "#1a1c1c",
+                    "tertiary-fixed-dim": "#454747",
+                    "secondary-fixed": "#c7c6c6",
+                    "error": "#ffb4ab",
+                    "surface-dim": "#131313",
+                    "primary": "#ffffff",
+                    "on-primary": "#1a1c1c",
+                    "inverse-surface": "#e5e2e1",
+                    "surface-bright": "#3a3939",
+                    "surface": "#131313",
+                    "surface-container-high": "#2a2a2a",
+                    "surface-variant": "#353534",
+                    "on-error": "#690005",
+                    "secondary-fixed-dim": "#ababab",
+                    "on-secondary-fixed-variant": "#3a3c3c",
+                    "on-tertiary-fixed-variant": "#e2e2e2",
+                    "surface-container-lowest": "#0e0e0e",
+                    "inverse-primary": "#5d5f5f",
+                    "secondary": "#c7c6c6",
+                    "on-primary-fixed": "#ffffff",
+                    "on-secondary-fixed": "#1a1c1c"
+            },
+            "borderRadius": {
+                    "DEFAULT": "0.125rem",
+                    "lg": "0.25rem",
+                    "xl": "0.5rem",
+                    "full": "0.75rem"
+            },
+            "fontFamily": {
+                    "headline": ["Inter"],
+                    "body": ["Inter"],
+                    "label": ["Inter"]
+            }
+          },
+        },
+      }
+    </script>
+<style>
+        body { font-family: 'Inter', sans-serif; background-color: #0e0e0e; color: #e5e2e1; }
+        .material-symbols-outlined { font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24; }
+        ::-webkit-scrollbar { width: 4px; }
+        ::-webkit-scrollbar-track { background: #0e0e0e; }
+        ::-webkit-scrollbar-thumb { background: #474747; }
+    </style>
+</head>
+<body class="overflow-hidden">
+<!-- TopNavBar -->
+<nav class="fixed top-0 w-full z-50 border-b border-[#474747]/20 bg-[#131313]/80 backdrop-blur-xl flex justify-between items-center px-6 h-16 w-full">
+<div class="flex items-center gap-8">
+<span class="text-xl font-bold tracking-tighter text-white uppercase">PRODSYNC</span>
+<div class="hidden md:flex gap-6">
+<a class="text-white font-bold border-b border-white text-sm tracking-tight font-['Inter']" href="#">Dashboard</a>
+<a class="text-[#e5e2e1] hover:bg-[#2a2a2a] transition-colors duration-200 text-sm tracking-tight font-['Inter']" href="#">Live Feed</a>
+<a class="text-[#e5e2e1] hover:bg-[#2a2a2a] transition-colors duration-200 text-sm tracking-tight font-['Inter']" href="#">Reports</a>
+</div>
+</div>
+<div class="flex items-center gap-4">
+<div class="relative flex items-center bg-[#0e0e0e] border border-[#474747]/20 px-3 py-1.5 rounded-sm">
+<span class="material-symbols-outlined text-sm opacity-50 mr-2">search</span>
+<input class="bg-transparent border-none focus:ring-0 text-xs w-48 text-white" placeholder="Search production assets..." type="text"/>
+</div>
+<button class="material-symbols-outlined text-white hover:bg-[#2a2a2a] p-2 rounded transition-colors duration-200">notifications</button>
+<button class="material-symbols-outlined text-white hover:bg-[#2a2a2a] p-2 rounded transition-colors duration-200">apps</button>
+<div class="w-8 h-8 rounded-full bg-white flex items-center justify-center overflow-hidden border border-white/20">
+<img class="w-full h-full object-cover" data-alt="Close-up professional portrait of a film executive producer in a dark studio setting with dramatic monochrome lighting" src="https://lh3.googleusercontent.com/aida-public/AB6AXuAONm_bECvCQ6KUhidK8nJAk-eHgRyQyu-zIw81iUfo-4d3Nw7lv-SzvSwnSSG7oiC1FWW3Nqzr929l8udlhW0JDX54xcwSva3nhMr8UgHmg2JxFdkMc--TuuDhw2dYrRxAXRhanX7MtSge59HwUpxAU5L14ljH7jsoGWCsbK_XutbMQkmYYl_6ub_BecvesDoiGP9ZKhaw0Zrqsu5sE9eKbDeOlH-BXeoTJWTImRsKbcPS97eMgJox8R79MssZH0w7ZL4OYx5zjqzA"/>
+</div>
+</div>
+</nav>
+<!-- SideNavBar -->
+<aside class="h-screen w-64 fixed left-0 top-0 border-r border-[#474747]/20 bg-[#0e0e0e] flex flex-col pt-20 pb-8 px-4 gap-2 z-40 hidden md:flex">
+<div class="mb-6 px-2">
+<div class="text-lg font-black text-white">ProdSync</div>
+<div class="text-[10px] uppercase tracking-[0.2em] opacity-40">Production Alpha</div>
+</div>
+<nav class="flex-1 flex flex-col gap-1">
+<a class="flex items-center gap-3 px-3 py-2.5 bg-white text-[#131313] rounded-sm font-['Inter'] text-xs font-medium uppercase tracking-widest transition-all duration-150 ease-in-out" href="#">
+<span class="material-symbols-outlined text-[18px]">dashboard</span>
+<span>Dashboard</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2.5 text-[#e5e2e1] opacity-70 hover:opacity-100 hover:bg-[#2a2a2a] rounded-sm font-['Inter'] text-xs font-medium uppercase tracking-widest transition-all duration-150 ease-in-out" href="#">
+<span class="material-symbols-outlined text-[18px]">local_shipping</span>
+<span>Transport &amp; Logistics</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2.5 text-[#e5e2e1] opacity-70 hover:opacity-100 hover:bg-[#2a2a2a] rounded-sm font-['Inter'] text-xs font-medium uppercase tracking-widest transition-all duration-150 ease-in-out" href="#">
+<span class="material-symbols-outlined text-[18px]">photo_camera</span>
+<span>Camera &amp; Assets</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2.5 text-[#e5e2e1] opacity-70 hover:opacity-100 hover:bg-[#2a2a2a] rounded-sm font-['Inter'] text-xs font-medium uppercase tracking-widest transition-all duration-150 ease-in-out" href="#">
+<span class="material-symbols-outlined text-[18px]">groups</span>
+<span>Crew &amp; Wages</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2.5 text-[#e5e2e1] opacity-70 hover:opacity-100 hover:bg-[#2a2a2a] rounded-sm font-['Inter'] text-xs font-medium uppercase tracking-widest transition-all duration-150 ease-in-out" href="#">
+<span class="material-symbols-outlined text-[18px]">palette</span>
+<span>Art &amp; Expenses</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2.5 text-[#e5e2e1] opacity-70 hover:opacity-100 hover:bg-[#2a2a2a] rounded-sm font-['Inter'] text-xs font-medium uppercase tracking-widest transition-all duration-150 ease-in-out" href="#">
+<span class="material-symbols-outlined text-[18px]">face</span>
+<span>Wardrobe &amp; Makeup</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2.5 text-[#e5e2e1] opacity-70 hover:opacity-100 hover:bg-[#2a2a2a] rounded-sm font-['Inter'] text-xs font-medium uppercase tracking-widest transition-all duration-150 ease-in-out" href="#">
+<span class="material-symbols-outlined text-[18px]">verified_user</span>
+<span>Approvals</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2.5 text-[#e5e2e1] opacity-70 hover:opacity-100 hover:bg-[#2a2a2a] rounded-sm font-['Inter'] text-xs font-medium uppercase tracking-widest transition-all duration-150 ease-in-out" href="#">
+<span class="material-symbols-outlined text-[18px]">analytics</span>
+<span>Reports</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2.5 text-[#e5e2e1] opacity-70 hover:opacity-100 hover:bg-[#2a2a2a] rounded-sm font-['Inter'] text-xs font-medium uppercase tracking-widest transition-all duration-150 ease-in-out" href="#">
+<span class="material-symbols-outlined text-[18px]">settings</span>
+<span>Settings</span>
+</a>
+</nav>
+<div class="mt-auto flex flex-col gap-1 border-t border-[#474747]/20 pt-4">
+<a class="flex items-center gap-3 px-3 py-2 text-[#e5e2e1] opacity-50 hover:opacity-100 hover:bg-[#2a2a2a] rounded-sm font-['Inter'] text-[10px] uppercase tracking-widest transition-all duration-150 ease-in-out" href="#">
+<span class="material-symbols-outlined text-[16px]">help</span>
+<span>Help</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2 text-[#e5e2e1] opacity-50 hover:opacity-100 hover:bg-[#2a2a2a] rounded-sm font-['Inter'] text-[10px] uppercase tracking-widest transition-all duration-150 ease-in-out" href="#">
+<span class="material-symbols-outlined text-[16px]">logout</span>
+<span>Sign Out</span>
+</a>
+</div>
+</aside>
+<!-- Main Content Area -->
+<main class="md:pl-64 pt-16 h-screen overflow-y-auto bg-[#0e0e0e]">
+<div class="max-w-[1600px] mx-auto p-6 space-y-6">
+<!-- Header Section -->
+<header class="flex justify-between items-end mb-8 border-b border-[#474747]/10 pb-6">
+<div>
+<span class="text-[10px] uppercase tracking-[0.3em] text-white/40 mb-1 block">Executive Control</span>
+<h1 class="text-4xl font-extrabold tracking-tighter text-white uppercase italic">Mission Control</h1>
+</div>
+<div class="text-right">
+<span class="text-[10px] uppercase tracking-[0.2em] text-white/40 block">Project Status</span>
+<span class="text-lg font-bold text-white uppercase">DAY 42 OF 68 <span class="text-white/20 ml-2">|</span> PRINCIPAL PHOTOGRAPHY</span>
+</div>
+</header>
+<!-- 1. Top KPI Row -->
+<section class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+<div class="bg-[#131313] border border-white/5 p-4 rounded-sm">
+<p class="text-[10px] text-white/40 uppercase tracking-widest mb-1">Budget vs Actual</p>
+<p class="text-2xl font-black text-white">$2.4M</p>
+<div class="w-full bg-white/5 h-1 mt-2">
+<div class="bg-white h-full w-[65%]"></div>
+</div>
+</div>
+<div class="bg-[#131313] border border-white/5 p-4 rounded-sm">
+<p class="text-[10px] text-white/40 uppercase tracking-widest mb-1">Today's Spend</p>
+<p class="text-2xl font-black text-white">$42.5K</p>
+<p class="text-[10px] text-white/20 mt-2">+4.2% vs yesterday</p>
+</div>
+<div class="bg-[#131313] border border-white/5 p-4 rounded-sm">
+<p class="text-[10px] text-white/40 uppercase tracking-widest mb-1">Cash Flow</p>
+<p class="text-2xl font-black text-white">$840K</p>
+<p class="text-[10px] text-white/20 mt-2">Reserve at 22%</p>
+</div>
+<div class="bg-[#131313] border border-white/5 p-4 rounded-sm">
+<p class="text-[10px] text-white/40 uppercase tracking-widest mb-1">OT Cost Today</p>
+<p class="text-2xl font-black text-white">$12,840</p>
+<p class="text-[10px] text-error font-bold mt-2 uppercase">Critical Spike</p>
+</div>
+<div class="bg-[#131313] border border-white/5 p-4 rounded-sm">
+<p class="text-[10px] text-white/40 uppercase tracking-widest mb-1">Active Crew</p>
+<p class="text-2xl font-black text-white">142</p>
+<p class="text-[10px] text-white/20 mt-2">98% check-in rate</p>
+</div>
+<div class="bg-[#131313] border border-white/5 p-4 rounded-sm">
+<p class="text-[10px] text-white/40 uppercase tracking-widest mb-1">Active Fleet</p>
+<p class="text-2xl font-black text-white">28</p>
+<p class="text-[10px] text-white/20 mt-2">GPS tracking live</p>
+</div>
+</section>
+<!-- Main Dashboard Grid -->
+<div class="grid grid-cols-12 gap-6">
+<!-- 2. Charts Section -->
+<div class="col-span-12 lg:col-span-8 space-y-6">
+<!-- Department Velocity -->
+<div class="bg-[#131313] border border-white/5 p-6 rounded-sm">
+<div class="flex justify-between items-center mb-8">
+<h3 class="text-xs font-bold uppercase tracking-[0.2em] text-white">Financial Velocity (Dept. Spend)</h3>
+<div class="flex gap-4 text-[10px] uppercase tracking-widest">
+<span class="flex items-center gap-2"><span class="w-2 h-2 bg-white"></span> Budget</span>
+<span class="flex items-center gap-2"><span class="w-2 h-2 bg-white/20"></span> Actual</span>
+</div>
+</div>
+<div class="flex items-end justify-between h-48 gap-8 px-4">
+<!-- Bars: Department Velocity -->
+<div class="flex flex-col items-center gap-2 flex-1 group">
+<div class="w-full flex items-end gap-1 h-40">
+<div class="w-1/2 bg-white opacity-20 h-full"></div>
+<div class="w-1/2 bg-white h-[85%]"></div>
+</div>
+<span class="text-[10px] uppercase text-white/40">Trans</span>
+</div>
+<div class="flex flex-col items-center gap-2 flex-1">
+<div class="w-full flex items-end gap-1 h-40">
+<div class="w-1/2 bg-white opacity-20 h-full"></div>
+<div class="w-1/2 bg-white h-[92%]"></div>
+</div>
+<span class="text-[10px] uppercase text-white/40">Art</span>
+</div>
+<div class="flex flex-col items-center gap-2 flex-1">
+<div class="w-full flex items-end gap-1 h-40">
+<div class="w-1/2 bg-white opacity-20 h-[70%]"></div>
+<div class="w-1/2 bg-white h-[75%]"></div>
+</div>
+<span class="text-[10px] uppercase text-white/40">Cam</span>
+</div>
+<div class="flex flex-col items-center gap-2 flex-1">
+<div class="w-full flex items-end gap-1 h-40">
+<div class="w-1/2 bg-white opacity-20 h-full"></div>
+<div class="w-1/2 bg-white h-full"></div>
+</div>
+<span class="text-[10px] uppercase text-white/40">Crew</span>
+</div>
+<div class="flex flex-col items-center gap-2 flex-1">
+<div class="w-full flex items-end gap-1 h-40">
+<div class="w-1/2 bg-white opacity-20 h-[40%]"></div>
+<div class="w-1/2 bg-white h-[35%]"></div>
+</div>
+<span class="text-[10px] uppercase text-white/40">Loc</span>
+</div>
+</div>
+</div>
+<!-- Production Burn -->
+<div class="bg-[#131313] border border-white/5 p-6 rounded-sm">
+<div class="flex justify-between items-center mb-8">
+<h3 class="text-xs font-bold uppercase tracking-[0.2em] text-white">Production Burn (Timeline)</h3>
+</div>
+<div class="h-32 w-full relative">
+<!-- Area chart placeholder representation using borders and shapes -->
+<div class="absolute bottom-0 w-full h-full flex items-end overflow-hidden">
+<svg class="w-full h-full opacity-20" preserveaspectratio="none" viewbox="0 0 100 20">
+<path d="M0 20 L0 15 L20 12 L40 16 L60 8 L80 10 L100 5 L100 20 Z" fill="white"></path>
+</svg>
+<svg class="absolute bottom-0 w-full h-full" preserveaspectratio="none" viewbox="0 0 100 20">
+<path d="M0 15 L20 12 L40 16 L60 8 L80 10 L100 5" fill="none" stroke="white" stroke-width="0.5"></path>
+<path d="M0 18 L20 15 L40 17 L60 12 L80 14 L100 9" fill="none" stroke="#474747" stroke-dasharray="1 1" stroke-width="0.5"></path>
+</svg>
+</div>
+<div class="absolute inset-0 grid grid-cols-4 h-full border-l border-b border-white/10">
+<div class="border-r border-white/5"></div>
+<div class="border-r border-white/5"></div>
+<div class="border-r border-white/5"></div>
+</div>
+</div>
+<div class="mt-4 flex justify-between text-[10px] uppercase tracking-widest text-white/30">
+<span>Week 1</span>
+<span>Week 3</span>
+<span>Week 5</span>
+<span>Week 7</span>
+</div>
+</div>
+</div>
+<!-- 3 & 4. Sidebar Content -->
+<div class="col-span-12 lg:col-span-4 space-y-6">
+<!-- 3. Alert/Exception Panel -->
+<div class="bg-[#131313] border border-white/5 p-6 rounded-sm">
+<div class="flex items-center gap-2 mb-6">
+<span class="w-2 h-2 rounded-full bg-error animate-pulse"></span>
+<h3 class="text-xs font-bold uppercase tracking-[0.2em] text-white">Critical Exceptions</h3>
+</div>
+<div class="space-y-4">
+<div class="flex items-start gap-4 pb-4 border-b border-white/5">
+<span class="material-symbols-outlined text-error text-lg" style="font-variation-settings: 'FILL' 1;">warning</span>
+<div>
+<p class="text-xs font-bold text-white">Transport cost exceeded</p>
+<p class="text-[10px] text-white/40 mt-1 uppercase tracking-wider">10m ago • Location A</p>
+</div>
+</div>
+<div class="flex items-start gap-4 pb-4 border-b border-white/5">
+<span class="material-symbols-outlined text-white/60 text-lg">local_gas_station</span>
+<div>
+<p class="text-xs font-bold text-white">Fuel anomaly detected</p>
+<p class="text-[10px] text-white/40 mt-1 uppercase tracking-wider">24m ago • Unit 04</p>
+</div>
+</div>
+<div class="flex items-start gap-4">
+<span class="material-symbols-outlined text-error text-lg">schedule</span>
+<div>
+<p class="text-xs font-bold text-white">OT Triggered: Scene 42</p>
+<p class="text-[10px] text-white/40 mt-1 uppercase tracking-wider">1h ago • Main Stage</p>
+</div>
+</div>
+</div>
+</div>
+<!-- 4. Approval Queue -->
+<div class="bg-[#131313] border border-white/5 p-6 rounded-sm">
+<h3 class="text-xs font-bold uppercase tracking-[0.2em] text-white mb-6">Approval Queue</h3>
+<div class="space-y-6">
+<div class="space-y-3">
+<div class="flex justify-between items-start">
+<div>
+<p class="text-xs font-bold text-white uppercase tracking-tight">Emergency Set Construction</p>
+<p class="text-[10px] text-white/40 mt-1">$14,500 • Art Department</p>
+</div>
+<span class="text-[10px] text-white bg-white/10 px-2 py-0.5 rounded-full uppercase">Priority</span>
+</div>
+<div class="flex gap-2">
+<button class="flex-1 bg-white text-black py-2 text-[10px] font-bold uppercase tracking-[0.15em] rounded-sm hover:bg-white/90 transition-colors">Approve</button>
+<button class="flex-1 border border-white/40 text-white py-2 text-[10px] font-bold uppercase tracking-[0.15em] rounded-sm hover:bg-white/5 transition-colors">Reject</button>
+</div>
+</div>
+<div class="space-y-3 pt-6 border-t border-white/5">
+<div class="flex justify-between items-start">
+<div>
+<p class="text-xs font-bold text-white uppercase tracking-tight">Night Shoot Catering</p>
+<p class="text-[10px] text-white/40 mt-1">$3,200 • Unit Base</p>
+</div>
+</div>
+<div class="flex gap-2">
+<button class="flex-1 bg-white text-black py-2 text-[10px] font-bold uppercase tracking-[0.15em] rounded-sm hover:bg-white/90 transition-colors">Approve</button>
+<button class="flex-1 border border-white/40 text-white py-2 text-[10px] font-bold uppercase tracking-[0.15em] rounded-sm hover:bg-white/5 transition-colors">Reject</button>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+<!-- 5 & 6. Bottom Grid -->
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-6 pt-4">
+<!-- 5. Real-time Activity Feed -->
+<div class="bg-[#131313] border border-white/5 p-6 rounded-sm col-span-1 lg:col-span-1 flex flex-col h-full">
+<h3 class="text-xs font-bold uppercase tracking-[0.2em] text-white mb-6">Real-Time Production Feed</h3>
+<div class="space-y-6 flex-1 overflow-y-auto max-h-[400px] pr-2">
+<div class="relative pl-6 border-l border-white/10 space-y-1">
+<div class="absolute -left-[4.5px] top-0 w-2 h-2 rounded-full bg-white"></div>
+<p class="text-[10px] text-white font-medium uppercase">Scene 42 Wrap</p>
+<p class="text-[10px] text-white/40">Unit moved to Location B. All gear accounted for.</p>
+<p class="text-[8px] uppercase tracking-widest text-white/20 mt-1">12:04 PM</p>
+</div>
+<div class="relative pl-6 border-l border-white/10 space-y-1">
+<div class="absolute -left-[4.5px] top-0 w-2 h-2 rounded-full bg-white/20"></div>
+<p class="text-[10px] text-white font-medium uppercase">Asset Ingested</p>
+<p class="text-[10px] text-white/40">Dailies from Day 41 uploaded to review server.</p>
+<p class="text-[8px] uppercase tracking-widest text-white/20 mt-1">11:42 AM</p>
+</div>
+<div class="relative pl-6 border-l border-white/10 space-y-1">
+<div class="absolute -left-[4.5px] top-0 w-2 h-2 rounded-full bg-white/20"></div>
+<p class="text-[10px] text-white font-medium uppercase">Crew Check-in</p>
+<p class="text-[10px] text-white/40">Art department team 2 arrived at backlot.</p>
+<p class="text-[8px] uppercase tracking-widest text-white/20 mt-1">11:30 AM</p>
+</div>
+<div class="relative pl-6 border-l border-white/10 space-y-1">
+<div class="absolute -left-[4.5px] top-0 w-2 h-2 rounded-full bg-white/20"></div>
+<p class="text-[10px] text-white font-medium uppercase">Call Sheet Published</p>
+<p class="text-[10px] text-white/40">Day 43 call sheet distributed to 142 recipients.</p>
+<p class="text-[8px] uppercase tracking-widest text-white/20 mt-1">10:15 AM</p>
+</div>
+</div>
+</div>
+<!-- 6. Department Snapshots -->
+<div class="col-span-1 lg:col-span-2 grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
+<!-- Transport Card -->
+<div class="group bg-[#131313] border border-white/5 rounded-sm overflow-hidden flex flex-col">
+<div class="h-24 bg-[#0e0e0e] relative">
+<img class="w-full h-full object-cover opacity-50 grayscale group-hover:opacity-100 transition-opacity" data-alt="Close-up of industrial transport trucks at a film production base camp in black and white dramatic lighting" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCBQzi0LRVJXljBK0f54ivkrPapD3QQDCxhN3lQAUPkO1dYXM7kwhxOhfQYLWzz60I7foYqAmVzdO1Vz0hSvX1497M04P0t-xrQY_7laTjZXl6drQ0t6F04YAhnUi0KJxeHXJ0A4oDIRUZlkYvcJi0Fw4eEFtm7XMLYjLWylULh2lJwZFUf7nIfGjFiKRJfGD25KsYIYSgSRjWEso-vzaUPFF8hUoIrAObWixyMY4q3DYhMxNl3fkqDHl1ZBo9Ka4EqBD56WgO7lC_6"/>
+<div class="absolute top-2 right-2 px-2 py-0.5 bg-black/60 backdrop-blur text-[8px] text-white uppercase font-bold tracking-widest">Active</div>
+</div>
+<div class="p-4 flex-1">
+<h4 class="text-xs font-bold text-white uppercase tracking-wider mb-2">Transport</h4>
+<div class="grid grid-cols-2 gap-2 text-[10px]">
+<div class="text-white/40 uppercase">Efficiency</div>
+<div class="text-right text-white">92%</div>
+<div class="text-white/40 uppercase">Pending Fuel</div>
+<div class="text-right text-white">$1,240</div>
+</div>
+</div>
+</div>
+<!-- Camera Card -->
+<div class="group bg-[#131313] border border-white/5 rounded-sm overflow-hidden flex flex-col">
+<div class="h-24 bg-[#0e0e0e] relative">
+<img class="w-full h-full object-cover opacity-50 grayscale group-hover:opacity-100 transition-opacity" data-alt="High-end cinema camera on a dolly track in a darkened film studio monochrome cinematography" src="https://lh3.googleusercontent.com/aida-public/AB6AXuAjK8UPemkqmDNjXO1jIj-DYw1wNO0cRrAjVXXvyMOJZnmzqD8V685YCzZr5gEcb0hT9Gs0jPUGCcspgdvsx0gHZ56zW-4EQ7huVBE0vefzVLZmkqb6xLSGhhakbhX3ICLkddBeHmJhSAmLsIdq2M2ZtMkuHGs6csATv58ktGifwzLVOVyd_ww68ayxgO6swY90g5k5K67yR3UI8E2yK5VfBjTNxWBCI6s4z8UGEaHehZkKbAO1hmgTjL4CItKW08Rz5Ija-Lh-6bFm"/>
+<div class="absolute top-2 right-2 px-2 py-0.5 bg-black/60 backdrop-blur text-[8px] text-white uppercase font-bold tracking-widest">Stable</div>
+</div>
+<div class="p-4 flex-1">
+<h4 class="text-xs font-bold text-white uppercase tracking-wider mb-2">Camera</h4>
+<div class="grid grid-cols-2 gap-2 text-[10px]">
+<div class="text-white/40 uppercase">Rental Days</div>
+<div class="text-right text-white">41/68</div>
+<div class="text-white/40 uppercase">Data Used</div>
+<div class="text-right text-white">18.4 TB</div>
+</div>
+</div>
+</div>
+<!-- Crew Card -->
+<div class="group bg-[#131313] border border-white/5 rounded-sm overflow-hidden flex flex-col">
+<div class="h-24 bg-[#0e0e0e] relative">
+<img class="w-full h-full object-cover opacity-50 grayscale group-hover:opacity-100 transition-opacity" data-alt="Crowded film set silhouettes with lighting equipment and crew members in a black and white high-contrast shot" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDhStGFGV5B3I0sJ2P8SvbI8C2L7dQt-Fn7zbSxgS8oCPTV5zuO9_bTJT63J0c4nWx9PschC3qiTB9b6ThHyp6K9C1obQbEQ_yy1Sor0fn7KuV1d6ReCUB8vPaREuNwlrgMDppKTKyg1MSfRTgLSJrk3GalytuO2W3KxDjsF9xkpPNpvRHHaHyjFkmhNuB8mhUluPEoJz97nFurHpDkPmNhAqMsrNcp62XY_uaAezFtl8L2n7eUQ3aLyxj7LnPlTsDnXEBHGR1eo913"/>
+<div class="absolute top-2 right-2 px-2 py-0.5 bg-black/60 backdrop-blur text-[8px] text-white uppercase font-bold tracking-widest">On Site</div>
+</div>
+<div class="p-4 flex-1">
+<h4 class="text-xs font-bold text-white uppercase tracking-wider mb-2">Crew</h4>
+<div class="grid grid-cols-2 gap-2 text-[10px]">
+<div class="text-white/40 uppercase">Headcount</div>
+<div class="text-right text-white">142</div>
+<div class="text-white/40 uppercase">OT Forecast</div>
+<div class="text-right text-white">12.5 hrs</div>
+</div>
+</div>
+</div>
+<!-- Art Card -->
+<div class="group bg-[#131313] border border-white/5 rounded-sm overflow-hidden flex flex-col">
+<div class="h-24 bg-[#0e0e0e] relative">
+<img class="w-full h-full object-cover opacity-50 grayscale group-hover:opacity-100 transition-opacity" data-alt="Artist studio with blueprints and drafting tools in moody monochrome lighting with deep shadows" src="https://lh3.googleusercontent.com/aida-public/AB6AXuB8s7W0xSMoFqqFh4fS-rF2pQumeA59BbgPsDZ3ZWNd5JgHR0WL9PXOKXFncrDq0OX2jILZFCNbqcecQO81YQT4BW6kMmGiQGN1T_Tts6waMiOwrMfNKguvT2MLiim3X-xsWbGDI8aHJUNRqQBb8bzLtSzja82-Xl3ECNynNAjjpRGIk9_kQ30dvNk_IxOUeE6Tfk5PxllvoYB3mwSamt9IMVuHa_JPgXQ6fStP1WfSZqZK2KVpfJDReJhPKi7N3XbxSx17hl5ERVTy"/>
+<div class="absolute top-2 right-2 px-2 py-0.5 bg-black/60 backdrop-blur text-[8px] text-white uppercase font-bold tracking-widest">Over</div>
+</div>
+<div class="p-4 flex-1">
+<h4 class="text-xs font-bold text-white uppercase tracking-wider mb-2">Art</h4>
+<div class="grid grid-cols-2 gap-2 text-[10px]">
+<div class="text-white/40 uppercase">Budget Used</div>
+<div class="text-right text-white">88%</div>
+<div class="text-white/40 uppercase">Active Builds</div>
+<div class="text-right text-white">4</div>
+</div>
+</div>
+</div>
+<!-- Wardrobe Card -->
+<div class="group bg-[#131313] border border-white/5 rounded-sm overflow-hidden flex flex-col">
+<div class="h-24 bg-[#0e0e0e] relative">
+<img class="w-full h-full object-cover opacity-50 grayscale group-hover:opacity-100 transition-opacity" data-alt="Rack of costumes in a film wardrobe department captured in high contrast black and white photography" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBKkkqs7-ltoaX49ildRIQCcHjJpchp8TqtKW7NgCGaK0rs4B6-8592GC-ybUXiDfER3GHZclI9CIkrlmGII4YKE3Io07v8dCZAUfM_oEDsSYOgTaem8X6QW2llx6fGWNGNiEobUuPEVvBeKJpFJjGKm8YyDAF30FgWmdYbFN_cx1jjw5-gj3UuqQQwS-0LTzi92N3TEZ-0lzXbIyfiLoD0tL9ZmD_AxrI9nC2KzwP01juDb6apImg8EUxNRKh0TFFO9mVImOTi5e4p"/>
+</div>
+<div class="p-4 flex-1">
+<h4 class="text-xs font-bold text-white uppercase tracking-wider mb-2">Wardrobe</h4>
+<div class="grid grid-cols-2 gap-2 text-[10px]">
+<div class="text-white/40 uppercase">Cast Ready</div>
+<div class="text-right text-white">12/12</div>
+<div class="text-white/40 uppercase">Expedited</div>
+<div class="text-right text-white">2</div>
+</div>
+</div>
+</div>
+<!-- Fleet Card -->
+<div class="group bg-[#131313] border border-white/5 rounded-sm overflow-hidden flex flex-col">
+<div class="h-24 bg-[#0e0e0e] relative">
+<div class="absolute inset-0 bg-white/5 flex items-center justify-center">
+<span class="material-symbols-outlined text-4xl text-white/10">location_on</span>
+</div>
+</div>
+<div class="p-4 flex-1">
+<h4 class="text-xs font-bold text-white uppercase tracking-wider mb-2">Fleet GPS</h4>
+<div class="grid grid-cols-2 gap-2 text-[10px]">
+<div class="text-white/40 uppercase">Moving</div>
+<div class="text-right text-white">8</div>
+<div class="text-white/40 uppercase">Idling</div>
+<div class="text-right text-white">20</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+</main>
+<!-- Contextual FAB - Only for Dashboard Actions -->
+<button class="fixed bottom-8 right-8 w-14 h-14 bg-white text-black rounded-sm flex items-center justify-center shadow-[0px_20px_40px_rgba(0,0,0,0.4)] hover:scale-95 transition-transform group">
+<span class="material-symbols-outlined">add</span>
+<span class="absolute right-16 bg-[#131313] text-white text-[10px] font-bold uppercase tracking-widest px-3 py-1 opacity-0 group-hover:opacity-100 transition-opacity border border-white/10 whitespace-nowrap">New Expenditure</span>
+</button>
+</body></html>

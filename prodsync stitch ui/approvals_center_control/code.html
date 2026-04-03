@@ -1,0 +1,500 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Approvals Center | PROJECT: NOIR</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@100;200;300;400;500;600;700;800;900&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "tertiary-container": "#909191",
+                        "tertiary": "#e2e2e2",
+                        "error-container": "#93000a",
+                        "surface-container-lowest": "#0e0e0e",
+                        "on-primary-fixed-variant": "#e2e2e2",
+                        "on-primary": "#1a1c1c",
+                        "primary-container": "#d4d4d4",
+                        "inverse-primary": "#5d5f5f",
+                        "surface-container-high": "#2a2a2a",
+                        "background": "#131313",
+                        "surface-container-highest": "#353534",
+                        "primary": "#ffffff",
+                        "outline-variant": "#474747",
+                        "on-secondary-fixed": "#1a1c1c",
+                        "on-secondary-container": "#e3e2e2",
+                        "on-primary-container": "#000000",
+                        "on-tertiary": "#1a1c1c",
+                        "on-tertiary-container": "#000000",
+                        "secondary-fixed": "#c7c6c6",
+                        "on-background": "#e5e2e1",
+                        "inverse-surface": "#e5e2e1",
+                        "surface-container-low": "#1c1b1b",
+                        "outline": "#919191",
+                        "surface-tint": "#c6c6c7",
+                        "secondary": "#c7c6c6",
+                        "surface-container": "#201f1f",
+                        "on-surface-variant": "#c6c6c6",
+                        "secondary-container": "#464747",
+                        "tertiary-fixed-dim": "#454747",
+                        "primary-fixed": "#5d5f5f",
+                        "on-error": "#690005",
+                        "surface": "#131313",
+                        "on-surface": "#e5e2e1",
+                        "on-secondary": "#1a1c1c",
+                        "tertiary-fixed": "#5d5f5f",
+                        "on-secondary-fixed-variant": "#3a3c3c",
+                        "on-error-container": "#ffdad6",
+                        "on-primary-fixed": "#ffffff",
+                        "surface-variant": "#353534",
+                        "on-tertiary-fixed-variant": "#e2e2e2",
+                        "inverse-on-surface": "#313030",
+                        "primary-fixed-dim": "#454747",
+                        "error": "#ffb4ab",
+                        "surface-dim": "#131313",
+                        "surface-bright": "#3a3939",
+                        "secondary-fixed-dim": "#ababab",
+                        "on-tertiary-fixed": "#ffffff"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.125rem",
+                        "lg": "0.25rem",
+                        "xl": "0.5rem",
+                        "full": "0.75rem"
+                    },
+                    "fontFamily": {
+                        "headline": ["Inter"],
+                        "body": ["Inter"],
+                        "label": ["Inter"]
+                    }
+                },
+            },
+        }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+            vertical-align: middle;
+        }
+        body { font-family: 'Inter', sans-serif; }
+    </style>
+</head>
+<body class="bg-background text-on-surface selection:bg-primary selection:text-on-primary min-h-screen">
+<!-- SideNavBar (Authority: JSON) -->
+<aside class="h-screen w-64 fixed left-0 top-0 bg-[#0e0e0e] flex flex-col py-8 px-4 gap-2 z-50">
+<div class="mb-8 px-2">
+<h1 class="text-xl font-black text-white tracking-tighter">STUDIO OPS</h1>
+<p class="font-['Inter'] font-semibold tracking-[-0.02em] text-[#e5e2e1]/50 text-[10px] uppercase">V.01-ALPHA</p>
+</div>
+<nav class="flex-1 flex flex-col gap-1">
+<a class="flex items-center gap-3 px-3 py-2 text-[#e5e2e1]/50 font-['Inter'] font-semibold tracking-[-0.02em] hover:bg-[#131313] hover:text-white transition-all duration-200" href="#">
+<span class="material-symbols-outlined" data-icon="dashboard">dashboard</span>
+<span class="text-sm">Dashboard</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2 text-[#e5e2e1]/50 font-['Inter'] font-semibold tracking-[-0.02em] hover:bg-[#131313] hover:text-white transition-all duration-200" href="#">
+<span class="material-symbols-outlined" data-icon="local_shipping">local_shipping</span>
+<span class="text-sm">Transport &amp; Logistics</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2 text-[#e5e2e1]/50 font-['Inter'] font-semibold tracking-[-0.02em] hover:bg-[#131313] hover:text-white transition-all duration-200" href="#">
+<span class="material-symbols-outlined" data-icon="photo_camera">photo_camera</span>
+<span class="text-sm">Camera &amp; Assets</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2 text-[#e5e2e1]/50 font-['Inter'] font-semibold tracking-[-0.02em] hover:bg-[#131313] hover:text-white transition-all duration-200" href="#">
+<span class="material-symbols-outlined" data-icon="groups">groups</span>
+<span class="text-sm">Crew &amp; Wages</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2 text-[#e5e2e1]/50 font-['Inter'] font-semibold tracking-[-0.02em] hover:bg-[#131313] hover:text-white transition-all duration-200" href="#">
+<span class="material-symbols-outlined" data-icon="palette">palette</span>
+<span class="text-sm">Art &amp; Expenses</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2 text-[#e5e2e1]/50 font-['Inter'] font-semibold tracking-[-0.02em] hover:bg-[#131313] hover:text-white transition-all duration-200" href="#">
+<span class="material-symbols-outlined" data-icon="face">face</span>
+<span class="text-sm">Wardrobe &amp; Makeup</span>
+</a>
+<!-- Active State Logic Applied -->
+<a class="flex items-center gap-3 px-3 py-2 bg-[#2a2a2a] text-white rounded-sm font-['Inter'] font-semibold tracking-[-0.02em]" href="#">
+<span class="material-symbols-outlined" data-icon="verified">verified</span>
+<span class="text-sm">Approvals</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2 text-[#e5e2e1]/50 font-['Inter'] font-semibold tracking-[-0.02em] hover:bg-[#131313] hover:text-white transition-all duration-200" href="#">
+<span class="material-symbols-outlined" data-icon="bar_chart">bar_chart</span>
+<span class="text-sm">Reports</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2 text-[#e5e2e1]/50 font-['Inter'] font-semibold tracking-[-0.02em] hover:bg-[#131313] hover:text-white transition-all duration-200" href="#">
+<span class="material-symbols-outlined" data-icon="settings">settings</span>
+<span class="text-sm">Settings</span>
+</a>
+</nav>
+</aside>
+<!-- TopAppBar (Authority: JSON) -->
+<header class="fixed top-0 left-64 right-0 z-40 bg-[#131313]/80 backdrop-blur-xl border-b border-[#474747]/20 shadow-[0px_20px_40px_rgba(0,0,0,0.4)]">
+<div class="flex justify-between items-center w-full px-6 h-16">
+<div class="flex items-center gap-6">
+<div class="text-lg font-black tracking-tighter text-white uppercase">PROJECT: NOIR</div>
+<nav class="flex gap-6">
+<span class="font-['Inter'] tracking-tight font-medium uppercase text-xs text-[#e5e2e1]/60 cursor-pointer hover:text-white transition-colors duration-300">Live Production</span>
+<span class="font-['Inter'] tracking-tight font-medium uppercase text-xs text-white border-b-2 border-white pb-1 cursor-pointer">Approvals Center</span>
+<span class="font-['Inter'] tracking-tight font-medium uppercase text-xs text-[#e5e2e1]/60 cursor-pointer hover:text-white transition-colors duration-300">Archive</span>
+</nav>
+</div>
+<div class="flex items-center gap-4">
+<button class="material-symbols-outlined text-white hover:opacity-70 transition-all scale-95 active:opacity-80" data-icon="notifications">notifications</button>
+<button class="material-symbols-outlined text-white hover:opacity-70 transition-all scale-95 active:opacity-80" data-icon="account_circle">account_circle</button>
+</div>
+</div>
+</header>
+<!-- Main Content -->
+<main class="pl-64 pt-24 pb-12 px-8 bg-background">
+<div class="max-w-[1400px] mx-auto">
+<!-- Page Header -->
+<div class="mb-10 flex justify-between items-end">
+<div>
+<h2 class="text-4xl font-black tracking-tight text-white mb-1">Approvals Center</h2>
+<p class="text-on-surface-variant font-medium tracking-tight">Centralized Decision &amp; Authorization System</p>
+</div>
+<div class="flex gap-3">
+<button class="bg-surface-container-high text-on-surface border border-outline-variant/20 px-6 py-2.5 text-xs font-bold uppercase tracking-widest hover:bg-surface-bright transition-colors rounded-lg flex items-center gap-2">
+<span class="material-symbols-outlined text-sm" data-icon="ios_share">ios_share</span> Export Report
+                    </button>
+<button class="bg-primary text-on-primary px-6 py-2.5 text-xs font-bold uppercase tracking-widest hover:bg-primary-container transition-colors rounded-lg flex items-center gap-2">
+<span class="material-symbols-outlined text-sm" data-icon="done_all">done_all</span> Approve All (Filtered)
+                    </button>
+</div>
+</div>
+<!-- Approval Overview (KPI Cards) -->
+<section class="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6 gap-4 mb-8">
+<div class="bg-surface-container-low p-5 rounded-lg border border-outline-variant/10">
+<p class="text-[10px] uppercase font-bold tracking-[0.1em] text-on-surface-variant mb-2">Total Pending</p>
+<p class="text-3xl font-black text-white">42</p>
+</div>
+<div class="bg-surface-container-low p-5 rounded-lg border border-outline-variant/10">
+<p class="text-[10px] uppercase font-bold tracking-[0.1em] text-on-surface-variant mb-2">High-Value (&gt;₹50K)</p>
+<p class="text-3xl font-black text-error">08</p>
+</div>
+<div class="bg-surface-container-low p-5 rounded-lg border border-outline-variant/10">
+<p class="text-[10px] uppercase font-bold tracking-[0.1em] text-on-surface-variant mb-2">Approved Today</p>
+<p class="text-3xl font-black text-white">154</p>
+</div>
+<div class="bg-surface-container-low p-5 rounded-lg border border-outline-variant/10">
+<p class="text-[10px] uppercase font-bold tracking-[0.1em] text-on-surface-variant mb-2">Rejected Today</p>
+<p class="text-3xl font-black text-white">04</p>
+</div>
+<div class="bg-surface-container-low p-5 rounded-lg border border-outline-variant/10">
+<p class="text-[10px] uppercase font-bold tracking-[0.1em] text-on-surface-variant mb-2">Pending Value</p>
+<p class="text-3xl font-black text-white">₹1.2M</p>
+</div>
+<div class="bg-surface-container-low p-5 rounded-lg border border-outline-variant/10">
+<p class="text-[10px] uppercase font-bold tracking-[0.1em] text-on-surface-variant mb-2">Avg Action Time</p>
+<p class="text-3xl font-black text-white">12m</p>
+</div>
+</section>
+<!-- Bento Grid Main Layout -->
+<div class="grid grid-cols-12 gap-8">
+<!-- Critical Alerts & Priority Queue -->
+<div class="col-span-12 lg:col-span-4 flex flex-col gap-4">
+<h3 class="text-xs font-black tracking-widest uppercase text-on-surface-variant px-1 mb-2">Critical Alerts</h3>
+<div class="bg-surface-container-high border-l-4 border-error p-6 rounded-lg relative overflow-hidden group">
+<div class="absolute top-0 right-0 p-4 opacity-10 scale-150">
+<span class="material-symbols-outlined text-6xl" data-icon="warning">warning</span>
+</div>
+<span class="inline-block bg-error/20 text-error text-[10px] font-bold px-2 py-0.5 rounded mb-3 uppercase tracking-tighter">Emergency Request</span>
+<h4 class="text-white font-bold text-lg mb-1 leading-tight">RED Dragon 8K Replacement</h4>
+<p class="text-on-surface-variant text-sm mb-4">Unit B sensor failure on set. Immediate rental authorization required for night shoot.</p>
+<div class="flex justify-between items-center border-t border-outline-variant/20 pt-4">
+<span class="text-white font-black">₹85,000</span>
+<div class="flex gap-2">
+<button class="text-error text-xs font-bold uppercase tracking-widest hover:bg-error/10 px-3 py-2 rounded">Deny</button>
+<button class="bg-white text-black text-xs font-bold uppercase tracking-widest px-4 py-2 rounded">Authorize</button>
+</div>
+</div>
+</div>
+<div class="bg-surface-container-high border-l-4 border-error/50 p-6 rounded-lg">
+<span class="inline-block bg-white/5 text-on-surface text-[10px] font-bold px-2 py-0.5 rounded mb-3 uppercase tracking-tighter">Budget Threshold</span>
+<h4 class="text-white font-bold text-lg mb-1 leading-tight">Overtime: 120 Crew Members</h4>
+<p class="text-on-surface-variant text-sm mb-4">Scene "The Rain Heist" running 4 hours over schedule. Predicted impact: ₹4.2L.</p>
+<div class="flex justify-between items-center border-t border-outline-variant/20 pt-4">
+<span class="text-white font-black">₹4,20,000</span>
+<div class="flex gap-2">
+<button class="bg-white text-black text-xs font-bold uppercase tracking-widest px-4 py-2 rounded">Review</button>
+</div>
+</div>
+</div>
+</div>
+<!-- Unified Approval Queue (Core Table) -->
+<div class="col-span-12 lg:col-span-8">
+<h3 class="text-xs font-black tracking-widest uppercase text-on-surface-variant px-1 mb-4">Unified Approval Queue</h3>
+<div class="bg-surface-container-lowest border border-outline-variant/10 rounded-lg overflow-hidden">
+<table class="w-full text-left border-collapse">
+<thead>
+<tr class="bg-surface-container-high/30 border-b border-outline-variant/10">
+<th class="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-on-surface-variant">Type</th>
+<th class="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-on-surface-variant">Dept</th>
+<th class="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-on-surface-variant">Requested By</th>
+<th class="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-on-surface-variant">Amount</th>
+<th class="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-on-surface-variant text-right">Time</th>
+</tr>
+</thead>
+<tbody class="divide-y divide-outline-variant/10">
+<tr class="hover:bg-surface-container-high/40 transition-colors group cursor-pointer">
+<td class="px-6 py-5">
+<div class="flex items-center gap-3">
+<span class="material-symbols-outlined text-on-surface-variant" data-icon="palette">palette</span>
+<span class="text-white font-medium text-sm">Art Expense</span>
+</div>
+</td>
+<td class="px-6 py-5 text-on-surface-variant text-sm">Art Dept</td>
+<td class="px-6 py-5">
+<div class="flex items-center gap-2">
+<div class="w-6 h-6 rounded-full bg-surface-container-highest flex items-center justify-center text-[10px] font-bold">MK</div>
+<span class="text-on-surface text-sm">M. Kapoor</span>
+</div>
+</td>
+<td class="px-6 py-5 text-white font-bold text-sm">₹12,400</td>
+<td class="px-6 py-5 text-right text-on-surface-variant text-[10px] font-mono uppercase tracking-tighter">02:14 PM</td>
+</tr>
+<tr class="hover:bg-surface-container-high/40 transition-colors group cursor-pointer">
+<td class="px-6 py-5">
+<div class="flex items-center gap-3">
+<span class="material-symbols-outlined text-on-surface-variant" data-icon="local_taxi">local_taxi</span>
+<span class="text-white font-medium text-sm">Travel Auth</span>
+</div>
+</td>
+<td class="px-6 py-5 text-on-surface-variant text-sm">Logistics</td>
+<td class="px-6 py-5">
+<div class="flex items-center gap-2">
+<div class="w-6 h-6 rounded-full bg-surface-container-highest flex items-center justify-center text-[10px] font-bold">JD</div>
+<span class="text-on-surface text-sm">J. Doe</span>
+</div>
+</td>
+<td class="px-6 py-5 text-white font-bold text-sm">₹4,500</td>
+<td class="px-6 py-5 text-right text-on-surface-variant text-[10px] font-mono uppercase tracking-tighter">01:55 PM</td>
+</tr>
+<tr class="hover:bg-surface-container-high/40 transition-colors group cursor-pointer">
+<td class="px-6 py-5">
+<div class="flex items-center gap-3">
+<span class="material-symbols-outlined text-on-surface-variant" data-icon="lunch_dining">lunch_dining</span>
+<span class="text-white font-medium text-sm">Catering Top-up</span>
+</div>
+</td>
+<td class="px-6 py-5 text-on-surface-variant text-sm">Production</td>
+<td class="px-6 py-5">
+<div class="flex items-center gap-2">
+<div class="w-6 h-6 rounded-full bg-surface-container-highest flex items-center justify-center text-[10px] font-bold">AS</div>
+<span class="text-on-surface text-sm">A. Singh</span>
+</div>
+</td>
+<td class="px-6 py-5 text-white font-bold text-sm">₹28,000</td>
+<td class="px-6 py-5 text-right text-on-surface-variant text-[10px] font-mono uppercase tracking-tighter">01:12 PM</td>
+</tr>
+<tr class="hover:bg-surface-container-high/40 transition-colors group cursor-pointer">
+<td class="px-6 py-5">
+<div class="flex items-center gap-3">
+<span class="material-symbols-outlined text-on-surface-variant" data-icon="inventory_2">inventory_2</span>
+<span class="text-white font-medium text-sm">Props Rental</span>
+</div>
+</td>
+<td class="px-6 py-5 text-on-surface-variant text-sm">Art Dept</td>
+<td class="px-6 py-5">
+<div class="flex items-center gap-2">
+<div class="w-6 h-6 rounded-full bg-surface-container-highest flex items-center justify-center text-[10px] font-bold">RM</div>
+<span class="text-on-surface text-sm">R. Malik</span>
+</div>
+</td>
+<td class="px-6 py-5 text-white font-bold text-sm">₹65,000</td>
+<td class="px-6 py-5 text-right text-on-surface-variant text-[10px] font-mono uppercase tracking-tighter">12:45 PM</td>
+</tr>
+</tbody>
+</table>
+</div>
+</div>
+<!-- Overtime Approval Section -->
+<div class="col-span-12 lg:col-span-6 bg-surface-container-low rounded-lg p-8 border border-outline-variant/10">
+<div class="flex justify-between items-start mb-8">
+<div>
+<h3 class="text-lg font-black text-white mb-1">Active Overtime Monitor</h3>
+<p class="text-on-surface-variant text-xs font-bold uppercase tracking-widest">Real-time Cost Tracking</p>
+</div>
+<div class="bg-error/10 text-error px-4 py-1.5 rounded-full flex items-center gap-2 animate-pulse">
+<span class="block w-2 h-2 rounded-full bg-error"></span>
+<span class="text-[10px] font-black uppercase tracking-widest">Live: Unit A</span>
+</div>
+</div>
+<div class="flex gap-12 items-center mb-8">
+<div>
+<p class="text-[10px] font-bold uppercase text-on-surface-variant mb-1">Time Elapsed</p>
+<p class="text-4xl font-black text-white font-mono">03:42:15</p>
+</div>
+<div class="h-12 w-px bg-outline-variant/20"></div>
+<div>
+<p class="text-[10px] font-bold uppercase text-on-surface-variant mb-1">Est. Accrued Cost</p>
+<p class="text-4xl font-black text-white">₹3,45,200</p>
+</div>
+</div>
+<div class="space-y-4">
+<div class="flex justify-between items-end mb-1">
+<p class="text-xs font-bold text-on-surface uppercase tracking-tight">Crew Utilization (120 Pax)</p>
+<p class="text-xs font-bold text-white">88% of Shift Cap</p>
+</div>
+<div class="w-full h-1 bg-surface-container-highest rounded-full overflow-hidden">
+<div class="h-full bg-white w-[88%]"></div>
+</div>
+</div>
+<div class="mt-10 flex gap-4">
+<button class="flex-1 bg-transparent border border-outline-variant text-white py-4 font-black uppercase text-xs tracking-[0.2em] hover:bg-white/5 transition-colors">Wrap Shift Now</button>
+<button class="flex-1 bg-white text-black py-4 font-black uppercase text-xs tracking-[0.2em] hover:bg-primary-container transition-colors shadow-[0px_4px_10px_rgba(255,255,255,0.1)]">Approve Ext. (1hr)</button>
+</div>
+</div>
+<!-- Budget Impact Insight -->
+<div class="col-span-12 lg:col-span-6 bg-surface-container-low rounded-lg p-8 border border-outline-variant/10">
+<h3 class="text-lg font-black text-white mb-6">Budget Impact Insight</h3>
+<div class="grid grid-cols-2 gap-8 mb-8">
+<div class="p-6 bg-surface-container-lowest border border-outline-variant/10 rounded-lg">
+<p class="text-[10px] font-bold uppercase text-on-surface-variant mb-4 tracking-widest">Pre-Approval State</p>
+<div class="flex items-center gap-4">
+<div class="w-12 h-12 rounded-full border-4 border-white/20 border-t-white flex items-center justify-center text-xs font-bold text-white">62%</div>
+<div>
+<p class="text-sm font-bold text-white">₹14.2M Used</p>
+<p class="text-[10px] text-on-surface-variant">of ₹23M Total Budget</p>
+</div>
+</div>
+</div>
+<div class="p-6 bg-surface-container-lowest border border-outline-variant/10 rounded-lg relative overflow-hidden">
+<div class="absolute inset-0 bg-white/5 opacity-50"></div>
+<p class="text-[10px] font-bold uppercase text-on-surface-variant mb-4 tracking-widest relative z-10">Post-Approval Projection</p>
+<div class="flex items-center gap-4 relative z-10">
+<div class="w-12 h-12 rounded-full border-4 border-white/10 border-t-white/80 flex items-center justify-center text-xs font-bold text-white">68%</div>
+<div>
+<p class="text-sm font-bold text-white">₹15.6M Est.</p>
+<p class="text-[10px] text-on-surface-variant">+₹1.4M Variance</p>
+</div>
+</div>
+</div>
+</div>
+<div class="space-y-4">
+<h4 class="text-[10px] font-bold uppercase text-on-surface-variant tracking-widest mb-4">Department Exposure</h4>
+<div class="flex justify-between items-center text-xs py-2 border-b border-outline-variant/10">
+<span class="text-on-surface">Art Department</span>
+<span class="text-white font-mono font-bold">+1.2%</span>
+</div>
+<div class="flex justify-between items-center text-xs py-2 border-b border-outline-variant/10">
+<span class="text-on-surface">Camera &amp; Electrical</span>
+<span class="text-white font-mono font-bold">+0.8%</span>
+</div>
+<div class="flex justify-between items-center text-xs py-2">
+<span class="text-on-surface">Production General</span>
+<span class="text-white font-mono font-bold">+2.4%</span>
+</div>
+</div>
+</div>
+<!-- Approval Analytics -->
+<div class="col-span-12 lg:col-span-12">
+<div class="bg-surface-container-low p-8 rounded-lg border border-outline-variant/10">
+<div class="flex justify-between items-center mb-10">
+<div>
+<h3 class="text-lg font-black text-white mb-1">Approval Velocity &amp; Trends</h3>
+<p class="text-on-surface-variant text-xs font-bold uppercase tracking-widest">Activity across the last 14 days</p>
+</div>
+<div class="flex gap-2">
+<span class="px-4 py-1 bg-surface-container-lowest text-[10px] font-bold uppercase text-on-surface-variant border border-outline-variant/20 rounded-full">Daily Avg: 18.4 req</span>
+<span class="px-4 py-1 bg-surface-container-lowest text-[10px] font-bold uppercase text-on-surface-variant border border-outline-variant/20 rounded-full">Peak: Thursday</span>
+</div>
+</div>
+<div class="h-48 flex items-end justify-between gap-4">
+<!-- Mock Chart Bars -->
+<div class="flex-1 bg-surface-container-highest rounded-t-sm h-[40%] group relative">
+<div class="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 bg-white text-black text-[10px] font-black px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity">12</div>
+</div>
+<div class="flex-1 bg-surface-container-highest rounded-t-sm h-[60%] group relative">
+<div class="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 bg-white text-black text-[10px] font-black px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity">18</div>
+</div>
+<div class="flex-1 bg-primary rounded-t-sm h-[85%] group relative">
+<div class="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 bg-white text-black text-[10px] font-black px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity">26</div>
+</div>
+<div class="flex-1 bg-surface-container-highest rounded-t-sm h-[50%] group relative"></div>
+<div class="flex-1 bg-surface-container-highest rounded-t-sm h-[45%] group relative"></div>
+<div class="flex-1 bg-surface-container-highest rounded-t-sm h-[70%] group relative"></div>
+<div class="flex-1 bg-surface-container-highest rounded-t-sm h-[90%] group relative"></div>
+<div class="flex-1 bg-surface-container-highest rounded-t-sm h-[30%] group relative"></div>
+<div class="flex-1 bg-surface-container-highest rounded-t-sm h-[55%] group relative"></div>
+<div class="flex-1 bg-surface-container-highest rounded-t-sm h-[65%] group relative"></div>
+<div class="flex-1 bg-surface-container-highest rounded-t-sm h-[40%] group relative"></div>
+<div class="flex-1 bg-white rounded-t-sm h-[95%] group relative">
+<div class="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 bg-white text-black text-[10px] font-black px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity">31</div>
+</div>
+<div class="flex-1 bg-surface-container-highest rounded-t-sm h-[60%] group relative"></div>
+<div class="flex-1 bg-primary/20 rounded-t-sm h-[50%] group relative"></div>
+</div>
+<div class="flex justify-between mt-4 text-[9px] font-bold uppercase tracking-[0.2em] text-on-surface-variant opacity-50">
+<span>M</span><span>T</span><span>W</span><span>T</span><span>F</span><span>S</span><span>S</span><span>M</span><span>T</span><span>W</span><span>T</span><span>F</span><span>S</span><span>S</span>
+</div>
+</div>
+</div>
+<!-- Approval History & Audit Trail -->
+<div class="col-span-12">
+<h3 class="text-xs font-black tracking-widest uppercase text-on-surface-variant px-1 mb-4">Approval History &amp; Audit Trail</h3>
+<div class="bg-surface-container-lowest border border-outline-variant/10 rounded-lg overflow-hidden">
+<table class="w-full text-left border-collapse">
+<thead>
+<tr class="bg-surface-container-high/30 border-b border-outline-variant/10">
+<th class="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-on-surface-variant">Request ID</th>
+<th class="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-on-surface-variant">Approved By</th>
+<th class="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-on-surface-variant">Timestamp</th>
+<th class="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-on-surface-variant">Audit Note</th>
+<th class="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-on-surface-variant text-right">Action</th>
+</tr>
+</thead>
+<tbody class="divide-y divide-outline-variant/5">
+<tr class="text-sm">
+<td class="px-6 py-4 text-on-surface-variant font-mono">#REQ-8291</td>
+<td class="px-6 py-4 text-white font-bold">K. Sharma (LP)</td>
+<td class="px-6 py-4 text-on-surface-variant">Oct 24, 09:12 AM</td>
+<td class="px-6 py-4 italic text-on-surface-variant">"Authorized for scene 12 only."</td>
+<td class="px-6 py-4 text-right">
+<button class="material-symbols-outlined text-on-surface-variant hover:text-white" data-icon="visibility">visibility</button>
+</td>
+</tr>
+<tr class="text-sm">
+<td class="px-6 py-4 text-on-surface-variant font-mono">#REQ-8288</td>
+<td class="px-6 py-4 text-white font-bold">S. Verve (Prod)</td>
+<td class="px-6 py-4 text-on-surface-variant">Oct 24, 08:45 AM</td>
+<td class="px-6 py-4 italic text-on-surface-variant">"Standard rental rate applied."</td>
+<td class="px-6 py-4 text-right">
+<button class="material-symbols-outlined text-on-surface-variant hover:text-white" data-icon="visibility">visibility</button>
+</td>
+</tr>
+<tr class="text-sm">
+<td class="px-6 py-4 text-on-surface-variant font-mono">#REQ-8285</td>
+<td class="px-6 py-4 text-white font-bold">K. Sharma (LP)</td>
+<td class="px-6 py-4 text-on-surface-variant">Oct 23, 11:30 PM</td>
+<td class="px-6 py-4 italic text-on-surface-variant">"Rejected. Out of budget scope."</td>
+<td class="px-6 py-4 text-right">
+<button class="material-symbols-outlined text-on-surface-variant hover:text-white" data-icon="visibility">visibility</button>
+</td>
+</tr>
+</tbody>
+</table>
+</div>
+</div>
+</div>
+</div>
+</main>
+<!-- Footer Status Bar -->
+<footer class="fixed bottom-0 left-64 right-0 h-10 bg-surface-container-lowest border-t border-outline-variant/10 px-6 flex items-center justify-between z-40">
+<div class="flex items-center gap-6">
+<div class="flex items-center gap-2">
+<span class="block w-1.5 h-1.5 bg-white rounded-full"></span>
+<span class="text-[9px] font-bold uppercase tracking-widest text-on-surface-variant">Sync: Stable</span>
+</div>
+<div class="flex items-center gap-2">
+<span class="text-[9px] font-bold uppercase tracking-widest text-on-surface-variant">Uptime: 99.98%</span>
+</div>
+</div>
+<div class="text-[9px] font-bold uppercase tracking-widest text-on-surface-variant opacity-30">ProdSync Approval Interface — V.01-ALPHA</div>
+</footer>
+</body></html>

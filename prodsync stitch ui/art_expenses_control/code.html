@@ -1,0 +1,492 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>ProdSync | Art &amp; Expenses Control</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@100..900&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "on-secondary-container": "#e3e2e2",
+                        "surface-container-low": "#1c1b1b",
+                        "background": "#131313",
+                        "surface-tint": "#c6c6c7",
+                        "tertiary-fixed-dim": "#454747",
+                        "on-primary-container": "#000000",
+                        "on-error": "#690005",
+                        "inverse-surface": "#e5e2e1",
+                        "tertiary-container": "#909191",
+                        "secondary": "#c7c6c6",
+                        "on-tertiary-container": "#000000",
+                        "surface-container": "#201f1f",
+                        "on-tertiary": "#1a1c1c",
+                        "on-secondary": "#1a1c1c",
+                        "surface-container-highest": "#353534",
+                        "on-secondary-fixed-variant": "#3a3c3c",
+                        "surface-container-high": "#2a2a2a",
+                        "surface-variant": "#353534",
+                        "on-primary-fixed": "#ffffff",
+                        "on-primary": "#1a1c1c",
+                        "on-error-container": "#ffdad6",
+                        "primary": "#ffffff",
+                        "on-surface-variant": "#c6c6c6",
+                        "secondary-fixed-dim": "#ababab",
+                        "secondary-fixed": "#c7c6c6",
+                        "surface-dim": "#131313",
+                        "on-background": "#e5e2e1",
+                        "tertiary": "#e2e2e2",
+                        "primary-fixed": "#5d5f5f",
+                        "surface-container-lowest": "#0e0e0e",
+                        "outline-variant": "#474747",
+                        "secondary-container": "#464747",
+                        "tertiary-fixed": "#5d5f5f",
+                        "error-container": "#93000a",
+                        "primary-container": "#d4d4d4",
+                        "on-surface": "#e5e2e1",
+                        "on-secondary-fixed": "#1a1c1c",
+                        "inverse-primary": "#5d5f5f",
+                        "surface-bright": "#3a3939",
+                        "primary-fixed-dim": "#454747",
+                        "outline": "#919191",
+                        "error": "#ffb4ab",
+                        "inverse-on-surface": "#313030",
+                        "on-tertiary-fixed-variant": "#e2e2e2",
+                        "surface": "#131313",
+                        "on-primary-fixed-variant": "#e2e2e2",
+                        "on-tertiary-fixed": "#ffffff"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.125rem",
+                        "lg": "0.25rem",
+                        "xl": "0.5rem",
+                        "full": "0.75rem"
+                    },
+                    "fontFamily": {
+                        "headline": ["Inter"],
+                        "body": ["Inter"],
+                        "label": ["Inter"]
+                    }
+                },
+            },
+        }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+            vertical-align: middle;
+        }
+        body { font-family: 'Inter', sans-serif; }
+        .glass { background: rgba(19, 19, 19, 0.8); backdrop-filter: blur(24px); }
+        .ghost-border { border: 1px solid rgba(71, 71, 71, 0.2); }
+    </style>
+</head>
+<body class="bg-surface-container-lowest text-on-surface min-h-screen">
+<!-- SideNavBar (Shared Component) -->
+<nav class="fixed left-0 top-0 h-full w-64 border-r border-outline-variant/20 bg-[#0e0e0e] flex flex-col py-8 px-6 z-50">
+<div class="mb-10">
+<h1 class="text-xl font-black tracking-tighter text-white">STUDIO_V</h1>
+<p class="text-[10px] uppercase tracking-widest text-[#a1a1a1] mt-1">Production Unit 01</p>
+</div>
+<div class="space-y-6 flex-1">
+<div class="flex flex-col gap-2">
+<a class="flex items-center gap-3 text-[#a1a1a1] pl-4 font-['Inter'] tracking-tight text-sm uppercase font-medium hover:bg-[#131313] hover:text-white transition-colors duration-200 py-2" href="#">
+<span class="material-symbols-outlined" data-icon="grid_view">grid_view</span>
+                    Overview
+                </a>
+<a class="flex items-center gap-3 text-[#a1a1a1] pl-4 font-['Inter'] tracking-tight text-sm uppercase font-medium hover:bg-[#131313] hover:text-white transition-colors duration-200 py-2" href="#">
+<span class="material-symbols-outlined" data-icon="movie_filter">movie_filter</span>
+                    Production
+                </a>
+<a class="flex items-center gap-3 text-[#a1a1a1] pl-4 font-['Inter'] tracking-tight text-sm uppercase font-medium hover:bg-[#131313] hover:text-white transition-colors duration-200 py-2" href="#">
+<span class="material-symbols-outlined" data-icon="palette">palette</span>
+                    Art Dept
+                </a>
+<a class="flex items-center gap-3 text-white font-bold border-l-2 border-white pl-4 ml-[-1.5rem] font-['Inter'] tracking-tight text-sm uppercase py-2" href="#">
+<span class="material-symbols-outlined" data-icon="payments">payments</span>
+                    Expenses
+                </a>
+<a class="flex items-center gap-3 text-[#a1a1a1] pl-4 font-['Inter'] tracking-tight text-sm uppercase font-medium hover:bg-[#131313] hover:text-white transition-colors duration-200 py-2" href="#">
+<span class="material-symbols-outlined" data-icon="inventory_2">inventory_2</span>
+                    Archive
+                </a>
+</div>
+<div class="pt-6 mt-6 border-t border-outline-variant/10">
+<button class="w-full bg-white text-black py-3 text-xs font-bold uppercase tracking-widest hover:bg-primary-container transition-colors">
+                    New Project
+                </button>
+</div>
+</div>
+<div class="space-y-2 mt-auto">
+<a class="flex items-center gap-3 text-[#a1a1a1] pl-4 text-xs uppercase font-medium hover:text-white py-2" href="#">
+<span class="material-symbols-outlined" data-icon="settings">settings</span>
+                Settings
+            </a>
+<a class="flex items-center gap-3 text-[#a1a1a1] pl-4 text-xs uppercase font-medium hover:text-white py-2" href="#">
+<span class="material-symbols-outlined" data-icon="help_outline">help_outline</span>
+                Support
+            </a>
+</div>
+</nav>
+<!-- TopAppBar (Shared Component) -->
+<header class="sticky top-0 z-40 w-full h-16 border-b border-outline-variant/20 bg-[#131313]/80 backdrop-blur-xl flex justify-between items-center px-8 ml-64 max-w-[calc(100%-16rem)]">
+<div class="flex items-center gap-8">
+<span class="text-lg font-bold text-white tracking-widest uppercase">PROJECT_OBSIDIAN</span>
+<nav class="flex gap-6">
+<a class="text-[#a1a1a1] font-['Inter'] text-xs font-bold tracking-[0.1em] uppercase hover:text-white transition-opacity" href="#">Scenes</a>
+<a class="text-[#a1a1a1] font-['Inter'] text-xs font-bold tracking-[0.1em] uppercase hover:text-white transition-opacity" href="#">Cast</a>
+<a class="text-[#a1a1a1] font-['Inter'] text-xs font-bold tracking-[0.1em] uppercase hover:text-white transition-opacity" href="#">Crew</a>
+</nav>
+</div>
+<div class="flex items-center gap-4">
+<button class="material-symbols-outlined text-on-surface hover:text-white" data-icon="notifications_none">notifications_none</button>
+<button class="material-symbols-outlined text-on-surface hover:text-white" data-icon="tune">tune</button>
+<div class="h-8 w-8 bg-surface-container-high border border-outline-variant/20 overflow-hidden">
+<img alt="User Profile" class="w-full h-full object-cover" data-alt="Close up portrait of a film director with professional lighting and monochrome aesthetic" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCk1xYcZgSgkPxrMZ_rTjSz5wViYZb-BK-E1uSz-SI8sgZNNmgXav6nL-3zlk5VUGfJWGk3mqnupVvxIHUSP3nxLG3euY_HfORbd66GPJiDPYV5SiPqmbL65wltYZQmYuqGNOaJdDTsILAQjfnET5qW6kEQYlb3fzgHRfQcb02_87eH01NVduIgqe5TtB53_w9bgGdbScU89giY5KXfAYAwLMrJG25IZBUakw7XUXCQRFqxe_AaIwvrTTzKEuWlesD7adZGO_ELD2J7"/>
+</div>
+</div>
+</header>
+<main class="ml-64 p-8">
+<!-- 10. Quick Actions Bar -->
+<div class="flex justify-between items-end mb-10">
+<div>
+<h2 class="text-4xl font-black tracking-tighter uppercase mb-2">Art &amp; Expenses</h2>
+<div class="flex items-center gap-2 text-xs font-medium uppercase tracking-[0.2em] text-[#a1a1a1]">
+<span class="w-2 h-2 bg-white inline-block"></span> 
+                    Active Unit: 01-Art-Dept
+                </div>
+</div>
+<div class="flex gap-4">
+<button class="ghost-border px-6 py-3 text-[10px] font-bold uppercase tracking-widest hover:bg-white hover:text-black transition-all">Add Expense</button>
+<button class="ghost-border px-6 py-3 text-[10px] font-bold uppercase tracking-widest hover:bg-white hover:text-black transition-all">Upload Receipt</button>
+<button class="bg-white text-black px-6 py-3 text-[10px] font-bold uppercase tracking-widest hover:bg-primary-container transition-all">Request Petty Cash</button>
+</div>
+</div>
+<!-- 1. Expense Overview (KPIs) -->
+<div class="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6 gap-0.5 bg-outline-variant/10 border border-outline-variant/10 mb-8">
+<div class="bg-surface p-6">
+<p class="text-[10px] uppercase tracking-[0.15em] text-[#a1a1a1] mb-2">Total Spend Today</p>
+<p class="text-2xl font-bold">₹1,42,000</p>
+</div>
+<div class="bg-surface p-6">
+<p class="text-[10px] uppercase tracking-[0.15em] text-[#a1a1a1] mb-2">Dept Budget</p>
+<p class="text-2xl font-bold">₹12,50,000</p>
+</div>
+<div class="bg-surface p-6">
+<p class="text-[10px] uppercase tracking-[0.15em] text-[#a1a1a1] mb-2">Budget Remaining</p>
+<p class="text-2xl font-bold">₹2,10,000</p>
+</div>
+<div class="bg-surface p-6">
+<p class="text-[10px] uppercase tracking-[0.15em] text-[#a1a1a1] mb-2">Pending</p>
+<p class="text-2xl font-bold">₹85,000</p>
+</div>
+<div class="bg-surface p-6">
+<p class="text-[10px] uppercase tracking-[0.15em] text-[#a1a1a1] mb-2">Approved</p>
+<p class="text-2xl font-bold text-white">₹10,40,000</p>
+</div>
+<div class="bg-surface p-6">
+<p class="text-[10px] uppercase tracking-[0.15em] text-error mb-2">Over-Budget</p>
+<p class="text-2xl font-bold text-error">₹30,000</p>
+</div>
+</div>
+<div class="grid grid-cols-12 gap-8">
+<!-- Left Column: Criticals & Approval -->
+<div class="col-span-12 lg:col-span-4 space-y-8">
+<!-- 2. Alerts & Exceptions -->
+<section>
+<h3 class="text-xs font-bold uppercase tracking-widest mb-4 flex items-center gap-2">
+<span class="material-symbols-outlined text-error" data-icon="warning">warning</span>
+                        Critical Alerts
+                    </h3>
+<div class="space-y-4">
+<div class="bg-error/10 border-l-2 border-error p-4 ghost-border">
+<p class="text-xs font-bold text-error uppercase mb-1">Budget Overrun</p>
+<p class="text-sm text-on-surface">Art dept exceeded construction budget by ₹30,000 on 'Set A - Throne Room'.</p>
+</div>
+<div class="bg-yellow-500/10 border-l-2 border-yellow-500 p-4 ghost-border">
+<p class="text-xs font-bold text-yellow-500 uppercase mb-1">Missing Documentation</p>
+<p class="text-sm text-on-surface">12 receipts missing from 'Prop Sourcing - Paris Trip'.</p>
+</div>
+</div>
+</section>
+<!-- 8. Approval Queue -->
+<section>
+<div class="flex justify-between items-center mb-4">
+<h3 class="text-xs font-bold uppercase tracking-widest">Pending Approval</h3>
+<span class="text-[10px] bg-white text-black px-2 py-0.5 font-bold">4 REQUESTS</span>
+</div>
+<div class="space-y-3">
+<div class="bg-surface-container p-4 ghost-border">
+<div class="flex justify-between mb-3">
+<span class="text-[10px] uppercase tracking-tighter bg-outline-variant/20 px-2 py-0.5">Art / Materials</span>
+<span class="text-sm font-bold">₹15,400</span>
+</div>
+<p class="text-sm mb-4">Urgent: Lumber supply for Scene 42 expansion.</p>
+<!-- 9. Budget Impact Insight -->
+<div class="bg-error/5 border border-error/20 p-3 mb-4">
+<p class="text-[10px] font-bold text-error uppercase">Impact Insight</p>
+<p class="text-[11px] text-error/80">Approving this ₹15,400 request will exceed the weekly material budget by ₹4,200.</p>
+</div>
+<div class="flex gap-2">
+<button class="flex-1 bg-white text-black py-2 text-[10px] font-bold uppercase">Approve</button>
+<button class="flex-1 border border-outline-variant py-2 text-[10px] font-bold uppercase hover:bg-error hover:border-error transition-colors">Reject</button>
+</div>
+</div>
+</div>
+</section>
+</div>
+<!-- Middle/Main Column: Logs & Scanners -->
+<div class="col-span-12 lg:col-span-8 space-y-8">
+<!-- 3. Expense / Petty Cash Logs -->
+<section class="bg-surface p-1 ghost-border">
+<div class="px-6 py-4 border-b border-outline-variant/10 flex justify-between items-center">
+<h3 class="text-xs font-bold uppercase tracking-widest">Expense Logs</h3>
+<div class="flex gap-4 text-[10px] font-medium text-[#a1a1a1] uppercase">
+<span>Filter: All Depts</span>
+<span>Sort: Newest</span>
+</div>
+</div>
+<div class="overflow-x-auto">
+<table class="w-full text-left">
+<thead>
+<tr class="text-[10px] uppercase tracking-widest text-[#a1a1a1] border-b border-outline-variant/10">
+<th class="px-6 py-4 font-medium">Date</th>
+<th class="px-6 py-4 font-medium">Description</th>
+<th class="px-6 py-4 font-medium">Dept</th>
+<th class="px-6 py-4 font-medium">Amount</th>
+<th class="px-6 py-4 font-medium">Status</th>
+</tr>
+</thead>
+<tbody class="divide-y divide-outline-variant/5">
+<tr class="hover:bg-surface-container-low transition-colors group">
+<td class="px-6 py-4 text-xs">OCT 24, 2023</td>
+<td class="px-6 py-4 text-xs font-medium">Vintage Leather Sofa Rental</td>
+<td class="px-6 py-4 text-xs">Props</td>
+<td class="px-6 py-4 text-xs font-bold">₹45,000</td>
+<td class="px-6 py-4">
+<span class="text-[9px] font-bold uppercase border border-green-500/50 text-green-500 px-2 py-0.5">Approved</span>
+</td>
+</tr>
+<tr class="hover:bg-surface-container-low transition-colors">
+<td class="px-6 py-4 text-xs">OCT 24, 2023</td>
+<td class="px-6 py-4 text-xs font-medium">Emergency Power Grid Rental</td>
+<td class="px-6 py-4 text-xs">Set Construction</td>
+<td class="px-6 py-4 text-xs font-bold">₹1,20,000</td>
+<td class="px-6 py-4">
+<span class="text-[9px] font-bold uppercase border border-white/50 text-white px-2 py-0.5">Pending</span>
+</td>
+</tr>
+<tr class="hover:bg-surface-container-low transition-colors">
+<td class="px-6 py-4 text-xs">OCT 23, 2023</td>
+<td class="px-6 py-4 text-xs font-medium">Acrylic Paints Batch A</td>
+<td class="px-6 py-4 text-xs">Art</td>
+<td class="px-6 py-4 text-xs font-bold">₹12,400</td>
+<td class="px-6 py-4">
+<span class="text-[9px] font-bold uppercase border border-error/50 text-error px-2 py-0.5">Rejected</span>
+</td>
+</tr>
+</tbody>
+</table>
+</div>
+</section>
+<!-- 4. Receipt Scanner & OCR -->
+<section>
+<h3 class="text-xs font-bold uppercase tracking-widest mb-4">Receipt Intelligence (OCR)</h3>
+<div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+<div class="bg-surface-container p-4 ghost-border flex gap-4">
+<div class="w-20 h-24 bg-[#0e0e0e] border border-outline-variant/20 flex-shrink-0 overflow-hidden">
+<img alt="Receipt" class="w-full h-full object-cover opacity-60" data-alt="Monochrome photograph of a printed store receipt with clear text on a dark wooden surface" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDqb8En-SRQu4i1FFVoQFFesEGvqz8weQlKysyM37DEbmiBcZcQ8hNEenQ30QNg0rItR5-OlZbtLZDD_DYETW1nJ2D2oO-FG9lbhX_LuYWCxDrSS6VWUrE4o_DCGup5A4N15FdC3Trf3O8Tmgc2xVFiGq27YvFYYLroudM3L0ccp6OOuJ12iruYHP4uxTGa9VKPiIQ-AByNPBcXD8JG1VATQWnk4wW4OYjGgJnmlwqABsnDNhHavZifsHXvxskzhm-lYjCTF6gNQtSE"/>
+</div>
+<div class="flex-1">
+<div class="flex justify-between items-start mb-2">
+<p class="text-xs font-bold">Home Depot #210</p>
+<span class="text-[8px] bg-green-500 text-black px-1.5 py-0.5 font-bold uppercase">OCR Verified</span>
+</div>
+<div class="space-y-1">
+<div class="flex justify-between text-[10px]">
+<span class="text-[#a1a1a1]">Amount</span>
+<span>₹8,420.00</span>
+</div>
+<div class="flex justify-between text-[10px]">
+<span class="text-[#a1a1a1]">Date</span>
+<span>22 Oct 2023</span>
+</div>
+</div>
+</div>
+</div>
+<div class="bg-surface-container p-4 ghost-border flex gap-4">
+<div class="w-20 h-24 bg-[#0e0e0e] border border-outline-variant/20 flex-shrink-0 overflow-hidden">
+<img alt="Receipt Manual" class="w-full h-full object-cover opacity-60" data-alt="Blurred close up of a handwritten receipt with high contrast lighting" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCHr-8c85J47MvNYwPgdXF1b5RrrEUyf5bYWlr4wHnLJ03zBfo-US3CGIshCiMzlQx1Oy0PdKfQ_BXByPJLJhbDZAHNNv2sFIFYOjqyHhBsEcNcJ_m53-KNuweXm2FotnZdgTP2EqfVOQkDhXYCzF9F5MDuOLFtcab5DDkVDdItqwm4HQnvtnOuePuAYGt7hQ1ioXCpiNVrcsX9jl7i2_DvDybDcdcLUCUuUvxwn6EuB3GTf_0ZV2mFt87ND0-Ez3SGSEeC5SZSv1rN"/>
+</div>
+<div class="flex-1">
+<div class="flex justify-between items-start mb-2">
+<p class="text-xs font-bold">Local Vendor - Props</p>
+<span class="text-[8px] bg-yellow-500 text-black px-1.5 py-0.5 font-bold uppercase">Manual Review</span>
+</div>
+<div class="space-y-1">
+<div class="flex justify-between text-[10px]">
+<span class="text-[#a1a1a1]">Mismatch Detected</span>
+<span class="text-error font-bold">₹2,000 Diff</span>
+</div>
+<p class="text-[9px] text-[#a1a1a1] italic mt-2">OCR failed to read handwritten total.</p>
+</div>
+</div>
+</div>
+</div>
+</section>
+</div>
+</div>
+<!-- Bottom Grid: Tracking & Inventory -->
+<div class="grid grid-cols-12 gap-8 mt-12">
+<!-- 5. Budget vs Actual (Art Dept) -->
+<div class="col-span-12 lg:col-span-6">
+<section class="bg-surface p-6 ghost-border h-full">
+<h3 class="text-xs font-bold uppercase tracking-widest mb-6">Art Dept: Budget vs Actual</h3>
+<div class="space-y-6">
+<div>
+<div class="flex justify-between text-xs mb-2">
+<span class="uppercase tracking-tighter">Set Construction</span>
+<span class="font-bold text-error">₹4,20,000 / ₹3,80,000</span>
+</div>
+<div class="w-full h-2 bg-outline-variant/10">
+<div class="h-full bg-error" style="width: 100%"></div>
+</div>
+</div>
+<div>
+<div class="flex justify-between text-xs mb-2">
+<span class="uppercase tracking-tighter">Prop Sourcing</span>
+<span class="font-bold">₹2,10,000 / ₹3,00,000</span>
+</div>
+<div class="w-full h-2 bg-outline-variant/10">
+<div class="h-full bg-white" style="width: 70%"></div>
+</div>
+</div>
+<div>
+<div class="flex justify-between text-xs mb-2">
+<span class="uppercase tracking-tighter">Materials &amp; Consumables</span>
+<span class="font-bold">₹1,15,000 / ₹1,50,000</span>
+</div>
+<div class="w-full h-2 bg-outline-variant/10">
+<div class="h-full bg-white" style="width: 76%"></div>
+</div>
+</div>
+</div>
+</section>
+</div>
+<!-- 6. Set Construction Tracking -->
+<div class="col-span-12 lg:col-span-6">
+<section class="bg-surface p-6 ghost-border h-full">
+<h3 class="text-xs font-bold uppercase tracking-widest mb-6">Set Construction Status</h3>
+<div class="space-y-4">
+<div class="flex items-center justify-between group">
+<div>
+<p class="text-sm font-bold uppercase tracking-tight">Main Hallway - 4A</p>
+<p class="text-[10px] text-[#a1a1a1] uppercase mt-1">Est: ₹80,000 | Act: ₹78,500</p>
+</div>
+<div class="text-right">
+<span class="text-[9px] font-bold border border-white px-2 py-0.5 uppercase">Completed</span>
+<div class="mt-2 text-[10px] font-mono">100%</div>
+</div>
+</div>
+<div class="flex items-center justify-between">
+<div>
+<p class="text-sm font-bold uppercase tracking-tight">Gothic Balcony</p>
+<p class="text-[10px] text-[#a1a1a1] uppercase mt-1">Est: ₹1,20,000 | Act: ₹90,000</p>
+</div>
+<div class="text-right">
+<span class="text-[9px] font-bold border border-outline-variant px-2 py-0.5 uppercase text-[#a1a1a1]">In Progress</span>
+<div class="mt-2 w-24 h-1 bg-outline-variant/20 overflow-hidden">
+<div class="bg-white h-full" style="width: 65%"></div>
+</div>
+</div>
+</div>
+<div class="flex items-center justify-between">
+<div>
+<p class="text-sm font-bold uppercase tracking-tight text-error">The Throne Room (Ext)</p>
+<p class="text-[10px] text-error/80 uppercase mt-1">Est: ₹5,00,000 | Act: ₹5,45,000</p>
+</div>
+<div class="text-right">
+<span class="text-[9px] font-bold border border-error px-2 py-0.5 uppercase text-error">Over Budget</span>
+<div class="mt-2 text-[10px] font-mono text-error">88%</div>
+</div>
+</div>
+</div>
+</section>
+</div>
+<!-- 7. Prop Inventory Tracker -->
+<div class="col-span-12">
+<section class="bg-surface p-6 ghost-border">
+<div class="flex justify-between items-center mb-6">
+<h3 class="text-xs font-bold uppercase tracking-widest">Prop Inventory &amp; Asset Tracking</h3>
+<div class="flex gap-4">
+<div class="flex items-center gap-1">
+<span class="w-2 h-2 rounded-full bg-white"></span>
+<span class="text-[9px] uppercase font-bold">On Set</span>
+</div>
+<div class="flex items-center gap-1">
+<span class="w-2 h-2 rounded-full bg-error"></span>
+<span class="text-[9px] uppercase font-bold">Overdue Return</span>
+</div>
+</div>
+</div>
+<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+<div class="bg-surface-container-low p-4 ghost-border">
+<p class="text-xs font-bold uppercase mb-1">Antique Silver Vase</p>
+<div class="flex justify-between items-end">
+<div>
+<p class="text-[9px] text-[#a1a1a1] uppercase">Sourcing: Rented</p>
+<p class="text-[9px] text-[#a1a1a1] uppercase">Location: Storage B</p>
+</div>
+<span class="text-[10px] font-bold text-white uppercase">In Storage</span>
+</div>
+</div>
+<div class="bg-surface-container-low p-4 ghost-border border-l-2 border-white">
+<p class="text-xs font-bold uppercase mb-1">Modern Leather Chair</p>
+<div class="flex justify-between items-end">
+<div>
+<p class="text-[9px] text-[#a1a1a1] uppercase">Sourcing: Purchased</p>
+<p class="text-[9px] text-[#a1a1a1] uppercase">Due: N/A</p>
+</div>
+<span class="text-[10px] font-bold text-white uppercase">On Set</span>
+</div>
+</div>
+<div class="bg-error/5 border border-error/20 p-4">
+<p class="text-xs font-bold uppercase mb-1 text-error">18th Century Flintlock</p>
+<div class="flex justify-between items-end">
+<div>
+<p class="text-[9px] text-error/60 uppercase font-bold">Sourcing: Rented</p>
+<p class="text-[9px] text-error uppercase font-bold">Overdue: 2 Days</p>
+</div>
+<span class="material-symbols-outlined text-error" data-icon="history">history</span>
+</div>
+</div>
+<div class="bg-surface-container-low p-4 ghost-border">
+<p class="text-xs font-bold uppercase mb-1">Neon Bar Sign</p>
+<div class="flex justify-between items-end">
+<div>
+<p class="text-[9px] text-[#a1a1a1] uppercase">Sourcing: Fabricated</p>
+<p class="text-[9px] text-[#a1a1a1] uppercase">Location: Returned</p>
+</div>
+<span class="text-[10px] font-bold text-[#a1a1a1] uppercase">Archived</span>
+</div>
+</div>
+</div>
+</section>
+</div>
+</div>
+</main>
+<!-- Notification Toast (Subtle) -->
+<div class="fixed bottom-8 right-8 bg-white text-black px-6 py-4 flex items-center gap-4 z-50">
+<span class="material-symbols-outlined" data-icon="cloud_upload">cloud_upload</span>
+<div>
+<p class="text-[10px] font-bold uppercase tracking-widest">System Status</p>
+<p class="text-[11px]">Last budget sync: 12 seconds ago</p>
+</div>
+</div>
+</body></html>
