@@ -173,29 +173,29 @@ export function LandingPage() {
           </div>
         </header>
 
-        <main className="mx-auto max-w-[1440px] px-4 pb-16 pt-10 sm:px-6 lg:px-8 lg:pb-24 lg:pt-16 2xl:max-w-[1520px]">
-          <section className="landing-enter relative flex min-h-[82vh] flex-col items-center justify-center py-10 text-center lg:min-h-[90vh] lg:py-20">
-            <div className="reveal-section is-visible flex max-w-[1120px] flex-col items-center lg:-translate-y-8">
+        <main className="mx-auto max-w-[1400px] px-4 pb-14 pt-8 sm:px-6 lg:px-8 lg:pb-22 lg:pt-14 2xl:max-w-[1480px]">
+          <section className="landing-enter relative flex min-h-[78vh] flex-col items-center justify-center py-8 text-center lg:min-h-[86vh] lg:py-16">
+            <div className="reveal-section is-visible flex max-w-[1040px] flex-col items-center lg:-translate-y-6">
               <div className="mb-8 inline-flex items-center gap-2 rounded-full border border-zinc-200 bg-white/80 px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.22em] text-zinc-500 shadow-soft dark:border-white/8 dark:bg-white/[0.05] dark:text-zinc-400">
                 <span className="h-1.5 w-1.5 rounded-full bg-orange-500" />
                 Built for Film & Production Teams
               </div>
 
-              <h1 className="max-w-[1120px] text-balance text-5xl font-bold tracking-[-0.07em] text-zinc-900 dark:bg-gradient-to-b dark:from-white dark:via-zinc-100 dark:to-zinc-500 dark:bg-clip-text dark:text-transparent sm:text-6xl lg:text-[7rem] lg:leading-[0.92]">
+              <h1 className="max-w-[1040px] text-balance text-5xl font-bold tracking-[-0.07em] text-zinc-900 dark:bg-gradient-to-b dark:from-white dark:via-zinc-100 dark:to-zinc-500 dark:bg-clip-text dark:text-transparent sm:text-[3.65rem] lg:text-[6.2rem] lg:leading-[0.94]">
                 The Mission Control for Modern Production
               </h1>
 
-              <p className="mt-8 max-w-[720px] text-lg leading-8 text-zinc-500 dark:text-zinc-300">
+              <p className="mt-7 max-w-[680px] text-[1.02rem] leading-7 text-zinc-500 dark:text-zinc-300">
                 Plan, track, and execute film production with full visibility across departments. From logistics to final wrap, everything in one cinematic view.
               </p>
 
-              <div className="mt-10 flex flex-wrap items-center justify-center gap-4">
-                <Link to="/auth" className="glow-button inline-flex items-center rounded-full bg-orange-500 px-8 py-4 text-base font-semibold text-black">
+              <div className="mt-9 flex flex-wrap items-center justify-center gap-4">
+                <Link to="/auth" className="glow-button inline-flex items-center rounded-full bg-orange-500 px-7 py-3.5 text-[0.98rem] font-semibold text-black">
                   Get Started
                 </Link>
                 <a
                   href="#preview"
-                  className="glow-button inline-flex items-center gap-2 rounded-full border border-zinc-200 bg-white/90 px-8 py-4 text-base font-semibold text-zinc-900 dark:border-white/10 dark:bg-white/[0.05] dark:text-white"
+                  className="glow-button inline-flex items-center gap-2 rounded-full border border-zinc-200 bg-white/90 px-7 py-3.5 text-[0.98rem] font-semibold text-zinc-900 dark:border-white/10 dark:bg-white/[0.05] dark:text-white"
                 >
                   <Play className="h-4 w-4" />
                   View Demo
@@ -251,13 +251,13 @@ export function LandingPage() {
               {featureCards.map(feature => (
                 <article
                   key={feature.title}
-                  className="floating-card rounded-[30px] border border-zinc-200 bg-zinc-50 p-7 shadow-soft dark:border-white/6 dark:bg-white/[0.05]"
+                  className="floating-card rounded-[30px] border border-zinc-200 bg-zinc-50 p-6 shadow-soft dark:border-white/6 dark:bg-white/[0.05]"
                 >
                   <div className={cn('mb-8 inline-flex h-12 w-12 items-center justify-center rounded-2xl bg-zinc-900/5 dark:bg-white/5', feature.accent)}>
                     <feature.icon className="h-5 w-5" />
                   </div>
-                  <h3 className="max-w-[18rem] text-3xl font-semibold tracking-[-0.04em] text-zinc-900 dark:text-white">{feature.title}</h3>
-                  <p className="mt-5 text-base leading-8 text-zinc-500 dark:text-zinc-300">{feature.description}</p>
+                  <h3 className="max-w-[17rem] text-[1.75rem] font-semibold tracking-[-0.04em] text-zinc-900 dark:text-white">{feature.title}</h3>
+                  <p className="mt-4 text-[0.98rem] leading-7 text-zinc-500 dark:text-zinc-300">{feature.description}</p>
                 </article>
               ))}
             </div>
@@ -266,15 +266,15 @@ export function LandingPage() {
           <section id="modules" data-reveal className="reveal-section scroll-mt-32 pt-24 lg:pt-32">
             <div className="grid gap-8 lg:grid-cols-[1fr_auto] lg:items-end">
               <div>
-                <h2 className="max-w-[680px] text-4xl font-bold tracking-[-0.05em] text-zinc-900 dark:text-white sm:text-5xl">
+                <h2 className="max-w-[660px] text-[2.15rem] font-bold tracking-[-0.05em] text-zinc-900 dark:text-white sm:text-[2.75rem]">
                   Granular Control for Every Department
                 </h2>
-                <p className="mt-6 max-w-[620px] text-lg leading-8 text-zinc-500 dark:text-zinc-300">
+                <p className="mt-5 max-w-[600px] text-[1.02rem] leading-7 text-zinc-500 dark:text-zinc-300">
                   Built specifically for the complexities of professional filmmaking, covering everything from fleet logistics to crew payroll.
                 </p>
               </div>
 
-              <a href="#cta" className="glow-button inline-flex items-center gap-2 rounded-full bg-zinc-900 px-6 py-3 text-sm font-semibold text-white dark:bg-white dark:text-zinc-900">
+              <a href="#cta" className="glow-button inline-flex items-center gap-2 rounded-full bg-zinc-900 px-5 py-3 text-sm font-semibold text-white dark:bg-white dark:text-zinc-900">
                 Explore All Modules
                 <ArrowRight className="h-4 w-4" />
               </a>
@@ -284,32 +284,32 @@ export function LandingPage() {
               {modules.map(module => (
                 <article
                   key={module.title}
-                  className="floating-card rounded-[28px] border border-zinc-200 bg-zinc-50 p-6 shadow-soft dark:border-white/6 dark:bg-white/[0.04]"
+                  className="floating-card rounded-[28px] border border-zinc-200 bg-zinc-50 p-5 shadow-soft dark:border-white/6 dark:bg-white/[0.04]"
                 >
                   <div className="mb-8 inline-flex h-11 w-11 items-center justify-center rounded-2xl bg-orange-500/12 text-orange-500">
                     <module.icon className="h-5 w-5" />
                   </div>
-                  <h3 className="text-2xl font-semibold tracking-[-0.03em] text-zinc-900 dark:text-white">{module.title}</h3>
-                  <p className="mt-4 text-[15px] leading-7 text-zinc-500 dark:text-zinc-300">{module.description}</p>
+                  <h3 className="text-[1.6rem] font-semibold tracking-[-0.03em] text-zinc-900 dark:text-white">{module.title}</h3>
+                  <p className="mt-4 text-[0.95rem] leading-7 text-zinc-500 dark:text-zinc-300">{module.description}</p>
                 </article>
               ))}
             </div>
           </section>
 
           <section id="cta" data-reveal className="reveal-section scroll-mt-32 pt-24 lg:pt-32">
-            <div className="overflow-hidden rounded-[38px] bg-[linear-gradient(145deg,rgba(255,255,255,0.9),rgba(249,115,22,0.08))] px-6 py-12 shadow-soft dark:bg-[linear-gradient(135deg,rgba(255,255,255,0.08),rgba(249,115,22,0.18))] sm:px-10 lg:px-16 lg:py-16">
-              <div className="mx-auto max-w-[760px] text-center">
-                <h2 className="text-4xl font-bold tracking-[-0.05em] text-zinc-900 dark:text-white sm:text-5xl">
+            <div className="overflow-hidden rounded-[38px] bg-[linear-gradient(145deg,rgba(255,255,255,0.9),rgba(249,115,22,0.08))] px-6 py-10 shadow-soft dark:bg-[linear-gradient(135deg,rgba(255,255,255,0.08),rgba(249,115,22,0.18))] sm:px-9 lg:px-14 lg:py-14">
+              <div className="mx-auto max-w-[720px] text-center">
+                <h2 className="text-[2.2rem] font-bold tracking-[-0.05em] text-zinc-900 dark:text-white sm:text-[2.95rem]">
                   Ready for your next feature?
                 </h2>
-                <p className="mx-auto mt-6 max-w-[620px] text-lg leading-8 text-zinc-500 dark:text-zinc-300">
+                <p className="mx-auto mt-5 max-w-[600px] text-[1.02rem] leading-7 text-zinc-500 dark:text-zinc-300">
                   Join the world&apos;s leading production houses and switch to the only mission control system designed for cinema.
                 </p>
-                <div className="mt-10 flex flex-wrap items-center justify-center gap-4">
-                  <Link to="/auth" className="glow-button inline-flex items-center rounded-full bg-orange-500 px-8 py-4 text-base font-semibold text-black">
+                <div className="mt-8 flex flex-wrap items-center justify-center gap-4">
+                  <Link to="/auth" className="glow-button inline-flex items-center rounded-full bg-orange-500 px-7 py-3.5 text-[0.98rem] font-semibold text-black">
                     Get Started for Free
                   </Link>
-                  <a href="#preview" className="glow-button inline-flex items-center rounded-full bg-zinc-900 px-8 py-4 text-base font-semibold text-white dark:bg-white dark:text-zinc-900">
+                  <a href="#preview" className="glow-button inline-flex items-center rounded-full bg-zinc-900 px-7 py-3.5 text-[0.98rem] font-semibold text-white dark:bg-white dark:text-zinc-900">
                     Schedule a Demo
                   </a>
                 </div>

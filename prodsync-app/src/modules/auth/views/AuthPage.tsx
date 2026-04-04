@@ -82,13 +82,13 @@ const roleIcons: Partial<Record<ProjectRequestedRole, LucideIcon>> = {
 
 const localStyles = `
 .authfx-root{position:relative;min-height:100vh;overflow:hidden;background:var(--auth-bg);color:var(--auth-text)}
-.authfx-shell{position:relative;z-index:1;min-height:100vh;max-width:1180px;margin:0 auto;padding:28px 18px 36px;display:flex;flex-direction:column;align-items:center;justify-content:center}
-.authfx-stage{width:100%;max-width:var(--stage-width);padding:14px;border-radius:34px;background:var(--stage-bg);border:1px solid var(--stage-border);box-shadow:var(--stage-shadow);backdrop-filter:blur(20px)}
+.authfx-shell{position:relative;z-index:1;min-height:100vh;max-width:1120px;margin:0 auto;padding:24px 18px 32px;display:flex;flex-direction:column;align-items:center;justify-content:center}
+.authfx-stage{width:100%;max-width:var(--stage-width);padding:12px;border-radius:32px;background:var(--stage-bg);border:1px solid var(--stage-border);box-shadow:var(--stage-shadow);backdrop-filter:blur(20px)}
 .authfx-panel{animation:authfx-enter .42s cubic-bezier(.22,1,.36,1) both}
-.authfx-grid{display:grid;gap:18px}
+.authfx-grid{display:grid;gap:16px}
 .authfx-grid-3{grid-template-columns:repeat(3,minmax(0,1fr))}
 .authfx-grid-2{grid-template-columns:repeat(2,minmax(0,1fr))}
-.authfx-summary{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}
+.authfx-summary{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
 .authfx-meter{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}
 .authfx-meter span{height:8px;border-radius:999px;background:rgba(160,160,170,.24);transition:background .24s ease,transform .24s ease}
 .authfx-meter span.is-on{background:linear-gradient(90deg,#ff8a5f 0%,#ff6a3d 100%);transform:scaleY(1.08)}
@@ -113,14 +113,14 @@ function getThemeVars(isDark: boolean): CSSProperties {
       : 'linear-gradient(180deg, rgba(255,255,255,0.96) 0%, rgba(248,244,239,0.98) 100%)',
     '--stage-border': isDark ? 'rgba(255,255,255,0.08)' : 'rgba(255,255,255,0.86)',
     '--stage-shadow': isDark
-      ? '0 34px 72px rgba(0,0,0,0.42), inset 0 1px 1px rgba(255,255,255,0.05)'
-      : '0 30px 68px rgba(222,214,205,0.42), inset 0 1px 1px rgba(255,255,255,0.95)',
+      ? '0 30px 64px rgba(0,0,0,0.42), inset 0 1px 1px rgba(255,255,255,0.05)'
+      : '0 26px 60px rgba(222,214,205,0.42), inset 0 1px 1px rgba(255,255,255,0.95)',
     '--card-bg': isDark
       ? 'linear-gradient(180deg, rgba(22,22,28,0.88) 0%, rgba(12,12,16,0.94) 100%)'
       : 'linear-gradient(180deg, rgba(255,255,255,0.9) 0%, rgba(248,244,239,0.96) 100%)',
     '--card-shadow': isDark
-      ? '0 20px 38px rgba(0,0,0,0.3), inset 0 1px 1px rgba(255,255,255,0.04)'
-      : '0 20px 38px rgba(220,213,205,0.28), inset 0 1px 1px rgba(255,255,255,0.92)',
+      ? '0 18px 34px rgba(0,0,0,0.3), inset 0 1px 1px rgba(255,255,255,0.04)'
+      : '0 18px 34px rgba(220,213,205,0.28), inset 0 1px 1px rgba(255,255,255,0.92)',
     '--inset-bg': isDark ? 'rgba(255,255,255,0.04)' : 'linear-gradient(180deg, #f0ece7 0%, #f8f5f1 100%)',
     '--inset-shadow': isDark
       ? 'inset 0 10px 20px rgba(0,0,0,0.28), inset 0 1px 1px rgba(255,255,255,0.04)'
@@ -145,15 +145,15 @@ function insetStyle(): CSSProperties {
 
 function primaryButtonStyle(): CSSProperties {
   return {
-    minHeight: '54px',
-    padding: '0 24px',
+    minHeight: '50px',
+    padding: '0 22px',
     borderRadius: '999px',
     border: 0,
-    fontSize: '0.98rem',
+    fontSize: '0.94rem',
     fontWeight: 700,
     color: '#111111',
     background: 'linear-gradient(180deg, #ff8c60 0%, #ff6a3d 100%)',
-    boxShadow: '0 18px 30px rgba(255,106,61,0.22), inset 0 1px 1px rgba(255,255,255,0.42)',
+    boxShadow: '0 16px 26px rgba(255,106,61,0.22), inset 0 1px 1px rgba(255,255,255,0.42)',
     cursor: 'pointer',
     display: 'inline-flex',
     alignItems: 'center',
@@ -164,11 +164,11 @@ function primaryButtonStyle(): CSSProperties {
 
 function secondaryButtonStyle(isDark: boolean): CSSProperties {
   return {
-    minHeight: '52px',
-    padding: '0 22px',
+    minHeight: '48px',
+    padding: '0 20px',
     borderRadius: '999px',
     border: 0,
-    fontSize: '0.96rem',
+    fontSize: '0.92rem',
     fontWeight: 700,
     color: isDark ? '#ffffff' : '#171717',
     background: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(255,255,255,0.74)',
@@ -204,7 +204,7 @@ function getPasswordStrength(password: string) {
 function StageFrame({ width, panelKey, children }: { width: string; panelKey: string; children: ReactNode }) {
   return (
     <div className="authfx-stage" style={{ '--stage-width': width } as CSSProperties}>
-      <div key={panelKey} className="authfx-panel" style={{ borderRadius: '30px', padding: '16px' }}>
+      <div key={panelKey} className="authfx-panel" style={{ borderRadius: '28px', padding: '14px' }}>
         {children}
       </div>
     </div>
@@ -469,16 +469,16 @@ export function AuthPage() {
   }
 
   const sectionTitleStyle: CSSProperties = {
-    fontSize: 'clamp(1.9rem, 4vw, 3.15rem)',
+    fontSize: 'clamp(1.75rem, 3.6vw, 2.9rem)',
     lineHeight: 0.98,
     fontWeight: 700,
     letterSpacing: '-0.07em',
   }
 
   const copyStyle: CSSProperties = {
-    marginTop: '10px',
-    fontSize: '0.98rem',
-    lineHeight: 1.72,
+    marginTop: '8px',
+    fontSize: '0.94rem',
+    lineHeight: 1.66,
     color: 'var(--auth-muted)',
   }
 
@@ -511,23 +511,23 @@ export function AuthPage() {
       </button>
 
       <div className="authfx-shell">
-        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '14px', textAlign: 'center', marginBottom: '24px' }}>
-          <div style={{ width: '64px', height: '64px', borderRadius: '999px', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', color: '#111111', background: 'linear-gradient(180deg, #ff8a5f 0%, #ff6a3d 100%)', boxShadow: '0 22px 40px rgba(255,106,61,0.26), inset 0 1px 1px rgba(255,255,255,0.5)' }}>
-            <Clapperboard size={23} />
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '12px', textAlign: 'center', marginBottom: '20px' }}>
+          <div style={{ width: '58px', height: '58px', borderRadius: '999px', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', color: '#111111', background: 'linear-gradient(180deg, #ff8a5f 0%, #ff6a3d 100%)', boxShadow: '0 18px 34px rgba(255,106,61,0.26), inset 0 1px 1px rgba(255,255,255,0.5)' }}>
+            <Clapperboard size={21} />
           </div>
           <div>
-            <div style={{ fontSize: 'clamp(1.95rem, 2.5vw, 2.75rem)', lineHeight: 0.96, fontWeight: 700, letterSpacing: '-0.07em' }}>ProdSync</div>
-            <div style={{ marginTop: '8px', fontSize: '0.96rem', color: 'var(--auth-muted)' }}>Structured access for film production teams</div>
+            <div style={{ fontSize: 'clamp(1.8rem, 2.2vw, 2.5rem)', lineHeight: 0.96, fontWeight: 700, letterSpacing: '-0.07em' }}>ProdSync</div>
+            <div style={{ marginTop: '6px', fontSize: '0.92rem', color: 'var(--auth-muted)' }}>Structured access for film production teams</div>
           </div>
         </div>
         {mode === 'signin' ? (
-          <StageFrame width="500px" panelKey={stepKey}>
+          <StageFrame width="470px" panelKey={stepKey}>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', padding: '7px', borderRadius: '999px', ...insetStyle() }}>
               <button type="button" onClick={openSignIn} style={{ border: 0, borderRadius: '999px', minHeight: '48px', fontSize: '0.96rem', fontWeight: 700, color: '#ca441b', background: 'rgba(255,255,255,0.96)' }}>Sign In</button>
               <button type="button" onClick={openSignUp} style={{ border: 0, borderRadius: '999px', minHeight: '48px', fontSize: '0.96rem', fontWeight: 700, color: 'var(--auth-muted)', background: 'transparent' }}>Create Account</button>
             </div>
 
-            <form onSubmit={handleSignIn} style={{ display: 'grid', gap: '16px', marginTop: '22px' }}>
+            <form onSubmit={handleSignIn} style={{ display: 'grid', gap: '14px', marginTop: '20px' }}>
               <div>
                 <h1 style={sectionTitleStyle}>Welcome Back</h1>
                 <p style={copyStyle}>Sign in with your email and password, or use Google to continue into the Projects Hub.</p>
@@ -557,13 +557,13 @@ export function AuthPage() {
             </form>
           </StageFrame>
         ) : signupStep === 'identity' ? (
-          <StageFrame width="560px" panelKey={stepKey}>
+          <StageFrame width="530px" panelKey={stepKey}>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', padding: '7px', borderRadius: '999px', ...insetStyle() }}>
               <button type="button" onClick={openSignIn} style={{ border: 0, borderRadius: '999px', minHeight: '48px', fontSize: '0.96rem', fontWeight: 700, color: 'var(--auth-muted)', background: 'transparent' }}>Sign In</button>
               <button type="button" onClick={openSignUp} style={{ border: 0, borderRadius: '999px', minHeight: '48px', fontSize: '0.96rem', fontWeight: 700, color: '#ca441b', background: 'rgba(255,255,255,0.96)' }}>Create Account</button>
             </div>
 
-            <form onSubmit={handleIdentityContinue} style={{ display: 'grid', gap: '16px', marginTop: '22px' }}>
+            <form onSubmit={handleIdentityContinue} style={{ display: 'grid', gap: '14px', marginTop: '20px' }}>
               <div>
                 <h1 style={sectionTitleStyle}>Create Your Account</h1>
                 <p style={copyStyle}>Start with your identity and password, then we&apos;ll guide you through department, role, and access setup.</p>
@@ -581,7 +581,7 @@ export function AuthPage() {
                 <PasswordField label="Confirm Password" value={confirmPassword} onChange={setConfirmPassword} visible={confirmPasswordVisible} onToggleVisibility={() => setConfirmPasswordVisible(current => !current)} placeholder="Repeat password" required />
               </div>
 
-              <div style={{ borderRadius: '26px', padding: '18px', ...surfaceStyle(isDark) }}>
+              <div style={{ borderRadius: '24px', padding: '16px', ...surfaceStyle(isDark) }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
                   <div>
                     <div style={{ fontSize: '0.82rem', fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase', color: 'var(--auth-muted)' }}>Password Strength</div>
@@ -598,7 +598,7 @@ export function AuthPage() {
                   ))}
                 </div>
 
-                <div style={{ marginTop: '16px', display: 'grid', gap: '10px' }}>
+                <div style={{ marginTop: '14px', display: 'grid', gap: '9px' }}>
                   <ChecklistItem passed={passwordChecks.minLength} label="Minimum 8 characters" />
                   <ChecklistItem passed={passwordChecks.uppercase} label="At least 1 uppercase letter" />
                   <ChecklistItem passed={passwordChecks.number} label="At least 1 number" />
@@ -616,9 +616,9 @@ export function AuthPage() {
             </form>
           </StageFrame>
         ) : signupStep === 'department' ? (
-          <StageFrame width="860px" panelKey={stepKey}>
+          <StageFrame width="810px" panelKey={stepKey}>
             <StepDots currentStep={signupStep} />
-            <div style={{ marginBottom: '24px' }}>
+            <div style={{ marginBottom: '20px' }}>
               <div style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', padding: '8px 14px', borderRadius: '999px', background: 'rgba(255,106,61,0.12)', color: '#cf4c23', fontSize: '0.72rem', fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase', marginBottom: '14px' }}>Step 02 • Department</div>
               <h1 style={sectionTitleStyle}>Choose Your Department</h1>
               <p style={copyStyle}>Select your primary department group. The next step will only show roles relevant to that department.</p>
@@ -628,12 +628,12 @@ export function AuthPage() {
                 const Icon = departmentIcons[option.id]
                 const selected = departmentId === option.id
                 return (
-                  <button key={option.id} type="button" onClick={() => setDepartmentId(option.id)} style={{ position: 'relative', borderRadius: '28px', padding: '20px 18px', textAlign: 'left', cursor: 'pointer', transform: selected ? 'translateY(-2px)' : 'none', ...surfaceStyle(isDark), boxShadow: selected ? '0 18px 32px rgba(255,106,61,0.12), var(--card-shadow)' : 'var(--card-shadow)', border: selected ? '1px solid rgba(255,106,61,0.3)' : isDark ? '1px solid rgba(255,255,255,0.08)' : '1px solid rgba(255,255,255,0.8)' }}>
-                    <span style={{ width: '52px', height: '52px', borderRadius: '18px', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', color: '#c94d23', marginBottom: '18px', ...surfaceStyle(isDark) }}>
+                  <button key={option.id} type="button" onClick={() => setDepartmentId(option.id)} style={{ position: 'relative', borderRadius: '26px', padding: '18px 16px', textAlign: 'left', cursor: 'pointer', transform: selected ? 'translateY(-2px)' : 'none', ...surfaceStyle(isDark), boxShadow: selected ? '0 16px 28px rgba(255,106,61,0.12), var(--card-shadow)' : 'var(--card-shadow)', border: selected ? '1px solid rgba(255,106,61,0.3)' : isDark ? '1px solid rgba(255,255,255,0.08)' : '1px solid rgba(255,255,255,0.8)' }}>
+                    <span style={{ width: '48px', height: '48px', borderRadius: '16px', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', color: '#c94d23', marginBottom: '16px', ...surfaceStyle(isDark) }}>
                       <Icon size={21} />
                     </span>
-                    <div style={{ fontSize: '1.02rem', fontWeight: 700, letterSpacing: '-0.02em', lineHeight: 1.35 }}>{option.label}</div>
-                    <div style={{ marginTop: '10px', fontSize: '0.9rem', lineHeight: 1.68, color: 'var(--auth-muted)' }}>{option.description}</div>
+                    <div style={{ fontSize: '0.98rem', fontWeight: 700, letterSpacing: '-0.02em', lineHeight: 1.35 }}>{option.label}</div>
+                    <div style={{ marginTop: '8px', fontSize: '0.86rem', lineHeight: 1.62, color: 'var(--auth-muted)' }}>{option.description}</div>
                     {selected ? <span style={{ position: 'absolute', right: '18px', bottom: '18px', color: '#ff6a3d' }}><CheckCircle2 size={18} /></span> : null}
                   </button>
                 )
@@ -649,9 +649,9 @@ export function AuthPage() {
             />
           </StageFrame>
         ) : signupStep === 'role' ? (
-          <StageFrame width="860px" panelKey={stepKey}>
+          <StageFrame width="810px" panelKey={stepKey}>
             <StepDots currentStep={signupStep} />
-            <div style={{ marginBottom: '24px' }}>
+            <div style={{ marginBottom: '20px' }}>
               <div style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', padding: '8px 14px', borderRadius: '999px', background: 'rgba(255,106,61,0.12)', color: '#cf4c23', fontSize: '0.72rem', fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase', marginBottom: '14px' }}>Step 03 • Role</div>
               <h1 style={sectionTitleStyle}>Select Your Role</h1>
               <p style={copyStyle}>Only roles mapped to {selectedDepartment.label.toLowerCase()} are shown here.</p>
@@ -662,12 +662,12 @@ export function AuthPage() {
                 const Icon = roleIcons[option.id] ?? ShieldCheck
                 const selected = projectRoleTitle === option.id
                 return (
-                  <button key={option.id} type="button" onClick={() => setProjectRoleTitle(option.id)} style={{ position: 'relative', borderRadius: '28px', padding: '20px 18px', textAlign: 'left', cursor: 'pointer', transform: selected ? 'translateY(-2px)' : 'none', ...surfaceStyle(isDark), boxShadow: selected ? '0 18px 32px rgba(255,106,61,0.12), var(--card-shadow)' : 'var(--card-shadow)', border: selected ? '1px solid rgba(255,106,61,0.3)' : isDark ? '1px solid rgba(255,255,255,0.08)' : '1px solid rgba(255,255,255,0.8)' }}>
-                    <span style={{ width: '52px', height: '52px', borderRadius: '18px', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', color: '#c94d23', marginBottom: '18px', ...surfaceStyle(isDark) }}>
+                  <button key={option.id} type="button" onClick={() => setProjectRoleTitle(option.id)} style={{ position: 'relative', borderRadius: '26px', padding: '18px 16px', textAlign: 'left', cursor: 'pointer', transform: selected ? 'translateY(-2px)' : 'none', ...surfaceStyle(isDark), boxShadow: selected ? '0 16px 28px rgba(255,106,61,0.12), var(--card-shadow)' : 'var(--card-shadow)', border: selected ? '1px solid rgba(255,106,61,0.3)' : isDark ? '1px solid rgba(255,255,255,0.08)' : '1px solid rgba(255,255,255,0.8)' }}>
+                    <span style={{ width: '48px', height: '48px', borderRadius: '16px', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', color: '#c94d23', marginBottom: '16px', ...surfaceStyle(isDark) }}>
                       <Icon size={21} />
                     </span>
-                    <div style={{ fontSize: '1.02rem', fontWeight: 700, letterSpacing: '-0.02em', lineHeight: 1.35 }}>{option.label}</div>
-                    <div style={{ marginTop: '10px', fontSize: '0.9rem', lineHeight: 1.68, color: 'var(--auth-muted)' }}>{option.description}</div>
+                    <div style={{ fontSize: '0.98rem', fontWeight: 700, letterSpacing: '-0.02em', lineHeight: 1.35 }}>{option.label}</div>
+                    <div style={{ marginTop: '8px', fontSize: '0.86rem', lineHeight: 1.62, color: 'var(--auth-muted)' }}>{option.description}</div>
                     <div style={{ marginTop: '16px', fontSize: '0.82rem', fontWeight: 700, color: 'var(--auth-soft)' }}>Mapped access: {option.accessRole}</div>
                     {selected ? <span style={{ position: 'absolute', right: '18px', bottom: '18px', color: '#ff6a3d' }}><CheckCircle2 size={18} /></span> : null}
                   </button>
@@ -684,11 +684,11 @@ export function AuthPage() {
             />
           </StageFrame>
         ) : signupStep === 'permissions' ? (
-          <StageFrame width="760px" panelKey={stepKey}>
+          <StageFrame width="720px" panelKey={stepKey}>
             <StepDots currentStep={signupStep} />
-            <div style={{ borderRadius: '28px', padding: '26px 24px 22px', ...surfaceStyle(isDark) }}>
-              <div style={{ width: '72px', height: '72px', margin: '0 auto 18px', borderRadius: '999px', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', color: '#111111', background: 'linear-gradient(180deg, #ff8a5f 0%, #ff6a3d 100%)', boxShadow: '0 24px 42px rgba(255,106,61,0.24)' }}>
-                <ShieldCheck size={24} />
+            <div style={{ borderRadius: '26px', padding: '22px 20px 20px', ...surfaceStyle(isDark) }}>
+              <div style={{ width: '66px', height: '66px', margin: '0 auto 16px', borderRadius: '999px', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', color: '#111111', background: 'linear-gradient(180deg, #ff8a5f 0%, #ff6a3d 100%)', boxShadow: '0 20px 36px rgba(255,106,61,0.24)' }}>
+                <ShieldCheck size={22} />
               </div>
               <div style={{ textAlign: 'center' }}>
                 <h1 style={sectionTitleStyle}>Permissions Preview</h1>
@@ -700,14 +700,14 @@ export function AuthPage() {
                 <span style={{ color: '#ca441b' }}>{selectedRole.label}</span>
               </div>
 
-              <div className="authfx-grid authfx-grid-2" style={{ marginTop: '24px' }}>
+              <div className="authfx-grid authfx-grid-2" style={{ marginTop: '20px' }}>
                 <PermissionPanel title="Can Do" items={permissionCopy.can} tone="positive" isDark={isDark} />
                 <PermissionPanel title="Cannot Do" items={permissionCopy.cannot} tone="negative" isDark={isDark} />
               </div>
 
               {error ? <div style={{ marginTop: '18px' }}><Notice tone="error">{error}</Notice></div> : null}
 
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '14px', marginTop: '26px', flexWrap: 'wrap' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px', marginTop: '22px', flexWrap: 'wrap' }}>
                 <button type="button" onClick={handleBack} style={secondaryButtonStyle(isDark)}>
                   <ArrowLeft size={18} />
                   Adjust Role
@@ -722,13 +722,13 @@ export function AuthPage() {
         ) : (
           <StageFrame width="720px" panelKey={stepKey}>
             <div style={{ textAlign: 'center' }}>
-              <div style={{ width: '82px', height: '82px', margin: '0 auto 22px', borderRadius: '999px', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', color: '#111111', background: 'linear-gradient(180deg, #ff8a5f 0%, #ff6a3d 100%)', boxShadow: '0 24px 42px rgba(255,106,61,0.24)' }}>
-                <CheckCircle2 size={28} />
+              <div style={{ width: '74px', height: '74px', margin: '0 auto 18px', borderRadius: '999px', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', color: '#111111', background: 'linear-gradient(180deg, #ff8a5f 0%, #ff6a3d 100%)', boxShadow: '0 20px 36px rgba(255,106,61,0.24)' }}>
+                <CheckCircle2 size={24} />
               </div>
               <h1 style={sectionTitleStyle}>You&apos;re Ready</h1>
               <p style={copyStyle}>Your account is set up. Next stop is the Projects Hub, where project membership unlocks the rest of the workspace.</p>
 
-              <div className="authfx-summary" style={{ margin: '26px 0 22px', padding: '16px 18px', borderRadius: '28px', textAlign: 'left', ...surfaceStyle(isDark) }}>
+              <div className="authfx-summary" style={{ margin: '22px 0 20px', padding: '14px 16px', borderRadius: '26px', textAlign: 'left', ...surfaceStyle(isDark) }}>
                 <SummaryCard title="User Name" value={createdUser?.name ?? (fullName || 'ProdSync User')} icon={UserIcon} isDark={isDark} />
                 <SummaryCard title="Role" value={selectedRole.label} icon={roleIcons[selectedRole.id] ?? ShieldCheck} isDark={isDark} />
                 <SummaryCard title="Department" value={selectedDepartment.label} icon={departmentIcons[selectedDepartment.id]} isDark={isDark} />
