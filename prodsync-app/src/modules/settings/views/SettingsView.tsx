@@ -4,14 +4,16 @@ import { Surface } from '@/components/shared/Surface'
 import { cn } from '@/utils'
 import type { UserRole } from '@/types'
 
-const ROLES: UserRole[] = ['EP', 'LineProducer', 'HOD', 'Crew', 'Driver']
+const ROLES: UserRole[] = ['EP', 'LineProducer', 'HOD', 'Supervisor', 'Crew', 'Driver', 'DataWrangler']
 
 const ROLE_PERMISSIONS: Record<UserRole, string[]> = {
   EP: ['View All Modules', 'Approve Expenses', 'Manage Crew', 'Access Financials', 'Export Reports', 'Settings Admin'],
   LineProducer: ['View All Modules', 'Approve Expenses', 'Manage Crew', 'Access Financials', 'Export Reports'],
   HOD: ['View Department Module', 'Manage Crew', 'Submit Requests'],
+  Supervisor: ['View Department Module', 'Manage Execution', 'Coordinate Crew', 'Submit Requests'],
   Crew: ['View Own Data', 'Submit Requests'],
   Driver: ['View Own Trips', 'Upload Fuel Logs'],
+  DataWrangler: ['View Camera Data', 'Sync Media Logs', 'Submit Reports'],
 }
 
 const SETTINGS_SECTIONS = [

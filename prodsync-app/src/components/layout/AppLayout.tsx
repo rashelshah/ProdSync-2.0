@@ -1,11 +1,12 @@
 import { useEffect, useState, type ReactNode } from 'react'
+import { Outlet } from 'react-router-dom'
 import { Sidebar } from './Sidebar'
 import { Header } from './Header'
 
 const SIDEBAR_EXPANDED_WIDTH = 268
 const SIDEBAR_COLLAPSED_WIDTH = 92
 
-export function AppLayout({ children }: { children: ReactNode }) {
+export function AppLayout({ children }: { children?: ReactNode }) {
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(() => {
     if (typeof window === 'undefined') return false
     return window.localStorage.getItem('prodsync.sidebar.collapsed') === 'true'
@@ -26,7 +27,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
       />
 
       <div
-        className="relative min-h-screen transition-[margin] duration-300 ease-out"
+        className="relative min-h-screen transition-[margin] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)]"
         style={{ marginLeft: sidebarWidth }}
       >
         <Header
@@ -36,7 +37,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
         />
 
         <main className="relative pt-24">
-          {children}
+          {children ?? <Outlet />}
         </main>
       </div>
     </div>

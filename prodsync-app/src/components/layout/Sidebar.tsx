@@ -1,19 +1,9 @@
-import { NavLink, useLocation } from 'react-router-dom'
+import { NavLink, useLocation, useNavigate } from 'react-router-dom'
 import { cn } from '@/utils'
+import { APP_NAV_ITEMS, canAccessRoute } from '@/features/auth/access-rules'
+import { getUserRoleLabel } from '@/features/auth/onboarding'
 import { useAuthStore } from '@/features/auth/auth.store'
 import { useAlertStore } from '@/features/alerts/alert.store'
-
-const NAV_ITEMS = [
-  { path: '/', label: 'Dashboard', icon: 'dashboard', exact: true },
-  { path: '/transport', label: 'Transport & Logistics', icon: 'local_shipping' },
-  { path: '/camera', label: 'Camera & Assets', icon: 'photo_camera' },
-  { path: '/crew', label: 'Crew & Wages', icon: 'groups' },
-  { path: '/expenses', label: 'Art & Expenses', icon: 'palette' },
-  { path: '/wardrobe', label: 'Wardrobe & Makeup', icon: 'checkroom' },
-  { path: '/approvals', label: 'Approvals', icon: 'verified_user' },
-  { path: '/reports', label: 'Reports', icon: 'analytics' },
-  { path: '/settings', label: 'Settings', icon: 'settings' },
-]
 
 interface SidebarProps {
   isCollapsed: boolean
@@ -23,18 +13,27 @@ interface SidebarProps {
 
 export function Sidebar({ isCollapsed, onToggle, width }: SidebarProps) {
   const user = useAuthStore(s => s.user)
+  const logout = useAuthStore(s => s.logout)
   const alerts = useAlertStore(s => s.alerts)
   const criticalAlerts = alerts.filter(a => a.severity === 'critical' && !a.acknowledged)
   const location = useLocation()
+  const navigate = useNavigate()
+  const navItems = user ? APP_NAV_ITEMS.filter(item => item.routeId !== 'projects' && canAccessRoute(user, item.routeId)) : []
+  const userRoleLabel = user ? getUserRoleLabel(user) : 'Crew Member'
 
   return (
     <aside
-      className="fixed inset-y-0 left-0 z-40 border-r border-zinc-200 bg-white/90 backdrop-blur-md transition-[width] duration-300 ease-out dark:border-zinc-800 dark:bg-zinc-950/90"
+      className="fixed inset-y-0 left-0 z-40 border-r border-zinc-200 bg-white/90 backdrop-blur-md transition-[width,background-color,border-color] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] dark:border-zinc-800 dark:bg-zinc-950/90"
       style={{ width }}
     >
-      <div className={cn('flex h-full flex-col py-6', isCollapsed ? 'px-3' : 'px-5')}>
+      <div
+        className={cn(
+          'flex h-full flex-col py-6 transition-[padding] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)]',
+          isCollapsed ? 'px-3' : 'px-5',
+        )}
+      >
         <div className={cn('flex items-center gap-3', isCollapsed ? 'justify-center' : 'justify-between')}>
-          <div className={cn('flex items-center gap-3', isCollapsed && 'justify-center')}>
+          <button type="button" onClick={() => navigate('/projects')} className={cn('flex items-center gap-3 border-0 bg-transparent p-0 text-left', isCollapsed && 'justify-center')}>
             <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-orange-500 text-lg font-bold text-black">
               P
             </div>
@@ -46,7 +45,7 @@ export function Sidebar({ isCollapsed, onToggle, width }: SidebarProps) {
                 </div>
               </div>
             )}
-          </div>
+          </button>
 
           {!isCollapsed && (
             <button
@@ -67,7 +66,7 @@ export function Sidebar({ isCollapsed, onToggle, width }: SidebarProps) {
           )}
 
           <nav className="space-y-1">
-            {NAV_ITEMS.map(item => {
+            {navItems.map(item => {
               const isActive = item.exact ? location.pathname === item.path : location.pathname.startsWith(item.path)
               const hasAlert =
                 (item.path === '/transport' || item.path === '/crew' || item.path === '/approvals') &&
@@ -93,8 +92,17 @@ export function Sidebar({ isCollapsed, onToggle, width }: SidebarProps) {
                     )
                   }
                 >
-                  <span className="material-symbols-outlined text-[19px]">{item.icon}</span>
-                  {!isCollapsed && <span className="min-w-0 flex-1 truncate">{item.label}</span>}
+                  <span className="material-symbols-outlined text-[19px] transition-transform duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] group-hover:scale-105">
+                    {item.icon}
+                  </span>
+                  <span
+                    className={cn(
+                      'min-w-0 flex-1 truncate transition-[opacity,transform,max-width] duration-200 ease-[cubic-bezier(0.22,1,0.36,1)]',
+                      isCollapsed ? 'pointer-events-none max-w-0 -translate-x-2 opacity-0' : 'max-w-[220px] translate-x-0 opacity-100',
+                    )}
+                  >
+                    {item.label}
+                  </span>
                   {hasAlert && (
                     <span className={cn('h-2 w-2 rounded-full bg-orange-500', isCollapsed ? 'absolute right-2 top-2' : '')} />
                   )}
@@ -112,10 +120,14 @@ export function Sidebar({ isCollapsed, onToggle, width }: SidebarProps) {
             {!isCollapsed && (
               <div className="min-w-0 flex-1">
                 <p className="truncate text-sm font-medium text-zinc-900 dark:text-white">{user?.name}</p>
-                <p className="mt-1 text-[10px] font-semibold uppercase tracking-[0.2em] text-zinc-500 dark:text-zinc-400">{user?.role}</p>
+                <p className="mt-1 text-[10px] font-semibold uppercase tracking-[0.2em] text-zinc-500 dark:text-zinc-400">{userRoleLabel}</p>
               </div>
             )}
             <button
+              onClick={() => {
+                logout()
+                navigate('/auth')
+              }}
               className="material-symbols-outlined rounded-full p-2 text-zinc-500 transition-colors hover:bg-zinc-100 hover:text-zinc-900 dark:text-zinc-400 dark:hover:bg-zinc-900 dark:hover:text-white"
               title={isCollapsed ? 'Logout' : undefined}
             >

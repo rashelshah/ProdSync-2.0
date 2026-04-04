@@ -1,11 +1,11 @@
 import { useState } from 'react'
+import { Plus } from 'lucide-react'
+import { useNavigate } from 'react-router-dom'
 import { useAlertStore } from '@/features/alerts/alert.store'
+import { getUserRoleLabel } from '@/features/auth/onboarding'
 import { useAuthStore } from '@/features/auth/auth.store'
 import { useTheme } from '@/components/theme/ThemeProvider'
 import { cn, timeAgo } from '@/utils'
-import type { UserRole } from '@/types'
-
-const ROLES: UserRole[] = ['EP', 'LineProducer', 'HOD', 'Crew', 'Driver']
 
 interface HeaderProps {
   isSidebarCollapsed: boolean
@@ -14,19 +14,22 @@ interface HeaderProps {
 }
 
 export function Header({ isSidebarCollapsed, onToggleSidebar, sidebarOffset }: HeaderProps) {
+  const navigate = useNavigate()
   const alerts = useAlertStore(s => s.alerts)
   const unreadCount = useAlertStore(s => s.unreadCount)
   const acknowledgeAll = useAlertStore(s => s.acknowledgeAll)
   const user = useAuthStore(s => s.user)
-  const switchRole = useAuthStore(s => s.switchRole)
   const { theme, toggleTheme } = useTheme()
   const [showAlerts, setShowAlerts] = useState(false)
-  const [showRoles, setShowRoles] = useState(false)
 
   const recentAlerts = alerts.slice(0, 5)
+  const userRoleLabel = user ? getUserRoleLabel(user) : 'Crew Member'
 
   return (
-    <header className="fixed right-0 top-0 z-30 bg-transparent px-6 py-5 transition-[left] duration-300 ease-out lg:px-8" style={{ left: sidebarOffset }}>
+    <header
+      className="fixed right-0 top-0 z-30 bg-transparent px-6 py-5 transition-[left] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] lg:px-8"
+      style={{ left: sidebarOffset }}
+    >
       <div className="flex items-center justify-between gap-6">
         <div className="flex min-w-0 flex-1 items-center gap-3">
           <button
@@ -51,6 +54,14 @@ export function Header({ isSidebarCollapsed, onToggleSidebar, sidebarOffset }: H
 
         <div className="flex items-center gap-3">
           <button
+            onClick={() => navigate('/projects')}
+            className="flex h-11 w-11 items-center justify-center rounded-full bg-orange-500 text-black transition-colors hover:bg-orange-600"
+            aria-label="Create or join project"
+          >
+            <Plus className="h-4 w-4" />
+          </button>
+
+          <button
             onClick={toggleTheme}
             className="flex h-11 w-11 items-center justify-center rounded-full border border-zinc-200 bg-white text-zinc-500 transition-colors hover:border-orange-200 hover:bg-orange-50 hover:text-orange-600 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-400 dark:hover:border-orange-500/20 dark:hover:bg-orange-500/10 dark:hover:text-orange-400"
             aria-label={`Switch to ${theme === 'light' ? 'dark' : 'light'} mode`}
@@ -60,10 +71,7 @@ export function Header({ isSidebarCollapsed, onToggleSidebar, sidebarOffset }: H
 
           <div className="relative">
             <button
-              onClick={() => {
-                setShowAlerts(value => !value)
-                setShowRoles(false)
-              }}
+              onClick={() => setShowAlerts(value => !value)}
               className="relative flex h-11 w-11 items-center justify-center rounded-full border border-zinc-200 bg-white text-zinc-500 transition-colors hover:border-orange-200 hover:bg-orange-50 hover:text-orange-600 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-400 dark:hover:border-orange-500/20 dark:hover:bg-orange-500/10 dark:hover:text-orange-400"
             >
               <span className="material-symbols-outlined text-[20px]">notifications</span>
@@ -125,50 +133,12 @@ export function Header({ isSidebarCollapsed, onToggleSidebar, sidebarOffset }: H
             )}
           </div>
 
-          <div className="relative">
-            <button
-              onClick={() => {
-                setShowRoles(value => !value)
-                setShowAlerts(false)
-              }}
-              className="flex items-center gap-3 rounded-full border border-zinc-200 bg-white px-3 py-2.5 transition-colors hover:border-orange-200 hover:bg-orange-50 dark:border-zinc-800 dark:bg-zinc-900 dark:hover:border-orange-500/20 dark:hover:bg-orange-500/10"
-            >
-              <div className="hidden text-left sm:block">
-                <div className="text-[10px] font-semibold uppercase tracking-[0.18em] text-zinc-500 dark:text-zinc-400">Role</div>
-                <div className="mt-1 text-xs font-semibold uppercase tracking-[0.16em] text-zinc-900 dark:text-white">{user?.role}</div>
-              </div>
-              <span className="material-symbols-outlined text-[18px] text-zinc-500 dark:text-zinc-400">expand_more</span>
-            </button>
-
-            {showRoles && (
-              <div className="absolute right-0 top-full mt-3 w-48 rounded-[24px] border border-zinc-200 bg-white p-2 shadow-soft dark:border-zinc-800 dark:bg-zinc-900">
-                {ROLES.map(role => (
-                  <button
-                    key={role}
-                    onClick={() => {
-                      switchRole(role)
-                      setShowRoles(false)
-                    }}
-                    className={cn(
-                      'w-full rounded-full px-4 py-3 text-left text-[11px] font-semibold uppercase tracking-[0.16em] transition-colors',
-                      user?.role === role
-                        ? 'bg-orange-500 text-black'
-                        : 'text-zinc-500 hover:bg-zinc-100 hover:text-zinc-900 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-white',
-                    )}
-                  >
-                    {role}
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
-
-          <div className="flex items-center gap-3 rounded-full border border-zinc-200 bg-white px-2 py-1.5 dark:border-zinc-800 dark:bg-zinc-900">
+          <div className="flex items-center gap-3 rounded-full border border-zinc-200 bg-white px-2 py-2 pl-3 pr-2.5 dark:border-zinc-800 dark:bg-zinc-900">
             <div className="hidden text-right sm:block">
-              <p className="text-sm font-medium text-zinc-900 dark:text-white">{user?.name}</p>
-              <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-zinc-500 dark:text-zinc-400">Account</p>
+              <p className="text-sm font-semibold text-zinc-900 dark:text-white">{user?.name}</p>
+              <p className="text-xs text-zinc-500 dark:text-zinc-400">{userRoleLabel}</p>
             </div>
-            <div className="flex h-9 w-9 items-center justify-center rounded-full bg-zinc-900 text-sm font-bold text-white dark:bg-white dark:text-zinc-900">
+            <div className="flex h-11 w-11 items-center justify-center rounded-full bg-zinc-900 text-sm font-bold text-white dark:bg-white dark:text-zinc-900">
               {user?.name.charAt(0) ?? 'U'}
             </div>
           </div>

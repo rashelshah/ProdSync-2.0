@@ -1,13 +1,73 @@
 // ─── Core Domain Types ──────────────────────────────────────────────────────
 
-export type UserRole = 'EP' | 'LineProducer' | 'HOD' | 'Crew' | 'Driver'
+export type UserRole = 'EP' | 'LineProducer' | 'HOD' | 'Supervisor' | 'Crew' | 'Driver' | 'DataWrangler'
 
 export interface User {
   id: string
   name: string
   role: UserRole
-  departmentId?: string
+  roleLabel?: string
+  projectRoleTitle?: ProjectRequestedRole
+  departmentId?: ProjectDepartment
+  departmentLabel?: string
   avatarUrl?: string
+}
+
+export type ProjectStage = 'pre-production' | 'shooting' | 'post'
+export type ProjectDepartment = 'camera' | 'art' | 'transport' | 'production' | 'wardrobe' | 'post'
+export type ProjectRequestedRole =
+  | 'Executive Producer'
+  | 'Line Producer'
+  | 'Production Manager'
+  | '1st AD'
+  | 'DOP'
+  | '1st AC'
+  | 'Camera Operator'
+  | 'Art Director'
+  | 'Art Assistant'
+  | 'Transport Captain'
+  | 'Driver'
+  | 'Editor'
+  | 'Colorist'
+  | 'Costume Supervisor'
+  | 'Wardrobe Stylist'
+  | 'Crew Member'
+  | 'Data Wrangler'
+
+export interface ProjectRecord {
+  id: string
+  name: string
+  ownerId: string
+  ownerName: string
+  location: string
+  status: ProjectStage
+  progressPercent: number
+  budgetUSD: number
+  activeCrew: number
+  startDate: string
+  endDate: string
+  enabledDepartments: ProjectDepartment[]
+  otRulesLabel: string
+}
+
+export interface ProjectMember {
+  id: string
+  userId: string
+  projectId: string
+  role: ProjectRequestedRole
+  permissions: string[]
+  approvedAt: string
+}
+
+export interface ProjectJoinRequest {
+  id: string
+  userId: string
+  userName: string
+  projectId: string
+  roleRequested: ProjectRequestedRole
+  status: 'pending' | 'approved' | 'rejected'
+  message?: string
+  createdAt: string
 }
 
 // ─── Transport ───────────────────────────────────────────────────────────────
