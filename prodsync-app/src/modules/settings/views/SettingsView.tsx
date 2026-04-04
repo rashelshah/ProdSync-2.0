@@ -1,5 +1,6 @@
 import { useState } from 'react'
-import { useAuthStore, Permissions } from '@/features/auth/auth.store'
+import { useAuthStore } from '@/features/auth/auth.store'
+import { Surface } from '@/components/shared/Surface'
 import { cn } from '@/utils'
 import type { UserRole } from '@/types'
 
@@ -28,221 +29,240 @@ export function SettingsView() {
   const switchRole = useAuthStore(s => s.switchRole)
 
   return (
-    <div className="max-w-[1400px] mx-auto p-6 space-y-6">
+    <div className="page-shell page-shell-narrow">
       <header>
-        <h1 className="text-4xl font-extrabold tracking-tight text-white">Settings</h1>
-        <p className="text-white/40 text-sm mt-1 uppercase tracking-wide">Configuration · Roles · Notifications · Integrations</p>
+        <span className="page-kicker">Configuration</span>
+        <h1 className="page-title page-title-compact">Settings</h1>
+        <p className="page-subtitle">Configuration, access control, notifications, and integrations with the same open white, black, and orange system.</p>
       </header>
 
-      <div className="grid grid-cols-12 gap-5">
-        {/* Sidebar nav */}
-        <nav className="col-span-12 lg:col-span-3 space-y-1">
-          {SETTINGS_SECTIONS.map(s => (
-            <button
-              key={s.id}
-              onClick={() => setActiveSection(s.id)}
-              className={cn(
-                'w-full flex items-center gap-3 px-4 py-3 text-xs font-bold uppercase tracking-widest transition-colors rounded-sm',
-                activeSection === s.id
-                  ? 'bg-white text-black'
-                  : 'text-white/40 hover:text-white hover:bg-white/5'
-              )}
-            >
-              <span className={cn('material-symbols-outlined text-[18px]', activeSection === s.id ? 'text-black' : '')}>
-                {s.icon}
-              </span>
-              {s.label}
-            </button>
-          ))}
+      <div className="grid grid-cols-12 gap-8">
+        <nav className="col-span-12 lg:col-span-3">
+          <div className="space-y-2">
+            {SETTINGS_SECTIONS.map(section => (
+              <button
+                key={section.id}
+                onClick={() => setActiveSection(section.id)}
+                className={cn(
+                  'flex w-full items-center gap-3 rounded-2xl px-4 py-3 text-left text-sm font-medium transition-colors',
+                  activeSection === section.id
+                    ? 'bg-orange-50 text-orange-600 dark:bg-orange-500/10 dark:text-orange-400'
+                    : 'text-zinc-500 hover:bg-zinc-50 hover:text-zinc-900 dark:text-zinc-400 dark:hover:bg-zinc-900 dark:hover:text-white',
+                )}
+              >
+                <span className="material-symbols-outlined text-[18px]">{section.icon}</span>
+                {section.label}
+              </button>
+            ))}
+          </div>
         </nav>
 
-        {/* Content panel */}
-        <div className="col-span-12 lg:col-span-9 space-y-5">
-
+        <div className="col-span-12 lg:col-span-9">
           {activeSection === 'general' && (
-            <>
-              <div className="bg-[#131313] border border-white/5 p-6 rounded-sm space-y-6">
-                <h2 className="text-sm font-black uppercase tracking-[0.2em] text-white">Production Settings</h2>
-                {[
-                  { label: 'Production Name', value: 'Project Noir — Unit A' },
-                  { label: 'Shoot Days (Total)', value: '68' },
-                  { label: 'Current Day', value: '42' },
-                  { label: 'Base Location', value: 'Chennai, Tamil Nadu' },
-                  { label: 'Currency', value: 'USD + INR' },
-                ].map(f => (
-                  <div key={f.label} className="flex items-center justify-between border-b border-white/5 pb-4 last:border-0 last:pb-0">
-                    <label className="text-xs font-bold uppercase tracking-widest text-white/40">{f.label}</label>
-                    <div className="flex items-center gap-3">
-                      <span className="text-sm font-medium text-white">{f.value}</span>
-                      <button className="text-[10px] text-white/30 hover:text-white uppercase tracking-widest font-bold transition-colors">Edit</button>
-                    </div>
+            <div className="space-y-8">
+              <div>
+                <div className="section-heading">
+                  <div>
+                    <p className="section-kicker">Production</p>
+                    <h2 className="section-title">Production Settings</h2>
                   </div>
-                ))}
-              </div>
-
-              <div className="bg-[#131313] border border-white/5 p-6 rounded-sm">
-                <h2 className="text-sm font-black uppercase tracking-[0.2em] text-white mb-6">Alert Thresholds</h2>
-                <div className="space-y-5">
+                </div>
+                <div className="mt-4 space-y-4">
                   {[
-                    { label: 'Fuel Mismatch Alert Trigger', value: '15%', desc: 'Alert when actual mileage deviates by this %' },
-                    { label: 'OT Trigger Threshold', value: '10 hrs', desc: 'Shift hours before OT alert fires' },
-                    { label: 'Budget Warning Level', value: '85%', desc: 'Dept budget % before warning is raised' },
-                    { label: 'Budget Critical Level', value: '100%', desc: 'Dept budget % for critical alert' },
-                  ].map(t => (
-                    <div key={t.label} className="flex items-start justify-between gap-4 border-b border-white/5 pb-5 last:border-0 last:pb-0">
-                      <div>
-                        <p className="text-xs font-bold text-white">{t.label}</p>
-                        <p className="text-[10px] text-white/30 mt-1">{t.desc}</p>
-                      </div>
-                      <div className="shrink-0 flex items-center gap-2">
-                        <div className="bg-[#0e0e0e] border border-white/10 px-3 py-1.5 text-xs font-mono font-bold text-white min-w-[72px] text-center">
-                          {t.value}
-                        </div>
-                        <button className="text-[10px] text-white/30 hover:text-white uppercase tracking-widest font-bold">Edit</button>
+                    { label: 'Production Name', value: 'Project Noir - Unit A' },
+                    { label: 'Shoot Days (Total)', value: '68' },
+                    { label: 'Current Day', value: '42' },
+                    { label: 'Base Location', value: 'Chennai, Tamil Nadu' },
+                    { label: 'Currency', value: 'USD + INR' },
+                  ].map(field => (
+                    <div key={field.label} className="flex items-center justify-between rounded-[24px] bg-zinc-50 px-5 py-4 dark:bg-zinc-900">
+                      <label className="text-xs font-semibold uppercase tracking-[0.16em] text-zinc-500 dark:text-zinc-400">{field.label}</label>
+                      <div className="flex items-center gap-4">
+                        <span className="text-sm font-medium text-zinc-900 dark:text-white">{field.value}</span>
+                        <button className="btn-ghost px-0 py-0 text-[10px]">Edit</button>
                       </div>
                     </div>
                   ))}
                 </div>
               </div>
-            </>
+
+              <Surface variant="table" padding="lg">
+                <div className="mb-6">
+                  <p className="section-title">Alert Thresholds</p>
+                  <p className="mt-2 text-sm text-zinc-500 dark:text-zinc-400">Thresholds remain unchanged, but are grouped for easier scanning.</p>
+                </div>
+                <div className="space-y-5">
+                  {[
+                    { label: 'Fuel Mismatch Alert Trigger', value: '15%', desc: 'Alert when actual mileage deviates by this percentage' },
+                    { label: 'OT Trigger Threshold', value: '10 hrs', desc: 'Shift hours before overtime alert fires' },
+                    { label: 'Budget Warning Level', value: '85%', desc: 'Department budget percentage before warning' },
+                    { label: 'Budget Critical Level', value: '100%', desc: 'Department budget percentage for critical alert' },
+                  ].map(item => (
+                    <div key={item.label} className="flex items-start justify-between gap-4 border-b border-zinc-200 pb-5 last:border-b-0 last:pb-0 dark:border-zinc-800">
+                      <div>
+                        <p className="text-sm font-medium text-zinc-900 dark:text-white">{item.label}</p>
+                        <p className="mt-2 text-sm text-zinc-500 dark:text-zinc-400">{item.desc}</p>
+                      </div>
+                      <div className="flex shrink-0 items-center gap-3">
+                        <div className="rounded-full bg-zinc-100 px-4 py-2 text-sm font-medium text-zinc-900 dark:bg-zinc-800 dark:text-white">{item.value}</div>
+                        <button className="btn-ghost px-0 py-0 text-[10px]">Edit</button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </Surface>
+            </div>
           )}
 
           {activeSection === 'roles' && (
-            <div className="bg-[#131313] border border-white/5 p-6 rounded-sm space-y-6">
-              <div className="flex items-start justify-between">
+            <div className="space-y-8">
+              <div className="section-heading">
                 <div>
-                  <h2 className="text-sm font-black uppercase tracking-[0.2em] text-white">Role-Based Access Control</h2>
-                  <p className="text-[11px] text-white/30 mt-1">Preview permissions per role. Use the role switcher in the header to test live.</p>
+                  <p className="section-kicker">Access</p>
+                  <h2 className="section-title">Role-Based Access Control</h2>
                 </div>
-                <div className="flex gap-1">
-                  {ROLES.map(r => (
+                <div className="flex flex-wrap gap-2">
+                  {ROLES.map(role => (
                     <button
-                      key={r}
-                      onClick={() => setPreviewRole(r)}
+                      key={role}
+                      onClick={() => setPreviewRole(role)}
                       className={cn(
-                        'px-3 py-1.5 text-[10px] font-black uppercase tracking-widest transition-colors rounded-sm',
-                        previewRole === r ? 'bg-white text-black' : 'bg-white/5 text-white/40 hover:text-white'
+                        'rounded-full px-4 py-2 text-[10px] font-semibold uppercase tracking-[0.16em] transition-colors',
+                        previewRole === role
+                          ? 'bg-orange-500 text-black'
+                          : 'bg-zinc-100 text-zinc-600 hover:text-zinc-900 dark:bg-zinc-900 dark:text-zinc-400 dark:hover:text-white',
                       )}
                     >
-                      {r}
+                      {role}
                     </button>
                   ))}
                 </div>
               </div>
 
-              {/* Current user */}
-              <div className="bg-[#0e0e0e] border border-white/10 p-4 rounded-sm flex items-center gap-3">
-                <div className="w-10 h-10 rounded-sm bg-white/10 flex items-center justify-center text-sm font-black text-white">
-                  {user?.name.charAt(0)}
-                </div>
-                <div>
-                  <p className="text-sm font-bold text-white">{user?.name}</p>
-                  <p className="text-[10px] text-white/30 uppercase tracking-widest">Current Role: {user?.role}</p>
-                </div>
-                <div className="ml-auto">
-                  <button
-                    onClick={() => switchRole(previewRole)}
-                    className="text-[10px] font-black uppercase tracking-widest bg-white text-black px-4 py-2 hover:bg-white/90 transition-colors"
-                  >
+              <div className="rounded-[26px] bg-zinc-50 p-5 dark:bg-zinc-900">
+                <div className="flex items-center gap-4">
+                  <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-zinc-900 text-sm font-bold text-white dark:bg-white dark:text-zinc-900">
+                    {user?.name.charAt(0)}
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium text-zinc-900 dark:text-white">{user?.name}</p>
+                    <p className="mt-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-zinc-500 dark:text-zinc-400">Current Role: {user?.role}</p>
+                  </div>
+                  <button onClick={() => switchRole(previewRole)} className="btn-primary ml-auto">
                     Switch to {previewRole}
                   </button>
                 </div>
               </div>
 
-              {/* Permission table */}
-              <div>
-                <p className="text-[10px] font-bold uppercase tracking-widest text-white/30 mb-4">Permissions for <span className="text-white">{previewRole}</span></p>
-                <div className="space-y-2">
-                  {(['View All Modules', 'Approve Expenses', 'Manage Crew', 'Access Financials', 'Export Reports', 'Settings Admin', 'View Department Module', 'Submit Requests', 'View Own Data', 'View Own Trips', 'Upload Fuel Logs'] as const).map(perm => {
-                    const hasAccess = ROLE_PERMISSIONS[previewRole].includes(perm)
-                    return (
-                      <div key={perm} className={cn(
-                        'flex items-center justify-between px-4 py-3 rounded-sm border',
-                        hasAccess ? 'bg-emerald-950/20 border-emerald-900/30' : 'bg-white/2 border-white/5'
-                      )}>
-                        <span className={cn('text-xs font-medium', hasAccess ? 'text-white' : 'text-white/20')}>{perm}</span>
-                        <span className={cn('material-symbols-outlined text-base', hasAccess ? 'text-emerald-400' : 'text-white/10')}>
-                          {hasAccess ? 'check_circle' : 'cancel'}
-                        </span>
-                      </div>
-                    )
-                  })}
-                </div>
+              <div className="grid gap-3">
+                {(['View All Modules', 'Approve Expenses', 'Manage Crew', 'Access Financials', 'Export Reports', 'Settings Admin', 'View Department Module', 'Submit Requests', 'View Own Data', 'View Own Trips', 'Upload Fuel Logs'] as const).map(permission => {
+                  const hasAccess = ROLE_PERMISSIONS[previewRole].includes(permission)
+                  return (
+                    <div
+                      key={permission}
+                      className={cn(
+                        'flex items-center justify-between rounded-[24px] px-5 py-4',
+                        hasAccess ? 'bg-orange-50 dark:bg-orange-500/10' : 'bg-zinc-50 dark:bg-zinc-900',
+                      )}
+                    >
+                      <span className={cn('text-sm font-medium', hasAccess ? 'text-zinc-900 dark:text-white' : 'text-zinc-500 dark:text-zinc-400')}>{permission}</span>
+                      <span className={cn('material-symbols-outlined text-[18px]', hasAccess ? 'text-orange-600 dark:text-orange-400' : 'text-zinc-400 dark:text-zinc-500')}>
+                        {hasAccess ? 'check_circle' : 'cancel'}
+                      </span>
+                    </div>
+                  )
+                })}
               </div>
             </div>
           )}
 
           {activeSection === 'notifications' && (
-            <div className="bg-[#131313] border border-white/5 p-6 rounded-sm space-y-6">
-              <h2 className="text-sm font-black uppercase tracking-[0.2em] text-white">Notification Preferences</h2>
-              {[
-                { label: 'Critical Alerts', desc: 'Fuel anomaly, OT spike, budget overrun', enabled: true },
-                { label: 'Approval Requests', desc: 'New requests requiring your action', enabled: true },
-                { label: 'Crew Updates', desc: 'Attendance, check-in/out events', enabled: false },
-                { label: 'Daily Summary', desc: 'End-of-day production digest', enabled: true },
-                { label: 'Fleet Exceptions', desc: 'Geo-fence violations, idle warnings', enabled: false },
-              ].map(n => (
-                <div key={n.label} className="flex items-center justify-between border-b border-white/5 pb-5 last:border-0 last:pb-0">
-                  <div>
-                    <p className="text-xs font-bold text-white">{n.label}</p>
-                    <p className="text-[10px] text-white/30 mt-0.5">{n.desc}</p>
+            <Surface variant="table" padding="lg">
+              <div className="mb-6">
+                <p className="section-title">Notification Preferences</p>
+                <p className="mt-2 text-sm text-zinc-500 dark:text-zinc-400">Notification rows are grouped with more white space and stronger labels.</p>
+              </div>
+              <div className="space-y-5">
+                {[
+                  { label: 'Critical Alerts', desc: 'Fuel anomaly, OT spike, budget overrun', enabled: true },
+                  { label: 'Approval Requests', desc: 'New requests requiring your action', enabled: true },
+                  { label: 'Crew Updates', desc: 'Attendance and check-in events', enabled: false },
+                  { label: 'Daily Summary', desc: 'End-of-day production digest', enabled: true },
+                  { label: 'Fleet Exceptions', desc: 'Geo-fence violations and idle warnings', enabled: false },
+                ].map(item => (
+                  <div key={item.label} className="flex items-center justify-between border-b border-zinc-200 pb-5 last:border-b-0 last:pb-0 dark:border-zinc-800">
+                    <div>
+                      <p className="text-sm font-medium text-zinc-900 dark:text-white">{item.label}</p>
+                      <p className="mt-2 text-sm text-zinc-500 dark:text-zinc-400">{item.desc}</p>
+                    </div>
+                    <div className={cn('flex h-6 w-12 items-center rounded-full px-1', item.enabled ? 'justify-end bg-orange-500' : 'justify-start bg-zinc-200 dark:bg-zinc-800')}>
+                      <div className={cn('h-4 w-4 rounded-full', item.enabled ? 'bg-black' : 'bg-zinc-500')} />
+                    </div>
                   </div>
-                  <div className={cn(
-                    'w-10 h-5 rounded-full flex items-center px-0.5 transition-colors cursor-pointer',
-                    n.enabled ? 'bg-white justify-end' : 'bg-white/10 justify-start'
-                  )}>
-                    <div className={cn('w-4 h-4 rounded-full', n.enabled ? 'bg-black' : 'bg-white/30')} />
-                  </div>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            </Surface>
           )}
 
           {activeSection === 'integrations' && (
-            <div className="bg-[#131313] border border-white/5 p-6 rounded-sm space-y-4">
-              <h2 className="text-sm font-black uppercase tracking-[0.2em] text-white mb-6">Integrations</h2>
-              {[
-                { name: 'Supabase', desc: 'Database, Auth & Real-time', status: 'connected', icon: 'database' },
-                { name: 'Google Maps API', desc: 'Fleet GPS tracking', status: 'pending', icon: 'map' },
-                { name: 'Razorpay', desc: 'Wage & batta disbursement', status: 'pending', icon: 'payments' },
-                { name: 'Twilio SMS', desc: 'Crew alerts & OTP', status: 'disconnected', icon: 'sms' },
-              ].map(i => (
-                <div key={i.name} className="flex items-center gap-4 border border-white/5 p-4 rounded-sm">
-                  <span className="material-symbols-outlined text-white/30 text-2xl">{i.icon}</span>
-                  <div className="flex-1">
-                    <p className="text-sm font-bold text-white">{i.name}</p>
-                    <p className="text-[11px] text-white/30">{i.desc}</p>
-                  </div>
-                  <span className={cn(
-                    'text-[9px] font-black uppercase tracking-widest px-3 py-1 rounded-full',
-                    i.status === 'connected' ? 'bg-emerald-900/40 text-emerald-400' :
-                    i.status === 'pending' ? 'bg-amber-900/30 text-amber-400' : 'bg-white/5 text-white/20'
-                  )}>
-                    {i.status}
-                  </span>
+            <div>
+              <div className="section-heading">
+                <div>
+                  <p className="section-kicker">Connections</p>
+                  <h2 className="section-title">Integrations</h2>
                 </div>
-              ))}
+              </div>
+              <div className="mt-4 space-y-4">
+                {[
+                  { name: 'Supabase', desc: 'Database, auth and real-time', status: 'connected', icon: 'database' },
+                  { name: 'Google Maps API', desc: 'Fleet GPS tracking', status: 'pending', icon: 'map' },
+                  { name: 'Razorpay', desc: 'Wage and batta disbursement', status: 'pending', icon: 'payments' },
+                  { name: 'Twilio SMS', desc: 'Crew alerts and OTP', status: 'disconnected', icon: 'sms' },
+                ].map(item => (
+                  <div key={item.name} className="flex items-center gap-4 rounded-[26px] bg-zinc-50 p-5 dark:bg-zinc-900">
+                    <span className="material-symbols-outlined text-2xl text-zinc-500 dark:text-zinc-400">{item.icon}</span>
+                    <div className="flex-1">
+                      <p className="text-sm font-medium text-zinc-900 dark:text-white">{item.name}</p>
+                      <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">{item.desc}</p>
+                    </div>
+                    <span className={cn(
+                      'rounded-full px-3 py-1 text-[9px] font-semibold uppercase tracking-[0.16em]',
+                      item.status === 'connected'
+                        ? 'bg-orange-500 text-black'
+                        : item.status === 'pending'
+                          ? 'bg-orange-50 text-orange-600 dark:bg-orange-500/10 dark:text-orange-400'
+                          : 'bg-zinc-100 text-zinc-500 dark:bg-zinc-800 dark:text-zinc-400',
+                    )}>
+                      {item.status}
+                    </span>
+                  </div>
+                ))}
+              </div>
             </div>
           )}
 
           {activeSection === 'production' && (
-            <div className="bg-[#131313] border border-white/5 p-6 rounded-sm space-y-5">
-              <h2 className="text-sm font-black uppercase tracking-[0.2em] text-white">Production Configuration</h2>
-              <p className="text-xs text-white/30">Configure shift timings, OT multipliers, batta rates and department budget caps.</p>
-              {[
-                { label: 'Standard Shift Duration', value: '10 hours' },
-                { label: 'OT Multiplier', value: '1.5×' },
-                { label: 'Daily Batta Budget (Base)', value: '$3,500' },
-                { label: 'Fuel Allowance per KM', value: '$0.12' },
-                { label: 'Outstation Threshold', value: '80 km from base' },
-                { label: 'Night Shift Premium', value: '25%' },
-              ].map(f => (
-                <div key={f.label} className="flex justify-between items-center border-b border-white/5 pb-4 last:border-0 last:pb-0">
-                  <span className="text-xs font-bold text-white/40 uppercase tracking-widest">{f.label}</span>
-                  <span className="text-sm font-bold text-white">{f.value}</span>
-                </div>
-              ))}
-            </div>
+            <Surface variant="table" padding="lg">
+              <div className="mb-6">
+                <p className="section-title">Production Configuration</p>
+                <p className="mt-2 text-sm text-zinc-500 dark:text-zinc-400">Shift timing, overtime multipliers, and budget caps grouped into one compact settings card.</p>
+              </div>
+              <div className="space-y-5">
+                {[
+                  { label: 'Standard Shift Duration', value: '10 hours' },
+                  { label: 'OT Multiplier', value: '1.5x' },
+                  { label: 'Daily Batta Budget (Base)', value: '$3,500' },
+                  { label: 'Fuel Allowance per KM', value: '$0.12' },
+                  { label: 'Outstation Threshold', value: '80 km from base' },
+                  { label: 'Night Shift Premium', value: '25%' },
+                ].map(item => (
+                  <div key={item.label} className="flex items-center justify-between border-b border-zinc-200 pb-5 last:border-b-0 last:pb-0 dark:border-zinc-800">
+                    <span className="text-xs font-semibold uppercase tracking-[0.16em] text-zinc-500 dark:text-zinc-400">{item.label}</span>
+                    <span className="text-sm font-medium text-zinc-900 dark:text-white">{item.value}</span>
+                  </div>
+                ))}
+              </div>
+            </Surface>
           )}
         </div>
       </div>

@@ -1,28 +1,32 @@
 import { KpiCard } from '@/components/shared/KpiCard'
+import { Surface } from '@/components/shared/Surface'
 import { EmptyState } from '@/components/system/SystemStates'
 
 export function CameraView() {
   return (
-    <div className="max-w-[1600px] mx-auto p-6 space-y-6">
+    <div className="page-shell">
       <header>
-        <h1 className="text-4xl font-extrabold tracking-tight text-white">Camera & Assets</h1>
-        <p className="text-white/40 text-sm mt-1 uppercase tracking-wide">Rental Orders · Inventory · Asset Tracking</p>
+        <span className="page-kicker">Asset Operations</span>
+        <h1 className="page-title page-title-compact">Camera & Assets</h1>
+        <p className="page-subtitle">Rental orders, inventory movement, and asset readiness in the same open layout system.</p>
       </header>
-      <section className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+
+      <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-6">
         <KpiCard label="Rental Days" value="41/68" subLabel="Day 41 of shoot" />
         <KpiCard label="Active Rentals" value="12" subLabel="Camera packages" />
-        <KpiCard label="Data Ingested" value="18.4 TB" subLabel="Since Day 1" />
+        <KpiCard label="Data Ingested" value="18.4 TB" subLabel="Since day 1" accentColor="#f97316" />
         <KpiCard label="Assets Checked Out" value="84" subLabel="3 overdue" subType="warning" />
         <KpiCard label="Daily Rental Cost" value="$4,200" subLabel="Within budget" subType="success" />
         <KpiCard label="Returns Pending" value="7" subLabel="Due today" subType="warning" />
       </section>
-      <div className="bg-[#131313] border border-white/5 rounded-sm">
+
+      <Surface variant="table" padding="lg">
         <EmptyState
-          title="Camera Module — Coming Soon"
-          description="Rental order management, inventory tracker, and asset check-in/out system will be implemented here."
+          title="Camera Module - Coming Soon"
+          description="Rental order management, inventory tracking, and asset check-in and check-out flows will live here."
           icon="photo_camera"
         />
-      </div>
+      </Surface>
     </div>
   )
 }

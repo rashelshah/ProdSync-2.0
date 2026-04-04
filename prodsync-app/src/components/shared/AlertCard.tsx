@@ -1,7 +1,7 @@
-import { cn } from '@/utils'
 import type { AlertItem } from '@/types'
-import { timeAgo } from '@/utils'
 import { useAlertStore } from '@/features/alerts/alert.store'
+import { Surface } from '@/components/shared/Surface'
+import { cn, timeAgo } from '@/utils'
 
 interface AlertCardProps {
   alert: AlertItem
@@ -10,28 +10,25 @@ interface AlertCardProps {
 
 const severityConfig = {
   critical: {
-    border: 'border-l-red-500',
-    dot: 'bg-red-500',
-    text: 'text-red-400',
-    bg: 'bg-red-950/30',
-    label: 'Critical',
     icon: 'error',
+    label: 'Critical',
+    text: 'text-red-500 dark:text-red-400',
+    border: 'border-red-200 dark:border-red-500/20',
+    tint: 'bg-red-50 dark:bg-red-500/10',
   },
   warning: {
-    border: 'border-l-amber-500',
-    dot: 'bg-amber-500',
-    text: 'text-amber-400',
-    bg: 'bg-amber-950/30',
-    label: 'Warning',
     icon: 'warning',
+    label: 'Warning',
+    text: 'text-orange-600 dark:text-orange-400',
+    border: 'border-orange-200 dark:border-orange-500/20',
+    tint: 'bg-orange-50 dark:bg-orange-500/10',
   },
   info: {
-    border: 'border-l-sky-500',
-    dot: 'bg-sky-400',
-    text: 'text-sky-400',
-    bg: 'bg-sky-950/20',
-    label: 'Info',
     icon: 'info',
+    label: 'Info',
+    text: 'text-zinc-600 dark:text-zinc-300',
+    border: 'border-zinc-200 dark:border-zinc-800',
+    tint: 'bg-zinc-50 dark:bg-zinc-900',
   },
 }
 
@@ -41,47 +38,51 @@ export function AlertCard({ alert, compact = false }: AlertCardProps) {
 
   if (compact) {
     return (
-      <div className={cn('flex items-start gap-3 pb-4 border-b border-white/5', alert.acknowledged && 'opacity-40')}>
-        <span className={cn('material-symbols-outlined text-lg', cfg.text)} style={{ fontVariationSettings: "'FILL' 1" }}>
-          {cfg.icon}
-        </span>
-        <div className="flex-1 min-w-0">
-          <p className="text-xs font-bold text-white">{alert.title}</p>
-          <p className="text-[10px] text-white/40 mt-0.5 uppercase tracking-wider">
-            {timeAgo(alert.timestamp)} • {alert.source}
-          </p>
+      <div className={cn('rounded-[24px] border px-4 py-4', cfg.border, cfg.tint, alert.acknowledged && 'opacity-50')}>
+        <div className="flex items-start gap-3">
+          <div className={cn('flex h-10 w-10 items-center justify-center rounded-2xl', cfg.tint, cfg.text)}>
+            <span className="material-symbols-outlined text-[18px]">{cfg.icon}</span>
+          </div>
+          <div className="min-w-0 flex-1">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <p className={cn('text-[10px] font-semibold uppercase tracking-[0.2em]', cfg.text)}>{cfg.label}</p>
+                <p className="mt-1 text-sm font-medium text-zinc-900 dark:text-white">{alert.title}</p>
+              </div>
+              <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-zinc-500 dark:text-zinc-400">{timeAgo(alert.timestamp)}</p>
+            </div>
+            <p className="mt-2 text-xs text-zinc-500 dark:text-zinc-400">{alert.source}</p>
+          </div>
         </div>
       </div>
     )
   }
 
   return (
-    <div className={cn(
-      'border-l-2 p-4 rounded-sm flex items-start gap-3',
-      cfg.border, cfg.bg,
-      alert.acknowledged && 'opacity-40'
-    )}>
-      <span className={cn('material-symbols-outlined text-lg', cfg.text)}>
-        {cfg.icon}
-      </span>
-      <div className="flex-1">
-        <div className="flex items-start justify-between gap-2">
-          <div>
-            <span className={cn('text-[10px] font-bold uppercase tracking-wide', cfg.text)}>{cfg.label}</span>
-            <p className="text-[12px] text-white font-medium mt-0.5">{alert.title}</p>
-          </div>
-          <span className="text-[10px] text-white/30 shrink-0">{timeAgo(alert.timestamp)}</span>
+    <Surface variant={alert.severity === 'critical' ? 'danger' : alert.severity === 'warning' ? 'warning' : 'muted'} padding="md">
+      <div className="flex items-start gap-4">
+        <div className={cn('flex h-11 w-11 items-center justify-center rounded-2xl', cfg.tint, cfg.text)}>
+          <span className="material-symbols-outlined text-[20px]">{cfg.icon}</span>
         </div>
-        <p className="text-[11px] text-white/60 mt-1">{alert.message}</p>
-        {!alert.acknowledged && (
-          <button
-            onClick={() => acknowledge(alert.id)}
-            className="text-[10px] text-white/30 hover:text-white mt-2 uppercase tracking-widest font-bold"
-          >
-            Dismiss
-          </button>
-        )}
+        <div className="flex-1">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <span className={cn('text-[10px] font-semibold uppercase tracking-[0.22em]', cfg.text)}>{cfg.label}</span>
+              <p className="mt-2 text-sm font-semibold text-zinc-900 dark:text-white">{alert.title}</p>
+            </div>
+            <span className="shrink-0 text-[10px] font-semibold uppercase tracking-[0.16em] text-zinc-500 dark:text-zinc-400">{timeAgo(alert.timestamp)}</span>
+          </div>
+          <p className="mt-3 text-sm leading-6 text-zinc-600 dark:text-zinc-300">{alert.message}</p>
+          {!alert.acknowledged && (
+            <button
+              onClick={() => acknowledge(alert.id)}
+              className="mt-4 rounded-full border border-zinc-200 px-4 py-2 text-[10px] font-semibold uppercase tracking-[0.16em] text-zinc-900 transition-colors hover:border-orange-200 hover:bg-orange-50 hover:text-orange-600 dark:border-zinc-800 dark:text-white dark:hover:border-orange-500/20 dark:hover:bg-orange-500/10 dark:hover:text-orange-400"
+            >
+              Dismiss
+            </button>
+          )}
+        </div>
       </div>
-    </div>
+    </Surface>
   )
 }

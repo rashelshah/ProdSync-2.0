@@ -2,15 +2,16 @@ import { useCrewData } from '../hooks/useCrewData'
 import { KpiCard } from '@/components/shared/KpiCard'
 import { DataTable } from '@/components/shared/DataTable'
 import { StatusBadge } from '@/components/shared/StatusBadge'
+import { Surface } from '@/components/shared/Surface'
 import { LoadingState, ErrorState } from '@/components/system/SystemStates'
 import { RoleGuard } from '@/features/auth/RoleGuard'
 import { formatCurrency, cn } from '@/utils'
 import type { CrewMember, OvertimeGroup, WagePayout } from '@/types'
 
 const verificationConfig = {
-  gps: { icon: 'location_on', colorClass: 'text-emerald-400 bg-emerald-500/10', label: 'GPS OK' },
-  manual: { icon: 'warning', colorClass: 'text-amber-400 bg-amber-500/10', label: 'Manual' },
-  biometric: { icon: 'fingerprint', colorClass: 'text-sky-400 bg-sky-500/10', label: 'Biometric' },
+  gps: { icon: 'location_on', colorClass: 'text-orange-600 bg-orange-50 dark:text-orange-400 dark:bg-orange-500/10', label: 'GPS OK' },
+  manual: { icon: 'warning', colorClass: 'text-red-500 bg-red-50 dark:text-red-400 dark:bg-red-500/10', label: 'Manual' },
+  biometric: { icon: 'fingerprint', colorClass: 'text-zinc-700 bg-zinc-100 dark:text-zinc-300 dark:bg-zinc-800', label: 'Biometric' },
 }
 
 export function CrewView() {
@@ -20,270 +21,243 @@ export function CrewView() {
   if (isError) return <ErrorState message="Failed to load crew data" />
 
   return (
-    <div className="max-w-[1600px] mx-auto p-6 space-y-6">
-      {/* Header */}
-      <header className="flex justify-between items-end">
+    <div className="page-shell">
+      <header className="page-header">
         <div>
-          <p className="text-[10px] uppercase tracking-[0.3em] text-white/30 mb-1 font-bold">Wages Administration</p>
-          <h1 className="text-4xl font-extrabold tracking-tighter text-white uppercase">Control Center</h1>
-          <p className="text-white/40 mt-1 text-sm">Attendance, Overtime & Cash Disbursement for Active Production Phase.</p>
+          <span className="page-kicker">Wages Administration</span>
+          <h1 className="page-title page-title-compact">Crew Control Center</h1>
+          <p className="page-subtitle">Attendance, overtime, and cash disbursement organized with clearer grouping and lighter surfaces.</p>
         </div>
         <RoleGuard permission="canManageCrew">
-          <div className="flex gap-2">
-            <button className="bg-[#2a2a2a] text-white px-4 py-2 text-xs font-bold uppercase tracking-widest border border-white/10 hover:bg-white/10 transition-colors">
-              Check-In Crew
-            </button>
-            <button className="bg-[#2a2a2a] text-white px-4 py-2 text-xs font-bold uppercase tracking-widest border border-white/10 hover:bg-white/10 transition-colors">
-              Approve Batta
-            </button>
-            <button className="bg-white text-black px-4 py-2 text-xs font-extrabold uppercase tracking-widest hover:bg-white/90 transition-colors">
-              Authorize OT
-            </button>
+          <div className="page-toolbar">
+            <button className="btn-soft">Check-In Crew</button>
+            <button className="btn-soft">Approve Batta</button>
+            <button className="btn-primary">Authorize OT</button>
           </div>
         </RoleGuard>
       </header>
 
-      {/* KPI Strip */}
-      <section className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-px bg-white/5 border border-white/5">
-        <KpiCard label="Total Crew" value={String(kpis.totalCrew)}
-          subLabel={kpis.overstaffingCount > 0 ? `+${kpis.overstaffingCount} Overstaffing` : 'On Target'}
-          subType={kpis.overstaffingCount > 0 ? 'critical' : 'success'} />
-        <KpiCard label="Planned Headcount" value={String(kpis.plannedHeadcount)} subLabel={`Cap: 200`} />
-        <KpiCard label="Active OT Crew" value={String(kpis.activeOtCrew)} subLabel="Started 6:00 PM" />
-        <KpiCard label="Total OT Cost" value={formatCurrency(kpis.totalOtCostUSD)} subLabel="Daily Accrual" subType="warning" />
-        <KpiCard label="Batta Requested" value={formatCurrency(kpis.battaRequested)}
-          subLabel={kpis.battaRequested > 3500 ? 'Exceeds Budget 12%' : 'Within Budget'}
-          subType={kpis.battaRequested > 3500 ? 'critical' : 'success'} />
-        <KpiCard label="Batta Paid" value={formatCurrency(kpis.battaPaid)}
-          subLabel={`Pending: ${formatCurrency(kpis.battaRequested - kpis.battaPaid)}`} />
+      <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-6">
+        <KpiCard label="Total Crew" value={String(kpis.totalCrew)} subLabel={kpis.overstaffingCount > 0 ? `+${kpis.overstaffingCount} overstaffing` : 'On target'} subType={kpis.overstaffingCount > 0 ? 'critical' : 'success'} accentColor={kpis.overstaffingCount > 0 ? '#ef4444' : '#f97316'} />
+        <KpiCard label="Planned Headcount" value={String(kpis.plannedHeadcount)} subLabel="Cap: 200" />
+        <KpiCard label="Active OT Crew" value={String(kpis.activeOtCrew)} subLabel="Started 6:00 PM" accentColor="#f97316" />
+        <KpiCard label="Total OT Cost" value={formatCurrency(kpis.totalOtCostUSD)} subLabel="Daily accrual" subType="warning" accentColor="#f97316" />
+        <KpiCard label="Batta Requested" value={formatCurrency(kpis.battaRequested)} subLabel={kpis.battaRequested > 3500 ? 'Exceeds budget 12%' : 'Within budget'} subType={kpis.battaRequested > 3500 ? 'critical' : 'success'} accentColor={kpis.battaRequested > 3500 ? '#ef4444' : '#18181b'} />
+        <KpiCard label="Batta Paid" value={formatCurrency(kpis.battaPaid)} subLabel={`Pending: ${formatCurrency(kpis.battaRequested - kpis.battaPaid)}`} />
       </section>
 
-      {/* Main Grid */}
-      <div className="grid grid-cols-12 gap-5">
-        {/* Left: Exceptions + Attendance + OT */}
-        <div className="col-span-12 lg:col-span-8 space-y-5">
-          {/* System Exceptions */}
-          <section className="space-y-3">
-            <div className="flex items-center gap-2">
-              <span className="w-1.5 h-1.5 bg-red-500 rounded-full" />
-              <h3 className="text-xs font-black uppercase tracking-[0.2em] text-white">System Exceptions & Alerts</h3>
+      <section className="grid grid-cols-12 gap-8">
+        <div className="col-span-12 space-y-8 xl:col-span-8">
+          <div>
+            <div className="section-heading">
+              <div>
+                <p className="section-kicker">Alerts</p>
+                <h2 className="section-title">System Exceptions</h2>
+              </div>
             </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <div className="mt-4 grid gap-4 md:grid-cols-2">
               {[
-                { level: 'critical', title: 'Overtime Triggered', desc: '120 crew at 6:00 PM - Standard Shift Finished.', time: '18:05' },
+                { level: 'critical', title: 'Overtime Triggered', desc: '120 crew at 6:00 PM - standard shift finished.', time: '18:05' },
                 { level: 'critical', title: 'Overstaffing Detected', desc: `${kpis.totalCrew} present vs ${kpis.plannedHeadcount} planned in Art Dept.`, time: '07:30' },
-                { level: 'warning', title: 'Unapproved OT Running', desc: 'Duration: 45 mins - Stage 4 Crew.', time: '18:45' },
+                { level: 'warning', title: 'Unapproved OT Running', desc: 'Duration: 45 mins - Stage 4 crew.', time: '18:45' },
                 { level: 'warning', title: 'High Batta Requests', desc: `Exceeding daily budget by 12% (${formatCurrency(kpis.battaRequested)} total).`, time: '14:20' },
-              ].map((alert, i) => (
-                <div key={i} className={cn(
-                  'p-4 border-l-2',
-                  alert.level === 'critical' ? 'bg-[#201f1f] border-red-500' : 'bg-[#201f1f] border-amber-500'
-                )}>
-                  <div className="flex justify-between items-start">
-                    <p className="text-xs font-bold text-white uppercase mb-1">{alert.title}</p>
-                    <span className="text-[10px] text-white/30">{alert.time}</span>
+              ].map(alert => (
+                <div key={alert.title} className={cn('rounded-[26px] px-5 py-4', alert.level === 'critical' ? 'bg-red-50 dark:bg-red-500/10' : 'bg-orange-50 dark:bg-orange-500/10')}>
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className={cn('text-[10px] font-semibold uppercase tracking-[0.16em]', alert.level === 'critical' ? 'text-red-500 dark:text-red-400' : 'text-orange-600 dark:text-orange-400')}>
+                        {alert.level}
+                      </p>
+                      <p className="mt-2 text-sm font-medium text-zinc-900 dark:text-white">{alert.title}</p>
+                      <p className="mt-3 text-sm text-zinc-600 dark:text-zinc-300">{alert.desc}</p>
+                    </div>
+                    <span className="text-[10px] font-semibold uppercase tracking-[0.16em] text-zinc-500 dark:text-zinc-400">{alert.time}</span>
                   </div>
-                  <p className="text-sm text-white/50">{alert.desc}</p>
                 </div>
               ))}
             </div>
-          </section>
+          </div>
 
-          {/* Live Attendance Table */}
-          <section className="bg-[#1c1b1b] border border-white/5 overflow-hidden">
-            <div className="p-5 border-b border-white/5 flex justify-between items-center">
-              <h3 className="text-sm font-black uppercase tracking-[0.2em] text-white">Live Attendance Tracker</h3>
-              <div className="flex gap-4 text-[10px] uppercase font-bold tracking-widest">
-                <span className="text-white/30">Syncing Live</span>
-                <span className="text-white">{kpis.totalCrew} Online</span>
+          <Surface variant="table" padding="lg">
+            <div className="mb-6 flex items-center justify-between">
+              <div>
+                <p className="section-title">Live Attendance Tracker</p>
+                <p className="mt-2 text-sm text-zinc-500 dark:text-zinc-400">Verification and presence status for active crew.</p>
+              </div>
+              <div className="text-right">
+                <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-zinc-500 dark:text-zinc-400">Syncing Live</p>
+                <p className="mt-1 text-sm font-medium text-zinc-900 dark:text-white">{kpis.totalCrew} online</p>
               </div>
             </div>
             <DataTable<CrewMember>
               columns={[
+                { key: 'name', label: 'Crew Name', render: row => <span className="font-medium text-zinc-900 dark:text-white">{row.name}</span> },
+                { key: 'role', label: 'Role', render: row => <span className="text-zinc-500 dark:text-zinc-400">{row.role}</span> },
+                { key: 'department', label: 'Dept', render: row => <span className="text-zinc-500 dark:text-zinc-400">{row.department}</span> },
+                { key: 'checkInTime', label: 'Check-In', render: row => <span className="font-mono text-[11px] text-zinc-500 dark:text-zinc-400">{row.checkInTime}</span> },
                 {
-                  key: 'name', label: 'Crew Name',
-                  render: r => <span className="font-bold text-white">{r.name}</span>
-                },
-                { key: 'role', label: 'Role', render: r => <span className="text-white/50">{r.role}</span> },
-                { key: 'department', label: 'Dept', render: r => <span className="text-white/50">{r.department}</span> },
-                {
-                  key: 'checkInTime', label: 'Check-In',
-                  render: r => <span className="font-mono text-[11px] text-white/40">{r.checkInTime}</span>
-                },
-                {
-                  key: 'verification', label: 'Verification',
-                  render: r => {
-                    const cfg = verificationConfig[r.verification]
+                  key: 'verification',
+                  label: 'Verification',
+                  render: row => {
+                    const cfg = verificationConfig[row.verification]
                     return (
-                      <span className={cn('flex items-center gap-1.5 text-[10px] font-bold px-2 py-0.5 rounded-full w-fit', cfg.colorClass)}>
+                      <span className={cn('inline-flex w-fit items-center gap-1.5 rounded-full px-2.5 py-1 text-[9px] font-semibold uppercase tracking-[0.16em]', cfg.colorClass)}>
                         <span className="material-symbols-outlined text-xs">{cfg.icon}</span>
                         {cfg.label}
                       </span>
                     )
-                  }
+                  },
                 },
                 {
-                  key: 'status', label: 'Status',
-                  render: r => <StatusBadge variant={r.status === 'ot' ? 'ot' : r.status === 'offduty' ? 'idle' : 'active'} label={r.status === 'ot' ? 'OT' : r.status === 'offduty' ? 'Off Duty' : 'Active'} />
+                  key: 'status',
+                  label: 'Status',
+                  render: row => <StatusBadge variant={row.status === 'ot' ? 'ot' : row.status === 'offduty' ? 'idle' : 'active'} label={row.status === 'ot' ? 'OT' : row.status === 'offduty' ? 'Off Duty' : 'Active'} />,
                 },
               ]}
               data={crew}
-              getKey={r => r.id}
-              className="px-5"
+              getKey={row => row.id}
             />
-          </section>
+          </Surface>
 
-          {/* OT Monitoring */}
-          <section className="space-y-4">
-            <h3 className="text-sm font-black uppercase tracking-[0.2em] text-white">Overtime Monitoring</h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-              {otGroups.map(group => (
-                <OvertimeGroupCard key={group.id} group={group} />
-              ))}
+          <div>
+            <div className="section-heading">
+              <div>
+                <p className="section-kicker">Overtime</p>
+                <h2 className="section-title">Monitoring Groups</h2>
+              </div>
             </div>
-          </section>
+            <div className="mt-4 grid gap-4 md:grid-cols-2">
+              {otGroups.map(group => <OvertimeGroupCard key={group.id} group={group} />)}
+            </div>
+          </div>
         </div>
 
-        {/* Right Column */}
-        <div className="col-span-12 lg:col-span-4 space-y-5">
-          {/* Headcount Distribution */}
-          <section className="bg-[#1c1b1b] border border-white/5 p-5">
-            <h3 className="text-sm font-black uppercase tracking-[0.2em] text-white mb-5">Headcount Distribution</h3>
-            <div className="space-y-4">
-              {headcountByDept.map(d => (
-                <div key={d.dept} className="space-y-1">
-                  <div className="flex justify-between text-[10px] uppercase font-bold tracking-widest">
-                    <span className="text-white/50">{d.dept}</span>
-                    <span className={cn('text-white', d.overPercent > 0 && 'text-red-400')}>
-                      {d.actual} / {d.planned}
+        <div className="col-span-12 space-y-8 xl:col-span-4">
+          <Surface variant="muted" padding="md">
+            <div className="mb-5">
+              <p className="section-title">Headcount Distribution</p>
+              <p className="mt-2 text-sm text-zinc-500 dark:text-zinc-400">Planned versus actual staffing by department.</p>
+            </div>
+            <div className="space-y-5">
+              {headcountByDept.map(item => (
+                <div key={item.dept} className="space-y-2">
+                  <div className="flex items-center justify-between text-[11px] font-semibold uppercase tracking-[0.16em]">
+                    <span className="text-zinc-500 dark:text-zinc-400">{item.dept}</span>
+                    <span className={cn('text-zinc-900 dark:text-white', item.overPercent > 0 && 'text-red-500 dark:text-red-400')}>
+                      {item.actual} / {item.planned}
                     </span>
                   </div>
-                  <div className="h-2 bg-white/5 flex overflow-hidden">
-                    <div className="h-full bg-white" style={{ width: `${d.plannedPercent}%` }} />
-                    {d.overPercent > 0 && (
-                      <div className="h-full bg-red-500" style={{ width: `${Math.min(d.overPercent, 30)}%` }} />
-                    )}
+                  <div className="flex h-2 overflow-hidden rounded-full bg-zinc-200 dark:bg-zinc-800">
+                    <div className="h-full bg-zinc-900 dark:bg-white" style={{ width: `${item.plannedPercent}%` }} />
+                    {item.overPercent > 0 && <div className="h-full bg-orange-500" style={{ width: `${Math.min(item.overPercent, 30)}%` }} />}
                   </div>
                 </div>
               ))}
             </div>
-            <div className="pt-4 border-t border-white/5 mt-4 flex gap-4">
-              <div className="flex items-center gap-2">
-                <div className="w-2 h-2 bg-white" />
-                <span className="text-[10px] uppercase font-bold tracking-widest text-white/40">Planned</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <div className="w-2 h-2 bg-red-500" />
-                <span className="text-[10px] uppercase font-bold tracking-widest text-white/40">Excess</span>
-              </div>
-            </div>
-          </section>
+          </Surface>
 
-          {/* Cash Drawer */}
-          <section className="bg-[#131313] border border-white/5 p-5 space-y-5">
-            <div className="flex justify-between items-center">
-              <h3 className="text-sm font-black uppercase tracking-[0.2em] text-white">Cash Drawer</h3>
-              <span className="material-symbols-outlined text-white/30">account_balance_wallet</span>
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div className="bg-[#1c1b1b] p-4 border-l-2 border-white">
-                <p className="text-[10px] text-white/40 uppercase font-bold tracking-widest">Issued Today</p>
-                <p className="text-xl font-black text-white mt-1">$12,500</p>
+          <Surface variant="table" padding="md">
+            <div className="mb-5 flex items-center justify-between">
+              <div>
+                <p className="section-title">Cash Drawer</p>
+                <p className="mt-2 text-sm text-zinc-500 dark:text-zinc-400">Disbursement overview and latest payouts.</p>
               </div>
-              <div className="bg-[#1c1b1b] p-4 border-l-2 border-white/20">
-                <p className="text-[10px] text-white/40 uppercase font-bold tracking-widest">Remaining</p>
-                <p className="text-xl font-black text-white mt-1">$3,000</p>
+              <span className="material-symbols-outlined text-zinc-500 dark:text-zinc-400">account_balance_wallet</span>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="rounded-[22px] bg-zinc-50 p-4 dark:bg-zinc-950">
+                <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-zinc-500 dark:text-zinc-400">Issued Today</p>
+                <p className="mt-2 text-2xl font-bold tracking-[-0.04em] text-zinc-900 dark:text-white">$12,500</p>
+              </div>
+              <div className="rounded-[22px] bg-zinc-50 p-4 dark:bg-zinc-950">
+                <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-zinc-500 dark:text-zinc-400">Remaining</p>
+                <p className="mt-2 text-2xl font-bold tracking-[-0.04em] text-zinc-900 dark:text-white">$3,000</p>
               </div>
             </div>
-            <div className="space-y-3">
-              <p className="text-[10px] uppercase font-bold tracking-widest text-white/30">Recent Payouts</p>
-              {recentPayouts.map(payout => (
-                <div key={payout.id} className="flex items-center justify-between hover:bg-white/3 p-2 -mx-2 transition-colors cursor-pointer">
-                  <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 flex items-center justify-center bg-[#2a2a2a] text-[10px] font-bold text-white">
-                      {payout.method}
-                    </div>
-                    <div>
-                      <p className="text-xs font-bold text-white">{payout.crewName}</p>
-                      <p className="text-[10px] text-white/30 capitalize">{payout.type} Batta</p>
-                    </div>
-                  </div>
-                  <p className="text-xs font-bold text-white">-${payout.amount.toFixed(2)}</p>
-                </div>
-              ))}
+            <div className="mt-5 space-y-3">
+              <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-zinc-500 dark:text-zinc-400">Recent Payouts</p>
+              {recentPayouts.map(payout => <RecentPayoutItem key={payout.id} payout={payout} />)}
             </div>
-          </section>
+          </Surface>
 
-          {/* Batta Queue */}
-          <section className="space-y-3">
-            <div className="flex justify-between items-end">
-              <h3 className="text-sm font-black uppercase tracking-[0.2em] text-white">Batta Payout Queue</h3>
+          <div>
+            <div className="section-heading">
+              <div>
+                <p className="section-kicker">Queue</p>
+                <h2 className="section-title">Batta Payout Queue</h2>
+              </div>
               <RoleGuard permission="canManageCrew">
-                <button className="text-[10px] uppercase font-black text-white hover:underline underline-offset-4">Approve All</button>
+                <button className="btn-ghost px-0">Approve All</button>
               </RoleGuard>
             </div>
-            <div className="bg-[#1c1b1b] border border-white/5 divide-y divide-white/5">
-              {battaQueue.map(b => (
-                <div key={b.id} className="p-4 flex items-center justify-between hover:bg-white/3 transition-colors">
-                  <div className="space-y-0.5">
-                    <p className="text-xs font-bold text-white">{b.crewName}</p>
-                    <p className="text-[10px] text-white/30 uppercase tracking-widest font-bold">
-                      {b.department} • ${b.amount.toFixed(2)}
-                    </p>
+            <Surface variant="table" padding="none" className="mt-4">
+              <div className="divide-y divide-zinc-200 dark:divide-zinc-800">
+                {battaQueue.map(item => (
+                  <div key={item.id} className="flex items-center justify-between gap-4 px-5 py-4">
+                    <div className="space-y-1">
+                      <p className="text-sm font-medium text-zinc-900 dark:text-white">{item.crewName}</p>
+                      <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-zinc-500 dark:text-zinc-400">{item.department} · ${item.amount.toFixed(2)}</p>
+                    </div>
+                    <StatusBadge variant={item.status === 'approved' ? 'approved' : item.status === 'paid' ? 'paid' : 'requested'} label={item.status} />
                   </div>
-                  <StatusBadge
-                    variant={b.status === 'approved' ? 'approved' : b.status === 'paid' ? 'paid' : 'requested'}
-                    label={b.status}
-                  />
-                </div>
-              ))}
-            </div>
-          </section>
+                ))}
+              </div>
+            </Surface>
+          </div>
         </div>
-      </div>
+      </section>
     </div>
   )
 }
 
 function OvertimeGroupCard({ group }: { group: OvertimeGroup }) {
   return (
-    <div className={cn(
-      'bg-[#201f1f] border border-white/5 p-5 relative overflow-hidden',
-      !group.authorized && 'opacity-60 hover:opacity-100 transition-opacity'
-    )}>
-      {group.authorized && (
-        <div className="absolute top-3 right-3">
-          <span className="w-2 h-2 bg-red-500 rounded-full animate-pulse block" />
-        </div>
-      )}
-      <div className="flex justify-between items-center mb-5">
+    <Surface variant={group.authorized ? 'warning' : 'muted'} padding="md">
+      <div className="flex items-start justify-between gap-4">
         <div>
-          <p className="text-[10px] uppercase font-bold tracking-widest text-white/30 mb-1">Group Focus</p>
-          <h4 className="text-xl font-black text-white uppercase tracking-tighter">{group.name}</h4>
+          <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-zinc-500 dark:text-zinc-400">Group Focus</p>
+          <h4 className="mt-2 text-2xl font-bold tracking-[-0.04em] text-zinc-900 dark:text-white">{group.name}</h4>
         </div>
         <div className="text-right">
-          <p className="text-[10px] uppercase font-bold tracking-widest text-white/30 mb-1">Members</p>
-          <p className="text-lg font-black text-white">{group.memberCount}</p>
+          <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-zinc-500 dark:text-zinc-400">Members</p>
+          <p className="mt-2 text-2xl font-bold tracking-[-0.04em] text-zinc-900 dark:text-white">{group.memberCount}</p>
         </div>
       </div>
-      <div className="flex items-end justify-between">
+
+      <div className="mt-6 flex items-end justify-between gap-4">
         <div>
-          <p className="text-[10px] uppercase font-bold tracking-widest text-white/30">Live Timer</p>
-          <p className={cn('text-4xl font-black font-mono tracking-tighter', group.authorized ? 'text-red-400' : 'text-white')}>
+          <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-zinc-500 dark:text-zinc-400">Live Timer</p>
+          <p className={cn('mt-2 font-mono text-4xl font-bold tracking-[-0.06em]', group.authorized ? 'text-orange-600 dark:text-orange-400' : 'text-zinc-900 dark:text-white')}>
             {group.elapsedLabel}
           </p>
         </div>
         <div className="text-right">
-          <p className="text-[10px] uppercase font-bold tracking-widest text-white/30 mb-1">Est. Accrual</p>
-          <p className="text-2xl font-black text-white">{formatCurrency(group.estimatedCostUSD)}</p>
+          <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-zinc-500 dark:text-zinc-400">Est. Accrual</p>
+          <p className="mt-2 text-2xl font-bold tracking-[-0.04em] text-zinc-900 dark:text-white">{formatCurrency(group.estimatedCostUSD)}</p>
         </div>
       </div>
-      <div className="mt-5 pt-4 border-t border-white/5 flex justify-between text-[10px] uppercase font-bold tracking-widest">
-        <span className="text-white/30">Start: {group.startTime}</span>
-        <span className={group.authorized ? 'text-white' : 'text-red-400 font-black'}>
-          {group.authorized ? 'Authorized' : 'Unapproved'}
-        </span>
+
+      <div className="mt-6 flex items-center justify-between text-[10px] font-semibold uppercase tracking-[0.16em]">
+        <span className="text-zinc-500 dark:text-zinc-400">Start: {group.startTime}</span>
+        <span className={group.authorized ? 'text-orange-600 dark:text-orange-400' : 'text-zinc-900 dark:text-white'}>{group.authorized ? 'Authorized' : 'Unapproved'}</span>
       </div>
+    </Surface>
+  )
+}
+
+function RecentPayoutItem({ payout }: { payout: WagePayout }) {
+  return (
+    <div className="flex items-center justify-between gap-4 rounded-[20px] bg-zinc-50 px-3 py-3 dark:bg-zinc-950">
+      <div className="flex items-center gap-3">
+        <div className="flex h-9 w-9 items-center justify-center rounded-2xl bg-zinc-900 text-[10px] font-semibold text-white dark:bg-white dark:text-zinc-900">
+          {payout.method}
+        </div>
+        <div>
+          <p className="text-sm font-medium text-zinc-900 dark:text-white">{payout.crewName}</p>
+          <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-zinc-500 dark:text-zinc-400">{payout.type} batta</p>
+        </div>
+      </div>
+      <p className="text-sm font-medium text-zinc-900 dark:text-white">-${payout.amount.toFixed(2)}</p>
     </div>
   )
 }

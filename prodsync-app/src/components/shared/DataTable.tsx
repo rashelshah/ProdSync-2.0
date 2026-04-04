@@ -1,5 +1,5 @@
-import { cn } from '@/utils'
 import type { ReactNode } from 'react'
+import { cn } from '@/utils'
 
 interface Column<T> {
   key: keyof T | string
@@ -20,41 +20,39 @@ interface DataTableProps<T> {
 export function DataTable<T>({ columns, data, getKey, onRowClick, className }: DataTableProps<T>) {
   return (
     <div className={cn('overflow-x-auto', className)}>
-      <table className="w-full text-left text-[12px]">
+      <table className="w-full min-w-[640px] text-left text-sm">
         <thead>
-          <tr className="text-[10px] text-white/40 font-bold uppercase tracking-widest border-b border-white/5">
-            {columns.map(col => (
+          <tr className="border-b border-zinc-200 text-[10px] font-semibold uppercase tracking-[0.22em] text-zinc-500 dark:border-zinc-800 dark:text-zinc-400">
+            {columns.map(column => (
               <th
-                key={String(col.key)}
-                className={cn('pb-3 font-bold', col.align === 'right' ? 'text-right' : '')}
+                key={String(column.key)}
+                className={cn('pb-4 font-semibold', column.align === 'right' ? 'text-right' : column.align === 'center' ? 'text-center' : '')}
               >
-                {col.label}
+                {column.label}
               </th>
             ))}
           </tr>
         </thead>
-        <tbody className="divide-y divide-white/5">
+        <tbody className="divide-y divide-zinc-200 dark:divide-zinc-800">
           {data.map(row => (
             <tr
               key={getKey(row)}
               onClick={() => onRowClick?.(row)}
-              className={cn(
-                'transition-colors',
-                onRowClick && 'cursor-pointer hover:bg-white/3'
-              )}
+              className={cn('transition-colors', onRowClick && 'cursor-pointer hover:bg-zinc-50 dark:hover:bg-zinc-950')}
             >
-              {columns.map(col => {
-                const raw = (row as any)[col.key]
+              {columns.map(column => {
+                const raw = (row as Record<string, unknown>)[String(column.key)]
+
                 return (
                   <td
-                    key={String(col.key)}
+                    key={String(column.key)}
                     className={cn(
-                      'py-3 text-white/70',
-                      col.align === 'right' ? 'text-right' : '',
-                      col.className
+                      'py-4 text-zinc-600 dark:text-zinc-300',
+                      column.align === 'right' ? 'text-right' : column.align === 'center' ? 'text-center' : '',
+                      column.className,
                     )}
                   >
-                    {col.render ? col.render(row) : String(raw ?? '—')}
+                    {column.render ? column.render(row) : String(raw ?? '-')}
                   </td>
                 )
               })}

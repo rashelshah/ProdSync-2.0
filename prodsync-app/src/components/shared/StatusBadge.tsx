@@ -1,24 +1,40 @@
 import { cn } from '@/utils'
 
-type StatusVariant = 'active' | 'completed' | 'flagged' | 'pending' | 'approved' | 'rejected' | 'ot' | 'idle' | 'live' | 'verified' | 'mismatch' | 'requested' | 'paid' | 'warning' | 'over' | 'stable'
+type StatusVariant =
+  | 'active'
+  | 'completed'
+  | 'flagged'
+  | 'pending'
+  | 'approved'
+  | 'rejected'
+  | 'ot'
+  | 'idle'
+  | 'live'
+  | 'verified'
+  | 'mismatch'
+  | 'requested'
+  | 'paid'
+  | 'warning'
+  | 'over'
+  | 'stable'
 
 const variants: Record<StatusVariant, string> = {
-  active: 'bg-emerald-900/40 text-emerald-400',
-  live: 'bg-white/10 text-white animate-pulse',
-  completed: 'bg-white/5 text-white/50',
-  flagged: 'bg-red-900/40 text-red-400',
-  pending: 'bg-amber-900/30 text-amber-400',
-  approved: 'bg-white text-black',
-  rejected: 'bg-red-900/40 text-red-400',
-  ot: 'bg-red-600 text-white',
-  idle: 'bg-amber-900/30 text-amber-400',
-  verified: 'border border-white/20 text-white/50',
-  mismatch: 'bg-red-900/40 text-red-400 font-black',
-  requested: 'border border-white text-white',
-  paid: 'bg-white/5 text-white/40',
-  warning: 'bg-amber-900/30 text-amber-400',
-  over: 'bg-black/60 text-white',
-  stable: 'bg-white/5 text-white/60',
+  active: 'bg-emerald-50 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-300',
+  live: 'bg-orange-500 text-black',
+  completed: 'bg-zinc-100 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300',
+  flagged: 'bg-red-50 text-red-600 dark:bg-red-500/10 dark:text-red-300',
+  pending: 'bg-orange-50 text-orange-600 dark:bg-orange-500/10 dark:text-orange-300',
+  approved: 'bg-orange-500 text-black',
+  rejected: 'bg-red-50 text-red-600 dark:bg-red-500/10 dark:text-red-300',
+  ot: 'bg-orange-500 text-black',
+  idle: 'bg-zinc-100 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300',
+  verified: 'bg-zinc-100 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300',
+  mismatch: 'bg-red-50 text-red-600 dark:bg-red-500/10 dark:text-red-300',
+  requested: 'bg-white text-zinc-900 border border-zinc-200 dark:bg-zinc-900 dark:text-white dark:border-zinc-800',
+  paid: 'bg-zinc-100 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300',
+  warning: 'bg-orange-50 text-orange-600 dark:bg-orange-500/10 dark:text-orange-300',
+  over: 'bg-red-50 text-red-600 dark:bg-red-500/10 dark:text-red-300',
+  stable: 'bg-zinc-100 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300',
 }
 
 interface StatusBadgeProps {
@@ -28,14 +44,15 @@ interface StatusBadgeProps {
 }
 
 export function StatusBadge({ variant, label, className }: StatusBadgeProps) {
-  const display = label ?? variant.toUpperCase()
   return (
-    <span className={cn(
-      'px-2 py-0.5 text-[9px] font-bold uppercase tracking-widest rounded-sm',
-      variants[variant],
-      className
-    )}>
-      {display}
+    <span
+      className={cn(
+        'inline-flex items-center rounded-full px-2.5 py-1 text-[9px] font-semibold uppercase tracking-[0.16em]',
+        variants[variant],
+        className,
+      )}
+    >
+      {label ?? variant.toUpperCase()}
     </span>
   )
 }

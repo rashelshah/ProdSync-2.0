@@ -1,14 +1,41 @@
-import type { ReactNode } from 'react'
+import { useEffect, useState, type ReactNode } from 'react'
 import { Sidebar } from './Sidebar'
 import { Header } from './Header'
 
+const SIDEBAR_EXPANDED_WIDTH = 268
+const SIDEBAR_COLLAPSED_WIDTH = 92
+
 export function AppLayout({ children }: { children: ReactNode }) {
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(() => {
+    if (typeof window === 'undefined') return false
+    return window.localStorage.getItem('prodsync.sidebar.collapsed') === 'true'
+  })
+
+  useEffect(() => {
+    window.localStorage.setItem('prodsync.sidebar.collapsed', String(isSidebarCollapsed))
+  }, [isSidebarCollapsed])
+
+  const sidebarWidth = isSidebarCollapsed ? SIDEBAR_COLLAPSED_WIDTH : SIDEBAR_EXPANDED_WIDTH
+
   return (
-    <div className="flex h-screen overflow-hidden bg-[#0e0e0e]">
-      <Sidebar />
-      <div className="flex-1 flex flex-col ml-64 min-w-0">
-        <Header />
-        <main className="flex-1 overflow-y-auto pt-16">
+    <div className="relative min-h-screen bg-white text-zinc-900 dark:bg-zinc-950 dark:text-white">
+      <Sidebar
+        isCollapsed={isSidebarCollapsed}
+        onToggle={() => setIsSidebarCollapsed(current => !current)}
+        width={sidebarWidth}
+      />
+
+      <div
+        className="relative min-h-screen transition-[margin] duration-300 ease-out"
+        style={{ marginLeft: sidebarWidth }}
+      >
+        <Header
+          isSidebarCollapsed={isSidebarCollapsed}
+          onToggleSidebar={() => setIsSidebarCollapsed(current => !current)}
+          sidebarOffset={sidebarWidth}
+        />
+
+        <main className="relative pt-24">
           {children}
         </main>
       </div>

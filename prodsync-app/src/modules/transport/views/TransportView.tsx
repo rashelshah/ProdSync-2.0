@@ -2,13 +2,20 @@ import { useTransportData } from '../hooks/useTransportData'
 import { KpiCard } from '@/components/shared/KpiCard'
 import { DataTable } from '@/components/shared/DataTable'
 import { StatusBadge } from '@/components/shared/StatusBadge'
+import { Surface } from '@/components/shared/Surface'
 import { LoadingState, ErrorState } from '@/components/system/SystemStates'
 import { useAlertStore } from '@/features/alerts/alert.store'
 import { formatCurrency, cn } from '@/utils'
 import type { TripUI, FuelLogUI } from '@/types'
 
+const legendItems = [
+  { colorClass: 'bg-emerald-500', label: 'Moving' },
+  { colorClass: 'bg-orange-500', label: 'Idle' },
+  { colorClass: 'bg-red-500', label: 'Exception' },
+]
+
 export function TransportView() {
-  const { isLoading, isError, kpis, trips, fuelLogs, rawAlerts } = useTransportData()
+  const { isLoading, isError, kpis, trips, fuelLogs } = useTransportData()
   const allAlerts = useAlertStore(s => s.alerts)
   const transportAlerts = allAlerts.filter(a => a.source === 'transport' && !a.acknowledged)
 
@@ -16,113 +23,111 @@ export function TransportView() {
   if (isError) return <ErrorState message="Could not load transport data" />
 
   return (
-    <div className="max-w-[1600px] mx-auto p-6 space-y-6">
-      {/* Header */}
-      <header className="flex justify-between items-end">
+    <div className="page-shell">
+      <header className="page-header">
         <div>
-          <h1 className="text-4xl font-extrabold tracking-tight text-white">Transport & Logistics</h1>
-          <p className="text-white/40 text-sm mt-1 uppercase tracking-wide">Fleet · Trips · Fuel · Allowance Monitoring</p>
+          <span className="page-kicker">Logistics Control</span>
+          <h1 className="page-title page-title-compact">Transport & Logistics</h1>
+          <p className="page-subtitle">Fleet movement, trip logging, fuel visibility, and driver activity in an open operational layout.</p>
         </div>
-        <div className="flex gap-3">
-          <button className="px-4 py-2 bg-[#2a2a2a] border border-white/10 text-xs font-bold uppercase tracking-wider flex items-center gap-2 text-white hover:bg-white/10 transition-colors">
-            <span className="material-symbols-outlined text-sm">filter_list</span> Filters
+        <div className="page-toolbar">
+          <button className="btn-soft">
+            <span className="material-symbols-outlined text-sm">filter_list</span>
+            Filters
           </button>
-          <button className="px-4 py-2 bg-white text-black text-xs font-bold uppercase tracking-wider hover:bg-white/90 transition-colors">
-            Export Report
-          </button>
+          <button className="btn-primary">Export Report</button>
         </div>
       </header>
 
-      {/* KPI Row */}
-      <section className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
-        <KpiCard label="Active Vehicles" value={String(kpis.activeVehicles)} subLabel="92% Operational" subType="success" accentColor="white" />
-        <KpiCard label="In Transit" value={String(kpis.inTransit)} subLabel="On-time" />
-        <KpiCard label="Idle Vehicles" value={String(kpis.idleVehicles)} subLabel="Awaiting Dispatch" subType="warning" />
-        <KpiCard label="Trips Today" value={String(kpis.tripsToday)} subLabel="+12% vs Yesterday" />
+      <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-6">
+        <KpiCard label="Active Vehicles" value={String(kpis.activeVehicles)} subLabel="92% operational" subType="success" accentColor="#f97316" />
+        <KpiCard label="In Transit" value={String(kpis.inTransit)} subLabel="On-time movement" accentColor="#18181b" />
+        <KpiCard label="Idle Vehicles" value={String(kpis.idleVehicles)} subLabel="Awaiting dispatch" subType="warning" />
+        <KpiCard label="Trips Today" value={String(kpis.tripsToday)} subLabel="+12% vs yesterday" accentColor="#f97316" />
         <KpiCard label="Total Distance" value={`${kpis.totalDistanceKm.toLocaleString()} km`} subLabel={`Avg ${(kpis.totalDistanceKm / kpis.tripsToday).toFixed(1)} km/trip`} />
-        <KpiCard label="Fuel Cost" value={formatCurrency(kpis.fuelCost)} subLabel={kpis.fuelBurnStatus === 'critical' ? 'High Burn Rate!' : 'Within Budget'} subType={kpis.fuelBurnStatus === 'critical' ? 'critical' : 'success'} />
+        <KpiCard label="Fuel Cost" value={formatCurrency(kpis.fuelCost)} subLabel={kpis.fuelBurnStatus === 'critical' ? 'High burn rate' : 'Within budget'} subType={kpis.fuelBurnStatus === 'critical' ? 'critical' : 'success'} accentColor={kpis.fuelBurnStatus === 'critical' ? '#ef4444' : '#f97316'} />
       </section>
 
-      {/* Main Grid */}
-      <div className="grid grid-cols-12 gap-5">
-        {/* Left: Map + Tables */}
-        <div className="col-span-12 lg:col-span-8 space-y-5">
-          {/* Fleet Map Placeholder */}
-          <div className="bg-[#131313] border border-white/5 rounded-sm overflow-hidden relative" style={{ height: 320 }}>
-            <div className="absolute top-4 left-4 z-10">
-              <div className="bg-black/70 backdrop-blur px-3 py-1.5 border border-white/10 flex items-center gap-2">
-                <span className="flex h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
-                <span className="text-[10px] font-bold uppercase tracking-widest text-white">Live Tracking Active</span>
+      <section className="grid grid-cols-12 gap-8">
+        <div className="col-span-12 space-y-8 xl:col-span-8">
+          <Surface variant="table" padding="none" className="overflow-hidden">
+            <div className="relative h-[360px] bg-[linear-gradient(180deg,#fafafa,white)] dark:bg-[linear-gradient(180deg,#18181b,#111111)]">
+              <div className="absolute left-5 top-5 z-10 rounded-full bg-zinc-900 px-4 py-2 text-[10px] font-semibold uppercase tracking-[0.18em] text-white dark:bg-white dark:text-zinc-900">
+                Live tracking active
               </div>
-            </div>
-            <div className="w-full h-full bg-[#0e0e0e] flex items-center justify-center relative">
-              {/* Grid lines for map feel */}
-              <div className="absolute inset-0 opacity-10">
-                {Array.from({ length: 8 }).map((_, i) => (
-                  <div key={i} className="absolute border-t border-white/20" style={{ top: `${(i + 1) * 12.5}%`, left: 0, right: 0 }} />
+
+              <div className="absolute inset-0 opacity-40 dark:opacity-20">
+                {Array.from({ length: 8 }).map((_, index) => (
+                  <div key={`row-${index}`} className="absolute left-0 right-0 border-t border-zinc-200 dark:border-zinc-800" style={{ top: `${(index + 1) * 12.5}%` }} />
                 ))}
-                {Array.from({ length: 12 }).map((_, i) => (
-                  <div key={i} className="absolute border-l border-white/20" style={{ left: `${(i + 1) * 8.33}%`, top: 0, bottom: 0 }} />
+                {Array.from({ length: 12 }).map((_, index) => (
+                  <div key={`col-${index}`} className="absolute bottom-0 top-0 border-l border-zinc-200 dark:border-zinc-800" style={{ left: `${(index + 1) * 8.33}%` }} />
                 ))}
               </div>
-              {/* Vehicle markers */}
+
               <div className="absolute" style={{ top: '35%', left: '28%' }}>
-                <span className="material-symbols-outlined text-3xl text-emerald-400 drop-shadow-[0_0_8px_rgba(52,211,153,0.6)]" style={{ fontVariationSettings: "'FILL' 1" }}>local_shipping</span>
-                <div className="text-[9px] text-white font-bold uppercase text-center mt-1">V-02</div>
+                <span className="material-symbols-outlined text-4xl text-emerald-500" style={{ fontVariationSettings: "'FILL' 1" }}>local_shipping</span>
+                <div className="mt-1 text-center text-[10px] font-semibold uppercase tracking-[0.16em] text-zinc-900 dark:text-white">V-02</div>
               </div>
               <div className="absolute" style={{ top: '52%', right: '33%' }}>
-                <span className="material-symbols-outlined text-3xl text-amber-400 drop-shadow-[0_0_8px_rgba(251,191,36,0.6)]" style={{ fontVariationSettings: "'FILL' 1" }}>local_taxi</span>
-                <div className="text-[9px] text-white font-bold uppercase text-center mt-1">GT-01</div>
+                <span className="material-symbols-outlined text-4xl text-orange-500" style={{ fontVariationSettings: "'FILL' 1" }}>local_taxi</span>
+                <div className="mt-1 text-center text-[10px] font-semibold uppercase tracking-[0.16em] text-zinc-900 dark:text-white">GT-01</div>
               </div>
               <div className="absolute" style={{ bottom: '28%', right: '26%' }}>
-                <span className="material-symbols-outlined text-3xl text-red-400 drop-shadow-[0_0_8px_rgba(248,113,113,0.6)]" style={{ fontVariationSettings: "'FILL' 1" }}>warning</span>
+                <span className="material-symbols-outlined text-4xl text-red-500" style={{ fontVariationSettings: "'FILL' 1" }}>warning</span>
               </div>
-              {/* Legend */}
-              <div className="absolute bottom-4 left-4 flex gap-4">
-                {[['emerald-400', 'Moving'], ['amber-400', 'Idle'], ['red-400', 'Exception']].map(([color, label]) => (
-                  <div key={label} className="flex items-center gap-1.5 text-[9px] font-bold uppercase tracking-tight text-white/40">
-                    <span className={cn(`w-2 h-2 rounded-full bg-${color}`)} />
-                    <span>{label}</span>
+
+              <div className="absolute bottom-5 left-5 flex flex-wrap gap-3 rounded-full bg-white/90 px-4 py-2 shadow-soft dark:bg-zinc-950/90">
+                {legendItems.map(item => (
+                  <div key={item.label} className="flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.16em] text-zinc-500 dark:text-zinc-400">
+                    <span className={cn('h-2 w-2 rounded-full', item.colorClass)} />
+                    {item.label}
                   </div>
                 ))}
               </div>
             </div>
-          </div>
+          </Surface>
 
-          {/* Trip Logs Table */}
-          <div className="bg-[#131313] border border-white/5 p-5 rounded-sm">
-            <div className="flex justify-between items-center mb-5">
-              <h2 className="text-xs font-black tracking-widest uppercase text-white">Trip Logs</h2>
-              <span className="text-[10px] text-white/30">Last updated 2 mins ago</span>
+          <Surface variant="table" padding="lg">
+            <div className="mb-6 flex items-center justify-between">
+              <div>
+                <p className="section-title">Trip Logs</p>
+                <p className="mt-2 text-sm text-zinc-500 dark:text-zinc-400">Live trip status with driver and distance detail</p>
+              </div>
+              <span className="text-[10px] font-semibold uppercase tracking-[0.16em] text-zinc-500 dark:text-zinc-400">Updated 2 min ago</span>
             </div>
             <DataTable<TripUI>
               columns={[
-                { key: 'vehicleName', label: 'Vehicle', render: r => <span className="font-medium text-white">{r.vehicleName}</span> },
+                { key: 'vehicleName', label: 'Vehicle', render: row => <span className="font-medium text-zinc-900 dark:text-white">{row.vehicleName}</span> },
                 { key: 'driverName', label: 'Driver' },
                 { key: 'durationLabel', label: 'Time' },
-                { key: 'distanceKm', label: 'Dist.', align: 'right', render: r => `${r.distanceKm}km` },
-                { key: 'status', label: 'Status', align: 'right', render: r => (
-                  <StatusBadge variant={r.status} />
-                )},
+                { key: 'distanceKm', label: 'Dist.', align: 'right', render: row => `${row.distanceKm}km` },
+                { key: 'status', label: 'Status', align: 'right', render: row => <StatusBadge variant={row.status} /> },
               ]}
               data={trips}
-              getKey={r => r.id}
+              getKey={row => row.id}
             />
-          </div>
+          </Surface>
         </div>
 
-        {/* Right Sidebar */}
-        <div className="col-span-12 lg:col-span-4 space-y-5">
-          {/* Quick Actions */}
-          <div className="bg-white p-5 rounded-sm text-black">
-            <h2 className="text-xs font-black tracking-widest uppercase mb-4">Quick Actions</h2>
-            <div className="space-y-2">
+        <div className="col-span-12 space-y-8 xl:col-span-4">
+          <div>
+            <div className="section-heading">
+              <div>
+                <p className="section-kicker">Actions</p>
+                <h2 className="section-title">Quick Actions</h2>
+              </div>
+            </div>
+            <div className="mt-4 space-y-3">
               {[
                 { icon: 'add_location', label: 'Add New Trip' },
                 { icon: 'receipt_long', label: 'Upload Fuel Log' },
                 { icon: 'person_add', label: 'Assign Driver' },
               ].map(action => (
-                <button key={action.label} className="flex items-center gap-3 w-full py-3 px-4 bg-black/5 hover:bg-black/10 border border-black/10 transition-colors text-xs font-bold uppercase tracking-wider">
+                <button
+                  key={action.label}
+                  className="flex w-full items-center gap-3 rounded-[24px] bg-zinc-50 px-5 py-4 text-left text-sm font-medium text-zinc-900 transition-colors hover:bg-orange-50 hover:text-orange-600 dark:bg-zinc-900 dark:text-white dark:hover:bg-orange-500/10 dark:hover:text-orange-400"
+                >
                   <span className="material-symbols-outlined text-lg">{action.icon}</span>
                   {action.label}
                 </button>
@@ -130,100 +135,132 @@ export function TransportView() {
             </div>
           </div>
 
-          {/* Exceptions */}
-          <div className="bg-[#131313] border border-white/5 p-5 rounded-sm">
-            <h2 className="text-xs font-black tracking-widest uppercase text-white mb-4">Exceptions & Alerts</h2>
-            <div className="space-y-3">
+          <div>
+            <div className="section-heading">
+              <div>
+                <p className="section-kicker">Priority</p>
+                <h2 className="section-title">Exceptions & Alerts</h2>
+              </div>
+            </div>
+            <div className="mt-4 space-y-3">
               {[
                 { severity: 'critical', icon: 'error', title: 'Fuel Anomaly', desc: 'Generator Truck 2: Consumption spike (+40%)' },
                 { severity: 'critical', icon: 'distance', title: 'Geo-fence Violation', desc: 'Outstation allowance triggered - Vehicle #021' },
-                { severity: 'warning', icon: 'timer', title: 'Idle Delay', desc: 'Vanity Van 2: Stationary > 45 mins' },
-              ].map((a, i) => (
-                <div key={i} className={cn('border p-3 rounded-sm flex items-start gap-3', a.severity === 'critical' ? 'bg-red-950/30 border-red-900/50' : 'bg-amber-950/30 border-amber-900/50')}>
-                  <span className={cn('material-symbols-outlined text-lg', a.severity === 'critical' ? 'text-red-400' : 'text-amber-400')}>{a.icon}</span>
-                  <div>
-                    <div className={cn('text-[11px] font-bold uppercase tracking-wide', a.severity === 'critical' ? 'text-red-400' : 'text-amber-400')}>{a.title}</div>
-                    <div className="text-[12px] text-white">{a.desc}</div>
+                { severity: 'warning', icon: 'timer', title: 'Idle Delay', desc: 'Vanity Van 2: Stationary for 45 mins' },
+              ].map(item => (
+                <div
+                  key={item.title}
+                  className={cn(
+                    'rounded-[26px] px-5 py-4',
+                    item.severity === 'critical'
+                      ? 'bg-red-50 dark:bg-red-500/10'
+                      : 'bg-orange-50 dark:bg-orange-500/10',
+                  )}
+                >
+                  <div className="flex items-start gap-3">
+                    <span className={cn('material-symbols-outlined text-[20px]', item.severity === 'critical' ? 'text-red-500 dark:text-red-400' : 'text-orange-600 dark:text-orange-400')}>
+                      {item.icon}
+                    </span>
+                    <div>
+                      <div className={cn('text-[10px] font-semibold uppercase tracking-[0.16em]', item.severity === 'critical' ? 'text-red-500 dark:text-red-400' : 'text-orange-600 dark:text-orange-400')}>
+                        {item.title}
+                      </div>
+                      <div className="mt-2 text-sm text-zinc-700 dark:text-zinc-300">{item.desc}</div>
+                    </div>
                   </div>
                 </div>
               ))}
+              {transportAlerts.length === 0 && <p className="text-sm text-zinc-500 dark:text-zinc-400">No live transport alerts.</p>}
             </div>
           </div>
 
-          {/* Efficiency Trends */}
-          <div className="bg-[#131313] border border-white/5 p-5 rounded-sm">
-            <h2 className="text-xs font-black tracking-widest uppercase text-white mb-4">Efficiency Trends</h2>
-            <div className="space-y-4">
+          <Surface variant="muted" padding="md">
+            <div className="mb-5">
+              <p className="section-title">Efficiency Trends</p>
+              <p className="mt-2 text-sm text-zinc-500 dark:text-zinc-400">Key movement and fuel signals at a glance</p>
+            </div>
+            <div className="space-y-5">
               {[
-                { label: 'Avg Mileage', value: '14.2 km/L', percent: 75, color: 'bg-white' },
-                { label: 'Fuel Spend Trend', value: '+5.2%', percent: 50, color: 'bg-red-500' },
-              ].map(t => (
-                <div key={t.label}>
-                  <div className="flex justify-between text-[10px] font-bold uppercase mb-2">
-                    <span className="text-white/40">{t.label}</span>
-                    <span className={t.color === 'bg-red-500' ? 'text-red-400' : 'text-white'}>{t.value}</span>
+                { label: 'Avg Mileage', value: '14.2 km/L', percent: 75, color: 'bg-zinc-900 dark:bg-white' },
+                { label: 'Fuel Spend Trend', value: '+5.2%', percent: 50, color: 'bg-orange-500' },
+              ].map(item => (
+                <div key={item.label}>
+                  <div className="mb-2 flex items-center justify-between text-[11px] font-semibold uppercase tracking-[0.16em]">
+                    <span className="text-zinc-500 dark:text-zinc-400">{item.label}</span>
+                    <span className="text-zinc-900 dark:text-white">{item.value}</span>
                   </div>
-                  <div className="h-1.5 w-full bg-white/5 overflow-hidden rounded-full">
-                    <div className={cn('h-full rounded-full', t.color)} style={{ width: `${t.percent}%` }} />
+                  <div className="h-2 rounded-full bg-zinc-200 dark:bg-zinc-800">
+                    <div className={cn('h-full rounded-full', item.color)} style={{ width: `${item.percent}%` }} />
                   </div>
                 </div>
               ))}
             </div>
+          </Surface>
+        </div>
+      </section>
+
+      <section className="space-y-8">
+        <Surface variant="table" padding="lg">
+          <div className="mb-6 flex items-center justify-between">
+            <div>
+              <p className="section-title">Fuel Audit Ledger</p>
+              <p className="mt-2 text-sm text-zinc-500 dark:text-zinc-400">Audited mileage and variance tracking for logged fuel entries</p>
+            </div>
+            <button className="btn-ghost px-0">View Full Ledger</button>
+          </div>
+          <DataTable<FuelLogUI>
+            columns={[
+              { key: 'date', label: 'Entry Date', render: row => <span className="text-zinc-500 dark:text-zinc-400">{row.date}</span> },
+              { key: 'vehicleName', label: 'Vehicle ID', render: row => <span className="font-medium uppercase text-zinc-900 dark:text-white">{row.vehicleName}</span> },
+              { key: 'litres', label: 'Litres', render: row => `${row.litres}L` },
+              { key: 'expectedMileage', label: 'Exp. Mileage', render: row => <span className="text-zinc-500 dark:text-zinc-400">{row.expectedMileage} km/L</span> },
+              { key: 'actualMileage', label: 'Actual', render: row => <span className={row.efficiencyRating === 'good' ? 'text-zinc-900 dark:text-white' : 'font-semibold text-red-500 dark:text-red-400'}>{row.actualMileage} km/L</span> },
+              {
+                key: 'auditStatus',
+                label: 'Status',
+                align: 'right',
+                render: row => (row.efficiencyRating === 'good' ? <StatusBadge variant="verified" label="Verified" /> : <StatusBadge variant="mismatch" label="Mismatch" />),
+              },
+            ]}
+            data={fuelLogs}
+            getKey={row => row.id}
+          />
+        </Surface>
+
+        <div>
+          <div className="section-heading">
+            <div>
+              <p className="section-kicker">Drivers</p>
+              <h2 className="section-title">Driver Activity & Overtime</h2>
+            </div>
+          </div>
+          <div className="mt-4 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+            {[
+              { name: 'Robert M.', shift: '11.5 hrs', status: 'OT Triggered', statusClass: 'bg-orange-500 text-black' },
+              { name: 'Linda V.', shift: '6.2 hrs', status: 'In Range', statusClass: 'bg-zinc-900 text-white dark:bg-white dark:text-zinc-900' },
+              { name: 'Karthik R.', shift: '8.0 hrs', status: 'Idle Warning', statusClass: 'bg-orange-50 text-orange-600 dark:bg-orange-500/10 dark:text-orange-400' },
+              { name: 'David W.', shift: 'Last active: 2h', status: 'Off Duty', statusClass: 'bg-zinc-100 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300' },
+            ].map(driver => (
+              <div key={driver.name} className="rounded-[28px] bg-zinc-50 p-5 dark:bg-zinc-900">
+                <div className="flex items-start gap-4">
+                  <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-white text-sm font-bold text-zinc-900 dark:bg-zinc-950 dark:text-white">
+                    {driver.name.charAt(0)}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <span className="text-sm font-medium text-zinc-900 dark:text-white">{driver.name}</span>
+                      <span className={cn('rounded-full px-2.5 py-1 text-[9px] font-semibold uppercase tracking-[0.16em]', driver.statusClass)}>
+                        {driver.status}
+                      </span>
+                    </div>
+                    <p className="mt-2 text-xs uppercase tracking-[0.16em] text-zinc-500 dark:text-zinc-400">{driver.shift}</p>
+                  </div>
+                </div>
+              </div>
+            ))}
           </div>
         </div>
-      </div>
-
-      {/* Fuel Audit Table */}
-      <div className="bg-[#131313] border border-white/5 p-5 rounded-sm">
-        <div className="flex justify-between items-center mb-5">
-          <h2 className="text-sm font-black tracking-widest uppercase text-white">Fuel Audit Ledger</h2>
-          <button className="text-[10px] font-bold text-white/50 uppercase border-b border-white/20 hover:text-white transition-colors">View Full Ledger</button>
-        </div>
-        <DataTable<FuelLogUI>
-          columns={[
-            { key: 'date', label: 'Entry Date', render: r => <span className="text-white/40">{r.date}</span> },
-            { key: 'vehicleName', label: 'Vehicle ID', render: r => <span className="font-bold text-white uppercase">{r.vehicleName}</span> },
-            { key: 'litres', label: 'Litres', render: r => `${r.litres}L` },
-            { key: 'expectedMileage', label: 'Exp. Mileage', render: r => <span className="text-white/40">{r.expectedMileage} km/L</span> },
-            { key: 'actualMileage', label: 'Actual', render: r => (
-              <span className={r.efficiencyRating === 'good' ? 'text-white' : 'text-red-400 font-bold'}>{r.actualMileage} km/L</span>
-            )},
-            { key: 'auditStatus', label: 'Status', align: 'right', render: r => (
-              r.efficiencyRating === 'good'
-                ? <StatusBadge variant="verified" label="Verified" />
-                : <StatusBadge variant="mismatch" label="Mismatch" />
-            )},
-          ]}
-          data={fuelLogs}
-          getKey={r => r.id}
-        />
-      </div>
-
-      {/* Driver Activity */}
-      <div className="bg-[#131313] border border-white/5 p-5 rounded-sm">
-        <h2 className="text-sm font-black tracking-widest uppercase text-white mb-5">Driver Activity & Overtime</h2>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
-          {[
-            { name: 'Robert M.', shift: '11.5 hrs', status: 'OT TRIGGERED', statusClass: 'bg-red-600 text-white' },
-            { name: 'Linda V.', shift: '6.2 hrs', status: 'IN RANGE', statusClass: 'text-emerald-400 font-bold' },
-            { name: 'Karthik R.', shift: '8.0 hrs', status: 'IDLE WARNING', statusClass: 'bg-amber-600 text-white' },
-            { name: 'David W.', shift: 'Last Active: 2h', status: 'OFF DUTY', statusClass: 'text-white/30 font-bold' },
-          ].map((d, i) => (
-            <div key={i} className={cn('flex items-center gap-4', i < 3 && 'border-r border-white/5 pr-5')}>
-              <div className="w-10 h-10 rounded-full bg-white/10 flex items-center justify-center text-xs font-black text-white shrink-0">
-                {d.name.charAt(0)}
-              </div>
-              <div className="flex-1">
-                <div className="flex justify-between items-center mb-1">
-                  <span className="text-[11px] font-bold text-white uppercase">{d.name}</span>
-                  <span className={cn('text-[8px] px-1.5 py-0.5 rounded-sm', d.statusClass)}>{d.status}</span>
-                </div>
-                <div className="text-[9px] text-white/30 uppercase">{d.shift}</div>
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
+      </section>
     </div>
   )
 }
