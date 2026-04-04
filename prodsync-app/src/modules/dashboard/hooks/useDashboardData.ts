@@ -7,15 +7,6 @@ import { mapTransportKpis, transformFuelLog } from '@/services/adapters/transpor
 import { mapCrewKpis } from '@/services/adapters/crew.adapter'
 import { useAlertDispatcher } from '@/features/alerts/alert.dispatcher'
 
-/**
- * Master dashboard hook.
- * - Fetches data from all modules via React Query
- * - Processes through adapters
- * - Triggers alert engine via dispatcher
- * - Returns clean UI-ready aggregated data
- *
- * Components NEVER touch raw service data.
- */
 export function useDashboardData() {
   const tripsQ = useQuery({ queryKey: ['trips'], queryFn: transportService.getTrips, staleTime: 30_000 })
   const fuelQ = useQuery({ queryKey: ['fuel-logs'], queryFn: transportService.getFuelLogs, staleTime: 30_000 })
@@ -29,16 +20,14 @@ export function useDashboardData() {
   const otGroups = otQ.data ?? []
   const pendingApprovals = approvalsQ.data ?? []
 
-  // ── Dispatch alerts automatically when data changes ──
   useAlertDispatcher({
     fuelLogs,
     crew,
     otGroups,
     pendingApprovals,
-    artBudgetPercent: 88,
+    artBudgetPercent: 0,
   })
 
-  // ── Run adapters ──
   const kpis = mapDashboardKpis(otGroups, crew)
   const transportKpis = mapTransportKpis(trips, fuelLogs)
   const crewKpis = mapCrewKpis(crew, [], otGroups)
@@ -48,11 +37,8 @@ export function useDashboardData() {
   const deptSnapshots = buildDeptSnapshots(trips, crew, otGroups)
 
   return {
-    // loading
     isLoading: tripsQ.isLoading || crewQ.isLoading || fuelQ.isLoading,
     isError: tripsQ.isError || crewQ.isError,
-
-    // aggregated UI data
     kpis,
     transportKpis,
     crewKpis,

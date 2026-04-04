@@ -380,7 +380,7 @@ export function AuthPage() {
     if (signupStep === 'confirmation') setSignupStep('permissions')
   }
 
-  function handleSignIn(event: FormEvent<HTMLFormElement>) {
+  async function handleSignIn(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     resetMessages()
 
@@ -389,23 +389,35 @@ export function AuthPage() {
       return
     }
 
-    const result = signInWithEmail(signInEmail, signInPassword)
+    const result = await signInWithEmail(signInEmail, signInPassword)
     if (!result.ok) {
-      setError(
+      if (result.reason === 'not_configured') {
+        setError('Supabase is not configured yet. Add the frontend environment keys before signing in.')
+        return
+      }
+
+      setError(result.message ?? (
         result.reason === 'account_not_found'
           ? 'No account was found for this email. Create one to continue.'
-          : 'That password does not match this account.',
-      )
+          : 'That password does not match this account.'
+      ))
       return
     }
 
     navigate('/projects', { replace: true })
   }
 
-  function handleGoogleLogin() {
+  async function handleGoogleLogin() {
     resetMessages()
-    signInWithGoogle()
-    navigate('/projects', { replace: true })
+    const result = await signInWithGoogle()
+    if (!result.ok) {
+      setError(result.reason === 'not_configured' ? 'Supabase is not configured yet. Add the frontend environment keys before using Google sign-in.' : (result.message ?? 'Google sign-in could not be started.'))
+      return
+    }
+
+    if (!result.redirected) {
+      navigate('/projects', { replace: true })
+    }
   }
 
   function handleIdentityContinue(event: FormEvent<HTMLFormElement>) {
@@ -440,9 +452,9 @@ export function AuthPage() {
     setSignupStep('department')
   }
 
-  function completeSignup() {
+  async function completeSignup() {
     resetMessages()
-    const result = registerAccount({
+    const result = await registerAccount({
       name: fullName.trim(),
       phone: phone.trim(),
       email: email.trim(),
@@ -456,15 +468,22 @@ export function AuthPage() {
 
     if (!result.ok) {
       setError(
-        result.reason === 'email_exists'
+        result.reason === 'not_configured'
+          ? 'Supabase is not configured yet. Add the frontend environment keys before creating accounts.'
+          : result.reason === 'email_exists'
           ? 'An account with this email already exists.'
-          : 'An account with this phone number already exists.',
+          : result.reason === 'phone_exists'
+            ? 'An account with this phone number already exists.'
+            : (result.message ?? 'Account creation could not be completed.'),
       )
       setSignupStep('identity')
       return
     }
 
     setCreatedUser(result.user)
+    if (result.requiresEmailConfirmation) {
+      setInfo('Account created. Confirm your email in Supabase, then sign in to enter the workspace.')
+    }
     setSignupStep('confirmation')
   }
 
@@ -738,6 +757,7 @@ export function AuthPage() {
                 Enter Workspace
                 <ArrowRight size={18} />
               </button>
+              {info ? <div style={{ marginTop: '16px' }}><Notice tone="info">{info}</Notice></div> : null}
             </div>
           </StageFrame>
         )}

@@ -1,4 +1,4 @@
-import type { FuelLog, Trip, FuelLogUI, TripUI, TransportKpis } from '@/types'
+import type { FuelLog, Trip, FuelLogUI, TripUI, TransportKpis, Vehicle } from '@/types'
 
 /**
  * Compute fuel efficiency rating from actual vs expected mileage
@@ -42,11 +42,12 @@ export function transformTripForUI(trip: Trip): TripUI {
  */
 export function mapTransportKpis(
   trips: Trip[],
-  fuelLogs: FuelLog[]
+  fuelLogs: FuelLog[],
+  vehicles: Vehicle[] = []
 ): TransportKpis {
-  const activeVehicles = 42
+  const activeVehicles = vehicles.length || new Set(trips.map(trip => trip.vehicleId)).size
   const inTransit = trips.filter(t => t.status === 'active').length
-  const idleVehicles = activeVehicles - inTransit
+  const idleVehicles = Math.max(activeVehicles - inTransit, 0)
   const tripsToday = trips.length
   const totalDistanceKm = trips.reduce((sum, t) => sum + t.distanceKm, 0)
   const fuelCost = fuelLogs.reduce((sum, l) => sum + l.litres * 1.12, 0) // $1.12/L

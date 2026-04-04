@@ -23,7 +23,7 @@ export function mapCrewKpis(
   otGroups: OvertimeGroup[]
 ): CrewKpis {
   const totalCrew = crew.length
-  const plannedHeadcount = 150
+  const plannedHeadcount = totalCrew
   const activeOtCrew = otGroups.reduce((sum, g) => sum + g.memberCount, 0)
   const totalOtCostUSD = otGroups.reduce((sum, g) => sum + g.estimatedCostUSD, 0)
 
@@ -45,20 +45,18 @@ export function mapCrewKpis(
  * Get headcount distribution by department
  */
 export function getHeadcountByDept(crew: CrewMember[]) {
-  const map: Record<string, { actual: number; planned: number }> = {
-    Camera: { actual: 0, planned: 40 },
-    'Art Dept': { actual: 0, planned: 45 },
-    'General Crew': { actual: 0, planned: 45 },
-    Transport: { actual: 0, planned: 20 },
-  }
+  const map: Record<string, { actual: number; planned: number }> = {}
   crew.forEach(c => {
-    if (map[c.department]) map[c.department].actual++
+    const current = map[c.department] ?? { actual: 0, planned: 0 }
+    current.actual += 1
+    current.planned = current.actual
+    map[c.department] = current
   })
   return Object.entries(map).map(([dept, { actual, planned }]) => ({
     dept,
     actual,
     planned,
-    overPercent: Math.max(0, ((actual - planned) / planned) * 100),
-    plannedPercent: Math.min(100, (Math.min(actual, planned) / planned) * 100),
+    overPercent: planned > 0 ? Math.max(0, ((actual - planned) / planned) * 100) : 0,
+    plannedPercent: planned > 0 ? Math.min(100, (Math.min(actual, planned) / planned) * 100) : 0,
   }))
 }

@@ -46,12 +46,12 @@ export function ProjectsView() {
   const [projectName, setProjectName] = useState('')
   const [projectLocation, setProjectLocation] = useState('')
   const [projectStatus, setProjectStatus] = useState<ProjectStage>('pre-production')
-  const [projectBudget, setProjectBudget] = useState('750000')
-  const [projectCrew, setProjectCrew] = useState('42')
-  const [projectStartDate, setProjectStartDate] = useState('2026-04-20')
-  const [projectEndDate, setProjectEndDate] = useState('2026-08-12')
-  const [projectOtRules, setProjectOtRules] = useState('FEFSI OT with producer approval')
-  const [selectedDepartments, setSelectedDepartments] = useState<ProjectDepartment[]>(['camera', 'production', 'transport'])
+  const [projectBudget, setProjectBudget] = useState('')
+  const [projectCrew, setProjectCrew] = useState('')
+  const [projectStartDate, setProjectStartDate] = useState('')
+  const [projectEndDate, setProjectEndDate] = useState('')
+  const [projectOtRules, setProjectOtRules] = useState('')
+  const [selectedDepartments, setSelectedDepartments] = useState<ProjectDepartment[]>([])
 
   const currentUser = user ?? {
     id: '',
@@ -122,6 +122,12 @@ export function ProjectsView() {
     setShowCreateModal(false)
     setProjectName('')
     setProjectLocation('')
+    setProjectBudget('')
+    setProjectCrew('')
+    setProjectStartDate('')
+    setProjectEndDate('')
+    setProjectOtRules('')
+    setSelectedDepartments([])
   }
 
   function submitJoinRequest() {

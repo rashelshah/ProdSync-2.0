@@ -1,35 +1,20 @@
 import { create } from 'zustand'
-import { createJSONStorage, persist } from 'zustand/middleware'
+import type { Session, User as SupabaseAuthUser } from '@supabase/supabase-js'
 import { getDepartmentLabel, getProjectRoleTitle, getUserRoleLabel } from './onboarding'
+import { isSupabaseConfigured, supabase } from '@/lib/supabase'
 import type { ProjectDepartment, ProjectRequestedRole, User, UserRole } from '@/types'
-
-const SESSION_TTL_MS = 1000 * 60 * 60 * 12
-const LEGACY_PASSWORD = 'ProdSync!1'
-const GOOGLE_DEMO_ACCOUNT = {
-  name: 'Google Producer',
-  phone: '',
-  email: 'google.producer@prodsync.app',
-  password: 'ProdSync!1',
-  role: 'EP' as UserRole,
-  roleLabel: 'Executive Producer',
-  projectRoleTitle: 'Executive Producer' as ProjectRequestedRole,
-  departmentId: 'production' as ProjectDepartment,
-  avatarUrl: undefined,
-}
-
-interface AuthAccount extends User {
-  phone: string
-  email: string
-  password?: string
-}
 
 type SignInResult =
   | { ok: true; user: User }
-  | { ok: false; reason: 'account_not_found' | 'invalid_password' }
+  | { ok: false; reason: 'not_configured' | 'account_not_found' | 'invalid_password' | 'unexpected'; message?: string }
+
+type GoogleSignInResult =
+  | { ok: true; redirected: boolean; user?: User }
+  | { ok: false; reason: 'not_configured' | 'unexpected'; message?: string }
 
 type RegisterResult =
-  | { ok: true; user: User }
-  | { ok: false; reason: 'email_exists' | 'phone_exists' }
+  | { ok: true; user: User; requiresEmailConfirmation: boolean }
+  | { ok: false; reason: 'not_configured' | 'email_exists' | 'phone_exists' | 'unexpected'; message?: string }
 
 interface RegisterAccountInput {
   name: string
@@ -44,215 +29,229 @@ interface RegisterAccountInput {
 }
 
 interface AuthStore {
-  accounts: AuthAccount[]
   user: User | null
   isAuthenticated: boolean
+  isAuthReady: boolean
   sessionExpiresAt: number | null
-  login: (user: User) => void
-  signInWithEmail: (email: string, password: string) => SignInResult
-  signInWithGoogle: () => User
-  registerAccount: (account: RegisterAccountInput) => RegisterResult
-  logout: () => void
-  switchRole: (role: UserRole) => void
+  initializeAuth: () => Promise<void>
+  setSession: (session: Session | null) => void
+  signInWithEmail: (email: string, password: string) => Promise<SignInResult>
+  signInWithGoogle: () => Promise<GoogleSignInResult>
+  registerAccount: (account: RegisterAccountInput) => Promise<RegisterResult>
+  logout: () => Promise<void>
+  switchRole: (_role: UserRole) => Promise<void>
 }
 
-function createSessionExpiry() {
-  return Date.now() + SESSION_TTL_MS
-}
+let authSubscriptionBound = false
 
-function normalizeValue(value: string) {
-  return value.trim().toLowerCase()
-}
-
-function normalizePhone(value: string) {
-  return value.replace(/\s+/g, '')
-}
-
-function createAccountId() {
-  if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) {
-    return crypto.randomUUID()
+function normalizeUserRole(rawRole?: string | null): UserRole {
+  const role = rawRole?.trim()
+  if (role === 'EP' || role === 'LineProducer' || role === 'HOD' || role === 'Supervisor' || role === 'Crew' || role === 'Driver' || role === 'DataWrangler') {
+    return role
   }
 
-  return `user-${Date.now()}`
+  return 'Crew'
 }
 
-function hydrateUser(account: AuthAccount): User {
+function normalizeDepartment(rawDepartment?: string | null): ProjectDepartment {
+  const department = rawDepartment?.trim()
+  if (department === 'camera' || department === 'art' || department === 'transport' || department === 'production' || department === 'wardrobe' || department === 'post') {
+    return department
+  }
+
+  return 'production'
+}
+
+function normalizeProjectRoleTitle(rawRoleTitle: unknown, role: UserRole): ProjectRequestedRole {
+  if (typeof rawRoleTitle === 'string' && rawRoleTitle.trim()) {
+    return rawRoleTitle as ProjectRequestedRole
+  }
+
+  return getProjectRoleTitle({ role, departmentId: undefined, projectRoleTitle: undefined })
+}
+
+function mapAuthUserToAppUser(authUser: SupabaseAuthUser): User {
+  const role = normalizeUserRole(authUser.user_metadata?.role)
+  const departmentId = normalizeDepartment(authUser.user_metadata?.department_id)
+  const projectRoleTitle = normalizeProjectRoleTitle(authUser.user_metadata?.project_role_title, role)
+  const name = authUser.user_metadata?.full_name ?? authUser.user_metadata?.name ?? authUser.email ?? 'ProdSync User'
+
   return {
-    id: account.id,
-    name: account.name,
-    role: account.role,
-    roleLabel: account.roleLabel ?? getUserRoleLabel(account),
-    projectRoleTitle: account.projectRoleTitle ?? getProjectRoleTitle(account),
-    departmentId: account.departmentId,
-    departmentLabel: account.departmentLabel ?? getDepartmentLabel(account.departmentId),
-    avatarUrl: account.avatarUrl,
+    id: authUser.id,
+    name,
+    role,
+    roleLabel: getUserRoleLabel({ role, projectRoleTitle, departmentId }),
+    projectRoleTitle,
+    departmentId,
+    departmentLabel: getDepartmentLabel(departmentId),
+    avatarUrl: authUser.user_metadata?.avatar_url,
   }
 }
 
-function normalizeAccount(account: AuthAccount): AuthAccount {
-  return {
-    ...account,
-    email: normalizeValue(account.email),
-    phone: account.phone.trim(),
-    password: account.password ?? LEGACY_PASSWORD,
-    roleLabel: account.roleLabel ?? getUserRoleLabel(account),
-    projectRoleTitle: account.projectRoleTitle ?? getProjectRoleTitle(account),
-    departmentLabel: account.departmentLabel ?? getDepartmentLabel(account.departmentId),
-  }
-}
-
-function normalizePersistedUser(user: User): User {
-  return {
-    ...user,
-    roleLabel: getUserRoleLabel(user),
-    projectRoleTitle: getProjectRoleTitle(user),
-    departmentLabel: user.departmentLabel ?? getDepartmentLabel(user.departmentId),
-  }
-}
-
-function withSession(user: User) {
-  return {
-    user,
-    isAuthenticated: true,
-    sessionExpiresAt: createSessionExpiry(),
-  }
-}
-
-export const useAuthStore = create<AuthStore>()(
-  persist(
-    (set, get) => ({
-      accounts: [],
+function sessionPayload(session: Session | null) {
+  if (!session?.user) {
+    return {
       user: null,
       isAuthenticated: false,
       sessionExpiresAt: null,
+    }
+  }
 
-      login: (user) =>
-        set(withSession({
-          ...user,
-          roleLabel: getUserRoleLabel(user),
-          projectRoleTitle: getProjectRoleTitle(user),
-          departmentLabel: user.departmentLabel ?? getDepartmentLabel(user.departmentId),
-        })),
+  return {
+    user: mapAuthUserToAppUser(session.user),
+    isAuthenticated: true,
+    sessionExpiresAt: session.expires_at ? session.expires_at * 1000 : null,
+  }
+}
 
-      signInWithEmail: (email, password) => {
-        const normalizedEmail = normalizeValue(email)
-        const account = get().accounts.find(savedAccount => normalizeValue(savedAccount.email) === normalizedEmail)
+export const useAuthStore = create<AuthStore>()((set, get) => ({
+  user: null,
+  isAuthenticated: false,
+  isAuthReady: false,
+  sessionExpiresAt: null,
 
-        if (!account) {
-          return { ok: false, reason: 'account_not_found' }
-        }
+  initializeAuth: async () => {
+    if (!isSupabaseConfigured) {
+      set({ isAuthReady: true, user: null, isAuthenticated: false, sessionExpiresAt: null })
+      return
+    }
 
-        if ((account.password ?? LEGACY_PASSWORD) !== password) {
-          return { ok: false, reason: 'invalid_password' }
-        }
+    const { data } = await supabase.auth.getSession()
+    set({
+      ...sessionPayload(data.session),
+      isAuthReady: true,
+    })
 
-        const user = hydrateUser(account)
-        set(withSession(user))
-        return { ok: true, user }
+    if (!authSubscriptionBound) {
+      authSubscriptionBound = true
+      supabase.auth.onAuthStateChange((_event: string, session: Session | null) => {
+        get().setSession(session)
+      })
+    }
+  },
+
+  setSession: (session) => {
+    set({
+      ...sessionPayload(session),
+      isAuthReady: true,
+    })
+  },
+
+  signInWithEmail: async (email, password) => {
+    if (!isSupabaseConfigured) {
+      return { ok: false, reason: 'not_configured', message: 'Supabase environment variables are missing.' }
+    }
+
+    const { data, error } = await supabase.auth.signInWithPassword({
+      email: email.trim(),
+      password,
+    })
+
+    if (error) {
+      const message = error.message.toLowerCase()
+      if (message.includes('invalid login credentials')) {
+        return { ok: false, reason: 'invalid_password', message: error.message }
+      }
+      if (message.includes('email not confirmed')) {
+        return { ok: false, reason: 'unexpected', message: error.message }
+      }
+
+      return { ok: false, reason: 'account_not_found', message: error.message }
+    }
+
+    const nextUser = data.user ? mapAuthUserToAppUser(data.user) : null
+    set(sessionPayload(data.session))
+
+    if (!nextUser) {
+      return { ok: false, reason: 'unexpected', message: 'No user session was returned.' }
+    }
+
+    return { ok: true, user: nextUser }
+  },
+
+  signInWithGoogle: async () => {
+    if (!isSupabaseConfigured) {
+      return { ok: false, reason: 'not_configured', message: 'Supabase environment variables are missing.' }
+    }
+
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: 'google',
+      options: {
+        redirectTo: `${window.location.origin}/projects`,
       },
+    })
 
-      signInWithGoogle: () => {
-        const existing = get().accounts.find(account => normalizeValue(account.email) === GOOGLE_DEMO_ACCOUNT.email)
-        const nextAccount = existing ?? normalizeAccount({
-          ...GOOGLE_DEMO_ACCOUNT,
-          id: createAccountId(),
-        })
-        const user = hydrateUser(nextAccount)
+    if (error) {
+      return { ok: false, reason: 'unexpected', message: error.message }
+    }
 
-        set(state => ({
-          accounts: existing ? state.accounts : [nextAccount, ...state.accounts],
-          ...withSession(user),
-        }))
+    return { ok: true, redirected: true }
+  },
 
-        return user
+  registerAccount: async (account) => {
+    if (!isSupabaseConfigured) {
+      return { ok: false, reason: 'not_configured', message: 'Supabase environment variables are missing.' }
+    }
+
+    const { data, error } = await supabase.auth.signUp({
+      email: account.email.trim(),
+      password: account.password,
+      options: {
+        data: {
+          full_name: account.name.trim(),
+          phone: account.phone.trim(),
+          role: account.role,
+          role_label: account.roleLabel,
+          project_role_title: account.projectRoleTitle,
+          department_id: account.departmentId,
+          avatar_url: account.avatarUrl,
+        },
       },
+    })
 
-      registerAccount: (account) => {
-        const normalizedEmail = normalizeValue(account.email)
-        const normalizedPhone = normalizePhone(account.phone)
-        const existingEmail = get().accounts.find(savedAccount => normalizeValue(savedAccount.email) === normalizedEmail)
-        if (existingEmail) {
-          return { ok: false, reason: 'email_exists' }
-        }
+    if (error) {
+      const message = error.message.toLowerCase()
+      if (message.includes('already registered') || message.includes('already exists')) {
+        return { ok: false, reason: 'email_exists', message: error.message }
+      }
 
-        const existingPhone = get().accounts.find(savedAccount => normalizePhone(savedAccount.phone) === normalizedPhone)
-        if (existingPhone) {
-          return { ok: false, reason: 'phone_exists' }
-        }
+      return { ok: false, reason: 'unexpected', message: error.message }
+    }
 
-        const nextAccount = normalizeAccount({
-          ...account,
-          id: createAccountId(),
-          email: normalizedEmail,
-        })
+    if (!data.user) {
+      return { ok: false, reason: 'unexpected', message: 'Account creation did not return a user.' }
+    }
 
-        const user = hydrateUser(nextAccount)
+    const nextUser = mapAuthUserToAppUser(data.user)
+    set(sessionPayload(data.session))
 
-        set(state => ({
-          accounts: [nextAccount, ...state.accounts],
-          ...withSession(user),
-        }))
+    return {
+      ok: true,
+      user: nextUser,
+      requiresEmailConfirmation: !data.session,
+    }
+  },
 
-        return { ok: true, user }
-      },
+  logout: async () => {
+    if (isSupabaseConfigured) {
+      await supabase.auth.signOut()
+    }
 
-      logout: () => set({ user: null, isAuthenticated: false, sessionExpiresAt: null }),
+    set({
+      user: null,
+      isAuthenticated: false,
+      sessionExpiresAt: null,
+      isAuthReady: true,
+    })
+  },
 
-      switchRole: (role) =>
-        set(state => {
-          if (!state.user) return state
-
-          const nextUser: User = {
-            ...state.user,
-            role,
-            roleLabel: getUserRoleLabel({ ...state.user, role, roleLabel: undefined }),
-            projectRoleTitle: getProjectRoleTitle({ ...state.user, role, projectRoleTitle: undefined }),
-          }
-
-          return {
-            user: nextUser,
-            accounts: state.accounts.map(account =>
-              account.id === state.user?.id
-                ? normalizeAccount({
-                    ...account,
-                    role,
-                    roleLabel: nextUser.roleLabel,
-                    projectRoleTitle: nextUser.projectRoleTitle,
-                  })
-                : account,
-            ),
-            sessionExpiresAt: createSessionExpiry(),
-          }
-        }),
-    }),
-    {
-      name: 'prodsync-auth',
-      version: 2,
-      storage: createJSONStorage(() => localStorage),
-      partialize: state => ({
-        accounts: state.accounts,
-        user: state.user,
-        isAuthenticated: state.isAuthenticated,
-        sessionExpiresAt: state.sessionExpiresAt,
-      }),
-      migrate: (persistedState) => {
-        const state = persistedState as Partial<AuthStore> | undefined
-        const accounts = Array.isArray(state?.accounts) ? state.accounts.map(account => normalizeAccount(account as AuthAccount)) : []
-        const user = state?.user ? normalizePersistedUser(state.user as User) : null
-
-        return {
-          accounts,
-          user,
-          isAuthenticated: Boolean(state?.isAuthenticated && user),
-          sessionExpiresAt: state?.sessionExpiresAt ?? null,
-        }
-      },
-    },
-  ),
-)
+  switchRole: async () => {
+    return
+  },
+}))
 
 export function hasActiveSession(state: Pick<AuthStore, 'isAuthenticated' | 'user' | 'sessionExpiresAt'>) {
-  return Boolean(state.isAuthenticated && state.user && state.sessionExpiresAt && state.sessionExpiresAt > Date.now())
+  return Boolean(state.isAuthenticated && state.user && (!state.sessionExpiresAt || state.sessionExpiresAt > Date.now()))
 }
 
 export const Permissions = {

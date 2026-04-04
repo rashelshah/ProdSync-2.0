@@ -14,7 +14,7 @@ export function useTransportData() {
 
   useAlertDispatcher({ fuelLogs })
 
-  const kpis = mapTransportKpis(trips, fuelLogs)
+  const kpis = mapTransportKpis(trips, fuelLogs, vehicles)
   const tripsUI = trips.map(transformTripForUI)
   const fuelLogsUI = fuelLogs.map(transformFuelLog)
 

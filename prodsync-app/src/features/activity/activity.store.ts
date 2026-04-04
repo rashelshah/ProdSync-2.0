@@ -22,30 +22,21 @@ interface ActivityStore {
   clearEvents: () => void
 }
 
-let _activityCounter = 1
-
-// Seed with initial production events
-const SEED_EVENTS: ActivityEvent[] = [
-  { id: 'a1', type: 'trip_completed', title: 'Scene 42 Wrap', description: 'Unit moved to Location B. All gear accounted for.', timestamp: new Date(Date.now() - 1000 * 60 * 30), module: 'transport' },
-  { id: 'a2', type: 'asset_returned', title: 'Asset Ingested', description: 'Dailies from Day 41 uploaded to review server.', timestamp: new Date(Date.now() - 1000 * 60 * 60), module: 'camera' },
-  { id: 'a3', type: 'crew_checkin', title: 'Crew Check-in', description: 'Art department team 2 arrived at backlot.', timestamp: new Date(Date.now() - 1000 * 60 * 90), module: 'crew' },
-  { id: 'a4', type: 'callsheet_published', title: 'Call Sheet Published', description: 'Day 43 call sheet distributed to 142 recipients.', timestamp: new Date(Date.now() - 1000 * 60 * 120), module: 'system' },
-  { id: 'a5', type: 'ot_triggered', title: 'OT Triggered: Scene 42', description: 'Main Stage crew overtime started. +120 crew affected.', timestamp: new Date(Date.now() - 1000 * 60 * 60 * 2), module: 'crew' },
-]
+let activityCounter = 1
 
 export const useActivityStore = create<ActivityStore>((set) => ({
-  events: SEED_EVENTS,
+  events: [],
 
   addEvent: (event) =>
     set((state) => ({
       events: [
         {
           ...event,
-          id: `act-${_activityCounter++}`,
+          id: `act-${activityCounter++}`,
           timestamp: new Date(),
         },
         ...state.events,
-      ].slice(0, 100), // cap at 100 events
+      ].slice(0, 100),
     })),
 
   clearEvents: () => set({ events: [] }),

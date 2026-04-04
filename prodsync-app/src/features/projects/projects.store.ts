@@ -41,73 +41,6 @@ interface ProjectsStore {
   rejectJoinRequest: (requestId: string) => void
 }
 
-const INITIAL_PROJECTS: ProjectRecord[] = [
-  {
-    id: 'proj-noir',
-    name: 'Project Noir',
-    ownerId: 'producer-seed-1',
-    ownerName: 'K. Sharma',
-    location: 'Chennai',
-    status: 'shooting',
-    progressPercent: 62,
-    budgetUSD: 1250000,
-    activeCrew: 146,
-    startDate: '2026-03-02',
-    endDate: '2026-06-28',
-    enabledDepartments: ['camera', 'art', 'transport', 'production', 'wardrobe'],
-    otRulesLabel: 'FEFSI OT with night premium',
-  },
-  {
-    id: 'proj-skyline',
-    name: 'Skyline Unit B',
-    ownerId: 'producer-seed-2',
-    ownerName: 'R. Kapoor',
-    location: 'Hyderabad',
-    status: 'pre-production',
-    progressPercent: 24,
-    budgetUSD: 860000,
-    activeCrew: 58,
-    startDate: '2026-04-18',
-    endDate: '2026-08-03',
-    enabledDepartments: ['camera', 'art', 'transport', 'production', 'post'],
-    otRulesLabel: 'Standard OT with capped overtime buffer',
-  },
-  {
-    id: 'proj-atlas',
-    name: 'Atlas After Dark',
-    ownerId: 'producer-seed-3',
-    ownerName: 'A. Verma',
-    location: 'Mumbai',
-    status: 'post',
-    progressPercent: 87,
-    budgetUSD: 1430000,
-    activeCrew: 32,
-    startDate: '2025-11-10',
-    endDate: '2026-04-21',
-    enabledDepartments: ['camera', 'post', 'production'],
-    otRulesLabel: 'Post-heavy OT approval by producer only',
-  },
-]
-
-const INITIAL_MEMBERS: ProjectMember[] = [
-  {
-    id: 'member-1',
-    userId: 'producer-seed-1',
-    projectId: 'proj-noir',
-    role: 'Line Producer',
-    permissions: ['project:*', 'budget:approve', 'member:approve'],
-    approvedAt: new Date().toISOString(),
-  },
-  {
-    id: 'member-2',
-    userId: 'producer-seed-2',
-    projectId: 'proj-skyline',
-    role: 'Executive Producer',
-    permissions: ['project:*', 'budget:approve', 'member:approve'],
-    approvedAt: new Date().toISOString(),
-  },
-]
-
 function createId(prefix: string) {
   if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) {
     return `${prefix}-${crypto.randomUUID()}`
@@ -123,8 +56,8 @@ function mapUserRoleToRequestedRole(user: User): ProjectRequestedRole {
 export const useProjectsStore = create<ProjectsStore>()(
   persist(
     (set) => ({
-      projects: INITIAL_PROJECTS,
-      projectMembers: INITIAL_MEMBERS,
+      projects: [],
+      projectMembers: [],
       joinRequests: [],
       activeProjectId: null,
 
@@ -225,13 +158,19 @@ export const useProjectsStore = create<ProjectsStore>()(
     }),
     {
       name: 'prodsync-projects',
-      version: 1,
+      version: 2,
       storage: createJSONStorage(() => localStorage),
       partialize: state => ({
         projects: state.projects,
         projectMembers: state.projectMembers,
         joinRequests: state.joinRequests,
         activeProjectId: state.activeProjectId,
+      }),
+      migrate: () => ({
+        projects: [],
+        projectMembers: [],
+        joinRequests: [],
+        activeProjectId: null,
       }),
     },
   ),
