@@ -26,7 +26,7 @@ export function CrewView() {
         <div>
           <span className="page-kicker">Wages Administration</span>
           <h1 className="page-title page-title-compact">Crew Control Center</h1>
-          <p className="page-subtitle">Attendance, overtime, and batta flows are now cleared of demo data and ready for real records.</p>
+          <p className="page-subtitle">Attendance, overtime, and batta flows now load directly from stored project records.</p>
         </div>
       </header>
 
@@ -44,7 +44,7 @@ export function CrewView() {
           <EmptyState
             icon="groups"
             title="No crew data yet"
-            description="The seeded attendance logs, overtime groups, and payout samples have been removed. Connect this module to real attendance and wage records to test it properly."
+            description="No attendance, overtime, or payout records have been stored for this project yet."
           />
         </Surface>
       ) : (

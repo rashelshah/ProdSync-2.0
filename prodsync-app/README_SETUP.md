@@ -8,6 +8,8 @@ Fill these values before connecting real auth:
 - `VITE_SUPABASE_ANON_KEY`
 - `VITE_API_BASE_URL`
 
+For local Vite development, set `VITE_API_BASE_URL=/api` so requests and Socket.IO traffic can use the dev proxy.
+
 Current frontend state:
 
 - Auth is Supabase-ready

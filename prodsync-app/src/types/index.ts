@@ -182,7 +182,7 @@ export interface CrewKpis {
 
 // ─── Approvals ────────────────────────────────────────────────────────────────
 
-export type ApprovalType = 'ArtExpense' | 'TravelAuth' | 'Catering' | 'PropsRental' | 'CameraRental' | 'OvertimeExt'
+export type ApprovalType = string
 export type ApprovalStatus = 'pending' | 'approved' | 'rejected'
 export type ApprovalPriority = 'emergency' | 'high' | 'normal'
 
@@ -251,7 +251,7 @@ export interface ActivityEvent {
   type: string
   title: string
   description: string
-  timestamp: string
+  timestamp: string | Date
   module: string
 }
 
@@ -273,6 +273,6 @@ export interface AlertItem {
   source: AlertSource
   title: string
   message: string
-  timestamp: Date
+  timestamp: Date | string
   acknowledged: boolean
 }

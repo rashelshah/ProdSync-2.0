@@ -3,12 +3,11 @@ import type {
   DeptVelocityItem,
   BurnDataPoint,
   DepartmentSnapshot,
-  Trip,
-  FuelLog,
   CrewMember,
   OvertimeGroup,
   ApprovalRequest,
 } from '@/types'
+import type { Trip, FuelLog } from '@/modules/transport/types'
 
 export function mapDashboardKpis(
   otGroups: OvertimeGroup[],

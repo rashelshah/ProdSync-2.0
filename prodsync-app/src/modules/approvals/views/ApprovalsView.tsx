@@ -4,26 +4,44 @@ import { KpiCard } from '@/components/shared/KpiCard'
 import { Surface } from '@/components/shared/Surface'
 import { EmptyState, LoadingState, ErrorState } from '@/components/system/SystemStates'
 import { RoleGuard } from '@/features/auth/RoleGuard'
-import { useActivityStore } from '@/features/activity/activity.store'
+import { useResolvedProjectContext } from '@/features/projects/useResolvedProjectContext'
 
 export function ApprovalsView() {
   const qc = useQueryClient()
-  const addEvent = useActivityStore(s => s.addEvent)
+  const { activeProjectId, isLoadingProjectContext, isErrorProjectContext } = useResolvedProjectContext()
 
-  const pendingQ = useQuery({ queryKey: ['pending-approvals'], queryFn: approvalsService.getPendingApprovals })
-  const historyQ = useQuery({ queryKey: ['approval-history'], queryFn: approvalsService.getApprovalHistory })
-  const kpisQ = useQuery({ queryKey: ['approvals-kpis'], queryFn: approvalsService.getKpis })
+  const pendingQ = useQuery({
+    queryKey: ['pending-approvals', activeProjectId],
+    queryFn: () => approvalsService.getPendingApprovals(activeProjectId!),
+    enabled: Boolean(activeProjectId),
+  })
+  const historyQ = useQuery({
+    queryKey: ['approval-history', activeProjectId],
+    queryFn: () => approvalsService.getApprovalHistory(activeProjectId!),
+    enabled: Boolean(activeProjectId),
+  })
+  const kpisQ = useQuery({
+    queryKey: ['approvals-kpis', activeProjectId],
+    queryFn: () => approvalsService.getKpis(activeProjectId!),
+    enabled: Boolean(activeProjectId),
+  })
 
   const approveMutation = useMutation({
-    mutationFn: approvalsService.approveItem,
-    onSuccess: (_, id) => {
-      qc.invalidateQueries({ queryKey: ['pending-approvals'] })
-      addEvent({ type: 'approval_action', title: 'Approval updated', description: `Request ${id} was updated.`, module: 'approvals' })
+    mutationFn: async () => {
+      if (!activeProjectId) return
+      const pending = pendingQ.data ?? []
+      await Promise.all(pending.map(item => approvalsService.approveItem(activeProjectId, item.id)))
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['pending-approvals', activeProjectId] })
+      qc.invalidateQueries({ queryKey: ['approval-history', activeProjectId] })
+      qc.invalidateQueries({ queryKey: ['approvals-kpis', activeProjectId] })
+      qc.invalidateQueries({ queryKey: ['activity', activeProjectId] })
     },
   })
 
-  if (pendingQ.isLoading) return <LoadingState message="Loading approvals..." />
-  if (pendingQ.isError) return <ErrorState message="Failed to load approvals" />
+  if (isLoadingProjectContext || pendingQ.isLoading) return <LoadingState message="Loading approvals..." />
+  if (isErrorProjectContext || pendingQ.isError || historyQ.isError || kpisQ.isError) return <ErrorState message="Failed to load approvals" />
 
   const pending = pendingQ.data ?? []
   const history = historyQ.data ?? []
@@ -36,10 +54,10 @@ export function ApprovalsView() {
         <div>
           <span className="page-kicker">Decision Layer</span>
           <h1 className="page-title page-title-compact">Approvals Center</h1>
-          <p className="page-subtitle">Approval workflows are cleared of demo queues so real project requests can be tested end to end.</p>
+          <p className="page-subtitle">Approval workflows now read and update the live backend queue for the selected project.</p>
         </div>
         <RoleGuard permission="canApproveExpense">
-          <button className="btn-primary" disabled={pending.length === 0 || approveMutation.isPending}>
+          <button onClick={() => approveMutation.mutate()} className="btn-primary" disabled={!activeProjectId || pending.length === 0 || approveMutation.isPending}>
             <span className="material-symbols-outlined text-sm">done_all</span>
             {approveMutation.isPending ? 'Updating...' : 'Approve All'}
           </button>
@@ -60,7 +78,7 @@ export function ApprovalsView() {
           <EmptyState
             icon="verified_user"
             title="No approval records yet"
-            description="The seeded approval queue, audit history, and velocity charts have been removed. Connect this view to the approvals table to start testing approval flows properly."
+            description="No stored approval records are available for the selected project yet."
           />
         </Surface>
       ) : (

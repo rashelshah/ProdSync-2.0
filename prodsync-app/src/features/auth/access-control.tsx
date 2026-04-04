@@ -1,15 +1,13 @@
 import type { ReactNode } from 'react'
 import { Navigate } from 'react-router-dom'
 import { EmptyState } from '@/components/system/SystemStates'
-import { useProjectsStore } from '@/features/projects/projects.store'
+import { useResolvedProjectContext } from '@/features/projects/useResolvedProjectContext'
 import { canAccessRoute, type AppRouteId } from './access-rules'
 import { useAuthStore } from './auth.store'
 
 export function RouteAccessGuard({ routeId, children }: { routeId: AppRouteId; children: ReactNode }) {
   const user = useAuthStore(state => state.user)
-  const activeProjectId = useProjectsStore(state => state.activeProjectId)
-  const projectMembers = useProjectsStore(state => state.projectMembers)
-  const projects = useProjectsStore(state => state.projects)
+  const { activeProjectId, projects } = useResolvedProjectContext()
 
   if (!user) {
     return <Navigate to="/auth" replace />
@@ -32,8 +30,7 @@ export function RouteAccessGuard({ routeId, children }: { routeId: AppRouteId; c
     !requiresProjectContext ||
     Boolean(
       activeProjectId &&
-        (projectMembers.some(member => member.projectId === activeProjectId && member.userId === user.id) ||
-          projects.some(project => project.id === activeProjectId && project.ownerId === user.id)),
+        projects.some(project => project.id === activeProjectId),
     )
 
   if (!hasActiveProjectAccess) {

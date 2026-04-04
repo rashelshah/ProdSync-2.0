@@ -2,9 +2,7 @@ import { useDashboardData } from '../hooks/useDashboardData'
 import { KpiCard } from '@/components/shared/KpiCard'
 import { Surface } from '@/components/shared/Surface'
 import { EmptyState, LoadingState, ErrorState } from '@/components/system/SystemStates'
-import { useAlertStore } from '@/features/alerts/alert.store'
-import { useActivityStore } from '@/features/activity/activity.store'
-import { useProjectsStore } from '@/features/projects/projects.store'
+import { useResolvedProjectContext } from '@/features/projects/useResolvedProjectContext'
 import { formatCurrency } from '@/utils'
 
 export function DashboardView() {
@@ -14,15 +12,11 @@ export function DashboardView() {
     kpis,
     deptSnapshots,
     pendingApprovals,
+    alerts,
+    events,
   } = useDashboardData()
 
-  const activeProjectId = useProjectsStore(s => s.activeProjectId)
-  const projects = useProjectsStore(s => s.projects)
-  const allAlerts = useAlertStore(s => s.alerts)
-  const allEvents = useActivityStore(s => s.events)
-  const activeProject = projects.find(project => project.id === activeProjectId) ?? null
-  const alerts = allAlerts.filter(alert => !alert.acknowledged).slice(0, 4)
-  const events = allEvents.slice(0, 5)
+  const { activeProject } = useResolvedProjectContext()
 
   const hasOperationalData =
     deptSnapshots.length > 0 ||
@@ -56,7 +50,7 @@ export function DashboardView() {
           <div className="rounded-[26px] bg-zinc-50 px-5 py-4 dark:bg-zinc-900">
             <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-zinc-500 dark:text-zinc-400">Live Inputs</p>
             <p className="mt-2 text-sm font-semibold text-zinc-900 dark:text-white">{alerts.length} alerts, {events.length} activity events</p>
-            <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">Counts stay at zero until modules are connected to real records.</p>
+            <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">These counts now come directly from stored alert and activity records.</p>
           </div>
         </div>
       </header>
@@ -75,7 +69,7 @@ export function DashboardView() {
           <EmptyState
             icon="dashboard"
             title="No operational data yet"
-            description="All seeded mission-control data has been removed. Start wiring transport, crew, approvals, and reports to Supabase to see real project intelligence here."
+            description="No transport, crew, alert, or approval activity has been recorded for this project yet."
           />
         </Surface>
       ) : (

@@ -3,7 +3,7 @@ import { cn } from '@/utils'
 import { APP_NAV_ITEMS, canAccessRoute } from '@/features/auth/access-rules'
 import { getUserRoleLabel } from '@/features/auth/onboarding'
 import { useAuthStore } from '@/features/auth/auth.store'
-import { useAlertStore } from '@/features/alerts/alert.store'
+import { useProjectAlerts } from '@/features/alerts/useProjectAlerts'
 
 interface SidebarProps {
   isCollapsed: boolean
@@ -14,7 +14,7 @@ interface SidebarProps {
 export function Sidebar({ isCollapsed, onToggle, width }: SidebarProps) {
   const user = useAuthStore(s => s.user)
   const logout = useAuthStore(s => s.logout)
-  const alerts = useAlertStore(s => s.alerts)
+  const { alerts } = useProjectAlerts()
   const criticalAlerts = alerts.filter(a => a.severity === 'critical' && !a.acknowledged)
   const location = useLocation()
   const navigate = useNavigate()

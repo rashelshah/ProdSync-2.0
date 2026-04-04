@@ -1,11 +1,11 @@
 import type { AlertItem } from '@/types'
-import { useAlertStore } from '@/features/alerts/alert.store'
 import { Surface } from '@/components/shared/Surface'
 import { cn, timeAgo } from '@/utils'
 
 interface AlertCardProps {
   alert: AlertItem
   compact?: boolean
+  onAcknowledge?: (alertId: string) => void
 }
 
 const severityConfig = {
@@ -32,9 +32,8 @@ const severityConfig = {
   },
 }
 
-export function AlertCard({ alert, compact = false }: AlertCardProps) {
+export function AlertCard({ alert, compact = false, onAcknowledge }: AlertCardProps) {
   const cfg = severityConfig[alert.severity]
-  const acknowledge = useAlertStore(s => s.acknowledgeAlert)
 
   if (compact) {
     return (
@@ -73,9 +72,9 @@ export function AlertCard({ alert, compact = false }: AlertCardProps) {
             <span className="shrink-0 text-[10px] font-semibold uppercase tracking-[0.16em] text-zinc-500 dark:text-zinc-400">{timeAgo(alert.timestamp)}</span>
           </div>
           <p className="mt-3 text-sm leading-6 text-zinc-600 dark:text-zinc-300">{alert.message}</p>
-          {!alert.acknowledged && (
+          {!alert.acknowledged && onAcknowledge && (
             <button
-              onClick={() => acknowledge(alert.id)}
+              onClick={() => onAcknowledge(alert.id)}
               className="mt-4 rounded-full border border-zinc-200 px-4 py-2 text-[10px] font-semibold uppercase tracking-[0.16em] text-zinc-900 transition-colors hover:border-orange-200 hover:bg-orange-50 hover:text-orange-600 dark:border-zinc-800 dark:text-white dark:hover:border-orange-500/20 dark:hover:bg-orange-500/10 dark:hover:text-orange-400"
             >
               Dismiss

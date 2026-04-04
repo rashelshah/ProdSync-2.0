@@ -1,14 +1,17 @@
 import { useEffect, useState, type ReactNode } from 'react'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
 import { BriefcaseBusiness, CheckCircle2, Clock3, MapPin, Plus, ShieldCheck, Users } from 'lucide-react'
 import { Surface } from '@/components/shared/Surface'
-import { EmptyState } from '@/components/system/SystemStates'
+import { EmptyState, LoadingState } from '@/components/system/SystemStates'
 import { getDefaultWorkspacePath, isProducerRole } from '@/features/auth/access-rules'
 import { getProjectRoleTitle, getRoleOptionsForDepartment } from '@/features/auth/onboarding'
 import { useAuthStore } from '@/features/auth/auth.store'
+import { useResolvedProjectContext } from '@/features/projects/useResolvedProjectContext'
 import { useProjectsStore } from '@/features/projects/projects.store'
+import { projectsService } from '@/services/projects.service'
 import { cn, formatCurrency, formatDate, timeAgo } from '@/utils'
-import type { ProjectDepartment, ProjectJoinRequest, ProjectRequestedRole, ProjectStage } from '@/types'
+import type { ProjectDepartment, ProjectJoinRequest, ProjectRecord, ProjectRequestedRole, ProjectStage } from '@/types'
 
 const PROJECT_STATUSES: ProjectStage[] = ['pre-production', 'shooting', 'post']
 const DEPARTMENTS: { id: ProjectDepartment; label: string }[] = [
@@ -27,17 +30,24 @@ const statusTone: Record<ProjectStage, string> = {
 }
 
 export function ProjectsView() {
+  const queryClient = useQueryClient()
   const navigate = useNavigate()
   const user = useAuthStore(state => state.user)
-  const projects = useProjectsStore(state => state.projects)
-  const projectMembers = useProjectsStore(state => state.projectMembers)
-  const joinRequests = useProjectsStore(state => state.joinRequests)
-  const activeProjectId = useProjectsStore(state => state.activeProjectId)
   const setActiveProject = useProjectsStore(state => state.setActiveProject)
-  const createProject = useProjectsStore(state => state.createProject)
-  const requestJoin = useProjectsStore(state => state.requestJoin)
-  const approveJoinRequest = useProjectsStore(state => state.approveJoinRequest)
-  const rejectJoinRequest = useProjectsStore(state => state.rejectJoinRequest)
+  const { projects, projectMembers, activeProjectId, isLoadingProjectContext } = useResolvedProjectContext()
+  const discoverableProjectsQ = useQuery({
+    queryKey: ['discoverable-projects'],
+    queryFn: projectsService.getDiscoverableProjects,
+    enabled: Boolean(user),
+    staleTime: 60_000,
+  })
+  const joinRequestsQ = useQuery({
+    queryKey: ['project-join-requests'],
+    queryFn: projectsService.getJoinRequests,
+    enabled: Boolean(user),
+    staleTime: 15_000,
+  })
+  const joinRequests = joinRequestsQ.data ?? []
 
   const [showCreateModal, setShowCreateModal] = useState(false)
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null)
@@ -63,20 +73,61 @@ export function ProjectsView() {
   }
 
   const producerView = isProducerRole(currentUser.role)
+  const visibleProjects = producerView ? projects : discoverableProjectsQ.data ?? projects
   const ownedProjects = projects.filter(project => project.ownerId === currentUser.id)
-  const visibleProjects = producerView ? ownedProjects : projects
   const membershipProjectIds = new Set(projectMembers.filter(member => member.userId === currentUser.id).map(member => member.projectId))
   const accessibleProjectIds = Array.from(new Set([...ownedProjects.map(project => project.id), ...Array.from(membershipProjectIds)]))
   const joinRoleOptions = getRoleOptionsForDepartment(currentUser.departmentId ?? 'production').map(option => option.id)
   const relevantJoinRequests = producerView
-    ? joinRequests.filter(request => {
-        const ownedProjectIds = new Set(ownedProjects.map(project => project.id))
-        return ownedProjectIds.has(request.projectId) && request.status === 'pending'
-      })
+    ? joinRequests.filter(request => request.status === 'pending')
     : joinRequests.filter(request => request.userId === currentUser.id)
 
-  const selectedProject = selectedProjectId ? projects.find(project => project.id === selectedProjectId) ?? null : null
-  const joinableProject = projects.find(project => !membershipProjectIds.has(project.id))
+  const selectedProject = selectedProjectId ? visibleProjects.find(project => project.id === selectedProjectId) ?? null : null
+  const joinableProject = visibleProjects.find(project => !membershipProjectIds.has(project.id))
+
+  const createProjectMutation = useMutation({
+    mutationFn: projectsService.createProject,
+    onSuccess: async (project) => {
+      if (project) {
+        setActiveProject(project.id)
+      }
+
+      setShowCreateModal(false)
+      setProjectName('')
+      setProjectLocation('')
+      setProjectBudget('')
+      setProjectCrew('')
+      setProjectStartDate('')
+      setProjectEndDate('')
+      setProjectOtRules('')
+      setSelectedDepartments([])
+
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['accessible-projects', user?.id] }),
+        queryClient.invalidateQueries({ queryKey: ['discoverable-projects'] }),
+      ])
+    },
+  })
+
+  const requestJoinMutation = useMutation({
+    mutationFn: projectsService.createJoinRequest,
+    onSuccess: async () => {
+      setSelectedProjectId(null)
+      setRequestMessage('')
+      await queryClient.invalidateQueries({ queryKey: ['project-join-requests'] })
+    },
+  })
+
+  const reviewJoinRequestMutation = useMutation({
+    mutationFn: ({ requestId, status }: { requestId: string; status: 'approved' | 'rejected' }) =>
+      projectsService.reviewJoinRequest(requestId, status),
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['project-join-requests'] }),
+        queryClient.invalidateQueries({ queryKey: ['accessible-projects', user?.id] }),
+      ])
+    },
+  })
 
   useEffect(() => {
     if (!user) return
@@ -104,44 +155,27 @@ export function ProjectsView() {
   }
 
   function createProjectSubmit() {
-    createProject(
-      {
-        name: projectName.trim(),
-        location: projectLocation.trim(),
-        status: projectStatus,
-        budgetUSD: Number(projectBudget) || 0,
-        activeCrew: Number(projectCrew) || 0,
-        startDate: projectStartDate,
-        endDate: projectEndDate,
-        enabledDepartments: selectedDepartments,
-        otRulesLabel: projectOtRules.trim(),
-      },
-      currentUser,
-    )
-
-    setShowCreateModal(false)
-    setProjectName('')
-    setProjectLocation('')
-    setProjectBudget('')
-    setProjectCrew('')
-    setProjectStartDate('')
-    setProjectEndDate('')
-    setProjectOtRules('')
-    setSelectedDepartments([])
+    createProjectMutation.mutate({
+      name: projectName.trim(),
+      location: projectLocation.trim(),
+      status: projectStatus,
+      budgetUSD: Number(projectBudget) || 0,
+      activeCrew: Number(projectCrew) || 0,
+      startDate: projectStartDate,
+      endDate: projectEndDate,
+      enabledDepartments: selectedDepartments,
+      otRulesLabel: projectOtRules.trim(),
+    })
   }
 
   function submitJoinRequest() {
     if (!selectedProject) return
 
-    requestJoin({
+    requestJoinMutation.mutate({
       projectId: selectedProject.id,
-      user: currentUser,
       roleRequested: requestedRole,
       message: requestMessage.trim() || undefined,
     })
-
-    setSelectedProjectId(null)
-    setRequestMessage('')
   }
 
   function getRequestForProject(projectId: string) {
@@ -152,6 +186,10 @@ export function ProjectsView() {
     setSelectedDepartments(current =>
       current.includes(department) ? current.filter(item => item !== department) : [...current, department],
     )
+  }
+
+  if (isLoadingProjectContext) {
+    return <LoadingState message="Loading project access..." />
   }
 
   return (
@@ -239,8 +277,8 @@ export function ProjectsView() {
                       key={request.id}
                       request={request}
                       projectName={projects.find(project => project.id === request.projectId)?.name ?? 'Project'}
-                      onApprove={() => approveJoinRequest(request.id)}
-                      onReject={() => rejectJoinRequest(request.id)}
+                      onApprove={() => reviewJoinRequestMutation.mutate({ requestId: request.id, status: 'approved' })}
+                      onReject={() => reviewJoinRequestMutation.mutate({ requestId: request.id, status: 'rejected' })}
                     />
                   ))}
                 </div>
@@ -432,7 +470,7 @@ function ProjectCard({
   joinLabel = 'Join Project',
   openLabel = 'Open',
 }: {
-  project: ReturnType<typeof useProjectsStore.getState>['projects'][number]
+  project: ProjectRecord
   badgeClass: string
   membershipLabel?: string
   onOpen?: () => void

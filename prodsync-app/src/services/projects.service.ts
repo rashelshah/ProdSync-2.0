@@ -1,0 +1,157 @@
+import { apiFetch, readApiJson } from '@/lib/api'
+import type { ProjectDepartment, ProjectJoinRequest, ProjectMember, ProjectRecord, ProjectRequestedRole } from '@/types'
+
+interface BackendProject {
+  id: string
+  ownerId: string
+  ownerName: string
+  name: string
+  location: string
+  status: ProjectRecord['status']
+  progressPercent: number
+  budgetUSD: number
+  activeCrew: number
+  startDate: string
+  endDate: string
+  enabledDepartments: ProjectDepartment[]
+  otRulesLabel: string
+}
+
+interface AccessibleProjectRow {
+  id: string
+  projectId: string
+  role: ProjectRequestedRole
+  accessRole: string
+  department: string
+  approvedAt: string | null
+  project: BackendProject | null
+}
+
+interface ProjectsResponse {
+  projects: AccessibleProjectRow[]
+}
+
+interface DiscoverableProjectsResponse {
+  projects: BackendProject[]
+}
+
+interface JoinRequestsResponse {
+  requests: Array<ProjectJoinRequest & { projectName?: string }>
+}
+
+interface CreateProjectInput {
+  name: string
+  location: string
+  status: ProjectRecord['status']
+  budgetUSD: number
+  activeCrew: number
+  startDate: string
+  endDate: string
+  enabledDepartments: ProjectDepartment[]
+  otRulesLabel: string
+}
+
+interface JoinRequestCreateInput {
+  projectId: string
+  roleRequested: ProjectRequestedRole
+  message?: string
+}
+
+function toProjectRecord(project: BackendProject): ProjectRecord {
+  return {
+    id: project.id,
+    ownerId: project.ownerId,
+    ownerName: project.ownerName,
+    name: project.name,
+    location: project.location,
+    status: project.status,
+    progressPercent: Number(project.progressPercent ?? 0),
+    budgetUSD: Number(project.budgetUSD ?? 0),
+    activeCrew: Number(project.activeCrew ?? 0),
+    startDate: project.startDate ?? '',
+    endDate: project.endDate ?? '',
+    enabledDepartments: project.enabledDepartments ?? [],
+    otRulesLabel: project.otRulesLabel ?? '',
+  }
+}
+
+function toProjectMember(row: AccessibleProjectRow, userId: string): ProjectMember {
+  return {
+    id: row.id,
+    userId,
+    projectId: row.projectId,
+    role: row.role,
+    permissions: [],
+    approvedAt: row.approvedAt ?? new Date(0).toISOString(),
+  }
+}
+
+export const projectsService = {
+  async getAccessibleProjects(userId: string) {
+    console.log('[projectsService] fetching accessible projects')
+    const response = await apiFetch('/projects')
+    const payload = await readApiJson<ProjectsResponse>(response)
+    const rows = payload.projects ?? []
+    const projects = rows
+      .map(row => row.project)
+      .filter((project): project is BackendProject => project !== null)
+      .map(toProjectRecord)
+    const projectMembers = rows.map(row => toProjectMember(row, userId))
+
+    console.log('[projectsService] accessible projects loaded', { count: projects.length })
+    return { projects, projectMembers }
+  },
+
+  async getDiscoverableProjects() {
+    console.log('[projectsService] fetching discoverable projects')
+    const response = await apiFetch('/projects/discover')
+    const payload = await readApiJson<DiscoverableProjectsResponse>(response)
+    const projects = (payload.projects ?? []).map(toProjectRecord)
+    console.log('[projectsService] discoverable projects loaded', { count: projects.length })
+    return projects
+  },
+
+  async getJoinRequests() {
+    console.log('[projectsService] fetching join requests')
+    const response = await apiFetch('/projects/join-requests')
+    const payload = await readApiJson<JoinRequestsResponse>(response)
+    console.log('[projectsService] join requests loaded', { count: payload.requests?.length ?? 0 })
+    return payload.requests ?? []
+  },
+
+  async createProject(input: CreateProjectInput) {
+    console.log('[projectsService] creating project', { name: input.name, status: input.status })
+    const response = await apiFetch('/projects', {
+      method: 'POST',
+      body: JSON.stringify(input),
+    })
+    const payload = await readApiJson<{ project: BackendProject | null; projectId: string }>(response)
+    console.log('[projectsService] project create response', { projectId: payload.projectId })
+    return payload.project ? toProjectRecord(payload.project) : null
+  },
+
+  async createJoinRequest(input: JoinRequestCreateInput) {
+    console.log('[projectsService] creating join request', { projectId: input.projectId, roleRequested: input.roleRequested })
+    const response = await apiFetch(`/projects/${encodeURIComponent(input.projectId)}/join-requests`, {
+      method: 'POST',
+      body: JSON.stringify({
+        roleRequested: input.roleRequested,
+        message: input.message,
+      }),
+    })
+    const payload = await readApiJson<{ request: ProjectJoinRequest | null }>(response)
+    console.log('[projectsService] join request response', { projectId: input.projectId })
+    return payload.request
+  },
+
+  async reviewJoinRequest(requestId: string, status: 'approved' | 'rejected') {
+    console.log('[projectsService] reviewing join request', { requestId, status })
+    const response = await apiFetch(`/projects/join-requests/${encodeURIComponent(requestId)}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ status }),
+    })
+    const payload = await readApiJson<{ request: ProjectJoinRequest | null }>(response)
+    console.log('[projectsService] join request review response', { requestId, status })
+    return payload.request
+  },
+}

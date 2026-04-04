@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Plus } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
-import { useAlertStore } from '@/features/alerts/alert.store'
+import { useProjectAlerts } from '@/features/alerts/useProjectAlerts'
 import { getUserRoleLabel } from '@/features/auth/onboarding'
 import { useAuthStore } from '@/features/auth/auth.store'
 import { useTheme } from '@/components/theme/ThemeProvider'
@@ -15,9 +15,7 @@ interface HeaderProps {
 
 export function Header({ isSidebarCollapsed, onToggleSidebar, sidebarOffset }: HeaderProps) {
   const navigate = useNavigate()
-  const alerts = useAlertStore(s => s.alerts)
-  const unreadCount = useAlertStore(s => s.unreadCount)
-  const acknowledgeAll = useAlertStore(s => s.acknowledgeAll)
+  const { alerts, unreadCount, acknowledgeAll, isAcknowledgingAll } = useProjectAlerts()
   const user = useAuthStore(s => s.user)
   const { theme, toggleTheme } = useTheme()
   const [showAlerts, setShowAlerts] = useState(false)
@@ -89,8 +87,8 @@ export function Header({ isSidebarCollapsed, onToggleSidebar, sidebarOffset }: H
                     <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-zinc-500 dark:text-zinc-400">Alerts</p>
                     <p className="mt-1 text-sm font-semibold text-zinc-900 dark:text-white">Latest production issues</p>
                   </div>
-                  <button onClick={acknowledgeAll} className="btn-ghost px-0 py-0 text-[10px]">
-                    Clear all
+                  <button onClick={acknowledgeAll} disabled={recentAlerts.length === 0 || isAcknowledgingAll} className="btn-ghost px-0 py-0 text-[10px] disabled:opacity-50">
+                    {isAcknowledgingAll ? 'Clearing...' : 'Clear all'}
                   </button>
                 </div>
 
