@@ -81,6 +81,7 @@ export function TransportView() {
     drivers,
     canViewAlerts,
     canManageTransport,
+    fuelFailed,
   } = useTransportData(tripFilters)
 
   const hasData = trips.length > 0 || fuelLogs.length > 0 || vehicles.length > 0 || alerts.length > 0
@@ -144,7 +145,7 @@ export function TransportView() {
       return
     }
 
-    await Promise.all([
+    await Promise.allSettled([
       queryClient.invalidateQueries({ queryKey: ['trips', activeProjectId] }),
       queryClient.invalidateQueries({ queryKey: ['fuel-logs', activeProjectId] }),
       queryClient.invalidateQueries({ queryKey: ['vehicles', activeProjectId] }),
@@ -572,60 +573,66 @@ export function TransportView() {
                 Receipt-backed fuel logs with fraud scoring, mileage validation, and captain review.
               </p>
             </div>
-            <DataTable<FuelLogUI>
-              columns={[
-                { key: 'logDate', label: 'Entry Date', render: row => formatDate(row.logDate) },
-                { key: 'vehicleName', label: 'Vehicle' },
-                { key: 'loggedByName', label: 'Driver', render: row => row.loggedByName ?? row.loggedBy },
-                { key: 'liters', label: 'Litres', render: row => `${row.liters.toFixed(1)}L` },
-                { key: 'cost', label: 'Cost', render: row => formatCurrency(row.cost ?? 0) },
-                { key: 'expectedMileage', label: 'Expected', render: row => `${row.expectedMileage.toFixed(1)} km/L` },
-                { key: 'actualMileage', label: 'Actual', render: row => `${row.actualMileage.toFixed(1)} km/L` },
-                {
-                  key: 'auditStatus',
-                  label: 'Status',
-                  render: row => (
-                    <div className="space-x-2">
-                      <StatusBadge variant={row.efficiencyRating === 'good' ? 'verified' : 'mismatch'} label={row.auditStatus} />
-                      {row.fraudStatus !== 'NORMAL' && <StatusBadge variant={row.fraudStatus === 'FRAUD' ? 'flagged' : 'warning'} label={row.fraudStatus} />}
-                    </div>
-                  ),
-                },
-                {
-                  key: 'actions',
-                  label: 'Action',
-                  align: 'right',
-                  render: row => canManageTransport ? (
-                    <div className="flex justify-end gap-2">
-                      <button
-                        onClick={event => {
-                          event.stopPropagation()
-                          reviewFuelMutation.mutate({ id: row.id, auditStatus: 'verified' })
-                        }}
-                        className="btn-soft px-3 py-2 text-[10px]"
-                        disabled={reviewFuelMutation.isPending}
-                      >
-                        Approve
-                      </button>
-                      <button
-                        onClick={event => {
-                          event.stopPropagation()
-                          reviewFuelMutation.mutate({ id: row.id, auditStatus: 'mismatch' })
-                        }}
-                        className="btn-soft px-3 py-2 text-[10px]"
-                        disabled={reviewFuelMutation.isPending}
-                      >
-                        Flag
-                      </button>
-                    </div>
-                  ) : (
-                    <span className="text-xs text-zinc-400">-</span>
-                  ),
-                },
-              ]}
-              data={fuelLogs}
-              getKey={row => row.id}
-            />
+            {fuelFailed ? (
+              <div className="rounded-lg bg-red-500/10 p-4 text-sm text-red-500 dark:bg-red-500/20 dark:text-red-400">
+                Fuel data unavailable. The service is currently experiencing issues.
+              </div>
+            ) : (
+              <DataTable<FuelLogUI>
+                columns={[
+                  { key: 'logDate', label: 'Entry Date', render: row => formatDate(row.logDate) },
+                  { key: 'vehicleName', label: 'Vehicle' },
+                  { key: 'loggedByName', label: 'Driver', render: row => row.loggedByName ?? row.loggedBy },
+                  { key: 'liters', label: 'Litres', render: row => `${row.liters.toFixed(1)}L` },
+                  { key: 'cost', label: 'Cost', render: row => formatCurrency(row.cost ?? 0) },
+                  { key: 'expectedMileage', label: 'Expected', render: row => `${row.expectedMileage.toFixed(1)} km/L` },
+                  { key: 'actualMileage', label: 'Actual', render: row => `${row.actualMileage.toFixed(1)} km/L` },
+                  {
+                    key: 'auditStatus',
+                    label: 'Status',
+                    render: row => (
+                      <div className="space-x-2">
+                        <StatusBadge variant={row.efficiencyRating === 'good' ? 'verified' : 'mismatch'} label={row.auditStatus} />
+                        {row.fraudStatus !== 'NORMAL' && <StatusBadge variant={row.fraudStatus === 'FRAUD' ? 'flagged' : 'warning'} label={row.fraudStatus} />}
+                      </div>
+                    ),
+                  },
+                  {
+                    key: 'actions',
+                    label: 'Action',
+                    align: 'right',
+                    render: row => canManageTransport ? (
+                      <div className="flex justify-end gap-2">
+                        <button
+                          onClick={event => {
+                            event.stopPropagation()
+                            reviewFuelMutation.mutate({ id: row.id, auditStatus: 'verified' })
+                          }}
+                          className="btn-soft px-3 py-2 text-[10px]"
+                          disabled={reviewFuelMutation.isPending}
+                        >
+                          Approve
+                        </button>
+                        <button
+                          onClick={event => {
+                            event.stopPropagation()
+                            reviewFuelMutation.mutate({ id: row.id, auditStatus: 'mismatch' })
+                          }}
+                          className="btn-soft px-3 py-2 text-[10px]"
+                          disabled={reviewFuelMutation.isPending}
+                        >
+                          Flag
+                        </button>
+                      </div>
+                    ) : (
+                      <span className="text-xs text-zinc-400">-</span>
+                    ),
+                  },
+                ]}
+                data={fuelLogs}
+                getKey={row => row.id}
+              />
+            )}
           </Surface>
 
           {canViewAlerts && (

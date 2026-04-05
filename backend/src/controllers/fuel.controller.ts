@@ -4,13 +4,29 @@ import { createFuelLog, listFuelLogsForActor, reviewFuelLog } from '../services/
 import { getTransportAccessRoles } from '../utils/role'
 
 export async function getFuelLogsController(req: Request, res: Response) {
-  console.log('[transport][fuel][list] route hit', { query: req.query })
-  const query = fuelListQuerySchema.parse(req.query)
-  const roles = getTransportAccessRoles(req)
-  const logs = await listFuelLogsForActor(query, req.authUser?.id ?? null, roles)
-  console.log('[transport][fuel][list] db result', { projectId: query.projectId, count: logs.data.length })
+  try {
+    console.log('[transport][fuel][list] route hit', { query: req.query })
+    
+    // Validate projectId
+    if (!req.query.projectId) {
+      return res.status(400).json({ error: "Missing projectId" })
+    }
 
-  res.json(logs)
+    const query = fuelListQuerySchema.parse(req.query)
+    const roles = getTransportAccessRoles(req)
+    const logs = await listFuelLogsForActor(query, req.authUser?.id ?? null, roles)
+    
+    // Ensure we always return an array if valid but no data
+    if (!logs || !logs.data) {
+      return res.status(200).json({ data: [], metadata: { total: 0, page: 1, pageSize: 50, totalPages: 0 } })
+    }
+
+    console.log('[transport][fuel][list] db result', { projectId: query.projectId, count: logs.data.length })
+    res.json(logs)
+  } catch (err) {
+    console.error('[transport][fuel][list] Error:', err)
+    return res.status(500).json({ error: "Failed to fetch fuel data" })
+  }
 }
 
 export async function createFuelLogController(req: Request, res: Response) {

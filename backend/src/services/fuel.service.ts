@@ -86,7 +86,7 @@ export async function listFuelLogsForActor(
   const { from, to } = rangeFromPagination(query)
   let request = adminClient
     .from('fuel_logs')
-    .select('*, vehicle:vehicles(name), logger:users(full_name)', { count: 'exact' })
+    .select('*, vehicle:vehicles(name), logger:users!logged_by(full_name)', { count: 'exact' })
     .eq('project_id', query.projectId)
     .order('created_at', { ascending: false })
     .range(from, to)
@@ -170,7 +170,7 @@ async function runFraudEvaluation(log: FuelLogRecord) {
         audit_status: auditStatus,
       })
       .eq('id', log.id)
-      .select('*, vehicle:vehicles(name), logger:users(full_name)')
+      .select('*, vehicle:vehicles(name), logger:users!logged_by(full_name)')
       .single()
 
     if (error || !data) {
@@ -245,7 +245,7 @@ export async function createFuelLog(params: {
       odometer_image_path: odometerImagePath,
       metadata: {},
     })
-    .select('*, vehicle:vehicles(name), logger:users(full_name)')
+    .select('*, vehicle:vehicles(name), logger:users!logged_by(full_name)')
     .single()
 
   if (error) {
@@ -283,7 +283,7 @@ export async function reviewFuelLog(fuelLogId: string, input: FuelReviewInput, a
     })
     .eq('id', fuelLogId)
     .eq('project_id', input.projectId)
-    .select('*, vehicle:vehicles(name), logger:users(full_name)')
+    .select('*, vehicle:vehicles(name), logger:users!logged_by(full_name)')
     .single()
 
   if (error) {

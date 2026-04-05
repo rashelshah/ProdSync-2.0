@@ -121,7 +121,8 @@ export function useTransportData(filters: TripFilters = {}) {
   return {
     activeProjectId,
     isLoading: isLoadingProjectContext || tripsQ.isLoading || fuelQ.isLoading || vehiclesQ.isLoading,
-    isError: isErrorProjectContext || tripsQ.isError || fuelQ.isError || vehiclesQ.isError || alertsQ.isError || driversQ.isError,
+    isError: isErrorProjectContext || tripsQ.isError || vehiclesQ.isError || alertsQ.isError || driversQ.isError,
+    fuelFailed: fuelQ.isError,
     kpis,
     trips: tripsUI,
     fuelLogs: fuelLogsUI,
