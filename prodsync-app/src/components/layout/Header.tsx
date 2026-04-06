@@ -25,7 +25,7 @@ export function Header({ isSidebarCollapsed, onToggleSidebar, sidebarOffset }: H
 
   return (
     <header
-      className="fixed right-0 top-0 z-30 bg-transparent px-6 py-5 transition-[left] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] lg:px-8"
+      className="fixed right-0 top-0 z-30 border-b border-zinc-200/80 bg-white/85 px-6 py-5 backdrop-blur-xl transition-[left] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] dark:border-zinc-800/80 dark:bg-zinc-950/85 lg:px-8"
       style={{ left: sidebarOffset }}
     >
       <div className="flex items-center justify-between gap-6">

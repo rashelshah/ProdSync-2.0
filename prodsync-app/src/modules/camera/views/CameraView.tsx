@@ -1087,7 +1087,7 @@ export function CameraView() {
         onNotesChange={setApprovalNotes}
       />
 
-      <header className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+      <header className="page-header">
         <div>
           <span className="page-kicker">Asset Operations</span>
           <h1 className="page-title page-title-compact">Camera & Assets</h1>
@@ -1096,17 +1096,17 @@ export function CameraView() {
           </p>
         </div>
 
-        <div className="flex flex-wrap gap-3">
-          <button onClick={openWishlistModal} className="btn-ghost px-4 py-2 text-xs font-semibold uppercase tracking-[0.16em]">
+        <div className="page-toolbar">
+          <button onClick={openWishlistModal} className="btn-soft">
             Add Wishlist Item
           </button>
-          <button onClick={openRequestModal} className="btn-ghost px-4 py-2 text-xs font-semibold uppercase tracking-[0.16em]">
+          <button onClick={openRequestModal} className="btn-soft">
             Request Gear
           </button>
-          <button onClick={openScanModal} className="btn-ghost px-4 py-2 text-xs font-semibold uppercase tracking-[0.16em]">
+          <button onClick={openScanModal} className="btn-soft">
             Scan QR
           </button>
-          <button onClick={openDamageModal} className="btn-primary px-4 py-2 text-xs font-semibold uppercase tracking-[0.16em]">
+          <button onClick={openDamageModal} className="btn-primary">
             Report Issue
           </button>
         </div>
