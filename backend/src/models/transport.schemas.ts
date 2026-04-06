@@ -54,6 +54,7 @@ export const tripStartSchema = z.object({
   driverId: uuidSchema.optional(),
   startTime: z.string().datetime().optional(),
   startLocation: locationSchema,
+  destinationLocation: locationSchema.optional(),
   origin: z.string().trim().max(200).optional(),
   destination: z.string().trim().max(200).optional(),
   purpose: z.string().trim().max(500).optional(),
@@ -68,6 +69,64 @@ export const tripEndSchema = z.object({
   endLocation: locationSchema,
   odometerKm: z.number().min(0).max(10000000),
   destination: z.string().trim().max(200).optional(),
+  remarks: z.string().trim().max(500).optional(),
+})
+
+export const locationReverseGeocodeQuerySchema = z.object({
+  projectId: uuidSchema,
+  lat: z.coerce.number().min(-90).max(90).optional(),
+  lng: z.coerce.number().min(-180).max(180).optional(),
+  latitude: z.coerce.number().min(-90).max(90).optional(),
+  longitude: z.coerce.number().min(-180).max(180).optional(),
+})
+  .refine(value => value.lat != null || value.latitude != null, {
+    message: 'Latitude is required.',
+    path: ['lat'],
+  })
+  .refine(value => value.lng != null || value.longitude != null, {
+    message: 'Longitude is required.',
+    path: ['lng'],
+  })
+  .transform(value => ({
+    projectId: value.projectId,
+    latitude: value.latitude ?? value.lat ?? 0,
+    longitude: value.longitude ?? value.lng ?? 0,
+  }))
+
+export const locationSearchQuerySchema = z.object({
+  projectId: uuidSchema,
+  q: z.string().trim().min(2).max(200).optional(),
+  query: z.string().trim().min(2).max(200).optional(),
+})
+  .refine(value => Boolean(value.q ?? value.query), {
+    message: 'Search query is required.',
+    path: ['q'],
+  })
+  .transform(value => ({
+    projectId: value.projectId,
+    query: value.query ?? value.q ?? '',
+  }))
+
+export const trackingLiveQuerySchema = paginationSchema.extend({
+  projectId: uuidSchema,
+})
+
+export const trackingMapQuerySchema = z.object({
+  projectId: uuidSchema,
+  width: z.coerce.number().int().min(320).max(1600).default(1080),
+  height: z.coerce.number().int().min(200).max(900).default(420),
+})
+
+export const liveLocationUpdateSchema = z.object({
+  projectId: uuidSchema,
+  vehicleId: uuidSchema,
+  tripId: uuidSchema,
+  latitude: z.number().min(-90).max(90),
+  longitude: z.number().min(-180).max(180),
+  speedKph: z.number().min(0).max(300).optional().nullable(),
+  heading: z.number().min(0).max(360).optional().nullable(),
+  accuracyMeters: z.number().min(0).max(5000).optional().nullable(),
+  capturedAt: z.string().datetime().optional(),
 })
 
 export const fuelListQuerySchema = paginationSchema.extend({
@@ -99,6 +158,11 @@ export const fuelReviewSchema = z.object({
   approvalNote: z.string().trim().max(500).optional(),
 })
 
+export const fuelOdometerOcrSchema = z.object({
+  projectId: uuidSchema,
+  manualOdometerKm: z.coerce.number().min(0).max(10000000).optional(),
+})
+
 export const alertsListQuerySchema = paginationSchema.extend({
   projectId: uuidSchema,
   status: z.enum(['open', 'acknowledged', 'resolved']).optional(),
@@ -117,8 +181,14 @@ export type VehicleUpdateInput = z.infer<typeof vehicleUpdateSchema>
 export type TripListQuery = z.infer<typeof tripListQuerySchema>
 export type TripStartInput = z.infer<typeof tripStartSchema>
 export type TripEndInput = z.infer<typeof tripEndSchema>
+export type LocationReverseGeocodeQuery = z.infer<typeof locationReverseGeocodeQuerySchema>
+export type LocationSearchQuery = z.infer<typeof locationSearchQuerySchema>
+export type TrackingLiveQuery = z.infer<typeof trackingLiveQuerySchema>
+export type TrackingMapQuery = z.infer<typeof trackingMapQuerySchema>
+export type LiveLocationUpdateInput = z.infer<typeof liveLocationUpdateSchema>
 export type FuelListQuery = z.infer<typeof fuelListQuerySchema>
 export type FuelCreateBodyInput = z.infer<typeof fuelCreateBodySchema>
 export type FuelReviewInput = z.infer<typeof fuelReviewSchema>
+export type FuelOdometerOcrInput = z.infer<typeof fuelOdometerOcrSchema>
 export type AlertsListQuery = z.infer<typeof alertsListQuerySchema>
 export type GpsLogsListQuery = z.infer<typeof gpsLogsListQuerySchema>

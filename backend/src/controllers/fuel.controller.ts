@@ -1,6 +1,8 @@
+import fs from 'node:fs/promises'
 import type { Request, Response } from 'express'
-import { fuelCreateBodySchema, fuelListQuerySchema, fuelReviewSchema } from '../models/transport.schemas'
+import { fuelCreateBodySchema, fuelListQuerySchema, fuelOdometerOcrSchema, fuelReviewSchema } from '../models/transport.schemas'
 import { createFuelLog, listFuelLogsForActor, reviewFuelLog } from '../services/fuel.service'
+import { validateOdometerImage } from '../services/transportOcr.service'
 import { getTransportAccessRoles } from '../utils/role'
 
 export async function getFuelLogsController(req: Request, res: Response) {
@@ -51,4 +53,27 @@ export async function reviewFuelLogController(req: Request, res: Response) {
   console.log('[transport][fuel][review] db result', { fuelLogId: fuelLog.id, projectId: fuelLog.projectId })
 
   res.json({ fuelLog })
+}
+
+export async function validateFuelOdometerController(req: Request, res: Response) {
+  console.log('[transport][fuel][ocr] route hit', { body: req.body })
+  const payload = fuelOdometerOcrSchema.parse(req.body)
+  const odometerImage = (req.file ?? null) as Express.Multer.File | null
+
+  if (!odometerImage) {
+    return res.status(400).json({ error: 'Odometer image is required.' })
+  }
+
+  try {
+    const validation = await validateOdometerImage({
+      file: odometerImage,
+      manualOdometerKm: payload.manualOdometerKm ?? null,
+    })
+
+    res.json({ validation })
+  } finally {
+    if (odometerImage.path) {
+      await fs.unlink(odometerImage.path).catch(() => undefined)
+    }
+  }
 }

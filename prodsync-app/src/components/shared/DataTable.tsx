@@ -15,18 +15,23 @@ interface DataTableProps<T> {
   getKey: (row: T) => string
   onRowClick?: (row: T) => void
   className?: string
+  stickyHeader?: boolean
 }
 
-export function DataTable<T>({ columns, data, getKey, onRowClick, className }: DataTableProps<T>) {
+export function DataTable<T>({ columns, data, getKey, onRowClick, className, stickyHeader = false }: DataTableProps<T>) {
   return (
     <div className={cn('overflow-x-auto', className)}>
-      <table className="w-full min-w-[640px] text-left text-sm">
-        <thead>
+      <table className="w-full min-w-[760px] table-fixed text-left text-sm">
+        <thead className={cn(stickyHeader && 'sticky top-0 z-10 bg-white dark:bg-zinc-900')}>
           <tr className="border-b border-zinc-200 text-[10px] font-semibold uppercase tracking-[0.22em] text-zinc-500 dark:border-zinc-800 dark:text-zinc-400">
             {columns.map(column => (
               <th
                 key={String(column.key)}
-                className={cn('pb-4 font-semibold', column.align === 'right' ? 'text-right' : column.align === 'center' ? 'text-center' : '')}
+                className={cn(
+                  'bg-inherit px-4 pb-4 pt-1 font-semibold',
+                  column.align === 'right' ? 'text-right' : column.align === 'center' ? 'text-center' : '',
+                  column.className,
+                )}
               >
                 {column.label}
               </th>
@@ -47,7 +52,7 @@ export function DataTable<T>({ columns, data, getKey, onRowClick, className }: D
                   <td
                     key={String(column.key)}
                     className={cn(
-                      'py-4 text-zinc-600 dark:text-zinc-300',
+                      'px-4 py-4 align-top text-zinc-600 dark:text-zinc-300',
                       column.align === 'right' ? 'text-right' : column.align === 'center' ? 'text-center' : '',
                       column.className,
                     )}

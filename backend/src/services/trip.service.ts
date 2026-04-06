@@ -3,12 +3,14 @@ import type { TripEndInput, TripListQuery, TripStartInput } from '../models/tran
 import type { LocationPoint, PaginatedResult, TripRecord } from '../models/transport.types'
 import { emitTransportEvent } from '../realtime/socket'
 import { HttpError } from '../utils/httpError'
-import { haversineDistanceKm, roundDistance } from '../utils/location'
+import { calculateDistanceVariancePercent, calculateTrackDistanceKm, haversineDistanceKm, roundDistance } from '../utils/location'
 import { rangeFromPagination, toPaginatedResult } from '../utils/pagination'
 import type { TransportAccessRole } from '../utils/role'
 import { createTransportAlert } from './alert.service'
 
 const tripSelectClause = '*, vehicle:vehicles!trips_vehicle_id_fkey(name), driver:users!trips_driver_user_id_fkey(full_name)'
+const DISTANCE_TOLERANCE_PERCENT = Math.min(25, Math.max(5, Number(process.env.TRANSPORT_DISTANCE_TOLERANCE_PERCENT ?? 8)))
+const DISTANCE_TOLERANCE_MIN_KM = Math.max(1, Number(process.env.TRANSPORT_DISTANCE_TOLERANCE_MIN_KM ?? 3))
 
 function toLocation(value: unknown): LocationPoint | null {
   if (!value || typeof value !== 'object') {
@@ -93,6 +95,25 @@ async function insertGpsLog(projectId: string, vehicleId: string, tripId: string
   })
 }
 
+async function listTripGpsTrack(projectId: string, tripId: string) {
+  const { data, error } = await adminClient
+    .from('gps_logs')
+    .select('latitude, longitude, captured_at')
+    .eq('project_id', projectId)
+    .eq('trip_id', tripId)
+    .order('captured_at', { ascending: true })
+
+  if (error) {
+    throw error
+  }
+
+  return (data ?? []).map(item => ({
+    latitude: Number(item.latitude),
+    longitude: Number(item.longitude),
+    address: undefined,
+  }))
+}
+
 async function getGeofence(projectId: string) {
   const { data, error } = await adminClient
     .from('project_settings')
@@ -151,6 +172,39 @@ function computeTripAbnormality(params: { distanceKm: number; startLocation: Loc
   return {
     score: Math.min(100, roundDistance(score, 0)),
     reason,
+  }
+}
+
+function assessDistanceValidation(params: { gpsDistanceKm: number | null; odometerDistanceKm: number | null }) {
+  if (
+    params.gpsDistanceKm == null ||
+    params.odometerDistanceKm == null ||
+    params.gpsDistanceKm <= 0 ||
+    params.odometerDistanceKm <= 0
+  ) {
+    return {
+      shouldAlert: false,
+      deltaKm: null,
+      variancePercent: null,
+      withinTolerance: null,
+    }
+  }
+
+  const deltaKm = roundDistance(Math.abs(params.gpsDistanceKm - params.odometerDistanceKm))
+  const referenceDistance = Math.max(params.gpsDistanceKm, params.odometerDistanceKm)
+  const allowedDeltaKm = Math.max(
+    DISTANCE_TOLERANCE_MIN_KM,
+    roundDistance((referenceDistance * DISTANCE_TOLERANCE_PERCENT) / 100),
+  )
+  const variancePercent = calculateDistanceVariancePercent(params.gpsDistanceKm, params.odometerDistanceKm)
+  const withinTolerance = deltaKm <= allowedDeltaKm
+
+  return {
+    shouldAlert: !withinTolerance,
+    deltaKm,
+    variancePercent,
+    withinTolerance,
+    allowedDeltaKm,
   }
 }
 
@@ -215,6 +269,17 @@ export async function listTripsForActor(
 export async function startTrip(input: TripStartInput, actorUserId: string, isDriver: boolean): Promise<TripRecord> {
   const vehicle = await ensureVehicle(input.projectId, input.vehicleId)
   const driverId = isDriver ? actorUserId : input.driverId ?? (vehicle.assigned_driver_user_id ? String(vehicle.assigned_driver_user_id) : actorUserId)
+  const estimatedDistanceKm = input.destinationLocation
+    ? roundDistance(haversineDistanceKm(input.startLocation, input.destinationLocation))
+    : null
+  const estimatedDurationMinutes = estimatedDistanceKm != null
+    ? Math.max(15, Math.round((estimatedDistanceKm / 35) * 60))
+    : null
+  const trackingPlan = {
+    destinationLocation: input.destinationLocation ?? null,
+    estimatedDistanceKm,
+    estimatedDurationMinutes,
+  }
 
   if (isDriver && vehicle.assigned_driver_user_id && String(vehicle.assigned_driver_user_id) !== actorUserId) {
     throw new HttpError(403, 'Drivers can only start trips for vehicles assigned to them.')
@@ -234,8 +299,10 @@ export async function startTrip(input: TripStartInput, actorUserId: string, isDr
       purpose: input.purpose ?? null,
       call_sheet_reference: input.callSheetReference ?? null,
       status: 'active',
+      metadata: {
+        trackingPlan,
+      },
       created_by: actorUserId,
-      metadata: {},
     })
     .select(tripSelectClause)
     .single()
@@ -290,12 +357,23 @@ export async function endTrip(input: TripEndInput, actorUserId: string, isDriver
   const endTime = input.endTime ?? new Date().toISOString()
   const minutes = durationMinutes(trip.startTime, endTime)
   const odometerDistance = trip.startOdometerKm != null ? input.odometerKm - trip.startOdometerKm : null
+  const gpsTrack = await listTripGpsTrack(input.projectId, trip.id)
+  const gpsTrackDistance = calculateTrackDistanceKm([
+    ...(gpsTrack.length > 0 ? gpsTrack : (trip.startLocation ? [trip.startLocation] : [])),
+    input.endLocation,
+  ])
   const geodesicDistance = trip.startLocation ? haversineDistanceKm(trip.startLocation, input.endLocation) : 0
-  const distanceKm = roundDistance(odometerDistance != null && odometerDistance >= 0 ? odometerDistance : geodesicDistance)
+  const gpsDistance = gpsTrackDistance > 0 ? gpsTrackDistance : roundDistance(geodesicDistance)
+  const distanceKm = roundDistance(odometerDistance != null && odometerDistance >= 0 ? odometerDistance : gpsDistance)
 
   if (odometerDistance != null && odometerDistance < 0) {
     throw new HttpError(400, 'End odometer cannot be lower than the starting odometer.')
   }
+
+  const distanceValidation = assessDistanceValidation({
+    gpsDistanceKm: gpsDistance > 0 ? gpsDistance : null,
+    odometerDistanceKm: odometerDistance != null && odometerDistance >= 0 ? roundDistance(odometerDistance) : null,
+  })
 
   const geofence = await getGeofence(input.projectId)
   const outstationFlag = geofence
@@ -313,6 +391,22 @@ export async function endTrip(input: TripEndInput, actorUserId: string, isDriver
 
   const nextStatus = abnormality.score >= 60 ? 'flagged' : 'completed'
   const idleMinutes = estimateIdleMinutes(distanceKm, minutes)
+  const nextMetadata = {
+    ...trip.metadata,
+    endRemarks: input.remarks ?? null,
+    distanceValidation: {
+      gpsDistanceKm: gpsDistance > 0 ? gpsDistance : null,
+      odometerDistanceKm: odometerDistance != null && odometerDistance >= 0 ? roundDistance(odometerDistance) : null,
+      recordedDistanceKm: distanceKm,
+      deltaKm: distanceValidation.deltaKm,
+      variancePercent: distanceValidation.variancePercent,
+      withinTolerance: distanceValidation.withinTolerance,
+      tolerancePercent: DISTANCE_TOLERANCE_PERCENT,
+      toleranceMinKm: DISTANCE_TOLERANCE_MIN_KM,
+      source: odometerDistance != null && odometerDistance >= 0 ? 'odometer' : 'gps',
+      gpsFallback: gpsTrackDistance <= 0,
+    },
+  }
 
   const { data: updated, error: updateError } = await adminClient
     .from('trips')
@@ -327,6 +421,7 @@ export async function endTrip(input: TripEndInput, actorUserId: string, isDriver
       outstation: outstationFlag,
       abnormality_score: abnormality.score,
       status: nextStatus,
+      metadata: nextMetadata,
     })
     .eq('id', input.tripId)
     .eq('project_id', input.projectId)
@@ -344,6 +439,21 @@ export async function endTrip(input: TripEndInput, actorUserId: string, isDriver
     .eq('id', trip.vehicleId)
     .eq('project_id', input.projectId)
   await insertGpsLog(input.projectId, trip.vehicleId, trip.id, input.endLocation)
+
+  if (distanceValidation.shouldAlert && distanceValidation.deltaKm != null && distanceValidation.variancePercent != null) {
+    await createTransportAlert({
+      projectId: input.projectId,
+      vehicleId: trip.vehicleId,
+      tripId: trip.id,
+      severity: 'warning',
+      alertType: 'odometer_mismatch',
+      title: 'Odometer mismatch detected',
+      message: `GPS distance and odometer distance differed by ${distanceValidation.deltaKm} km (${distanceValidation.variancePercent}%).`,
+      metadata: {
+        ...nextMetadata.distanceValidation,
+      },
+    })
+  }
 
   if (abnormality.score >= 60 && abnormality.reason) {
     await createTransportAlert({
@@ -368,7 +478,7 @@ export async function endTrip(input: TripEndInput, actorUserId: string, isDriver
       projectId: input.projectId,
       vehicleId: trip.vehicleId,
       tripId: trip.id,
-      severity: 'info',
+      severity: 'warning',
       alertType: 'outstation_trip',
       title: 'Outstation trip detected',
       message: 'Vehicle crossed the configured project boundary.',

@@ -370,6 +370,7 @@
       0 12px 28px rgba(0, 0, 0, 0.22);
   }
 
+  .project-modal-control,
   .project-modal-input,
   .project-modal-select,
   .project-modal-textarea {
@@ -379,6 +380,12 @@
 
   .project-modal-input {
     @apply border-none bg-transparent px-0 py-0;
+  }
+
+  .project-modal-control {
+    appearance: none;
+    background-image: none;
+    padding-right: 1rem;
   }
 
   .project-modal-select {

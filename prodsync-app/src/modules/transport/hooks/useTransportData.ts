@@ -1,15 +1,11 @@
 import { useEffect } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { io, type Socket } from 'socket.io-client'
 import { useAuthStore } from '@/features/auth/auth.store'
-import { apiOrigin } from '@/lib/api'
-import { supabase } from '@/lib/supabase'
 import { transportService } from '@/services/transport.service'
 import { mapTransportKpis, transformFuelLog, transformTripForUI } from '@/services/adapters/transport.adapter'
 import { useResolvedProjectContext } from '@/features/projects/useResolvedProjectContext'
+import { getTransportSocket } from '../realtime'
 import type { TransportAlert, TripFilters } from '../types'
-
-let transportSocket: Socket | null = null
 
 export function useTransportData(filters: TripFilters = {}) {
   const queryClient = useQueryClient()
@@ -82,35 +78,30 @@ export function useTransportData(filters: TripFilters = {}) {
       }
     }
 
-    void supabase.auth.getSession().then(({ data }) => {
-      if (cancelled || !data.session?.access_token) {
+    void getTransportSocket().then(socket => {
+      if (cancelled || !socket) {
         return
       }
 
-      if (!transportSocket) {
-        transportSocket = io(apiOrigin(), {
-          auth: {
-            token: data.session.access_token,
-          },
-          transports: ['websocket'],
-        })
-      }
+      socket.emit('project:subscribe', activeProjectId)
 
-      transportSocket.emit('project:subscribe', activeProjectId)
-
-      transportSocket.on('trip_started', handleRealtimeUpdate)
-      transportSocket.on('trip_ended', handleRealtimeUpdate)
-      transportSocket.on('fuel_logged', handleRealtimeUpdate)
-      transportSocket.on('alert_created', handleRealtimeUpdate)
+      socket.on('trip_started', handleRealtimeUpdate)
+      socket.on('trip_ended', handleRealtimeUpdate)
+      socket.on('fuel_logged', handleRealtimeUpdate)
+      socket.on('alert_created', handleRealtimeUpdate)
+      socket.on('vehicle_location_update', handleRealtimeUpdate)
     })
 
     return () => {
       cancelled = true
-      transportSocket?.off('trip_started', handleRealtimeUpdate)
-      transportSocket?.off('trip_ended', handleRealtimeUpdate)
-      transportSocket?.off('fuel_logged', handleRealtimeUpdate)
-      transportSocket?.off('alert_created', handleRealtimeUpdate)
-      transportSocket?.emit('project:unsubscribe', activeProjectId)
+      void getTransportSocket().then(socket => {
+        socket?.off('trip_started', handleRealtimeUpdate)
+        socket?.off('trip_ended', handleRealtimeUpdate)
+        socket?.off('fuel_logged', handleRealtimeUpdate)
+        socket?.off('alert_created', handleRealtimeUpdate)
+        socket?.off('vehicle_location_update', handleRealtimeUpdate)
+        socket?.emit('project:unsubscribe', activeProjectId)
+      })
     }
   }, [activeProjectId, canViewAlerts, queryClient])
 

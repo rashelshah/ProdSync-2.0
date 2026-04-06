@@ -53,6 +53,7 @@ export interface Trip {
   origin?: string | null
   destination?: string | null
   purpose?: string | null
+  metadata?: Record<string, unknown>
 }
 
 export interface FuelLog {
@@ -76,6 +77,7 @@ export interface FuelLog {
   notes?: string | null
   receiptFilePath: string | null
   odometerImagePath: string | null
+  metadata?: Record<string, unknown>
 }
 
 export interface TransportAlert {
@@ -90,6 +92,7 @@ export interface TransportAlert {
   message: string
   status: 'open' | 'acknowledged' | 'resolved'
   triggeredAt: string
+  metadata?: Record<string, unknown>
 }
 
 export interface GpsLog {
@@ -103,6 +106,39 @@ export interface GpsLog {
   speedKph: number | null
   heading: number | null
   geofenceStatus: string | null
+}
+
+export interface LiveVehicleLocation {
+  projectId: string
+  tripId: string
+  vehicleId: string
+  vehicleName: string
+  registrationNumber: string | null
+  driverUserId: string | null
+  driverName: string | null
+  latitude: number
+  longitude: number
+  speedKph: number | null
+  heading: number | null
+  accuracyMeters: number | null
+  capturedAt: string
+  source: 'cache' | 'database' | 'stream'
+  previousLatitude?: number | null
+  previousLongitude?: number | null
+  previousCapturedAt?: string | null
+  routeCoordinates?: Array<[number, number]>
+  routeProvider?: 'mapbox' | 'straight_line' | 'none'
+  updateIntervalMs?: number | null
+  expectedNextUpdateAt?: string | null
+  distanceRemainingKm?: number | null
+  trackingMode?: 'short_trip' | 'long_trip' | 'approaching_destination' | 'idle' | 'arrived'
+  movingStatus?: 'enroute' | 'approaching_destination' | 'arrived' | 'idle' | 'stale'
+}
+
+export interface LiveTrackingMeta {
+  mapboxMode: 'healthy' | 'restricted' | 'disabled'
+  mapboxEnabledForAdmin: boolean
+  fallbackActive: boolean
 }
 
 export interface TripUI extends Trip {
@@ -131,6 +167,7 @@ export interface StartTripInput {
   vehicleId: string
   driverId?: string
   startLocation: LocationPoint
+  destinationLocation?: LocationPoint
   origin?: string
   destination?: string
   purpose?: string
@@ -143,6 +180,7 @@ export interface EndTripInput {
   endLocation: LocationPoint
   odometerKm: number
   destination?: string
+  remarks?: string
 }
 
 export interface CreateVehicleInput {
@@ -183,10 +221,29 @@ export interface FuelLogInput {
   odometerImage: File
 }
 
+export interface OdometerValidation {
+  success: boolean
+  text: string
+  previewText: string
+  extractedOdometerKm: number | null
+  manualOdometerKm: number | null
+  deltaKm: number | null
+  marginKm: number
+  withinMargin: boolean | null
+  flagged: boolean
+  errorMessage: string | null
+  extractionSource: 'tesseract'
+}
+
 export interface ReviewFuelInput {
   projectId: string
   auditStatus: 'verified' | 'mismatch'
   approvalNote?: string
+}
+
+export interface LiveTrackingMapOptions {
+  width?: number
+  height?: number
 }
 
 export interface TripFilters {

@@ -83,7 +83,7 @@ export async function listAssignableDrivers(projectId: string): Promise<Assignab
     .select('user_id, department, access_role, role, user:users!project_members_user_id_fkey(full_name)')
     .eq('project_id', projectId)
     .eq('status', 'active')
-    .or('access_role.eq.DRIVER,department.eq.transport')
+    .eq('access_role', 'DRIVER')
     .order('approved_at', { ascending: false })
 
   if (error) {

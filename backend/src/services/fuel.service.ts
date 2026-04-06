@@ -8,8 +8,10 @@ import { rangeFromPagination, toPaginatedResult } from '../utils/pagination'
 import type { TransportAccessRole } from '../utils/role'
 import { createTransportAlert } from './alert.service'
 import { assessFuelFraud } from './fraud.service'
+import { validateOdometerImage } from './transportOcr.service'
 
 type UploadedFiles = Partial<Record<'receiptImage' | 'odometerImage', Express.Multer.File[]>>
+const ODOMETER_OCR_MARGIN_KM = Math.min(10, Math.max(5, Number(process.env.TRANSPORT_ODOMETER_OCR_MARGIN_KM ?? 7)))
 
 function toFuelLogRecord(row: Record<string, unknown>): FuelLogRecord {
   const vehicle = row.vehicle as Record<string, unknown> | null
@@ -183,7 +185,7 @@ async function runFraudEvaluation(log: FuelLogRecord) {
         ? 'odometer_mismatch'
         : updated.fraudStatus === 'FRAUD'
           ? 'high_fuel_usage'
-          : 'low_mileage'
+          : 'fuel_mismatch'
       await createTransportAlert({
         projectId: updated.projectId,
         vehicleId: updated.vehicleId,
@@ -225,6 +227,11 @@ export async function createFuelLog(params: {
 
   const receiptFilePath = getStoredRelativePath(receiptImage)
   const odometerImagePath = getStoredRelativePath(odometerImage)
+  const odometerValidation = await validateOdometerImage({
+    file: odometerImage,
+    manualOdometerKm: params.body.odometerKm ?? null,
+    marginKm: ODOMETER_OCR_MARGIN_KM,
+  })
 
   const { data, error } = await adminClient
     .from('fuel_logs')
@@ -243,7 +250,9 @@ export async function createFuelLog(params: {
       notes: params.body.notes ?? null,
       receipt_file_path: receiptFilePath,
       odometer_image_path: odometerImagePath,
-      metadata: {},
+      metadata: {
+        odometerValidation,
+      },
     })
     .select('*, vehicle:vehicles(name), logger:users!logged_by(full_name)')
     .single()
@@ -267,6 +276,22 @@ export async function createFuelLog(params: {
     type: 'fuel_logged',
     data: record,
   })
+
+  if (odometerValidation.flagged && odometerValidation.deltaKm != null) {
+    await createTransportAlert({
+      projectId: record.projectId,
+      vehicleId: record.vehicleId,
+      fuelLogId: record.id,
+      tripId: record.tripId,
+      severity: 'warning',
+      alertType: 'odometer_mismatch',
+      title: 'Fuel log odometer mismatch',
+      message: `OCR extracted ${odometerValidation.extractedOdometerKm ?? 'an unreadable'} km while the manual entry was ${odometerValidation.manualOdometerKm ?? 'not provided'} km.`,
+      metadata: {
+        odometerValidation,
+      },
+    })
+  }
 
   void runFraudEvaluation(record)
   return record

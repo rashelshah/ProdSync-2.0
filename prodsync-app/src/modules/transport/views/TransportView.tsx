@@ -10,6 +10,7 @@ import { useResolvedProjectContext } from '@/features/projects/useResolvedProjec
 import { transportService } from '@/services/transport.service'
 import { formatCurrency, formatDate, formatTime } from '@/utils'
 import { useTransportData } from '../hooks/useTransportData'
+import { useTransportLiveTracking } from '../hooks/useTransportLiveTracking'
 import type { FuelLogInput, FuelLogUI, TripFilters, TripUI, UpdateVehicleInput, Vehicle, VehicleStatus } from '../types'
 
 const initialCoordinates = {
@@ -119,6 +120,21 @@ export function TransportView() {
     () => trips.filter(trip => trip.status === 'active'),
     [trips],
   )
+  const visibleVehicles = useMemo(
+    () => (isDriver ? vehicles.filter(vehicle => vehicle.assignedDriverUserId === user?.id) : vehicles),
+    [isDriver, user?.id, vehicles],
+  )
+  const {
+    liveLocations,
+    mapImageUrl,
+    mapLoading,
+    streamState,
+  } = useTransportLiveTracking({
+    activeProjectId,
+    activeTrips,
+    canManageTransport,
+    isDriver,
+  })
 
   const selectedTripForEnd = activeTrips.find(trip => trip.id === tripEndTripId) ?? null
   const selectedVehicle = vehicles.find(vehicle => vehicle.id === vehicleDetailId) ?? null
@@ -387,21 +403,28 @@ export function TransportView() {
           <Surface variant="table" padding="lg">
             <div className="mb-6 flex flex-wrap items-start justify-between gap-4">
               <div>
-                <p className="section-title">Fleet Management</p>
+                <p className="section-title">{isDriver ? 'My Assignment' : 'Fleet Management'}</p>
                 <p className="mt-2 text-sm text-zinc-500 dark:text-zinc-400">
-                  Vehicle readiness, assigned drivers, and live transport status for the captain and producer.
+                  {isDriver
+                    ? 'Your assigned vehicle stays front and center, with live trip streaming handled in the background.'
+                    : 'Vehicle readiness, assigned drivers, and live transport status for the captain and producer.'}
                 </p>
+                {isDriver && (
+                  <p className={`mt-3 text-sm ${streamState.status === 'error' ? 'text-red-500 dark:text-red-400' : 'text-zinc-500 dark:text-zinc-400'}`}>
+                    {streamState.message}
+                  </p>
+                )}
               </div>
               <p className="text-xs uppercase tracking-[0.18em] text-zinc-500 dark:text-zinc-400">
-                {vehicles.length} vehicle{vehicles.length === 1 ? '' : 's'} tracked
+                {visibleVehicles.length} vehicle{visibleVehicles.length === 1 ? '' : 's'} tracked
               </p>
             </div>
 
-            {vehicles.length === 0 ? (
+            {visibleVehicles.length === 0 ? (
               <p className="text-sm text-zinc-500 dark:text-zinc-400">No vehicles added for this project yet.</p>
             ) : (
               <div className="grid gap-4 xl:grid-cols-2">
-                {vehicles.map(vehicle => {
+                {visibleVehicles.map(vehicle => {
                   const status = deriveVehicleOperationalStatus(vehicle, activeTrips)
 
                   return (
@@ -446,6 +469,63 @@ export function TransportView() {
               </div>
             )}
           </Surface>
+
+          {canManageTransport && (
+            <Surface variant="table" padding="lg">
+              <div className="mb-6 flex flex-wrap items-start justify-between gap-4">
+                <div>
+                  <p className="section-title">Live Tracking</p>
+                  <p className="mt-2 text-sm text-zinc-500 dark:text-zinc-400">
+                    Real-time fleet tracking with socket updates, backend-rendered maps, and graceful fallback when premium routing is restricted.
+                  </p>
+                </div>
+                <StatusBadge variant={liveLocations.length > 0 ? 'live' : 'pending'} label={liveLocations.length > 0 ? 'Live' : 'Standby'} />
+              </div>
+
+              <div className="overflow-hidden rounded-[28px] border border-zinc-200 bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-950">
+                {mapImageUrl ? (
+                  <img
+                    src={mapImageUrl}
+                    alt="Live fleet tracking map"
+                    className="h-[320px] w-full object-cover"
+                  />
+                ) : (
+                  <div className="flex h-[320px] items-center justify-center px-6 text-center text-sm text-zinc-500 dark:text-zinc-400">
+                    {mapLoading ? 'Refreshing the latest fleet map...' : 'Live map is waiting for the next active vehicle update.'}
+                  </div>
+                )}
+              </div>
+
+              <div className="mt-5 rounded-[24px] border border-zinc-200 bg-zinc-50 px-5 py-5 dark:border-zinc-800 dark:bg-zinc-950">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div>
+                    <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-zinc-500 dark:text-zinc-400">Active Fleet</p>
+                    <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-300">
+                      Select a vehicle from the live stream below and inspect its current checkpoint state.
+                    </p>
+                  </div>
+                  <StatusBadge variant={liveLocations.length > 0 ? 'live' : 'pending'} label={`${liveLocations.length} live`} />
+                </div>
+
+                <div className="mt-4 flex flex-wrap gap-2">
+                  {liveLocations.length === 0 ? (
+                    <span className="text-sm text-zinc-500 dark:text-zinc-400">
+                      No active vehicles are streaming right now. The map wakes up as soon as the next trip checkpoint arrives.
+                    </span>
+                  ) : (
+                    liveLocations.map(location => (
+                      <span
+                        key={location.vehicleId}
+                        className="inline-flex items-center rounded-full border border-zinc-200 bg-white px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-zinc-700 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-200"
+                      >
+                        {location.vehicleName} | {location.driverName ?? 'Driver'} | {location.registrationNumber ?? 'No number'}
+                      </span>
+                    ))
+                  )}
+                </div>
+              </div>
+            </Surface>
+          )}
 
           <Surface variant="table" padding="lg">
             <div className="mb-6 flex flex-wrap items-start justify-between gap-4">
@@ -646,25 +726,53 @@ export function TransportView() {
               {alerts.length === 0 ? (
                 <p className="text-sm text-zinc-500 dark:text-zinc-400">No active transport alerts for this project.</p>
               ) : (
-                <div className="grid gap-3 xl:grid-cols-2">
-                  {alerts.map(alert => (
-                    <div key={alert.id} className={alertCardTone(alert.severity)}>
-                      <div className="flex flex-wrap items-start justify-between gap-3">
-                        <div>
-                          <div className="flex items-center gap-2">
-                            <span className="text-[10px] font-semibold uppercase tracking-[0.18em] text-zinc-500 dark:text-zinc-400">{alert.alertType}</span>
-                            <span className={severityTone(alert.severity)}>{alert.severity.toUpperCase()}</span>
+                <div className="overflow-hidden rounded-[24px] border border-zinc-200 dark:border-zinc-800">
+                  <div className="hidden grid-cols-[1.1fr,2.2fr,0.9fr,1fr,1.1fr] gap-4 bg-zinc-50 px-5 py-4 text-[10px] font-semibold uppercase tracking-[0.18em] text-zinc-500 dark:bg-zinc-950 dark:text-zinc-400 lg:grid">
+                    <span>Alert Type</span>
+                    <span>Details</span>
+                    <span>Severity</span>
+                    <span>Triggered At</span>
+                    <span>Related Record</span>
+                  </div>
+
+                  <div className="divide-y divide-zinc-200 dark:divide-zinc-800">
+                    {alerts.map(alert => (
+                      <div key={alert.id} className={alertRowTone(alert.severity)}>
+                        <div className="grid gap-4 lg:grid-cols-[1.1fr,2.2fr,0.9fr,1fr,1.1fr] lg:items-start">
+                          <div>
+                            <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-zinc-500 dark:text-zinc-400 lg:hidden">Alert Type</p>
+                            <p className="mt-1 text-sm font-semibold text-zinc-900 dark:text-white">{prettifyAlertType(alert.alertType)}</p>
                           </div>
-                          <p className="mt-2 text-sm font-semibold text-zinc-900 dark:text-white">{alert.title}</p>
-                          <p className="mt-2 text-sm text-zinc-600 dark:text-zinc-300">{alert.message}</p>
-                        </div>
-                        <div className="text-right text-xs text-zinc-500 dark:text-zinc-400">
-                          <p>{formatDate(alert.triggeredAt)}</p>
-                          <p>{formatTime(alert.triggeredAt)}</p>
+
+                          <div>
+                            <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-zinc-500 dark:text-zinc-400 lg:hidden">Details</p>
+                            <p className="mt-1 text-sm font-semibold text-zinc-900 dark:text-white">{alert.title}</p>
+                            <p className="mt-2 text-sm leading-6 text-zinc-600 dark:text-zinc-300">{alert.message}</p>
+                          </div>
+
+                          <div>
+                            <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-zinc-500 dark:text-zinc-400 lg:hidden">Severity</p>
+                            <div className="mt-1">
+                              <span className={alertSeverityBadgeTone(alert.severity)}>
+                                {alert.severity === 'warning' ? 'Medium' : alert.severity}
+                              </span>
+                            </div>
+                          </div>
+
+                          <div>
+                            <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-zinc-500 dark:text-zinc-400 lg:hidden">Triggered At</p>
+                            <p className="mt-1 text-sm text-zinc-900 dark:text-white">{formatDate(alert.triggeredAt)}</p>
+                            <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">{formatTime(alert.triggeredAt)}</p>
+                          </div>
+
+                          <div>
+                            <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-zinc-500 dark:text-zinc-400 lg:hidden">Related Record</p>
+                            <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-300">{resolveAlertReference(alert, vehicles, trips)}</p>
+                          </div>
                         </div>
                       </div>
-                    </div>
-                  ))}
+                    ))}
+                  </div>
                 </div>
               )}
             </Surface>
@@ -872,28 +980,60 @@ function mapTripStatus(status: TripUI['status']): 'active' | 'completed' | 'flag
   return status
 }
 
-function alertCardTone(severity: 'critical' | 'warning' | 'info') {
+function alertRowTone(severity: 'critical' | 'warning' | 'info') {
   if (severity === 'critical') {
-    return 'rounded-[24px] border border-red-500/30 bg-red-500/10 px-5 py-4'
+    return 'border-l-4 border-l-red-500 bg-red-500/[0.05] px-5 py-4'
   }
 
   if (severity === 'warning') {
-    return 'rounded-[24px] border border-orange-500/30 bg-orange-500/10 px-5 py-4'
+    return 'border-l-4 border-l-amber-500 bg-amber-500/[0.06] px-5 py-4'
   }
 
-  return 'rounded-[24px] border border-zinc-200 bg-zinc-50 px-5 py-4 dark:border-zinc-800 dark:bg-zinc-950'
+  return 'border-l-4 border-l-sky-500 bg-zinc-50 px-5 py-4 dark:bg-zinc-950'
 }
 
-function severityTone(severity: 'critical' | 'warning' | 'info') {
+function alertSeverityBadgeTone(severity: 'critical' | 'warning' | 'info') {
   if (severity === 'critical') {
-    return 'rounded-full bg-red-500/10 px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-red-400'
+    return 'inline-flex rounded-full border border-red-500/30 bg-red-500/10 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-red-500 dark:text-red-300'
   }
 
   if (severity === 'warning') {
-    return 'rounded-full bg-orange-500/10 px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-orange-400'
+    return 'inline-flex rounded-full border border-amber-500/30 bg-amber-500/10 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-amber-600 dark:text-amber-300'
   }
 
-  return 'rounded-full bg-zinc-500/10 px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-zinc-400'
+  return 'inline-flex rounded-full border border-sky-500/20 bg-sky-500/10 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-sky-600 dark:text-sky-300'
+}
+
+function prettifyAlertType(alertType: string) {
+  switch (alertType) {
+    case 'high_fuel_usage':
+      return 'High Fuel Usage'
+    case 'fuel_mismatch':
+    case 'low_mileage':
+      return 'Fuel Mismatch'
+    case 'odometer_mismatch':
+      return 'Odometer Mismatch'
+    case 'abnormal_trip':
+      return 'Abnormal Trip'
+    case 'outstation_trip':
+      return 'Outstation Trip'
+    default:
+      return alertType.replace(/_/g, ' ')
+  }
+}
+
+function resolveAlertReference(
+  alert: { vehicleId?: string | null; tripId?: string | null },
+  vehicles: Vehicle[],
+  trips: TripUI[],
+) {
+  const vehicle = vehicles.find(item => item.id === alert.vehicleId)
+  const trip = trips.find(item => item.id === alert.tripId)
+
+  if (vehicle && trip) return `${vehicle.name} | ${trip.driverName ?? 'Driver'}`
+  if (vehicle) return vehicle.name
+  if (trip) return `${trip.vehicleName} | ${trip.driverName ?? 'Driver'}`
+  return 'Linked record'
 }
 
 function ModalShell({ title, children, onClose }: { title: string; children: ReactNode; onClose: () => void }) {

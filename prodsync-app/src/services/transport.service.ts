@@ -5,6 +5,10 @@ import type {
   FuelLog,
   FuelLogInput,
   GpsLog,
+  LiveTrackingMapOptions,
+  LiveTrackingMeta,
+  LiveVehicleLocation,
+  OdometerValidation,
   ReviewFuelInput,
   StartTripInput,
   TransportDriver,
@@ -93,6 +97,32 @@ export const transportService = {
     return payload.data
   },
 
+  async getLiveVehicleLocations(projectId: string): Promise<LiveVehicleLocation[]> {
+    const response = await apiFetch(`/tracking/live?${withProjectId(projectId)}`)
+    const payload = await readApiJson<{ data: LiveVehicleLocation[]; meta: LiveTrackingMeta }>(response)
+    return payload.data
+  },
+
+  async getLiveTrackingState(projectId: string): Promise<{ data: LiveVehicleLocation[]; meta: LiveTrackingMeta }> {
+    const response = await apiFetch(`/tracking/live?${withProjectId(projectId)}`)
+    return readApiJson<{ data: LiveVehicleLocation[]; meta: LiveTrackingMeta }>(response)
+  },
+
+  async getLiveTrackingMapBlob(projectId: string, options?: LiveTrackingMapOptions): Promise<Blob> {
+    const params = new URLSearchParams()
+    params.set('projectId', projectId)
+    if (options?.width) params.set('width', String(options.width))
+    if (options?.height) params.set('height', String(options.height))
+
+    const response = await apiFetch(`/tracking/map-image?${params.toString()}`)
+    if (!response.ok) {
+      const errorPayload = await response.json().catch(() => null) as { error?: string } | null
+      throw new Error(errorPayload?.error ?? `Request failed with status ${response.status}`)
+    }
+
+    return response.blob()
+  },
+
   async createVehicle(input: CreateVehicleInput): Promise<Vehicle> {
     const response = await apiFetch('/vehicles', {
       method: 'POST',
@@ -159,5 +189,26 @@ export const transportService = {
     })
     const payload = await readApiJson<{ fuelLog: FuelLog }>(response)
     return normalizeFuelLog(payload.fuelLog)
+  },
+
+  async validateFuelOdometer(input: {
+    projectId: string
+    odometerImage: File
+    manualOdometerKm?: number
+  }): Promise<OdometerValidation> {
+    const formData = new FormData()
+    formData.append('projectId', input.projectId)
+    formData.append('odometerImage', input.odometerImage)
+
+    if (input.manualOdometerKm !== undefined) {
+      formData.append('manualOdometerKm', String(input.manualOdometerKm))
+    }
+
+    const response = await apiFetch('/fuel/ocr-odometer', {
+      method: 'POST',
+      body: formData,
+    })
+    const payload = await readApiJson<{ validation: OdometerValidation }>(response)
+    return payload.validation
   },
 }

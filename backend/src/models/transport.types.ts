@@ -138,6 +138,33 @@ export interface GpsLogRecord {
   metadata: Record<string, unknown>
 }
 
+export interface LiveVehicleLocationRecord {
+  projectId: string
+  tripId: string
+  vehicleId: string
+  vehicleName: string
+  registrationNumber: string | null
+  driverUserId: string | null
+  driverName: string | null
+  latitude: number
+  longitude: number
+  speedKph: number | null
+  heading: number | null
+  accuracyMeters: number | null
+  capturedAt: string
+  source: 'cache' | 'database' | 'stream'
+  previousLatitude: number | null
+  previousLongitude: number | null
+  previousCapturedAt: string | null
+  routeCoordinates: Array<[number, number]>
+  routeProvider: 'mapbox' | 'straight_line' | 'none'
+  updateIntervalMs: number | null
+  expectedNextUpdateAt: string | null
+  distanceRemainingKm: number | null
+  trackingMode: 'short_trip' | 'long_trip' | 'approaching_destination' | 'idle' | 'arrived'
+  movingStatus: 'enroute' | 'approaching_destination' | 'arrived' | 'idle' | 'stale'
+}
+
 export interface FraudAssessment {
   status: FraudStatus
   score: number
