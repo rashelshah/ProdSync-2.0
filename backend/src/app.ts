@@ -10,6 +10,7 @@ import { requestsRouter } from './modules/requests/requests.routes'
 import { crewRouter } from './modules/crew/crew.routes'
 import { alertsRouter } from './modules/alerts/alerts.routes'
 import { activityRouter } from './modules/activity/activity.routes'
+import { cameraRouter } from './modules/camera/camera.routes'
 import { HttpError } from './utils/httpError'
 import { transportRouter } from './routes/transport.routes'
 import { ZodError } from 'zod'
@@ -38,6 +39,7 @@ export function createApp() {
   app.use('/api/crew', crewRouter)
   app.use('/api/alerts', alertsRouter)
   app.use('/api/activity', activityRouter)
+  app.use('/api/camera', cameraRouter)
   app.use('/api', transportRouter)
 
   app.use((_req, _res, next) => {

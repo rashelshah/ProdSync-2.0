@@ -1,14 +1,19 @@
+import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { ActionFeedbackToast } from '@/components/shared/ActionFeedbackToast'
 import { approvalsService } from '@/services/approvals.service'
 import { KpiCard } from '@/components/shared/KpiCard'
 import { Surface } from '@/components/shared/Surface'
-import { EmptyState, LoadingState, ErrorState } from '@/components/system/SystemStates'
+import { EmptyState, ErrorState, LoadingState } from '@/components/system/SystemStates'
 import { RoleGuard } from '@/features/auth/RoleGuard'
 import { useResolvedProjectContext } from '@/features/projects/useResolvedProjectContext'
+import { formatDate, formatTime, timeAgo } from '@/utils'
 
 export function ApprovalsView() {
   const qc = useQueryClient()
   const { activeProjectId, isLoadingProjectContext, isErrorProjectContext } = useResolvedProjectContext()
+  const [feedback, setFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null)
+  const [activeAction, setActiveAction] = useState<string | null>(null)
 
   const pendingQ = useQuery({
     queryKey: ['pending-approvals', activeProjectId],
@@ -26,19 +31,40 @@ export function ApprovalsView() {
     enabled: Boolean(activeProjectId),
   })
 
-  const approveMutation = useMutation({
+  const approveAllMutation = useMutation({
     mutationFn: async () => {
       if (!activeProjectId) return
       const pending = pendingQ.data ?? []
       await Promise.all(pending.map(item => approvalsService.approveItem(activeProjectId, item.id)))
     },
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['pending-approvals', activeProjectId] })
-      qc.invalidateQueries({ queryKey: ['approval-history', activeProjectId] })
-      qc.invalidateQueries({ queryKey: ['approvals-kpis', activeProjectId] })
-      qc.invalidateQueries({ queryKey: ['activity', activeProjectId] })
-    },
   })
+
+  async function invalidateApprovalQueries() {
+    await Promise.allSettled([
+      qc.invalidateQueries({ queryKey: ['pending-approvals', activeProjectId] }),
+      qc.invalidateQueries({ queryKey: ['approval-history', activeProjectId] }),
+      qc.invalidateQueries({ queryKey: ['approvals-kpis', activeProjectId] }),
+      qc.invalidateQueries({ queryKey: ['activity', activeProjectId] }),
+    ])
+  }
+
+  async function runApprovalAction(action: () => Promise<unknown>, successMessage: string, loadingKey: string) {
+    setFeedback(null)
+    setActiveAction(loadingKey)
+
+    try {
+      await action()
+      await invalidateApprovalQueries()
+      setFeedback({ type: 'success', message: successMessage })
+    } catch (error) {
+      setFeedback({
+        type: 'error',
+        message: error instanceof Error ? error.message : 'Approval action failed.',
+      })
+    } finally {
+      setActiveAction(null)
+    }
+  }
 
   if (isLoadingProjectContext || pendingQ.isLoading) return <LoadingState message="Loading approvals..." />
   if (isErrorProjectContext || pendingQ.isError || historyQ.isError || kpisQ.isError) return <ErrorState message="Failed to load approvals" />
@@ -50,6 +76,8 @@ export function ApprovalsView() {
 
   return (
     <div className="page-shell">
+      <ActionFeedbackToast feedback={feedback} onDismiss={() => setFeedback(null)} />
+
       <header className="page-header">
         <div>
           <span className="page-kicker">Decision Layer</span>
@@ -57,9 +85,13 @@ export function ApprovalsView() {
           <p className="page-subtitle">Approval workflows now read and update the live backend queue for the selected project.</p>
         </div>
         <RoleGuard permission="canApproveExpense">
-          <button onClick={() => approveMutation.mutate()} className="btn-primary" disabled={!activeProjectId || pending.length === 0 || approveMutation.isPending}>
+          <button
+            onClick={() => runApprovalAction(() => approveAllMutation.mutateAsync(), 'All pending requests approved.', 'approve-all')}
+            className="btn-primary"
+            disabled={!activeProjectId || pending.length === 0 || activeAction !== null}
+          >
             <span className="material-symbols-outlined text-sm">done_all</span>
-            {approveMutation.isPending ? 'Updating...' : 'Approve All'}
+            {activeAction === 'approve-all' ? 'Updating...' : 'Approve All'}
           </button>
         </RoleGuard>
       </header>
@@ -97,7 +129,29 @@ export function ApprovalsView() {
                 pending.map(item => (
                   <div key={item.id} className="rounded-[24px] bg-zinc-50 px-4 py-4 dark:bg-zinc-900">
                     <p className="text-sm font-medium text-zinc-900 dark:text-white">{item.type}</p>
-                    <p className="mt-2 text-sm text-zinc-500 dark:text-zinc-400">{item.department} • Rs {item.amountINR.toLocaleString()}</p>
+                    <p className="mt-2 text-sm text-zinc-500 dark:text-zinc-400">{item.department} | Rs {item.amountINR.toLocaleString()}</p>
+                    <p className="mt-1 text-xs uppercase tracking-[0.12em] text-zinc-500 dark:text-zinc-400">
+                      {item.requestedBy} | {timeAgo(item.timestamp)}
+                    </p>
+                    {item.notes && <p className="mt-3 text-sm text-zinc-600 dark:text-zinc-300">{item.notes}</p>}
+                    <RoleGuard permission="canApproveExpense">
+                      <div className="mt-4 flex gap-3">
+                        <button
+                          onClick={() => runApprovalAction(() => approvalsService.approveItem(activeProjectId!, item.id), `${item.type} approved.`, `approve-${item.id}`)}
+                          className="btn-primary px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.14em]"
+                          disabled={!activeProjectId || activeAction !== null}
+                        >
+                          {activeAction === `approve-${item.id}` ? 'Approving...' : 'Approve'}
+                        </button>
+                        <button
+                          onClick={() => runApprovalAction(() => approvalsService.rejectItem(activeProjectId!, item.id), `${item.type} rejected.`, `reject-${item.id}`)}
+                          className="btn-ghost px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-red-500 dark:text-red-400"
+                          disabled={!activeProjectId || activeAction !== null}
+                        >
+                          {activeAction === `reject-${item.id}` ? 'Rejecting...' : 'Reject'}
+                        </button>
+                      </div>
+                    </RoleGuard>
                   </div>
                 ))
               )}
@@ -116,9 +170,13 @@ export function ApprovalsView() {
                 <p className="text-sm text-zinc-500 dark:text-zinc-400">No approval history yet.</p>
               ) : (
                 history.map(item => (
-                  <div key={item.requestId} className="rounded-[24px] bg-zinc-50 px-4 py-4 dark:bg-zinc-900">
+                  <div key={`${item.requestId}-${item.timestamp}`} className="rounded-[24px] bg-zinc-50 px-4 py-4 dark:bg-zinc-900">
                     <p className="text-sm font-medium text-zinc-900 dark:text-white">{item.requestId}</p>
-                    <p className="mt-2 text-sm text-zinc-500 dark:text-zinc-400">{item.approvedBy} • {item.action}</p>
+                    <p className="mt-2 text-sm text-zinc-500 dark:text-zinc-400">{item.approvedBy} | {item.action}</p>
+                    <p className="mt-1 text-xs uppercase tracking-[0.12em] text-zinc-500 dark:text-zinc-400">
+                      {formatDate(item.timestamp)} | {formatTime(item.timestamp)}
+                    </p>
+                    {item.auditNote && <p className="mt-3 text-sm text-zinc-600 dark:text-zinc-300">{item.auditNote}</p>}
                   </div>
                 ))
               )}
