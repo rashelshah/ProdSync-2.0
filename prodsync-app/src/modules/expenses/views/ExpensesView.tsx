@@ -5,10 +5,21 @@ import { KpiCard } from '@/components/shared/KpiCard'
 import { StatusBadge } from '@/components/shared/StatusBadge'
 import { Surface } from '@/components/shared/Surface'
 import { EmptyState, ErrorState, LoadingState } from '@/components/system/SystemStates'
+import { useAuthStore } from '@/features/auth/auth.store'
+import {
+  canApproveArtExpense,
+  canCreateArtExpense,
+  canDeleteArtExpense,
+  canDeleteArtProps,
+  canManageArtProps,
+  canManageArtSets,
+  canViewArtBudget,
+} from '@/features/auth/role-capabilities'
 import { useResolvedProjectContext } from '@/features/projects/useResolvedProjectContext'
 import { useArtData } from '@/modules/expenses/hooks/useArtData'
 import type {
   ArtExpense,
+  ArtExpenseApprovalStatus,
   ArtExpenseCategory,
   ArtProp,
   ArtPropSourcingType,
@@ -17,6 +28,7 @@ import type {
   ArtSetStatus,
 } from '@/modules/expenses/types'
 import { artService } from '@/services/art.service'
+import { approvalsService } from '@/services/approvals.service'
 import { formatCurrency, formatDate, formatTime, timeAgo } from '@/utils'
 
 const emptyExpenseForm = {
@@ -88,6 +100,30 @@ function expenseCategoryLabel(category: ArtExpenseCategory) {
   return category.charAt(0).toUpperCase() + category.slice(1)
 }
 
+function expenseValidationBadge(expense: ArtExpense) {
+  if (expense.status === 'anomaly') {
+    return <StatusBadge variant="mismatch" label={String(expense.ocrData.mismatchLabel ?? 'Amount Not Matching')} />
+  }
+
+  if (expense.status === 'verified') {
+    return <StatusBadge variant="active" label="Receipt Verified" />
+  }
+
+  return <StatusBadge variant="warning" label={expense.hasReceipt ? 'Receipt Pending Review' : 'Missing Receipt'} />
+}
+
+function expenseApprovalBadge(status: ArtExpenseApprovalStatus) {
+  if (status === 'approved') {
+    return <StatusBadge variant="approved" label="Approved" />
+  }
+
+  if (status === 'denied') {
+    return <StatusBadge variant="rejected" label="Denied" />
+  }
+
+  return <StatusBadge variant="pending" label="Pending Producer" />
+}
+
 function propStatusBadge(status: ArtPropStatus) {
   if (status === 'missing') return <StatusBadge variant="rejected" label="Missing" />
   if (status === 'returned') return <StatusBadge variant="completed" label="Returned" />
@@ -99,6 +135,13 @@ function setStatusBadge(status: ArtSetStatus) {
   if (status === 'completed') return <StatusBadge variant="completed" label="Completed" />
   if (status === 'in_progress') return <StatusBadge variant="active" label="In Progress" />
   return <StatusBadge variant="pending" label="Planned" />
+}
+
+type StatCard = {
+  label: string
+  value: string
+  subLabel: string
+  subType?: 'warning' | 'critical' | 'default' | 'success'
 }
 
 function SectionHeader({
@@ -625,8 +668,16 @@ function SetModal({
 export function ExpensesView() {
   const [activeMobileTab, setActiveMobileTab] = useState<'home' | 'expenses' | 'props' | 'sets'>('home')
   const queryClient = useQueryClient()
+  const user = useAuthStore(state => state.user)
   const { activeProjectId, activeProject, isLoadingProjectContext } = useResolvedProjectContext()
-  const { expenses, props, sets, budget, alerts, isLoading, isError } = useArtData(activeProjectId)
+  const canCreateExpenses = canCreateArtExpense(user)
+  const canRemoveExpenses = canDeleteArtExpense(user)
+  const canManagePropsAccess = canManageArtProps(user)
+  const canRemoveProps = canDeleteArtProps(user)
+  const canManageSetsAccess = canManageArtSets(user)
+  const canViewBudgetAccess = canViewArtBudget(user)
+  const canApproveExpense = canApproveArtExpense(user)
+  const { expenses, props, sets, budget, alerts, isLoading, isError } = useArtData(activeProjectId, { includeBudget: canViewBudgetAccess })
   const [feedback, setFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null)
   const [expenseModalOpen, setExpenseModalOpen] = useState(false)
   const [expenseForm, setExpenseForm] = useState(emptyExpenseForm)
@@ -652,6 +703,12 @@ export function ExpensesView() {
   } | null>(null)
 
   const createExpenseMutation = useMutation({ mutationFn: artService.createExpense })
+  const approveExpenseMutation = useMutation({
+    mutationFn: ({ projectId, approvalId }: { projectId: string; approvalId: string }) => approvalsService.approveItem(projectId, approvalId),
+  })
+  const denyExpenseMutation = useMutation({
+    mutationFn: ({ projectId, approvalId }: { projectId: string; approvalId: string }) => approvalsService.rejectItem(projectId, approvalId),
+  })
   const deleteExpenseMutation = useMutation({
     mutationFn: ({ projectId, id }: { projectId: string; id: string }) => artService.deleteExpense(projectId, id),
   })
@@ -671,6 +728,60 @@ export function ExpensesView() {
   const missingReceipts = expenses.filter(expense => !expense.hasReceipt).length
   const overdueProps = props.filter(prop => prop.isOverdue || prop.status === 'missing').length
   const criticalAlerts = alerts.filter(alert => alert.type === 'critical')
+  const desktopStatCards: StatCard[] = canViewBudgetAccess && budget
+    ? [
+        {
+          label: 'Art Spend',
+          value: formatCurrency(budget.usedBudget, 'INR'),
+          subLabel: `${expenses.length} logged expenses`,
+          subType: missingReceipts > 0 ? 'warning' : 'default',
+        },
+        {
+          label: 'Remaining Budget',
+          value: formatCurrency(budget.remainingBudget, 'INR'),
+          subLabel: budget.isExceeded ? 'Budget exceeded' : 'Current buffer',
+          subType: budget.isExceeded ? 'critical' : 'success',
+        },
+      ]
+    : [
+        {
+          label: 'Expenses Logged',
+          value: String(expenses.length),
+          subLabel: `${missingReceipts} missing receipts`,
+          subType: missingReceipts > 0 ? 'warning' : 'default',
+        },
+      ]
+  const desktopStats: StatCard[] = [
+    ...desktopStatCards,
+    {
+      label: 'Props Tracked',
+      value: String(props.length),
+      subLabel: `${overdueProps} flagged returns or missing`,
+      subType: overdueProps > 0 ? 'warning' : 'default',
+    },
+    {
+      label: 'Set Builds',
+      value: String(sets.length),
+      subLabel: `${activeSets} active construction lines`,
+      subType: activeSets > 0 ? 'warning' : 'default',
+    },
+  ]
+  const mobileStats = [
+    ...(canViewBudgetAccess && budget
+      ? [
+          { label: 'Art Spend', value: formatCurrency(budget.usedBudget, 'INR'), icon: 'payments', tone: 'text-orange-500' },
+          {
+            label: 'Remaining',
+            value: formatCurrency(budget.remainingBudget, 'INR'),
+            icon: 'account_balance_wallet',
+            tone: budget.isExceeded ? 'text-red-500' : 'text-emerald-500',
+          },
+        ]
+      : []),
+    { label: 'Expenses', value: String(expenses.length), icon: 'receipt_long', tone: missingReceipts > 0 ? 'text-amber-500' : 'text-orange-500' },
+    { label: 'Props', value: String(props.length), icon: 'category', tone: overdueProps > 0 ? 'text-red-500' : 'text-sky-500' },
+    { label: 'Set Builds', value: String(sets.length), icon: 'foundation', tone: 'text-orange-500' },
+  ]
 
   async function refreshArtQueries() {
     if (!activeProjectId) {
@@ -684,6 +795,10 @@ export function ExpensesView() {
       queryClient.invalidateQueries({ queryKey: ['art-budget', activeProjectId] }),
       queryClient.invalidateQueries({ queryKey: ['art-alerts', activeProjectId] }),
       queryClient.invalidateQueries({ queryKey: ['alerts', activeProjectId] }),
+      queryClient.invalidateQueries({ queryKey: ['pending-approvals', activeProjectId] }),
+      queryClient.invalidateQueries({ queryKey: ['approval-history', activeProjectId] }),
+      queryClient.invalidateQueries({ queryKey: ['approvals-kpis', activeProjectId] }),
+      queryClient.invalidateQueries({ queryKey: ['activity', activeProjectId] }),
     ])
   }
 
@@ -696,6 +811,7 @@ export function ExpensesView() {
       setFeedback({ type: 'success', message: successMessage })
       return true
     } catch (error) {
+      await refreshArtQueries()
       setFeedback({
         type: 'error',
         message: error instanceof Error ? error.message : 'Art module action failed.',
@@ -710,6 +826,11 @@ export function ExpensesView() {
   }
 
   function openExpenseModal() {
+    if (!canCreateExpenses) {
+      setFeedback({ type: 'error', message: 'This role cannot log art expenses.' })
+      return
+    }
+
     setFeedback(null)
     setExpenseForm(emptyExpenseForm)
     setExpenseModalOpen(true)
@@ -761,6 +882,11 @@ export function ExpensesView() {
       return
     }
 
+    if (!canCreateExpenses) {
+      setFeedback({ type: 'error', message: 'This role cannot log art expenses.' })
+      return
+    }
+
     try {
       const description = expenseForm.description.trim()
       if (!description) {
@@ -800,6 +926,11 @@ export function ExpensesView() {
       return
     }
 
+    if (!canRemoveExpenses) {
+      setFeedback({ type: 'error', message: 'Only the Art Director can remove expenses.' })
+      return
+    }
+
     setConfirmDialog({
       title: 'Remove Expense',
       message: `Remove "${expense.description}" from art expenses?`,
@@ -817,6 +948,26 @@ export function ExpensesView() {
     })
   }
 
+  async function handleExpenseApproval(expense: ArtExpense, decision: 'approved' | 'denied') {
+    if (!canApproveExpense) {
+      setFeedback({ type: 'error', message: 'Only production leadership can approve or deny expenses.' })
+      return
+    }
+
+    if (!activeProjectId || !expense.approvalId) {
+      setFeedback({ type: 'error', message: 'This expense is missing an approval record.' })
+      return
+    }
+
+    const mutation = decision === 'approved' ? approveExpenseMutation : denyExpenseMutation
+    const message = decision === 'approved' ? 'Expense approved.' : 'Expense denied.'
+
+    await runArtAction(
+      () => mutation.mutateAsync({ projectId: activeProjectId, approvalId: expense.approvalId! }),
+      message,
+    )
+  }
+
   function resetPropModal() {
     setPropModalMode('create')
     setSelectedProp(null)
@@ -825,6 +976,11 @@ export function ExpensesView() {
   }
 
   function openCreatePropModal() {
+    if (!canManagePropsAccess) {
+      setFeedback({ type: 'error', message: 'This role cannot manage props.' })
+      return
+    }
+
     setFeedback(null)
     setPropModalMode('create')
     setSelectedProp(null)
@@ -833,6 +989,11 @@ export function ExpensesView() {
   }
 
   function openEditPropModal(prop: ArtProp) {
+    if (!canManagePropsAccess) {
+      setFeedback({ type: 'error', message: 'This role cannot manage props.' })
+      return
+    }
+
     setFeedback(null)
     setPropModalMode('edit')
     setSelectedProp(prop)
@@ -856,6 +1017,11 @@ export function ExpensesView() {
 
   async function handleSaveProp() {
     if (!activeProjectId) {
+      return
+    }
+
+    if (!canManagePropsAccess) {
+      setFeedback({ type: 'error', message: 'This role cannot manage props.' })
       return
     }
 
@@ -920,6 +1086,11 @@ export function ExpensesView() {
       return
     }
 
+    if (!canRemoveProps) {
+      setFeedback({ type: 'error', message: 'Only the Art Director can remove props.' })
+      return
+    }
+
     setConfirmDialog({
       title: 'Remove Prop',
       message: `Remove "${prop.propName}" from props inventory?`,
@@ -945,6 +1116,11 @@ export function ExpensesView() {
   }
 
   function openCreateSetModal() {
+    if (!canManageSetsAccess) {
+      setFeedback({ type: 'error', message: 'This role cannot manage set builds.' })
+      return
+    }
+
     setFeedback(null)
     setSetModalMode('create')
     setSelectedSet(null)
@@ -953,6 +1129,11 @@ export function ExpensesView() {
   }
 
   function openEditSetModal(set: ArtSet) {
+    if (!canManageSetsAccess) {
+      setFeedback({ type: 'error', message: 'This role cannot manage set builds.' })
+      return
+    }
+
     setFeedback(null)
     setSetModalMode('edit')
     setSelectedSet(set)
@@ -975,6 +1156,11 @@ export function ExpensesView() {
 
   async function handleSaveSet() {
     if (!activeProjectId) {
+      return
+    }
+
+    if (!canManageSetsAccess) {
+      setFeedback({ type: 'error', message: 'This role cannot manage set builds.' })
       return
     }
 
@@ -1059,7 +1245,7 @@ export function ExpensesView() {
   }
 
   if (isLoading) return <LoadingState message="Loading art operations..." />
-  if (isError || !budget) return <ErrorState message="Failed to load art module data" />
+  if (isError || (canViewBudgetAccess && !budget)) return <ErrorState message="Failed to load art module data" />
 
   return (
     <div className="page-shell space-y-6">
@@ -1125,51 +1311,44 @@ export function ExpensesView() {
       <div className="hidden md:block space-y-6">
         <header className="page-header">
         <div>
-          <span className="page-kicker">Budget Tracking</span>
+          <span className="page-kicker">{canViewBudgetAccess ? 'Budget Tracking' : 'Art Operations'}</span>
           <h1 className="page-title page-title-compact">Art & Expenses</h1>
           <p className="page-subtitle">
-            Live petty cash, props, set builds, and budget visibility for {activeProject.name}.
+            {canViewBudgetAccess
+              ? `Live petty cash, props, set builds, and budget visibility for ${activeProject.name}.`
+              : `Track petty cash, props, and set builds for ${activeProject.name}.`}
           </p>
         </div>
 
         <div className="page-toolbar">
-          <button onClick={openExpenseModal} className="btn-soft">
-            Add Expense
-          </button>
-          <button onClick={openCreatePropModal} className="btn-soft">
-            Add Prop
-          </button>
-          <button onClick={openCreateSetModal} className="btn-primary">
-            Add Set
-          </button>
+          {canCreateExpenses && (
+            <button onClick={openExpenseModal} className="btn-soft">
+              Add Expense
+            </button>
+          )}
+          {canManagePropsAccess && (
+            <button onClick={openCreatePropModal} className="btn-soft">
+              Add Prop
+            </button>
+          )}
+          {canManageSetsAccess && (
+            <button onClick={openCreateSetModal} className="btn-primary">
+              Add Set
+            </button>
+          )}
         </div>
       </header>
 
       <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-        <KpiCard
-          label="Art Spend"
-          value={formatCurrency(budget.usedBudget, 'INR')}
-          subLabel={`${expenses.length} logged expenses`}
-          subType={missingReceipts > 0 ? 'warning' : 'default'}
-        />
-        <KpiCard
-          label="Remaining Budget"
-          value={formatCurrency(budget.remainingBudget, 'INR')}
-          subLabel={budget.isExceeded ? 'Budget exceeded' : 'Current buffer'}
-          subType={budget.isExceeded ? 'critical' : 'success'}
-        />
-        <KpiCard
-          label="Props Tracked"
-          value={String(props.length)}
-          subLabel={`${overdueProps} flagged returns or missing`}
-          subType={overdueProps > 0 ? 'warning' : 'default'}
-        />
-        <KpiCard
-          label="Set Builds"
-          value={String(sets.length)}
-          subLabel={`${activeSets} active construction lines`}
-          subType={activeSets > 0 ? 'warning' : 'default'}
-        />
+        {desktopStats.map(card => (
+          <KpiCard
+            key={card.label}
+            label={card.label}
+            value={card.value}
+            subLabel={card.subLabel}
+            subType={card.subType}
+          />
+        ))}
       </section>
 
       <div className="grid gap-6 xl:grid-cols-[1.55fr_1fr]">
@@ -1178,11 +1357,11 @@ export function ExpensesView() {
             <SectionHeader
               kicker="Finance"
               title="Petty Cash & Receipts"
-              action={(
+              action={canCreateExpenses ? (
                 <button onClick={openExpenseModal} className="text-[11px] font-semibold uppercase tracking-[0.14em] text-orange-600 hover:text-orange-500 dark:text-orange-400">
                   Add Expense
                 </button>
-              )}
+              ) : undefined}
             />
 
             {expenses.length === 0 ? (
@@ -1195,17 +1374,38 @@ export function ExpensesView() {
                       <div>
                         <div className="flex flex-wrap items-center gap-3">
                           <p className="text-sm font-semibold text-zinc-900 dark:text-white">{expense.description}</p>
-                          {expense.status === 'anomaly' ? (
-                            <StatusBadge variant="mismatch" label={String(expense.ocrData.mismatchLabel ?? 'Amount Not Matching')} />
-                          ) : expense.status === 'verified' ? (
-                            <StatusBadge variant="active" label="Verified" />
-                          ) : (
-                            <StatusBadge variant="warning" label={expense.hasReceipt ? 'Pending Review' : 'Missing Receipt'} />
-                          )}
+                          {expenseValidationBadge(expense)}
+                          {expenseApprovalBadge(expense.approvalStatus)}
                         </div>
                         <p className="mt-2 text-sm text-zinc-500 dark:text-zinc-400">
                           {expenseCategoryLabel(expense.category)} | Qty {expense.quantity} | Logged by {expense.createdByName ?? 'ProdSync User'} | {formatDateTime(expense.createdAt)}
                         </p>
+                        <p className="mt-2 text-sm text-zinc-500 dark:text-zinc-400">
+                          Producer status: {expense.approvalStatus === 'approved' ? 'Approved' : expense.approvalStatus === 'denied' ? 'Denied' : 'Awaiting approval'}
+                          {expense.reviewedAt ? ` | ${formatDateTime(expense.reviewedAt)}` : ''}
+                          {expense.reviewedByName ? ` | ${expense.reviewedByName}` : ''}
+                        </p>
+                        {expense.approvalNote && (
+                          <p className="mt-2 text-sm text-zinc-600 dark:text-zinc-300">{expense.approvalNote}</p>
+                        )}
+                        {canApproveExpense && expense.approvalStatus === 'pending' && expense.approvalId && (
+                          <div className="mt-3 flex flex-wrap gap-3">
+                            <button
+                              onClick={() => void handleExpenseApproval(expense, 'approved')}
+                              disabled={approveExpenseMutation.isPending || denyExpenseMutation.isPending}
+                              className="btn-primary px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.14em] disabled:opacity-60"
+                            >
+                              {approveExpenseMutation.isPending ? 'Approving...' : 'Approve'}
+                            </button>
+                            <button
+                              onClick={() => void handleExpenseApproval(expense, 'denied')}
+                              disabled={approveExpenseMutation.isPending || denyExpenseMutation.isPending}
+                              className="btn-ghost px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-red-500 dark:text-red-400 disabled:opacity-60"
+                            >
+                              {denyExpenseMutation.isPending ? 'Denying...' : 'Deny'}
+                            </button>
+                          </div>
+                        )}
                         <p className="mt-3 text-lg font-semibold text-zinc-900 dark:text-white">{formatCurrency(expense.manualAmount, 'INR')}</p>
                         {expense.receiptUrl && (
                           <button onClick={() => openUploadedReceiptPreview(expense)} className="mt-3 inline-flex text-xs font-semibold uppercase tracking-[0.12em] text-orange-600 hover:text-orange-500 dark:text-orange-400">
@@ -1235,11 +1435,13 @@ export function ExpensesView() {
                             {String(expense.ocrData.mismatchLabel ?? expense.ocrData.anomalyMessage ?? 'Amount Not Matching')}
                           </p>
                         )}
-                        <div className="mt-4 flex justify-end">
-                          <button onClick={() => handleDeleteExpense(expense)} className="text-[11px] font-semibold uppercase tracking-[0.12em] text-red-500 hover:text-red-400">
-                            Remove
-                          </button>
-                        </div>
+                        {canRemoveExpenses && (
+                          <div className="mt-4 flex justify-end">
+                            <button onClick={() => handleDeleteExpense(expense)} className="text-[11px] font-semibold uppercase tracking-[0.12em] text-red-500 hover:text-red-400">
+                              Remove
+                            </button>
+                          </div>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -1252,11 +1454,11 @@ export function ExpensesView() {
             <SectionHeader
               kicker="Construction"
               title="Set Builds"
-              action={(
+              action={canManageSetsAccess ? (
                 <button onClick={openCreateSetModal} className="text-[11px] font-semibold uppercase tracking-[0.14em] text-orange-600 hover:text-orange-500 dark:text-orange-400">
                   Add Set
                 </button>
-              )}
+              ) : undefined}
             />
 
             {sets.length === 0 ? (
@@ -1279,9 +1481,11 @@ export function ExpensesView() {
                       </p>
                     </div>
 
-                    <button onClick={() => openEditSetModal(set)} className="btn-ghost px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.14em]">
-                      Update
-                    </button>
+                    {canManageSetsAccess && (
+                      <button onClick={() => openEditSetModal(set)} className="btn-ghost px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.14em]">
+                        Update
+                      </button>
+                    )}
                   </div>
                 ))}
               </div>
@@ -1294,11 +1498,11 @@ export function ExpensesView() {
             <SectionHeader
               kicker="Inventory"
               title="Props Lifecycle"
-              action={(
+              action={canManagePropsAccess ? (
                 <button onClick={openCreatePropModal} className="text-[11px] font-semibold uppercase tracking-[0.14em] text-orange-600 hover:text-orange-500 dark:text-orange-400">
                   Add Prop
                 </button>
-              )}
+              ) : undefined}
             />
 
             {props.length === 0 ? (
@@ -1318,44 +1522,52 @@ export function ExpensesView() {
                     <p className="mt-2 text-xs uppercase tracking-[0.12em] text-zinc-500 dark:text-zinc-400">
                       {prop.returnDueDate ? `Return due ${formatDate(prop.returnDueDate)}` : 'No return due date'} | Added {timeAgo(prop.createdAt)}
                     </p>
-                    <div className="mt-4 flex gap-3">
-                      <button onClick={() => openEditPropModal(prop)} className="btn-ghost px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.14em]">
-                        Update
-                      </button>
-                      <button onClick={() => handleDeleteProp(prop)} className="text-[11px] font-semibold uppercase tracking-[0.12em] text-red-500 hover:text-red-400">
-                        Remove
-                      </button>
-                    </div>
+                    {(canManagePropsAccess || canRemoveProps) && (
+                      <div className="mt-4 flex gap-3">
+                        {canManagePropsAccess && (
+                          <button onClick={() => openEditPropModal(prop)} className="btn-ghost px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.14em]">
+                            Update
+                          </button>
+                        )}
+                        {canRemoveProps && (
+                          <button onClick={() => handleDeleteProp(prop)} className="text-[11px] font-semibold uppercase tracking-[0.12em] text-red-500 hover:text-red-400">
+                            Remove
+                          </button>
+                        )}
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>
             )}
           </Surface>
 
-          <Surface variant="table" padding="none" className="overflow-hidden">
-            <SectionHeader kicker="Budget" title="Budget vs Actual" />
+          {canViewBudgetAccess && budget && (
+            <Surface variant="table" padding="none" className="overflow-hidden">
+              <SectionHeader kicker="Budget" title="Budget vs Actual" />
 
-            <div className="grid gap-4 px-6 py-5 sm:grid-cols-3">
-              <div className="rounded-3xl border border-zinc-200 bg-zinc-50 px-4 py-4 dark:border-zinc-800 dark:bg-zinc-950">
-                <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-zinc-500 dark:text-zinc-400">Allocated</p>
-                <p className="mt-3 text-2xl font-bold tracking-[-0.05em] text-zinc-900 dark:text-white">
-                  {formatCurrency(budget.allocatedBudget, 'INR')}
-                </p>
+              <div className="grid gap-4 px-6 py-5 sm:grid-cols-3">
+                <div className="rounded-3xl border border-zinc-200 bg-zinc-50 px-4 py-4 dark:border-zinc-800 dark:bg-zinc-950">
+                  <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-zinc-500 dark:text-zinc-400">Allocated</p>
+                  <p className="mt-3 text-2xl font-bold tracking-[-0.05em] text-zinc-900 dark:text-white">
+                    {formatCurrency(budget.allocatedBudget, 'INR')}
+                  </p>
+                </div>
+                <div className="rounded-3xl border border-zinc-200 bg-zinc-50 px-4 py-4 dark:border-zinc-800 dark:bg-zinc-950">
+                  <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-zinc-500 dark:text-zinc-400">Used</p>
+                  <p className="mt-3 text-2xl font-bold tracking-[-0.05em] text-zinc-900 dark:text-white">
+                    {formatCurrency(budget.usedBudget, 'INR')}
+                  </p>
+                </div>
+                <div className={`rounded-3xl border px-4 py-4 ${budget.isExceeded ? 'border-red-200 bg-red-50/70 dark:border-red-500/20 dark:bg-red-500/10' : 'border-zinc-200 bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-950'}`}>
+                  <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-zinc-500 dark:text-zinc-400">Remaining</p>
+                  <p className="mt-3 text-2xl font-bold tracking-[-0.05em] text-zinc-900 dark:text-white">
+                    {formatCurrency(budget.remainingBudget, 'INR')}
+                  </p>
+                </div>
               </div>
-              <div className="rounded-3xl border border-zinc-200 bg-zinc-50 px-4 py-4 dark:border-zinc-800 dark:bg-zinc-950">
-                <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-zinc-500 dark:text-zinc-400">Used</p>
-                <p className="mt-3 text-2xl font-bold tracking-[-0.05em] text-zinc-900 dark:text-white">
-                  {formatCurrency(budget.usedBudget, 'INR')}
-                </p>
-              </div>
-              <div className={`rounded-3xl border px-4 py-4 ${budget.isExceeded ? 'border-red-200 bg-red-50/70 dark:border-red-500/20 dark:bg-red-500/10' : 'border-zinc-200 bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-950'}`}>
-                <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-zinc-500 dark:text-zinc-400">Remaining</p>
-                <p className="mt-3 text-2xl font-bold tracking-[-0.05em] text-zinc-900 dark:text-white">
-                  {formatCurrency(budget.remainingBudget, 'INR')}
-                </p>
-              </div>
-            </div>
-          </Surface>
+            </Surface>
+          )}
 
           <Surface variant="table" padding="none" className="overflow-hidden">
             <SectionHeader kicker="Alerts" title="Operational Alerts" />
@@ -1383,9 +1595,11 @@ export function ExpensesView() {
       <div className="md:hidden mt-2 px-1 pb-44">
         <header className="px-3">
           <div className="overflow-hidden rounded-[28px] border border-zinc-200/80 bg-white/88 px-4 py-4 shadow-[0_18px_40px_rgba(15,23,42,0.08)] backdrop-blur-xl dark:border-white/8 dark:bg-zinc-900/82 dark:shadow-[0_20px_44px_rgba(0,0,0,0.32)]">
-            <span className="page-kicker text-orange-500">Budget Tracking</span>
+            <span className="page-kicker text-orange-500">{canViewBudgetAccess ? 'Budget Tracking' : 'Art Operations'}</span>
             <h1 className="page-title page-title-compact mt-1 text-zinc-900 dark:text-white">Art & Expenses</h1>
-            <p className="page-subtitle mt-2 text-zinc-500 dark:text-zinc-400">Track expenses, props, and set builds</p>
+            <p className="page-subtitle mt-2 text-zinc-500 dark:text-zinc-400">
+              {canViewBudgetAccess ? 'Track expenses, props, set builds, and budget' : 'Track expenses, props, and set builds'}
+            </p>
           </div>
         </header>
 
@@ -1413,13 +1627,7 @@ export function ExpensesView() {
                 <h2 className="text-lg font-bold tracking-tight text-zinc-900 dark:text-white">Statistics</h2>
               </div>
               <div className="grid grid-cols-2 gap-3">
-                {[
-                  { label: 'Art Spend', value: formatCurrency(budget.usedBudget, 'INR'), icon: 'payments', tone: 'text-orange-500' },
-                  { label: 'Remaining', value: formatCurrency(budget.remainingBudget, 'INR'), icon: 'account_balance_wallet', tone: budget.isExceeded ? 'text-red-500' : 'text-emerald-500' },
-                  { label: 'Expenses', value: String(expenses.length), icon: 'receipt_long', tone: 'text-amber-500' },
-                  { label: 'Props', value: String(props.length), icon: 'category', tone: overdueProps > 0 ? 'text-red-500' : 'text-sky-500' },
-                  { label: 'Set Builds', value: String(sets.length), icon: 'foundation', tone: 'text-orange-500' },
-                ].map(card => (
+                {mobileStats.map(card => (
                   <div
                     key={card.label}
                     className="rounded-[24px] border border-zinc-200/80 bg-gradient-to-br p-4 shadow-[0_16px_34px_rgba(15,23,42,0.08)] dark:border-white/8 dark:shadow-[0_18px_36px_rgba(0,0,0,0.26)]"
@@ -1436,39 +1644,47 @@ export function ExpensesView() {
               </div>
             </section>
 
-            <section className="space-y-4">
-              <div className="flex justify-between items-center px-1">
-                <h2 className="text-lg font-bold text-zinc-900 dark:text-white tracking-tight">Budget Analytics</h2>
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div className="col-span-2 rounded-[24px] border border-zinc-200 bg-white p-5 shadow-[0_16px_34px_rgba(15,23,42,0.08)] dark:border-zinc-800 dark:bg-zinc-900">
-                  <div className="text-[10px] font-bold uppercase tracking-[0.22em] text-zinc-500 dark:text-zinc-400">Allocated</div>
-                  <div className="mt-2 text-3xl font-black tracking-tight text-zinc-900 dark:text-white">{formatCurrency(budget.allocatedBudget, 'INR')}</div>
+            {canViewBudgetAccess && budget && (
+              <section className="space-y-4">
+                <div className="flex justify-between items-center px-1">
+                  <h2 className="text-lg font-bold text-zinc-900 dark:text-white tracking-tight">Budget Analytics</h2>
                 </div>
-                <div className="rounded-[24px] border border-zinc-200 bg-white p-4 shadow-[0_16px_34px_rgba(15,23,42,0.07)] dark:border-zinc-800 dark:bg-zinc-900">
-                  <div className="text-[10px] font-bold uppercase tracking-[0.22em] text-zinc-500 dark:text-zinc-400">Used</div>
-                  <div className="mt-2 text-2xl font-black tracking-tight text-zinc-900 dark:text-white">{formatCurrency(budget.usedBudget, 'INR')}</div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="col-span-2 rounded-[24px] border border-zinc-200 bg-white p-5 shadow-[0_16px_34px_rgba(15,23,42,0.08)] dark:border-zinc-800 dark:bg-zinc-900">
+                    <div className="text-[10px] font-bold uppercase tracking-[0.22em] text-zinc-500 dark:text-zinc-400">Allocated</div>
+                    <div className="mt-2 text-3xl font-black tracking-tight text-zinc-900 dark:text-white">{formatCurrency(budget.allocatedBudget, 'INR')}</div>
+                  </div>
+                  <div className="rounded-[24px] border border-zinc-200 bg-white p-4 shadow-[0_16px_34px_rgba(15,23,42,0.07)] dark:border-zinc-800 dark:bg-zinc-900">
+                    <div className="text-[10px] font-bold uppercase tracking-[0.22em] text-zinc-500 dark:text-zinc-400">Used</div>
+                    <div className="mt-2 text-2xl font-black tracking-tight text-zinc-900 dark:text-white">{formatCurrency(budget.usedBudget, 'INR')}</div>
+                  </div>
+                  <div className={`rounded-[24px] border p-4 shadow-[0_16px_34px_rgba(15,23,42,0.07)] ${budget.isExceeded ? 'border-red-200 bg-red-50/70 dark:border-red-500/20 dark:bg-red-500/10' : 'border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900'}`}>
+                    <div className="text-[10px] font-bold uppercase tracking-[0.22em] text-zinc-500 dark:text-zinc-400">Remaining</div>
+                    <div className="mt-2 text-2xl font-black tracking-tight text-zinc-900 dark:text-white">{formatCurrency(budget.remainingBudget, 'INR')}</div>
+                  </div>
                 </div>
-                <div className={`rounded-[24px] border p-4 shadow-[0_16px_34px_rgba(15,23,42,0.07)] ${budget.isExceeded ? 'border-red-200 bg-red-50/70 dark:border-red-500/20 dark:bg-red-500/10' : 'border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900'}`}>
-                  <div className="text-[10px] font-bold uppercase tracking-[0.22em] text-zinc-500 dark:text-zinc-400">Remaining</div>
-                  <div className="mt-2 text-2xl font-black tracking-tight text-zinc-900 dark:text-white">{formatCurrency(budget.remainingBudget, 'INR')}</div>
-                </div>
-              </div>
-            </section>
+              </section>
+            )}
 
             <div className="grid grid-cols-2 gap-3 pt-2">
-              <button onClick={openExpenseModal} className="col-span-2 flex min-h-[72px] flex-col items-center justify-center gap-1 rounded-[22px] bg-gradient-to-r from-orange-500 to-orange-400 py-4 text-black shadow-[0_16px_28px_rgba(249,115,22,0.28)] transition-all active:scale-95">
-                <span className="material-symbols-outlined mb-0.5 text-2xl">payments</span>
-                <span className="font-label text-[11px] font-black uppercase tracking-wider">Add Expense</span>
-              </button>
-              <button onClick={openCreatePropModal} className="flex min-h-[72px] flex-col items-center justify-center gap-1 rounded-[22px] border border-zinc-200 bg-white py-4 text-zinc-900 shadow-[0_14px_24px_rgba(15,23,42,0.08)] transition-all active:scale-95 dark:border-zinc-700 dark:bg-zinc-900 dark:text-white">
-                <span className="material-symbols-outlined mb-0.5 text-2xl text-orange-500">category</span>
-                <span className="font-label text-[11px] font-bold uppercase tracking-wider text-orange-500">Add Prop</span>
-              </button>
-              <button onClick={openCreateSetModal} className="flex min-h-[72px] flex-col items-center justify-center gap-1 rounded-[22px] border border-zinc-200 bg-white py-4 text-zinc-900 shadow-[0_14px_24px_rgba(15,23,42,0.08)] transition-all active:scale-95 dark:border-zinc-700 dark:bg-zinc-900 dark:text-white">
-                <span className="material-symbols-outlined mb-0.5 text-2xl text-orange-500">foundation</span>
-                <span className="font-label text-[11px] font-bold uppercase tracking-wider text-orange-500">Add Set</span>
-              </button>
+              {canCreateExpenses && (
+                <button onClick={openExpenseModal} className="col-span-2 flex min-h-[72px] flex-col items-center justify-center gap-1 rounded-[22px] bg-gradient-to-r from-orange-500 to-orange-400 py-4 text-black shadow-[0_16px_28px_rgba(249,115,22,0.28)] transition-all active:scale-95">
+                  <span className="material-symbols-outlined mb-0.5 text-2xl">payments</span>
+                  <span className="font-label text-[11px] font-black uppercase tracking-wider">Add Expense</span>
+                </button>
+              )}
+              {canManagePropsAccess && (
+                <button onClick={openCreatePropModal} className="flex min-h-[72px] flex-col items-center justify-center gap-1 rounded-[22px] border border-zinc-200 bg-white py-4 text-zinc-900 shadow-[0_14px_24px_rgba(15,23,42,0.08)] transition-all active:scale-95 dark:border-zinc-700 dark:bg-zinc-900 dark:text-white">
+                  <span className="material-symbols-outlined mb-0.5 text-2xl text-orange-500">category</span>
+                  <span className="font-label text-[11px] font-bold uppercase tracking-wider text-orange-500">Add Prop</span>
+                </button>
+              )}
+              {canManageSetsAccess && (
+                <button onClick={openCreateSetModal} className="flex min-h-[72px] flex-col items-center justify-center gap-1 rounded-[22px] border border-zinc-200 bg-white py-4 text-zinc-900 shadow-[0_14px_24px_rgba(15,23,42,0.08)] transition-all active:scale-95 dark:border-zinc-700 dark:bg-zinc-900 dark:text-white">
+                  <span className="material-symbols-outlined mb-0.5 text-2xl text-orange-500">foundation</span>
+                  <span className="font-label text-[11px] font-bold uppercase tracking-wider text-orange-500">Add Set</span>
+                </button>
+              )}
             </div>
         </div>
         )}
@@ -1478,9 +1694,11 @@ export function ExpensesView() {
             <section className="space-y-4">
               <div className="flex justify-between items-center px-1">
                 <h2 className="text-lg font-bold text-zinc-900 dark:text-white tracking-tight">Petty Cash & Receipts</h2>
-                <button onClick={openExpenseModal} className="text-orange-500 text-xs font-bold uppercase tracking-widest flex items-center gap-1">
-                  Add +
-                </button>
+                {canCreateExpenses && (
+                  <button onClick={openExpenseModal} className="text-orange-500 text-xs font-bold uppercase tracking-widest flex items-center gap-1">
+                    Add +
+                  </button>
+                )}
               </div>
               {expenses.length === 0 ? (
                 <div className="bg-white dark:bg-zinc-900 p-6 rounded-xl text-center border border-zinc-200 dark:border-zinc-800">
@@ -1499,15 +1717,36 @@ export function ExpensesView() {
                              <h3 className="font-bold text-sm text-zinc-900 dark:text-white">{expense.description}</h3>
                              <div className="flex items-center gap-2 mt-1">
                                <div className="scale-90 origin-left">
-                                 {expense.status === 'anomaly' ? (
-                                   <StatusBadge variant="mismatch" label={String(expense.ocrData.mismatchLabel ?? 'Amount Mismatch')} />
-                                 ) : expense.status === 'verified' ? (
-                                   <StatusBadge variant="active" label="Verified" />
-                                 ) : (
-                                   <StatusBadge variant="warning" label={expense.hasReceipt ? 'Pending' : 'No Receipt'} />
-                                 )}
+                                 {expenseValidationBadge(expense)}
+                               </div>
+                               <div className="scale-90 origin-left">
+                                 {expenseApprovalBadge(expense.approvalStatus)}
                                </div>
                              </div>
+                             <p className="text-[10px] text-zinc-500 mt-1">
+                               {expense.approvalStatus === 'approved' ? 'Producer approved' : expense.approvalStatus === 'denied' ? 'Producer denied' : 'Waiting for producer'}
+                             </p>
+                              {expense.approvalNote && (
+                                <p className="text-[10px] text-zinc-500 mt-1 leading-relaxed">{expense.approvalNote}</p>
+                              )}
+                              {canApproveExpense && expense.approvalStatus === 'pending' && expense.approvalId && (
+                                <div className="mt-2 flex gap-2">
+                                  <button
+                                    onClick={() => void handleExpenseApproval(expense, 'approved')}
+                                    disabled={approveExpenseMutation.isPending || denyExpenseMutation.isPending}
+                                    className="rounded-lg bg-orange-500 px-3 py-2 text-[10px] font-bold uppercase tracking-widest text-black disabled:opacity-60"
+                                  >
+                                    {approveExpenseMutation.isPending ? 'Approving...' : 'Approve'}
+                                  </button>
+                                  <button
+                                    onClick={() => void handleExpenseApproval(expense, 'denied')}
+                                    disabled={approveExpenseMutation.isPending || denyExpenseMutation.isPending}
+                                    className="rounded-lg border border-zinc-200 px-3 py-2 text-[10px] font-bold uppercase tracking-widest text-red-500 dark:border-zinc-700 disabled:opacity-60"
+                                  >
+                                    {denyExpenseMutation.isPending ? 'Denying...' : 'Deny'}
+                                  </button>
+                                </div>
+                              )}
                              <p className="text-[10px] text-zinc-500 mt-1 capitalize">{expenseCategoryLabel(expense.category)} • Qty: {expense.quantity}</p>
                           </div>
                         </div>
@@ -1529,9 +1768,11 @@ export function ExpensesView() {
                                     Preview Receipt <span className="material-symbols-outlined text-[14px]">open_in_new</span>
                                  </button>
                               )}
-                              <button onClick={() => handleDeleteExpense(expense)} className="text-[10px] font-bold tracking-widest text-red-500 uppercase flex items-center gap-1 ml-auto">
-                                 <span className="material-symbols-outlined text-[14px]">delete</span>
-                              </button>
+                              {canRemoveExpenses && (
+                                <button onClick={() => handleDeleteExpense(expense)} className="text-[10px] font-bold tracking-widest text-red-500 uppercase flex items-center gap-1 ml-auto">
+                                   <span className="material-symbols-outlined text-[14px]">delete</span>
+                                </button>
+                              )}
                            </div>
                          </div>
                       )}
@@ -1540,12 +1781,14 @@ export function ExpensesView() {
                 </div>
               )}
             </section>
-            <div className="pt-6">
-              <button onClick={openExpenseModal} className="flex min-h-[72px] w-full flex-col items-center justify-center gap-1 rounded-[22px] bg-gradient-to-r from-orange-500 to-orange-400 py-4 text-black shadow-[0_16px_28px_rgba(249,115,22,0.28)] transition-all active:scale-95">
-                <span className="material-symbols-outlined mb-0.5 text-2xl">payments</span>
-                <span className="font-label text-[11px] font-black uppercase tracking-wider">Add Expense</span>
-              </button>
-            </div>
+            {canCreateExpenses && (
+              <div className="pt-6">
+                <button onClick={openExpenseModal} className="flex min-h-[72px] w-full flex-col items-center justify-center gap-1 rounded-[22px] bg-gradient-to-r from-orange-500 to-orange-400 py-4 text-black shadow-[0_16px_28px_rgba(249,115,22,0.28)] transition-all active:scale-95">
+                  <span className="material-symbols-outlined mb-0.5 text-2xl">payments</span>
+                  <span className="font-label text-[11px] font-black uppercase tracking-wider">Add Expense</span>
+                </button>
+              </div>
+            )}
           </div>
         )}
 
@@ -1554,9 +1797,11 @@ export function ExpensesView() {
             <section className="space-y-4">
               <div className="flex justify-between items-center px-1">
                 <h2 className="text-lg font-bold text-zinc-900 dark:text-white tracking-tight">Props Lifecycle</h2>
-                <button onClick={openCreatePropModal} className="text-orange-500 text-xs font-bold uppercase tracking-widest flex items-center gap-1">
-                  Add +
-                </button>
+                {canManagePropsAccess && (
+                  <button onClick={openCreatePropModal} className="text-orange-500 text-xs font-bold uppercase tracking-widest flex items-center gap-1">
+                    Add +
+                  </button>
+                )}
               </div>
               {props.length === 0 ? (
                 <div className="bg-white dark:bg-zinc-900 p-6 rounded-xl text-center border border-zinc-200 dark:border-zinc-800">
@@ -1583,22 +1828,26 @@ export function ExpensesView() {
                        </div>
                        <div className="flex justify-between items-end mt-2 pt-3 border-t border-zinc-200 dark:border-zinc-800/50">
                          <p className="text-[10px] text-zinc-500 min-h-3">{prop.returnDueDate ? `Due: ${formatDate(prop.returnDueDate)}` : ''}</p>
-                         <div className="flex gap-4 items-center">
-                            <button onClick={() => handleDeleteProp(prop)} className="material-symbols-outlined text-[16px] text-red-500">delete</button>
-                            <button onClick={() => openEditPropModal(prop)} className="material-symbols-outlined text-[16px] text-zinc-500 dark:text-zinc-400">edit</button>
-                         </div>
+                         {(canRemoveProps || canManagePropsAccess) && (
+                           <div className="flex gap-4 items-center">
+                              {canRemoveProps && <button onClick={() => handleDeleteProp(prop)} className="material-symbols-outlined text-[16px] text-red-500">delete</button>}
+                              {canManagePropsAccess && <button onClick={() => openEditPropModal(prop)} className="material-symbols-outlined text-[16px] text-zinc-500 dark:text-zinc-400">edit</button>}
+                           </div>
+                         )}
                        </div>
                     </div>
                   ))}
                 </div>
               )}
             </section>
-            <div className="pt-6">
-              <button onClick={openCreatePropModal} className="flex min-h-[72px] w-full flex-col items-center justify-center gap-1 rounded-[22px] border border-zinc-200 bg-white py-4 text-zinc-900 shadow-[0_14px_24px_rgba(15,23,42,0.08)] transition-all active:scale-95 dark:border-zinc-700 dark:bg-zinc-900 dark:text-white">
-                <span className="material-symbols-outlined mb-0.5 text-2xl text-orange-500">category</span>
-                <span className="font-label text-[11px] font-bold uppercase tracking-wider text-orange-500">Add Prop</span>
-              </button>
-            </div>
+            {canManagePropsAccess && (
+              <div className="pt-6">
+                <button onClick={openCreatePropModal} className="flex min-h-[72px] w-full flex-col items-center justify-center gap-1 rounded-[22px] border border-zinc-200 bg-white py-4 text-zinc-900 shadow-[0_14px_24px_rgba(15,23,42,0.08)] transition-all active:scale-95 dark:border-zinc-700 dark:bg-zinc-900 dark:text-white">
+                  <span className="material-symbols-outlined mb-0.5 text-2xl text-orange-500">category</span>
+                  <span className="font-label text-[11px] font-bold uppercase tracking-wider text-orange-500">Add Prop</span>
+                </button>
+              </div>
+            )}
           </div>
         )}
 
@@ -1607,9 +1856,11 @@ export function ExpensesView() {
             <section className="space-y-4">
               <div className="flex justify-between items-center px-1">
                 <h2 className="text-lg font-bold text-zinc-900 dark:text-white tracking-tight">Set Construction</h2>
-                <button onClick={openCreateSetModal} className="text-orange-500 text-xs font-bold uppercase tracking-widest flex items-center gap-1">
-                  Add +
-                </button>
+                {canManageSetsAccess && (
+                  <button onClick={openCreateSetModal} className="text-orange-500 text-xs font-bold uppercase tracking-widest flex items-center gap-1">
+                    Add +
+                  </button>
+                )}
               </div>
               {sets.length === 0 ? (
                 <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl p-8 flex flex-col items-center text-center shadow-lg">
@@ -1636,22 +1887,26 @@ export function ExpensesView() {
                          </div>
                          <span className="text-[10px] font-mono text-zinc-500 dark:text-zinc-400">{set.progressPercentage}%</span>
                        </div>
-                       <div className="flex justify-end pt-2 border-t border-zinc-200 dark:border-zinc-800/50">
-                          <button onClick={() => openEditSetModal(set)} className="text-[10px] uppercase font-bold tracking-widest text-zinc-500 dark:text-zinc-400 flex items-center gap-1">
-                             Update <span className="material-symbols-outlined text-[14px]">edit</span>
-                          </button>
-                       </div>
+                       {canManageSetsAccess && (
+                         <div className="flex justify-end pt-2 border-t border-zinc-200 dark:border-zinc-800/50">
+                            <button onClick={() => openEditSetModal(set)} className="text-[10px] uppercase font-bold tracking-widest text-zinc-500 dark:text-zinc-400 flex items-center gap-1">
+                               Update <span className="material-symbols-outlined text-[14px]">edit</span>
+                            </button>
+                         </div>
+                       )}
                     </div>
                   ))}
                 </div>
               )}
             </section>
-            <div className="pt-6">
-              <button onClick={openCreateSetModal} className="flex min-h-[72px] w-full flex-col items-center justify-center gap-1 rounded-[22px] border border-zinc-200 bg-white py-4 text-zinc-900 shadow-[0_14px_24px_rgba(15,23,42,0.08)] transition-all active:scale-95 dark:border-zinc-700 dark:bg-zinc-900 dark:text-white">
-                <span className="material-symbols-outlined mb-0.5 text-2xl text-orange-500">foundation</span>
-                <span className="font-label text-[11px] font-bold uppercase tracking-wider text-orange-500">Add Set</span>
-              </button>
-            </div>
+            {canManageSetsAccess && (
+              <div className="pt-6">
+                <button onClick={openCreateSetModal} className="flex min-h-[72px] w-full flex-col items-center justify-center gap-1 rounded-[22px] border border-zinc-200 bg-white py-4 text-zinc-900 shadow-[0_14px_24px_rgba(15,23,42,0.08)] transition-all active:scale-95 dark:border-zinc-700 dark:bg-zinc-900 dark:text-white">
+                  <span className="material-symbols-outlined mb-0.5 text-2xl text-orange-500">foundation</span>
+                  <span className="font-label text-[11px] font-bold uppercase tracking-wider text-orange-500">Add Set</span>
+                </button>
+              </div>
+            )}
           </div>
         )}
         <nav className="fixed bottom-3 left-3 right-3 z-40 mx-auto flex h-[80px] max-w-md items-center justify-around rounded-[30px] border border-zinc-200/80 bg-white/88 px-2 pb-safe shadow-[0_18px_40px_rgba(15,23,42,0.12)] backdrop-blur-2xl dark:border-white/8 dark:bg-zinc-950/82 dark:shadow-[0_18px_44px_rgba(0,0,0,0.34)]">

@@ -12,6 +12,7 @@ import type {
   ArtAlertRecord,
   ArtBudgetRecord,
   ArtExpenseCategory,
+  ArtExpenseApprovalStatus,
   ArtExpenseRecord,
   ArtPropRecord,
   ArtPropSourcingType,
@@ -27,6 +28,17 @@ const ART_SET_SNAPSHOT_TYPE = 'art_set_construction'
 const RECEIPT_ANOMALY_TOLERANCE = 2
 
 type DbRow = Record<string, unknown>
+type ApprovalDecision = 'approved' | 'rejected'
+type ApprovalActionType = 'submitted' | 'approved' | 'rejected' | 'cancelled'
+
+interface ApprovalRecord {
+  id: string
+  status: 'pending' | 'approved' | 'rejected'
+  approved_by: string | null
+  approved_at: string | null
+  rejected_at: string | null
+  rejection_reason: string | null
+}
 
 let bucketReadyPromise: Promise<void> | null = null
 
@@ -142,6 +154,47 @@ function buildValidationStatus(hasReceipt: boolean, anomaly: boolean): ArtExpens
   }
 
   return anomaly ? 'anomaly' : 'verified'
+}
+
+function formatCategoryLabel(category: ArtExpenseCategory) {
+  return category.charAt(0).toUpperCase() + category.slice(1)
+}
+
+function mapApprovalStatus(
+  expenseStatus: string | null | undefined,
+  approvalStatus: string | null | undefined,
+): ArtExpenseApprovalStatus {
+  if (approvalStatus === 'approved' || expenseStatus === 'approved') {
+    return 'approved'
+  }
+
+  if (approvalStatus === 'rejected' || expenseStatus === 'rejected') {
+    return 'denied'
+  }
+
+  return 'pending'
+}
+
+function buildArtExpenseApprovalDescription(params: {
+  category: ArtExpenseCategory
+  quantity: number
+  hasReceipt: boolean
+  validationStatus: ArtExpenseRecord['status']
+  mismatchLabel: string | null
+}) {
+  const parts = [
+    `${formatCategoryLabel(params.category)} expense`,
+    `Qty ${params.quantity}`,
+    params.hasReceipt ? 'Receipt attached' : 'Receipt missing',
+  ]
+
+  if (params.validationStatus === 'anomaly' && params.mismatchLabel) {
+    parts.push(params.mismatchLabel)
+  } else if (params.validationStatus === 'pending_review' && params.hasReceipt) {
+    parts.push('Receipt pending review')
+  }
+
+  return parts.join(' | ')
 }
 
 async function syncExpenseAnomalyAlert(params: {
@@ -286,6 +339,133 @@ async function deleteArtExpenseMirror(projectId: string, expenseId: string) {
   }
 }
 
+async function createApprovalAction(params: {
+  approvalId: string
+  projectId: string
+  action: ApprovalActionType
+  actorId: string | null
+  note?: string | null
+}) {
+  const result = await adminClient
+    .from('approval_actions')
+    .insert({
+      approval_id: params.approvalId,
+      project_id: params.projectId,
+      action: params.action,
+      actor_id: params.actorId,
+      note: params.note ?? null,
+    })
+
+  if (result.error && !isMissingTableError(result.error)) {
+    throw result.error
+  }
+}
+
+async function listApprovalRecords(projectId: string, approvalIds: Array<string | null | undefined>) {
+  const uniqueIds = [...new Set(approvalIds.filter((approvalId): approvalId is string => Boolean(approvalId)))]
+  if (uniqueIds.length === 0) {
+    return new Map<string, ApprovalRecord>()
+  }
+
+  const { data, error } = await adminClient
+    .from('approvals')
+    .select('id, status, approved_by, approved_at, rejected_at, rejection_reason')
+    .eq('project_id', projectId)
+    .in('id', uniqueIds)
+
+  if (error) {
+    throw error
+  }
+
+  return new Map(
+    ((data ?? []) as DbRow[]).map(row => [
+      String(row.id),
+      {
+        id: String(row.id),
+        status: (asString(row.status) ?? 'pending') as ApprovalRecord['status'],
+        approved_by: asString(row.approved_by),
+        approved_at: asString(row.approved_at),
+        rejected_at: asString(row.rejected_at),
+        rejection_reason: asString(row.rejection_reason),
+      },
+    ]),
+  )
+}
+
+async function createArtExpenseApproval(params: {
+  expenseId: string
+  projectId: string
+  description: string
+  category: ArtExpenseCategory
+  quantity: number
+  amount: number
+  requestedBy: string
+  hasReceipt: boolean
+  validationStatus: ArtExpenseRecord['status']
+  mismatchLabel: string | null
+}) {
+  const requestDescription = buildArtExpenseApprovalDescription({
+    category: params.category,
+    quantity: params.quantity,
+    hasReceipt: params.hasReceipt,
+    validationStatus: params.validationStatus,
+    mismatchLabel: params.mismatchLabel,
+  })
+
+  const { data, error } = await adminClient
+    .from('approvals')
+    .insert({
+      project_id: params.projectId,
+      type: 'expense',
+      department: 'art',
+      requested_by: params.requestedBy,
+      request_title: params.description,
+      request_description: requestDescription,
+      amount: params.amount,
+      currency_code: 'INR',
+      priority: params.amount >= 100000 ? 'high' : 'normal',
+      status: 'pending',
+      approvable_table: 'expenses',
+      approvable_id: params.expenseId,
+      metadata: {
+        artModuleType: 'expense_approval',
+        expenseId: params.expenseId,
+        category: params.category,
+        quantity: params.quantity,
+        hasReceipt: params.hasReceipt,
+        validationStatus: params.validationStatus,
+        mismatchLabel: params.mismatchLabel,
+        notes: requestDescription,
+        createdAt: new Date().toISOString(),
+      },
+    })
+    .select('id, status, approved_by, approved_at, rejected_at, rejection_reason')
+    .single()
+
+  if (error) {
+    throw error
+  }
+
+  const approval = {
+    id: String(data.id),
+    status: (asString(data.status) ?? 'pending') as ApprovalRecord['status'],
+    approved_by: asString(data.approved_by),
+    approved_at: asString(data.approved_at),
+    rejected_at: asString(data.rejected_at),
+    rejection_reason: asString(data.rejection_reason),
+  }
+
+  await createApprovalAction({
+    approvalId: approval.id,
+    projectId: params.projectId,
+    action: 'submitted',
+    actorId: params.requestedBy,
+    note: requestDescription,
+  })
+
+  return approval
+}
+
 async function loadUserNames(userIds: Array<string | null | undefined>) {
   const uniqueIds = [...new Set(userIds.filter((userId): userId is string => Boolean(userId)))]
   if (uniqueIds.length === 0) {
@@ -335,7 +515,12 @@ async function listExpenseReceipts(projectId: string, expenseIds: string[]) {
   return receiptMap
 }
 
-function toArtExpenseRecord(row: DbRow, receipt: DbRow | undefined, userNames: Map<string, string>): ArtExpenseRecord {
+function toArtExpenseRecord(
+  row: DbRow,
+  receipt: DbRow | undefined,
+  userNames: Map<string, string>,
+  approval: ApprovalRecord | undefined,
+): ArtExpenseRecord {
   const createdById = asString(row.requested_by)
   const extractedData = receipt ? asObject(receipt.extracted_data) : asObject(asObject(row.metadata).ocrData)
   const receiptPath = receipt ? asString(receipt.storage_path) : asString(asObject(row.metadata).receiptPath)
@@ -363,6 +548,16 @@ function toArtExpenseRecord(row: DbRow, receipt: DbRow | undefined, userNames: M
   const mismatchLabel = asString(metadata.mismatchLabel) ?? asString(extractedData.mismatchLabel)
   const extractedQuantity = asNumber(metadata.extractedQuantity ?? extractedData.extractedQuantity)
   const previewText = asString(extractedData.previewText) ?? ocrText
+  const reviewedById = approval?.approved_by ?? asString(metadata.approvalReviewedBy)
+  const approvalStatus = mapApprovalStatus(asString(row.status), approval?.status ?? asString(metadata.approvalStatus))
+  const reviewedAt = approvalStatus === 'approved'
+    ? (approval?.approved_at ?? asString(metadata.approvalReviewedAt))
+    : approvalStatus === 'denied'
+      ? (approval?.rejected_at ?? asString(metadata.approvalReviewedAt))
+      : null
+  const approvalNote = approvalStatus === 'denied'
+    ? (approval?.rejection_reason ?? asString(metadata.approvalNote))
+    : asString(metadata.approvalNote)
 
   return {
     id: String(row.id),
@@ -383,6 +578,12 @@ function toArtExpenseRecord(row: DbRow, receipt: DbRow | undefined, userNames: M
     createdAt: String(row.created_at),
     hasReceipt: Boolean(receiptPath),
     mismatchFlag,
+    approvalId: asString(row.approval_id) ?? asString(metadata.approvalId),
+    approvalStatus,
+    approvalNote,
+    reviewedById,
+    reviewedByName: reviewedById ? userNames.get(reviewedById) ?? 'ProdSync User' : null,
+    reviewedAt,
     ocrData: {
       ...extractedData,
       amountMismatch,
@@ -453,7 +654,7 @@ function toArtSetRecordFromSnapshot(row: DbRow): ArtSetRecord {
 async function findArtExpense(projectId: string, expenseId: string) {
   const { data, error } = await adminClient
     .from('expenses')
-    .select('id, project_id, department, category, title, amount, requested_by, metadata, created_at')
+    .select('id, project_id, department, category, title, amount, requested_by, status, approval_id, metadata, created_at')
     .eq('id', expenseId)
     .eq('project_id', projectId)
     .eq('department', 'art')
@@ -468,6 +669,74 @@ async function findArtExpense(projectId: string, expenseId: string) {
   }
 
   return data as DbRow
+}
+
+export async function resolveArtExpenseApprovalDecision(params: {
+  projectId: string
+  expenseId: string | null
+  approvalId: string | null
+  reviewerId: string | null
+  decision: ApprovalDecision
+  reason: string | null
+}) {
+  const expenseId = params.expenseId
+  if (!expenseId) {
+    return
+  }
+
+  const { data, error } = await adminClient
+    .from('expenses')
+    .select('metadata')
+    .eq('project_id', params.projectId)
+    .eq('id', expenseId)
+    .eq('department', 'art')
+    .maybeSingle()
+
+  if (error) {
+    throw error
+  }
+
+  if (!data) {
+    return
+  }
+
+  const actedAt = new Date().toISOString()
+  const nextApprovalStatus = params.decision === 'approved' ? 'approved' : 'denied'
+  const currentMetadata = asObject(data.metadata)
+
+  const updateResult = await adminClient
+    .from('expenses')
+    .update({
+      status: params.decision,
+      approval_id: params.approvalId,
+      metadata: {
+        ...currentMetadata,
+        approvalId: params.approvalId,
+        approvalStatus: nextApprovalStatus,
+        approvalReviewedBy: params.reviewerId,
+        approvalReviewedAt: actedAt,
+        approvalNote: params.decision === 'rejected'
+          ? (params.reason || 'Denied from producer approvals.')
+          : (params.reason || null),
+      },
+    })
+    .eq('project_id', params.projectId)
+    .eq('id', expenseId)
+    .eq('department', 'art')
+
+  if (updateResult.error) {
+    throw updateResult.error
+  }
+
+  if (params.approvalId) {
+    await createApprovalAction({
+      approvalId: params.approvalId,
+      projectId: params.projectId,
+      action: params.decision,
+      actorId: params.reviewerId,
+      note: params.reason,
+    })
+  }
 }
 
 async function findArtProp(projectId: string, propId: string) {
@@ -600,7 +869,7 @@ async function sumCompletedSetCosts(projectId: string) {
 export async function listArtExpenses(projectId: string): Promise<ArtExpenseRecord[]> {
   const { data, error } = await adminClient
     .from('expenses')
-    .select('id, project_id, category, title, amount, requested_by, metadata, created_at')
+    .select('id, project_id, category, title, amount, requested_by, status, approval_id, metadata, created_at')
     .eq('project_id', projectId)
     .eq('department', 'art')
     .order('created_at', { ascending: false })
@@ -610,22 +879,33 @@ export async function listArtExpenses(projectId: string): Promise<ArtExpenseReco
   }
 
   const rows = (data ?? []) as DbRow[]
+  const approvalMap = await listApprovalRecords(projectId, rows.map(row => asString(row.approval_id)))
+  const reviewerIds = Array.from(
+    new Set(Array.from(approvalMap.values()).map(row => row.approved_by).filter((value): value is string => Boolean(value))),
+  )
   const [receiptMap, userNames] = await Promise.all([
     listExpenseReceipts(projectId, rows.map(row => String(row.id))),
-    loadUserNames(rows.map(row => asString(row.requested_by))),
+    loadUserNames([...rows.map(row => asString(row.requested_by)), ...reviewerIds]),
   ])
 
-  return rows.map(row => toArtExpenseRecord(row, receiptMap.get(String(row.id)), userNames))
+  return rows.map(row => toArtExpenseRecord(
+    row,
+    receiptMap.get(String(row.id)),
+    userNames,
+    approvalMap.get(asString(row.approval_id) ?? ''),
+  ))
 }
 
 export async function getArtExpenseById(projectId: string, expenseId: string): Promise<ArtExpenseRecord> {
   const expense = await findArtExpense(projectId, expenseId)
+  const approvalMap = await listApprovalRecords(projectId, [asString(expense.approval_id)])
+  const approval = approvalMap.get(asString(expense.approval_id) ?? '')
   const [receiptMap, userNames] = await Promise.all([
     listExpenseReceipts(projectId, [expenseId]),
-    loadUserNames([asString(expense.requested_by)]),
+    loadUserNames([asString(expense.requested_by), approval?.approved_by]),
   ])
 
-  return toArtExpenseRecord(expense, receiptMap.get(expenseId), userNames)
+  return toArtExpenseRecord(expense, receiptMap.get(expenseId), userNames, approval)
 }
 
 export async function createArtExpense(
@@ -646,7 +926,7 @@ export async function createArtExpense(
       amount: input.manualAmount,
       currency_code: 'INR',
       requested_by: createdBy,
-      status: 'paid',
+      status: 'submitted',
       receipt_required: true,
       metadata: {
         artModuleType: 'expense',
@@ -661,9 +941,14 @@ export async function createArtExpense(
         validationStatus: buildValidationStatus(Boolean(receiptFile), false),
         ocrText: null,
         receiptPath: null,
+        approvalId: null,
+        approvalStatus: 'pending',
+        approvalReviewedBy: null,
+        approvalReviewedAt: null,
+        approvalNote: null,
       },
     })
-    .select('id, project_id, category, title, amount, requested_by, metadata, created_at')
+    .select('id, project_id, category, title, amount, requested_by, status, approval_id, metadata, created_at')
     .single()
 
   if (error) {
@@ -687,6 +972,11 @@ export async function createArtExpense(
     validationStatus: buildValidationStatus(Boolean(receiptFile), false),
     ocrText: null as string | null,
     receiptPath: null as string | null,
+    approvalId: null as string | null,
+    approvalStatus: 'pending' as ArtExpenseApprovalStatus,
+    approvalReviewedBy: null as string | null,
+    approvalReviewedAt: null as string | null,
+    approvalNote: null as string | null,
   }
 
   if (receiptFile) {
@@ -818,7 +1108,29 @@ export async function createArtExpense(
     createdBy,
     createdAt: String(expense.created_at),
   })
-  
+
+  const approval = await createArtExpenseApproval({
+    expenseId: String(expense.id),
+    projectId: input.projectId,
+    description: input.description,
+    category: input.category,
+    quantity: input.quantity,
+    amount: input.manualAmount,
+    requestedBy: createdBy,
+    hasReceipt: Boolean(receiptFile),
+    validationStatus: (asString(nextMetadata.validationStatus) ?? 'pending_review') as ArtExpenseRecord['status'],
+    mismatchLabel: asString(nextMetadata.mismatchLabel),
+  })
+
+  nextMetadata = {
+    ...nextMetadata,
+    approvalId: approval.id,
+    approvalStatus: 'pending',
+    approvalReviewedBy: null,
+    approvalReviewedAt: null,
+    approvalNote: null,
+  }
+
   if (!receiptFile) {
     await adminClient
       .from('expenses')
@@ -849,6 +1161,21 @@ export async function createArtExpense(
             receiptUrl: null,
           },
         },
+        approval_id: approval.id,
+      })
+      .eq('id', String(expense.id))
+      .eq('project_id', input.projectId)
+  }
+
+  if (receiptFile) {
+    await adminClient
+      .from('expenses')
+      .update({
+        approval_id: approval.id,
+        metadata: {
+          ...nextMetadata,
+          ocrData: receiptRow ? asObject(receiptRow.extracted_data) : asObject(asObject(expense.metadata).ocrData),
+        },
       })
       .eq('id', String(expense.id))
       .eq('project_id', input.projectId)
@@ -857,6 +1184,8 @@ export async function createArtExpense(
   const userNames = await loadUserNames([createdBy])
   return toArtExpenseRecord({
     ...expense,
+    status: 'submitted',
+    approval_id: approval.id,
     metadata: {
       ...nextMetadata,
       ocrData: receiptRow
@@ -885,11 +1214,11 @@ export async function createArtExpense(
           receiptUrl: null,
         },
     },
-  }, receiptRow, userNames)
+  }, receiptRow, userNames, approval)
 }
 
 export async function deleteArtExpense(projectId: string, expenseId: string): Promise<void> {
-  await findArtExpense(projectId, expenseId)
+  const expense = await findArtExpense(projectId, expenseId)
   const receiptMap = await listExpenseReceipts(projectId, [expenseId])
   const receipt = receiptMap.get(expenseId)
 
@@ -919,6 +1248,19 @@ export async function deleteArtExpense(projectId: string, expenseId: string): Pr
     .eq('source', 'expenses')
     .eq('entity_table', 'expenses')
     .eq('entity_id', expenseId)
+
+  const approvalId = asString(expense.approval_id)
+  if (approvalId) {
+    const approvalDelete = await adminClient
+      .from('approvals')
+      .delete()
+      .eq('project_id', projectId)
+      .eq('id', approvalId)
+
+    if (approvalDelete.error) {
+      throw approvalDelete.error
+    }
+  }
 
   await deleteArtExpenseMirror(projectId, expenseId)
 }

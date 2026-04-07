@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { ActionFeedbackToast } from '@/components/shared/ActionFeedbackToast'
 import { approvalsService } from '@/services/approvals.service'
 import { KpiCard } from '@/components/shared/KpiCard'
+import { StatusBadge } from '@/components/shared/StatusBadge'
 import { Surface } from '@/components/shared/Surface'
 import { EmptyState, ErrorState, LoadingState } from '@/components/system/SystemStates'
 import { RoleGuard } from '@/features/auth/RoleGuard'
@@ -45,6 +46,8 @@ export function ApprovalsView() {
       qc.invalidateQueries({ queryKey: ['approval-history', activeProjectId] }),
       qc.invalidateQueries({ queryKey: ['approvals-kpis', activeProjectId] }),
       qc.invalidateQueries({ queryKey: ['activity', activeProjectId] }),
+      qc.invalidateQueries({ queryKey: ['art-expenses', activeProjectId] }),
+      qc.invalidateQueries({ queryKey: ['art-budget', activeProjectId] }),
     ])
   }
 
@@ -57,6 +60,7 @@ export function ApprovalsView() {
       await invalidateApprovalQueries()
       setFeedback({ type: 'success', message: successMessage })
     } catch (error) {
+      await invalidateApprovalQueries()
       setFeedback({
         type: 'error',
         message: error instanceof Error ? error.message : 'Approval action failed.',
@@ -144,11 +148,11 @@ export function ApprovalsView() {
                           {activeAction === `approve-${item.id}` ? 'Approving...' : 'Approve'}
                         </button>
                         <button
-                          onClick={() => runApprovalAction(() => approvalsService.rejectItem(activeProjectId!, item.id), `${item.type} rejected.`, `reject-${item.id}`)}
+                          onClick={() => runApprovalAction(() => approvalsService.rejectItem(activeProjectId!, item.id), `${item.type} denied.`, `reject-${item.id}`)}
                           className="btn-ghost px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-red-500 dark:text-red-400"
                           disabled={!activeProjectId || activeAction !== null}
                         >
-                          {activeAction === `reject-${item.id}` ? 'Rejecting...' : 'Reject'}
+                          {activeAction === `reject-${item.id}` ? 'Denying...' : 'Deny'}
                         </button>
                       </div>
                     </RoleGuard>
@@ -171,8 +175,14 @@ export function ApprovalsView() {
               ) : (
                 history.map(item => (
                   <div key={`${item.requestId}-${item.timestamp}`} className="rounded-[24px] bg-zinc-50 px-4 py-4 dark:bg-zinc-900">
-                    <p className="text-sm font-medium text-zinc-900 dark:text-white">{item.requestId}</p>
-                    <p className="mt-2 text-sm text-zinc-500 dark:text-zinc-400">{item.approvedBy} | {item.action}</p>
+                    <div className="flex items-center gap-3">
+                      <p className="text-sm font-medium text-zinc-900 dark:text-white">{item.requestId}</p>
+                      <StatusBadge
+                        variant={item.action === 'rejected' ? 'rejected' : 'approved'}
+                        label={item.action === 'rejected' ? 'Denied' : 'Approved'}
+                      />
+                    </div>
+                    <p className="mt-2 text-sm text-zinc-500 dark:text-zinc-400">{item.approvedBy}</p>
                     <p className="mt-1 text-xs uppercase tracking-[0.12em] text-zinc-500 dark:text-zinc-400">
                       {formatDate(item.timestamp)} | {formatTime(item.timestamp)}
                     </p>

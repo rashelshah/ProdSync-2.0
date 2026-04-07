@@ -664,12 +664,14 @@ begin
   values (
     new.id,
     new.project_id,
-    case
+    (
+      case
       when new.status = 'approved' then 'approved'
       when new.status = 'rejected' then 'rejected'
       when new.status = 'cancelled' then 'cancelled'
       else 'submitted'
-    end,
+      end
+    )::public.approval_action_type,
     coalesce(new.approved_by, auth.uid()),
     coalesce(new.rejection_reason, new.request_description)
   );

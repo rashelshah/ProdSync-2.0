@@ -1,7 +1,9 @@
 import { useQuery } from '@tanstack/react-query'
 import { artService } from '@/services/art.service'
 
-export function useArtData(projectId: string | null) {
+export function useArtData(projectId: string | null, options?: { includeBudget?: boolean }) {
+  const includeBudget = options?.includeBudget ?? true
+
   const expensesQ = useQuery({
     queryKey: ['art-expenses', projectId],
     queryFn: () => artService.getExpenses(projectId!),
@@ -27,7 +29,7 @@ export function useArtData(projectId: string | null) {
     queryKey: ['art-budget', projectId],
     queryFn: () => artService.getBudget(projectId!),
     staleTime: 15_000,
-    enabled: Boolean(projectId),
+    enabled: Boolean(projectId && includeBudget),
   })
 
   const alertsQ = useQuery({
@@ -43,7 +45,7 @@ export function useArtData(projectId: string | null) {
     sets: setsQ.data ?? [],
     budget: budgetQ.data ?? null,
     alerts: alertsQ.data ?? [],
-    isLoading: expensesQ.isLoading || propsQ.isLoading || setsQ.isLoading || budgetQ.isLoading || alertsQ.isLoading,
-    isError: expensesQ.isError || propsQ.isError || setsQ.isError || budgetQ.isError || alertsQ.isError,
+    isLoading: expensesQ.isLoading || propsQ.isLoading || setsQ.isLoading || (includeBudget && budgetQ.isLoading) || alertsQ.isLoading,
+    isError: expensesQ.isError || propsQ.isError || setsQ.isError || (includeBudget && budgetQ.isError) || alertsQ.isError,
   }
 }

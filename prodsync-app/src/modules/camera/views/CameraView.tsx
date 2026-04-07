@@ -6,6 +6,14 @@ import { StatusBadge } from '@/components/shared/StatusBadge'
 import { Surface } from '@/components/shared/Surface'
 import { EmptyState, ErrorState, LoadingState } from '@/components/system/SystemStates'
 import { useAuthStore } from '@/features/auth/auth.store'
+import {
+  canLogCameraMovement,
+  canManageCameraWishlist,
+  canReportCameraDamage,
+  canReviewCameraRequestAtDopStage,
+  canReviewCameraRequestAtProducerStage,
+  canSubmitCameraRequest,
+} from '@/features/auth/role-capabilities'
 import { useResolvedProjectContext } from '@/features/projects/useResolvedProjectContext'
 import { useCameraData } from '@/modules/camera/hooks/useCameraData'
 import type {
@@ -650,13 +658,12 @@ export function CameraView() {
   const checkOutMutation = useMutation({ mutationFn: cameraService.checkOut })
   const createDamageMutation = useMutation({ mutationFn: cameraService.createDamageReport })
 
-  const canDopApprove = user?.projectRoleTitle === 'DOP'
-    || (user?.departmentId === 'camera' && (user?.role === 'HOD' || user?.role === 'Supervisor'))
-  const canProducerApprove = user?.role === 'EP'
-    || user?.role === 'LineProducer'
-    || user?.projectRoleTitle === 'Executive Producer'
-    || user?.projectRoleTitle === 'Line Producer'
-    || user?.projectRoleTitle === 'Production Manager'
+  const canManageWishlist = canManageCameraWishlist(user)
+  const canCreateCameraRequests = canSubmitCameraRequest(user)
+  const canCreateMovementLogs = canLogCameraMovement(user)
+  const canCreateDamageReports = canReportCameraDamage(user)
+  const canReviewDopStage = canReviewCameraRequestAtDopStage(user)
+  const canReviewProducerStage = canReviewCameraRequestAtProducerStage(user)
 
   const pendingRequests = requests.filter(request => request.status === 'pending_dop' || request.status === 'pending_producer')
   const checkedInAssets = logs.filter(log => log.status === 'checked_in')
@@ -702,6 +709,11 @@ export function CameraView() {
   }
 
   function openWishlistModal() {
+    if (!canManageWishlist) {
+      setFeedback({ type: 'error', message: 'Only the DOP can manage the camera wishlist.' })
+      return
+    }
+
     setFeedback(null)
     setWishlistModalMode('create')
     setEditingWishlistItem(null)
@@ -710,6 +722,11 @@ export function CameraView() {
   }
 
   function openEditWishlistModal(item: CameraWishlistItem) {
+    if (!canManageWishlist) {
+      setFeedback({ type: 'error', message: 'Only the DOP can manage the camera wishlist.' })
+      return
+    }
+
     setFeedback(null)
     setWishlistModalMode('edit')
     setEditingWishlistItem(item)
@@ -792,10 +809,20 @@ export function CameraView() {
   }
 
   async function handleEditWishlistItem(item: CameraWishlistItem) {
+    if (!canManageWishlist) {
+      setFeedback({ type: 'error', message: 'Only the DOP can manage the camera wishlist.' })
+      return
+    }
+
     openEditWishlistModal(item)
   }
 
   async function handleDeleteWishlistItem(item: CameraWishlistItem) {
+    if (!canManageWishlist) {
+      setFeedback({ type: 'error', message: 'Only the DOP can manage the camera wishlist.' })
+      return
+    }
+
     if (!window.confirm(`Remove "${item.itemName}" from the wishlist?`)) {
       return
     }
@@ -812,6 +839,11 @@ export function CameraView() {
   }
 
   function openRequestModal() {
+    if (!canCreateCameraRequests) {
+      setFeedback({ type: 'error', message: 'This role cannot submit camera requests.' })
+      return
+    }
+
     setFeedback(null)
     setRequestForm(emptyRequestForm)
     setRequestModalOpen(true)
@@ -872,6 +904,11 @@ export function CameraView() {
   }
 
   function openApprovalModal(request: CameraRequest, nextStatus: CameraRequestStatus) {
+    if (!canApproveRequest(request)) {
+      setFeedback({ type: 'error', message: 'This role cannot review that camera request.' })
+      return
+    }
+
     setFeedback(null)
     setApprovalRequest(request)
     setApprovalNextStatus(nextStatus)
@@ -914,6 +951,11 @@ export function CameraView() {
   }
 
   function openScanModal() {
+    if (!canCreateMovementLogs) {
+      setFeedback({ type: 'error', message: 'This role cannot log camera movement.' })
+      return
+    }
+
     setFeedback(null)
     setScanForm(emptyScanForm)
     setScanModalOpen(true)
@@ -962,6 +1004,11 @@ export function CameraView() {
   }
 
   function openDamageModal() {
+    if (!canCreateDamageReports) {
+      setFeedback({ type: 'error', message: 'This role cannot report camera issues.' })
+      return
+    }
+
     setFeedback(null)
     setDamageForm(emptyDamageForm)
     setDamageModalOpen(true)
@@ -1004,8 +1051,8 @@ export function CameraView() {
   }
 
   function canApproveRequest(request: CameraRequest) {
-    return (request.status === 'pending_dop' && (canDopApprove || canProducerApprove))
-      || (request.status === 'pending_producer' && canProducerApprove)
+    return (request.status === 'pending_dop' && canReviewDopStage)
+      || (request.status === 'pending_producer' && canReviewProducerStage)
   }
 
   function nextApprovalStatus(request: CameraRequest): CameraRequestStatus | null {
@@ -1100,18 +1147,26 @@ export function CameraView() {
         </div>
 
         <div className="page-toolbar">
-          <button onClick={openWishlistModal} className="btn-soft">
-            Add Wishlist Item
-          </button>
-          <button onClick={openRequestModal} className="btn-soft">
-            Request Gear
-          </button>
-          <button onClick={openScanModal} className="btn-soft">
-            Scan QR
-          </button>
-          <button onClick={openDamageModal} className="btn-primary">
-            Report Issue
-          </button>
+          {canManageWishlist && (
+            <button onClick={openWishlistModal} className="btn-soft">
+              Add Wishlist Item
+            </button>
+          )}
+          {canCreateCameraRequests && (
+            <button onClick={openRequestModal} className="btn-soft">
+              Request Gear
+            </button>
+          )}
+          {canCreateMovementLogs && (
+            <button onClick={openScanModal} className="btn-soft">
+              Scan QR
+            </button>
+          )}
+          {canCreateDamageReports && (
+            <button onClick={openDamageModal} className="btn-primary">
+              Report Issue
+            </button>
+          )}
         </div>
       </header>
 
@@ -1139,9 +1194,11 @@ export function CameraView() {
               kicker="Pre-Production"
               title="Wishlist"
               action={
-                <button onClick={openWishlistModal} className="text-[11px] font-semibold uppercase tracking-[0.14em] text-orange-600 hover:text-orange-500 dark:text-orange-400">
-                  Add Item
-                </button>
+                canManageWishlist ? (
+                  <button onClick={openWishlistModal} className="text-[11px] font-semibold uppercase tracking-[0.14em] text-orange-600 hover:text-orange-500 dark:text-orange-400">
+                    Add Item
+                  </button>
+                ) : undefined
               }
             />
 
@@ -1176,14 +1233,16 @@ export function CameraView() {
                           {item.estimatedRate != null ? formatCurrency(item.estimatedRate) : 'N/A'}
                         </td>
                         <td className="px-6 py-4 text-right">
-                          <div className="flex justify-end gap-3 text-[11px] font-semibold uppercase tracking-[0.12em]">
-                            <button onClick={() => handleEditWishlistItem(item)} className="text-zinc-500 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-white">
-                              Edit
-                            </button>
-                            <button onClick={() => handleDeleteWishlistItem(item)} className="text-red-500 hover:text-red-400">
-                              Remove
-                            </button>
-                          </div>
+                          {canManageWishlist && (
+                            <div className="flex justify-end gap-3 text-[11px] font-semibold uppercase tracking-[0.12em]">
+                              <button onClick={() => handleEditWishlistItem(item)} className="text-zinc-500 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-white">
+                                Edit
+                              </button>
+                              <button onClick={() => handleDeleteWishlistItem(item)} className="text-red-500 hover:text-red-400">
+                                Remove
+                              </button>
+                            </div>
+                          )}
                         </td>
                       </tr>
                     ))}
@@ -1443,9 +1502,11 @@ export function CameraView() {
             <section className="space-y-4">
               <div className="flex justify-between items-center px-1">
                 <h2 className="text-lg font-bold text-zinc-900 dark:text-white tracking-tight">Movement Log</h2>
-                <button onClick={openScanModal} className="text-orange-500 text-xs font-bold uppercase tracking-widest flex items-center gap-1">
-                  Log +
-                </button>
+                {canCreateMovementLogs && (
+                  <button onClick={openScanModal} className="text-orange-500 text-xs font-bold uppercase tracking-widest flex items-center gap-1">
+                    Log +
+                  </button>
+                )}
               </div>
               
               {logs.length === 0 ? (
@@ -1480,9 +1541,11 @@ export function CameraView() {
             <section className="space-y-4">
               <div className="flex justify-between items-center px-1">
                 <h2 className="text-lg font-bold text-zinc-900 dark:text-white tracking-tight">Wishlist Items</h2>
-                <button onClick={openWishlistModal} className="text-orange-500 text-xs font-bold uppercase tracking-widest flex items-center gap-1">
-                  Add +
-                </button>
+                {canManageWishlist && (
+                  <button onClick={openWishlistModal} className="text-orange-500 text-xs font-bold uppercase tracking-widest flex items-center gap-1">
+                    Add +
+                  </button>
+                )}
               </div>
               
               {wishlist.length === 0 ? (
@@ -1504,10 +1567,12 @@ export function CameraView() {
                           </div>
                           <div className="flex justify-between items-end border-t border-zinc-200 dark:border-zinc-800 pt-3">
                              <p className="text-[10px] text-zinc-500">Added by: {item.createdByName ?? 'User'}</p>
-                             <div className="flex gap-4 items-center">
-                                <button onClick={() => handleDeleteWishlistItem(item)} className="material-symbols-outlined text-[16px] text-red-500">delete</button>
-                                <button onClick={() => handleEditWishlistItem(item)} className="material-symbols-outlined text-[16px] text-zinc-500 dark:text-zinc-400">edit</button>
-                             </div>
+                             {canManageWishlist && (
+                               <div className="flex gap-4 items-center">
+                                  <button onClick={() => handleDeleteWishlistItem(item)} className="material-symbols-outlined text-[16px] text-red-500">delete</button>
+                                  <button onClick={() => handleEditWishlistItem(item)} className="material-symbols-outlined text-[16px] text-zinc-500 dark:text-zinc-400">edit</button>
+                               </div>
+                             )}
                           </div>
                        </div>
                     </div>
@@ -1519,9 +1584,11 @@ export function CameraView() {
             <section className="space-y-4">
               <div className="flex justify-between items-center px-1">
                 <h2 className="text-lg font-bold text-zinc-900 dark:text-white tracking-tight">Damage & Loss Reports</h2>
-                <button onClick={openDamageModal} className="text-orange-500 text-xs font-bold uppercase tracking-widest flex items-center gap-1">
-                  Report +
-                </button>
+                {canCreateDamageReports && (
+                  <button onClick={openDamageModal} className="text-orange-500 text-xs font-bold uppercase tracking-widest flex items-center gap-1">
+                    Report +
+                  </button>
+                )}
               </div>
               {damageReports.length === 0 ? (
                 <div className="rounded-[24px] border border-zinc-200 bg-white p-6 text-center shadow-[0_16px_34px_rgba(15,23,42,0.06)] dark:border-zinc-800 dark:bg-zinc-900">
@@ -1567,9 +1634,11 @@ export function CameraView() {
             <section className="space-y-4">
               <div className="flex justify-between items-center px-1">
                 <h2 className="text-lg font-bold text-zinc-900 dark:text-white tracking-tight">Movement Log</h2>
-                <button onClick={openScanModal} className="text-orange-500 text-xs font-bold uppercase tracking-widest flex items-center gap-1">
-                  Log +
-                </button>
+                {canCreateMovementLogs && (
+                  <button onClick={openScanModal} className="text-orange-500 text-xs font-bold uppercase tracking-widest flex items-center gap-1">
+                    Log +
+                  </button>
+                )}
               </div>
               {logs.length === 0 ? (
                 <div className="bg-white dark:bg-zinc-900 p-6 rounded-xl text-center border border-zinc-200 dark:border-zinc-800">
@@ -1607,9 +1676,11 @@ export function CameraView() {
             <section className="space-y-4">
               <div className="flex justify-between items-center px-1">
                 <h2 className="text-lg font-bold text-zinc-900 dark:text-white tracking-tight">Damage & Loss Reports</h2>
-                <button onClick={openDamageModal} className="text-orange-500 text-xs font-bold uppercase tracking-widest flex items-center gap-1">
-                  Report +
-                </button>
+                {canCreateDamageReports && (
+                  <button onClick={openDamageModal} className="text-orange-500 text-xs font-bold uppercase tracking-widest flex items-center gap-1">
+                    Report +
+                  </button>
+                )}
               </div>
               {damageReports.length === 0 ? (
                 <div className="bg-white dark:bg-zinc-900 p-6 rounded-xl text-center border border-zinc-200 dark:border-zinc-800">
@@ -1721,9 +1792,11 @@ export function CameraView() {
             <section className="space-y-4">
               <div className="flex justify-between items-center px-1">
                 <h2 className="text-lg font-bold text-zinc-900 dark:text-white tracking-tight">Wishlist Items</h2>
-                <button onClick={openWishlistModal} className="text-orange-500 text-xs font-bold uppercase tracking-widest flex items-center gap-1">
-                  Add +
-                </button>
+                {canManageWishlist && (
+                  <button onClick={openWishlistModal} className="text-orange-500 text-xs font-bold uppercase tracking-widest flex items-center gap-1">
+                    Add +
+                  </button>
+                )}
               </div>
               {wishlist.length === 0 ? (
                 <div className="bg-white dark:bg-zinc-900 p-6 rounded-xl text-center border border-zinc-200 dark:border-zinc-800">
@@ -1744,10 +1817,12 @@ export function CameraView() {
                           </div>
                           <div className="flex justify-between items-end border-t border-zinc-200 dark:border-zinc-800 pt-3">
                              <p className="text-[10px] text-zinc-500">Added by: {item.createdByName ?? 'User'}</p>
-                             <div className="flex gap-4 items-center">
-                                <button onClick={() => handleDeleteWishlistItem(item)} className="material-symbols-outlined text-[16px] text-red-500">delete</button>
-                                <button onClick={() => handleEditWishlistItem(item)} className="material-symbols-outlined text-[16px] text-zinc-500 dark:text-zinc-400">edit</button>
-                             </div>
+                             {canManageWishlist && (
+                               <div className="flex gap-4 items-center">
+                                  <button onClick={() => handleDeleteWishlistItem(item)} className="material-symbols-outlined text-[16px] text-red-500">delete</button>
+                                  <button onClick={() => handleEditWishlistItem(item)} className="material-symbols-outlined text-[16px] text-zinc-500 dark:text-zinc-400">edit</button>
+                               </div>
+                             )}
                           </div>
                        </div>
                     </div>
@@ -1761,14 +1836,18 @@ export function CameraView() {
         {activeMobileTab === 'home' && (
           <div className="fixed bottom-[96px] left-0 right-0 z-40 mx-auto w-full max-w-md px-4 pointer-events-none">
             <div className="grid grid-cols-2 gap-3 rounded-[28px] border border-zinc-200/80 bg-white/88 p-3 shadow-[0_22px_48px_rgba(15,23,42,0.14)] backdrop-blur-2xl dark:border-white/8 dark:bg-zinc-900/84 dark:shadow-[0_22px_52px_rgba(0,0,0,0.34)] pointer-events-auto">
-              <button onClick={openScanModal} className="flex min-h-[72px] flex-col items-center justify-center gap-1 rounded-[22px] bg-gradient-to-r from-orange-500 to-orange-400 py-4 text-black shadow-[0_16px_28px_rgba(249,115,22,0.28)] transition-all active:scale-95">
-                <span className="material-symbols-outlined mb-0.5 text-2xl">qr_code_scanner</span>
-                <span className="font-label text-[11px] font-black uppercase tracking-wider">Scan QR</span>
-              </button>
-              <button onClick={openRequestModal} className="flex min-h-[72px] flex-col items-center justify-center gap-1 rounded-[22px] border border-zinc-200 bg-white py-4 text-zinc-900 shadow-[0_14px_24px_rgba(15,23,42,0.08)] transition-all active:scale-95 dark:border-zinc-700 dark:bg-zinc-900 dark:text-white">
-                <span className="material-symbols-outlined mb-0.5 text-2xl text-orange-500">shopping_cart_checkout</span>
-                <span className="font-label text-[11px] font-bold uppercase tracking-wider text-orange-500">Request</span>
-              </button>
+              {canCreateMovementLogs && (
+                <button onClick={openScanModal} className="flex min-h-[72px] flex-col items-center justify-center gap-1 rounded-[22px] bg-gradient-to-r from-orange-500 to-orange-400 py-4 text-black shadow-[0_16px_28px_rgba(249,115,22,0.28)] transition-all active:scale-95">
+                  <span className="material-symbols-outlined mb-0.5 text-2xl">qr_code_scanner</span>
+                  <span className="font-label text-[11px] font-black uppercase tracking-wider">Scan QR</span>
+                </button>
+              )}
+              {canCreateCameraRequests && (
+                <button onClick={openRequestModal} className="flex min-h-[72px] flex-col items-center justify-center gap-1 rounded-[22px] border border-zinc-200 bg-white py-4 text-zinc-900 shadow-[0_14px_24px_rgba(15,23,42,0.08)] transition-all active:scale-95 dark:border-zinc-700 dark:bg-zinc-900 dark:text-white">
+                  <span className="material-symbols-outlined mb-0.5 text-2xl text-orange-500">shopping_cart_checkout</span>
+                  <span className="font-label text-[11px] font-bold uppercase tracking-wider text-orange-500">Request</span>
+                </button>
+              )}
             </div>
           </div>
         )}

@@ -1,4 +1,5 @@
 import type { User, UserRole } from '@/types'
+import { canAccessArtWorkspace, canAccessCameraWorkspace, isProducerUser } from './role-capabilities'
 
 export type AppRouteId =
   | 'dashboard'
@@ -43,25 +44,25 @@ export function isFieldRole(role: UserRole) {
 export function canAccessRoute(user: User, routeId: AppRouteId) {
   switch (routeId) {
     case 'dashboard':
-      return isProducerRole(user.role)
+      return isProducerUser(user)
     case 'projects':
       return true
     case 'transport':
       return isProducerRole(user.role) || user.role === 'Driver' || hasDepartmentAccess(user, ['transport', 'production'])
     case 'camera':
-      return isProducerRole(user.role) || user.role === 'DataWrangler' || hasDepartmentAccess(user, ['camera', 'post'])
+      return canAccessCameraWorkspace(user) || user.role === 'DataWrangler' || hasDepartmentAccess(user, ['camera', 'post'])
     case 'crew':
       return isProducerRole(user.role) || ['HOD', 'Supervisor', 'Crew'].includes(user.role) || hasDepartmentAccess(user, ['production'])
     case 'expenses':
-      return isProducerRole(user.role) || hasDepartmentAccess(user, ['art', 'production'])
+      return canAccessArtWorkspace(user) || hasDepartmentAccess(user, ['production'])
     case 'wardrobe':
       return isProducerRole(user.role) || hasDepartmentAccess(user, ['wardrobe'])
     case 'approvals':
-      return isProducerRole(user.role)
+      return isProducerUser(user)
     case 'reports':
-      return isProducerRole(user.role)
+      return isProducerUser(user)
     case 'settings':
-      return isProducerRole(user.role)
+      return isProducerUser(user)
     default:
       return false
   }

@@ -4,6 +4,7 @@ import { authMiddleware } from '../../middleware/auth.middleware'
 import { resolveTransportApprovalDecision } from '../../services/transportApproval.service'
 import { projectAccessMiddleware } from '../../middleware/projectAccess.middleware'
 import { HttpError } from '../../utils/httpError'
+import { resolveArtExpenseApprovalDecision } from '../art/art.service'
 
 export const requestsRouter = Router()
 
@@ -25,6 +26,7 @@ interface ApprovalRow {
   rejected_at: string | null
   rejection_reason: string | null
   approvable_table: string | null
+  approvable_id: string | null
   metadata: Record<string, unknown> | null
 }
 
@@ -68,6 +70,24 @@ function isCameraApproval(row: ApprovalRow) {
   return asString(metadata.cameraModuleType) === 'camera_request' || row.approvable_table === 'camera_requests'
 }
 
+function isArtExpenseApproval(row: ApprovalRow) {
+  const metadata = asObject(row.metadata)
+  return (
+    row.approvable_table === 'expenses'
+    && (row.department === 'art' || asString(metadata.artModuleType) === 'expense_approval')
+  )
+}
+
+function artExpenseDecision(row: ApprovalRow) {
+  if (!isArtExpenseApproval(row)) {
+    return null
+  }
+
+  const metadata = asObject(row.metadata)
+  const decision = asString(metadata.decision)
+  return decision === 'approved' || decision === 'rejected' ? decision : null
+}
+
 function workflowStatus(row: ApprovalRow) {
   const metadata = asObject(row.metadata)
   const value = asString(metadata.workflowStatus)
@@ -84,6 +104,10 @@ function workflowStatus(row: ApprovalRow) {
 }
 
 function isPendingForProducer(row: ApprovalRow) {
+  if (isArtExpenseApproval(row)) {
+    return row.status === 'pending' && artExpenseDecision(row) == null
+  }
+
   if (!isCameraApproval(row)) {
     return row.status === 'pending'
   }
@@ -92,6 +116,11 @@ function isPendingForProducer(row: ApprovalRow) {
 }
 
 function isCompletedApproval(row: ApprovalRow) {
+  const artDecision = artExpenseDecision(row)
+  if (artDecision) {
+    return true
+  }
+
   if (!isCameraApproval(row)) {
     return row.status === 'approved' || row.status === 'rejected'
   }
@@ -140,7 +169,7 @@ async function getUserMap(userIds: string[]) {
 async function getApprovalsForProject(projectId: string) {
   const { data, error } = await adminClient
     .from('approvals')
-    .select('id, project_id, type, department, requested_by, request_title, request_description, amount, priority, status, submitted_at, updated_at, approved_by, approved_at, rejected_at, rejection_reason, approvable_table, metadata')
+    .select('id, project_id, type, department, requested_by, request_title, request_description, amount, priority, status, submitted_at, updated_at, approved_by, approved_at, rejected_at, rejection_reason, approvable_table, approvable_id, metadata')
     .eq('project_id', projectId)
     .order('submitted_at', { ascending: false })
 
@@ -206,15 +235,16 @@ requestsRouter.get('/:projectId/history', authMiddleware, projectAccessMiddlewar
 
     const history = completedApprovals.map(row => {
       const actor = row.approved_by ? userMap.get(row.approved_by) : null
-      const action = workflowStatus(row) === 'rejected' ? 'rejected' : 'approved'
+      const action = artExpenseDecision(row) ?? (workflowStatus(row) === 'rejected' ? 'rejected' : 'approved')
+      const metadata = asObject(row.metadata)
       return {
         requestId: row.request_title || row.id,
         approvedBy: actor?.full_name ?? 'ProdSync',
         role: actor?.role ?? 'Approver',
-        timestamp: row.approved_at ?? row.rejected_at ?? row.updated_at ?? row.submitted_at,
+        timestamp: row.approved_at ?? row.rejected_at ?? asString(metadata.updatedAt) ?? row.updated_at ?? row.submitted_at,
         auditNote: action === 'rejected'
-          ? row.rejection_reason ?? asString(asObject(row.metadata).notes) ?? row.request_description ?? ''
-          : asString(asObject(row.metadata).notes) ?? row.request_description ?? '',
+          ? row.rejection_reason ?? asString(metadata.notes) ?? row.request_description ?? ''
+          : asString(metadata.notes) ?? row.request_description ?? '',
         action,
       }
     })
@@ -239,7 +269,7 @@ requestsRouter.get('/:projectId/kpis', authMiddleware, projectAccessMiddleware, 
       ? 0
       : Math.round(
           completed.reduce((total, row) => {
-            const completedAt = row.approved_at ?? row.rejected_at ?? row.updated_at ?? row.submitted_at
+            const completedAt = asString(asObject(row.metadata).updatedAt) ?? row.approved_at ?? row.rejected_at ?? row.updated_at ?? row.submitted_at
             const deltaMinutes = (new Date(completedAt).getTime() - new Date(row.submitted_at).getTime()) / 60_000
             return total + Math.max(0, deltaMinutes)
           }, 0) / completed.length,
@@ -250,8 +280,22 @@ requestsRouter.get('/:projectId/kpis', authMiddleware, projectAccessMiddleware, 
       highValue: pendingApprovals.filter(
         row => row.priority === 'high' || row.priority === 'emergency' || Number(row.amount ?? 0) >= 100000,
       ).length,
-      approvedToday: approvals.filter(row => workflowStatus(row) === 'approved' && (row.approved_at ?? '').startsWith(today)).length,
-      rejectedToday: approvals.filter(row => workflowStatus(row) === 'rejected' && (row.rejected_at ?? '').startsWith(today)).length,
+      approvedToday: approvals.filter(row => {
+        const artDecision = artExpenseDecision(row)
+        if (artDecision === 'approved') {
+          return (asString(asObject(row.metadata).updatedAt) ?? row.approved_at ?? '').startsWith(today)
+        }
+
+        return workflowStatus(row) === 'approved' && (row.approved_at ?? '').startsWith(today)
+      }).length,
+      rejectedToday: approvals.filter(row => {
+        const artDecision = artExpenseDecision(row)
+        if (artDecision === 'rejected') {
+          return (asString(asObject(row.metadata).updatedAt) ?? row.rejected_at ?? '').startsWith(today)
+        }
+
+        return workflowStatus(row) === 'rejected' && (row.rejected_at ?? '').startsWith(today)
+      }).length,
       pendingValueINR: pendingApprovals
         .reduce((total, row) => total + Number(row.amount ?? 0), 0),
       avgActionTimeMinutes: averageActionTimeMinutes,
@@ -289,6 +333,49 @@ requestsRouter.post('/:projectId/:requestId/approve', authMiddleware, projectAcc
     const metadata = asObject(approval.metadata)
     const now = new Date().toISOString()
 
+    if (isArtExpenseApproval(approval)) {
+      await resolveArtExpenseApprovalDecision({
+        projectId,
+        expenseId: approval.approvable_id,
+        approvalId: requestId,
+        reviewerId: reviewerId ?? null,
+        decision: 'approved',
+        reason: null,
+      })
+
+      const { data, error } = await adminClient
+        .from('approvals')
+        .update({
+          approved_by: reviewerId,
+          approved_at: now,
+          rejected_at: null,
+          rejection_reason: null,
+          metadata: {
+            ...metadata,
+            decision: 'approved',
+            notes: asString(metadata.notes) ?? approval.request_description ?? 'Approved from producer approvals.',
+            updatedAt: now,
+            actedBy: reviewerId,
+          },
+        })
+        .eq('project_id', projectId)
+        .eq('id', requestId)
+        .select('id')
+        .maybeSingle()
+
+      if (error) {
+        throw error
+      }
+
+      if (!data) {
+        throw new HttpError(404, 'Approval request not found.')
+      }
+
+      console.log('[requests][approve][art] db result', { projectId, requestId })
+      res.json({ ok: true })
+      return
+    }
+
     const { data, error } = await adminClient
       .from('approvals')
       .update({
@@ -297,14 +384,12 @@ requestsRouter.post('/:projectId/:requestId/approve', authMiddleware, projectAcc
         approved_at: now,
         rejected_at: null,
         rejection_reason: null,
-        metadata: isCameraApproval(approval)
-          ? {
-              ...metadata,
-              workflowStatus: 'approved',
-              updatedAt: now,
-              actedBy: reviewerId,
-            }
-          : approval.metadata,
+        metadata: {
+          ...metadata,
+          workflowStatus: 'approved',
+          updatedAt: now,
+          actedBy: reviewerId,
+        },
       })
       .eq('project_id', projectId)
       .eq('id', requestId)
@@ -360,6 +445,49 @@ requestsRouter.post('/:projectId/:requestId/reject', authMiddleware, projectAcce
     const metadata = asObject(approval.metadata)
     const now = new Date().toISOString()
 
+    if (isArtExpenseApproval(approval)) {
+      await resolveArtExpenseApprovalDecision({
+        projectId,
+        expenseId: approval.approvable_id,
+        approvalId: requestId,
+        reviewerId: reviewerId ?? null,
+        decision: 'rejected',
+        reason: reason || 'Denied from producer approvals.',
+      })
+
+      const { data, error } = await adminClient
+        .from('approvals')
+        .update({
+          approved_by: reviewerId,
+          approved_at: null,
+          rejected_at: now,
+          rejection_reason: reason || 'Denied from producer approvals.',
+          metadata: {
+            ...metadata,
+            decision: 'rejected',
+            notes: reason || asString(metadata.notes) || 'Denied from producer approvals.',
+            updatedAt: now,
+            actedBy: reviewerId,
+          },
+        })
+        .eq('project_id', projectId)
+        .eq('id', requestId)
+        .select('id')
+        .maybeSingle()
+
+      if (error) {
+        throw error
+      }
+
+      if (!data) {
+        throw new HttpError(404, 'Approval request not found.')
+      }
+
+      console.log('[requests][reject][art] db result', { projectId, requestId })
+      res.json({ ok: true })
+      return
+    }
+
     const { data, error } = await adminClient
       .from('approvals')
       .update({
@@ -367,16 +495,14 @@ requestsRouter.post('/:projectId/:requestId/reject', authMiddleware, projectAcce
         approved_by: reviewerId,
         approved_at: null,
         rejected_at: now,
-        rejection_reason: reason || 'Rejected from approvals center.',
-        metadata: isCameraApproval(approval)
-          ? {
-              ...metadata,
-              workflowStatus: 'rejected',
-              notes: reason || asString(metadata.notes) || 'Rejected from approvals center.',
-              updatedAt: now,
-              actedBy: reviewerId,
-            }
-          : approval.metadata,
+        rejection_reason: reason || 'Denied from producer approvals.',
+        metadata: {
+          ...metadata,
+          workflowStatus: 'rejected',
+          notes: reason || asString(metadata.notes) || 'Denied from producer approvals.',
+          updatedAt: now,
+          actedBy: reviewerId,
+        },
       })
       .eq('project_id', projectId)
       .eq('id', requestId)
@@ -395,7 +521,7 @@ requestsRouter.post('/:projectId/:requestId/reject', authMiddleware, projectAcce
       projectId,
       reviewerId: reviewerId ?? null,
       decision: 'rejected',
-      reason: reason || 'Rejected from approvals center.',
+      reason: reason || 'Denied from producer approvals.',
       metadata,
     })
 

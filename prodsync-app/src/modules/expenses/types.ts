@@ -1,4 +1,5 @@
 export type ArtExpenseCategory = 'construction' | 'props' | 'materials' | 'misc'
+export type ArtExpenseApprovalStatus = 'pending' | 'approved' | 'denied'
 export type ArtPropSourcingType = 'sourced' | 'hired'
 export type ArtPropStatus = 'in_use' | 'in_storage' | 'returned' | 'missing'
 export type ArtSetStatus = 'planned' | 'in_progress' | 'completed'
@@ -23,6 +24,12 @@ export interface ArtExpense {
   createdAt: string
   hasReceipt: boolean
   mismatchFlag: boolean
+  approvalId: string | null
+  approvalStatus: ArtExpenseApprovalStatus
+  approvalNote: string | null
+  reviewedById: string | null
+  reviewedByName: string | null
+  reviewedAt: string | null
 }
 
 export interface ArtProp {
