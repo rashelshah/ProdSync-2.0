@@ -136,16 +136,45 @@ export interface TransportKpis {
 export type AttendanceVerification = 'gps' | 'manual' | 'biometric'
 export type CrewStatus = 'active' | 'ot' | 'offduty'
 export type BattaStatus = 'requested' | 'approved' | 'paid' | 'rejected'
+export type CrewShiftState = 'not_checked_in' | 'checked_in' | 'checked_out'
+
+export interface CrewLocationPoint {
+  lat: number
+  lng: number
+  accuracy: number | null
+  timestamp: string
+}
+
+export interface CrewProjectLocation {
+  locationId: string
+  projectId: string
+  name: string
+  latitude: number
+  longitude: number
+  radiusMeters: number
+  isActive: boolean
+  createdAt: string
+  mapLink: string
+}
 
 export interface CrewMember {
   id: string
+  attendanceId?: string
+  userId?: string
   name: string
   role: string
   department: string
   checkInTime: string
+  checkInAt?: string | null
+  checkOutAt?: string | null
   verification: AttendanceVerification
   status: CrewStatus
   shiftHours: number
+  otMinutes?: number
+  geoVerified?: boolean
+  state?: CrewShiftState
+  location?: CrewLocationPoint | null
+  mapLink?: string | null
 }
 
 export interface OvertimeGroup {
@@ -160,6 +189,7 @@ export interface OvertimeGroup {
 
 export interface WagePayout {
   id: string
+  attendanceId?: string | null
   crewMemberId: string
   crewName: string
   department: string
@@ -168,6 +198,9 @@ export interface WagePayout {
   type: 'batta' | 'ot' | 'wage'
   status: BattaStatus
   timestamp: string
+  requestedBy?: string | null
+  approvedBy?: string | null
+  paidBy?: string | null
 }
 
 export interface CrewKpis {
@@ -178,6 +211,70 @@ export interface CrewKpis {
   battaRequested: number
   battaPaid: number
   overstaffingCount: number
+}
+
+export interface CrewShiftSnapshot {
+  attendanceId: string | null
+  state: CrewShiftState
+  checkInTime: string | null
+  checkOutTime: string | null
+  workingSeconds: number
+  otMinutes: number
+  otActive: boolean
+  geoVerified: boolean
+  shiftStatus: string
+  checkInLocation: CrewLocationPoint | null
+  checkOutLocation: CrewLocationPoint | null
+}
+
+export interface CrewAttendanceHistoryItem {
+  id: string
+  state: CrewShiftState
+  checkInTime: string | null
+  checkOutTime: string | null
+  shiftStatus: string
+  durationMinutes: number
+  otMinutes: number
+  geoVerified: boolean
+  location: CrewLocationPoint | null
+  mapLink: string | null
+}
+
+export interface CrewPermissions {
+  canCheckIn: boolean
+  canCheckOut: boolean
+  canRequestBatta: boolean
+  canViewOwnRecords: boolean
+  canViewAllCrew: boolean
+  canApproveBatta: boolean
+  canMarkBattaPaid: boolean
+  canManageLocation: boolean
+  summaryOnly: boolean
+}
+
+export interface CrewDashboardSummary {
+  totalCrew: number
+  activeOTCrew: number
+  totalOTCost: number
+  battaRequested: number
+  battaPaid: number
+}
+
+export interface CrewDashboardData {
+  summary: CrewDashboardSummary
+  permissions: CrewPermissions
+  projectLocation: CrewProjectLocation | null
+  myShift: CrewShiftSnapshot
+  myRecords: CrewAttendanceHistoryItem[]
+  crew: CrewMember[]
+  otGroups: OvertimeGroup[]
+  payouts: WagePayout[]
+  battaQueue: WagePayout[]
+  serverNow: string
+  guards?: {
+    usesOsmOnly: boolean
+    gpsCheck: boolean
+  }
 }
 
 // ─── Approvals ────────────────────────────────────────────────────────────────

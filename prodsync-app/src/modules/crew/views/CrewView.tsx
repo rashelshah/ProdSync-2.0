@@ -1,171 +1,717 @@
+import { useEffect, useMemo, useState } from 'react'
+import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useCrewData } from '../hooks/useCrewData'
 import { KpiCard } from '@/components/shared/KpiCard'
 import { DataTable } from '@/components/shared/DataTable'
 import { StatusBadge } from '@/components/shared/StatusBadge'
 import { Surface } from '@/components/shared/Surface'
 import { EmptyState, LoadingState, ErrorState } from '@/components/system/SystemStates'
-import { formatCurrency, cn } from '@/utils'
-import type { CrewMember, OvertimeGroup, WagePayout } from '@/types'
+import { crewService } from '@/services/crew.service'
+import { resolveErrorMessage, showError, showLoading, showSuccess } from '@/lib/toast'
+import { formatCurrency, formatDate, formatTime } from '@/utils'
+import type { CrewAttendanceHistoryItem, CrewLocationPoint, CrewMember, WagePayout } from '@/types'
 
-const verificationConfig = {
-  gps: { icon: 'location_on', colorClass: 'text-orange-600 bg-orange-50 dark:text-orange-400 dark:bg-orange-500/10', label: 'GPS OK' },
-  manual: { icon: 'warning', colorClass: 'text-red-500 bg-red-50 dark:text-red-400 dark:bg-red-500/10', label: 'Manual' },
-  biometric: { icon: 'fingerprint', colorClass: 'text-zinc-700 bg-zinc-100 dark:text-zinc-300 dark:bg-zinc-800', label: 'Biometric' },
+const secondaryButtonClass =
+  'inline-flex items-center justify-center gap-2 rounded-full border border-zinc-200 px-4 py-2.5 text-[11px] font-semibold uppercase tracking-[0.16em] text-zinc-900 transition-colors hover:border-orange-200 hover:bg-orange-50 hover:text-orange-600 disabled:cursor-not-allowed disabled:opacity-50 dark:border-zinc-800 dark:text-white dark:hover:border-orange-500/20 dark:hover:bg-orange-500/10 dark:hover:text-orange-400'
+
+const inputClass =
+  'w-full rounded-[18px] border border-zinc-200 bg-white px-4 py-3 text-sm text-zinc-900 outline-none transition-colors focus:border-orange-400 dark:border-zinc-800 dark:bg-zinc-950 dark:text-white'
+
+type PaymentMethod = 'UPI' | 'CASH' | 'BANK'
+
+function formatDuration(seconds: number) {
+  const safeSeconds = Math.max(0, Math.floor(seconds))
+  const hours = String(Math.floor(safeSeconds / 3600)).padStart(2, '0')
+  const minutes = String(Math.floor((safeSeconds % 3600) / 60)).padStart(2, '0')
+  const remainingSeconds = String(safeSeconds % 60).padStart(2, '0')
+  return `${hours}:${minutes}:${remainingSeconds}`
+}
+
+function calculateLiveOtMinutes(checkInTime: string | null, reference = new Date()) {
+  if (!checkInTime) {
+    return 0
+  }
+
+  const checkIn = new Date(checkInTime)
+  if (Number.isNaN(checkIn.getTime()) || reference.getTime() <= checkIn.getTime()) {
+    return 0
+  }
+
+  const localDay = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Kolkata',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(checkIn)
+
+  const otStart = new Date(`${localDay}T18:00:00+05:30`)
+  const effectiveStart = checkIn.getTime() > otStart.getTime() ? checkIn : otStart
+
+  if (reference.getTime() <= effectiveStart.getTime()) {
+    return 0
+  }
+
+  return Math.floor((reference.getTime() - effectiveStart.getTime()) / 60000)
+}
+
+function formatCoordinates(location: CrewLocationPoint | null | undefined) {
+  if (!location) {
+    return '--'
+  }
+
+  return `${location.lat.toFixed(5)}, ${location.lng.toFixed(5)}`
+}
+
+function payoutStatusVariant(status: WagePayout['status']) {
+  if (status === 'paid') return 'paid' as const
+  if (status === 'approved') return 'approved' as const
+  if (status === 'rejected') return 'rejected' as const
+  return 'requested' as const
+}
+
+function shiftStatusVariant(state: CrewMember['status']) {
+  if (state === 'ot') return 'ot' as const
+  if (state === 'offduty') return 'idle' as const
+  return 'active' as const
+}
+
+function buildMapLink(location: CrewLocationPoint | null | undefined) {
+  if (!location) {
+    return null
+  }
+
+  return `https://www.openstreetmap.org/?mlat=${location.lat}&mlon=${location.lng}#map=18/${location.lat}/${location.lng}`
+}
+
+function requestBrowserLocation() {
+  return new Promise<CrewLocationPoint>((resolve, reject) => {
+    if (typeof navigator === 'undefined' || !navigator.geolocation) {
+      reject(new Error('GPS is not supported on this device.'))
+      return
+    }
+
+    navigator.geolocation.getCurrentPosition(
+      position => {
+        resolve({
+          lat: position.coords.latitude,
+          lng: position.coords.longitude,
+          accuracy: Number.isFinite(position.coords.accuracy) ? Math.round(position.coords.accuracy) : null,
+          timestamp: new Date(position.timestamp).toISOString(),
+        })
+      },
+      error => {
+        switch (error.code) {
+          case error.PERMISSION_DENIED:
+            reject(new Error('GPS permission was denied. Please allow location access and retry.'))
+            return
+          case error.TIMEOUT:
+            reject(new Error('GPS is taking too long. Move to an open area and retry.'))
+            return
+          default:
+            reject(new Error(error.message || 'Unable to read your current location.'))
+        }
+      },
+      {
+        enableHighAccuracy: true,
+        timeout: 15_000,
+        maximumAge: 0,
+      },
+    )
+  })
 }
 
 export function CrewView() {
-  const { isLoading, isError, kpis, crew, otGroups, battaQueue, recentPayouts, headcountByDept } = useCrewData()
-  const hasData = crew.length > 0 || otGroups.length > 0 || battaQueue.length > 0 || recentPayouts.length > 0
+  const queryClient = useQueryClient()
+  const { activeProjectId, isLoading, isError, summary, permissions, projectLocation, myShift, myRecords, crew, battaQueue, payouts, refetch } = useCrewData()
+  const [activeAction, setActiveAction] = useState<string | null>(null)
+  const [gpsError, setGpsError] = useState<string | null>(null)
+  const [battaAmount, setBattaAmount] = useState('')
+  const [radiusMeters, setRadiusMeters] = useState(projectLocation?.radiusMeters ?? 200)
+  const [locationName, setLocationName] = useState(projectLocation?.name ?? 'Project Base')
+  const [latitude, setLatitude] = useState(projectLocation ? String(projectLocation.latitude) : '')
+  const [longitude, setLongitude] = useState(projectLocation ? String(projectLocation.longitude) : '')
+  const [paymentMethods, setPaymentMethods] = useState<Record<string, PaymentMethod>>({})
+  const [nowTick, setNowTick] = useState(() => Date.now())
+
+  const checkInMutation = useMutation({
+    mutationFn: (payload: CrewLocationPoint) => crewService.checkIn(activeProjectId!, payload),
+  })
+  const checkOutMutation = useMutation({
+    mutationFn: (payload: CrewLocationPoint) => crewService.checkOut(activeProjectId!, payload),
+  })
+  const requestBattaMutation = useMutation({
+    mutationFn: (amount: number) => crewService.requestBatta(activeProjectId!, amount),
+  })
+  const approveBattaMutation = useMutation({
+    mutationFn: (payoutId: string) => crewService.approveBatta(activeProjectId!, payoutId),
+  })
+  const markBattaPaidMutation = useMutation({
+    mutationFn: ({ payoutId, paymentMethod }: { payoutId: string; paymentMethod: PaymentMethod }) =>
+      crewService.markBattaPaid(activeProjectId!, payoutId, paymentMethod),
+  })
+  const updateLocationMutation = useMutation({
+    mutationFn: () =>
+      crewService.updateProjectLocation({
+        projectId: activeProjectId!,
+        name: locationName,
+        latitude: Number(latitude),
+        longitude: Number(longitude),
+        radiusMeters,
+      }),
+  })
+
+  useEffect(() => {
+    setRadiusMeters(projectLocation?.radiusMeters ?? 200)
+    setLocationName(projectLocation?.name ?? 'Project Base')
+    setLatitude(projectLocation ? String(projectLocation.latitude) : '')
+    setLongitude(projectLocation ? String(projectLocation.longitude) : '')
+  }, [projectLocation])
+
+  useEffect(() => {
+    if (myShift.state !== 'checked_in') {
+      return
+    }
+
+    const timer = window.setInterval(() => {
+      setNowTick(Date.now())
+    }, 1000)
+
+    return () => window.clearInterval(timer)
+  }, [myShift.state])
+
+  const liveWorkingSeconds = myShift.state === 'checked_in' && myShift.checkInTime
+    ? Math.max(0, Math.floor((nowTick - new Date(myShift.checkInTime).getTime()) / 1000))
+    : myShift.workingSeconds
+  const liveOtMinutes = myShift.state === 'checked_in'
+    ? calculateLiveOtMinutes(myShift.checkInTime, new Date(nowTick))
+    : myShift.otMinutes
+
+  const linkedAttendanceIds = useMemo(() => {
+    const ids = new Set<string>()
+    if (myShift.attendanceId) {
+      ids.add(myShift.attendanceId)
+    }
+    myRecords.forEach(record => ids.add(record.id))
+    return ids
+  }, [myRecords, myShift.attendanceId])
+
+  const myPayouts = payouts.filter(payout => payout.attendanceId && linkedAttendanceIds.has(payout.attendanceId))
+  const currentAttendancePayout = payouts.find(payout => payout.attendanceId === myShift.attendanceId)
+  const battaStatusByAttendanceId = new Map(
+    payouts
+      .filter(payout => payout.attendanceId)
+      .map(payout => [payout.attendanceId as string, payout.status]),
+  )
+
+  const hasData = crew.length > 0 || battaQueue.length > 0 || myRecords.length > 0
+
+  async function invalidateCrewQueries() {
+    await Promise.allSettled([
+      queryClient.invalidateQueries({ queryKey: ['crew-dashboard', activeProjectId] }),
+      queryClient.invalidateQueries({ queryKey: ['crew', activeProjectId] }),
+      queryClient.invalidateQueries({ queryKey: ['ot-groups', activeProjectId] }),
+      queryClient.invalidateQueries({ queryKey: ['wage-payouts', activeProjectId] }),
+    ])
+  }
+
+  async function runAction(key: string, loadingMessage: string, successMessage: string, action: () => Promise<unknown>) {
+    setActiveAction(key)
+    showLoading(loadingMessage, { id: key })
+
+    try {
+      await action()
+      await invalidateCrewQueries()
+      showSuccess(successMessage, { id: key })
+    } catch (error) {
+      await invalidateCrewQueries()
+      showError(resolveErrorMessage(error, 'Crew action failed.'), { id: key })
+    } finally {
+      setActiveAction(null)
+    }
+  }
+
+  async function handleShiftStart() {
+    if (!activeProjectId) {
+      return
+    }
+
+    setGpsError(null)
+    await runAction('crew-check-in', 'Capturing GPS and starting shift...', 'Check-in success', async () => {
+      try {
+        const location = await requestBrowserLocation()
+        await checkInMutation.mutateAsync(location)
+      } catch (error) {
+        const message = resolveErrorMessage(error, 'Unable to capture GPS location.')
+        setGpsError(message)
+        throw new Error(message)
+      }
+    })
+  }
+
+  async function handleShiftEnd() {
+    if (!activeProjectId) {
+      return
+    }
+
+    setGpsError(null)
+    await runAction('crew-check-out', 'Capturing GPS and ending shift...', 'Check-out success', async () => {
+      try {
+        const location = await requestBrowserLocation()
+        await checkOutMutation.mutateAsync(location)
+      } catch (error) {
+        const message = resolveErrorMessage(error, 'Unable to capture GPS location.')
+        setGpsError(message)
+        throw new Error(message)
+      }
+    })
+  }
+
+  async function handleBattaRequest() {
+    const amount = Number(battaAmount)
+    await runAction('crew-batta-request', 'Submitting batta request...', 'Batta requested', async () => {
+      await requestBattaMutation.mutateAsync(amount)
+      setBattaAmount('')
+    })
+  }
+
+  async function handleApproveBatta(payoutId: string) {
+    await runAction(`approve-${payoutId}`, 'Approving batta request...', 'Approval done', async () => {
+      await approveBattaMutation.mutateAsync(payoutId)
+    })
+  }
+
+  async function handleMarkPaid(payoutId: string) {
+    const paymentMethod = paymentMethods[payoutId] ?? 'CASH'
+    await runAction(`pay-${payoutId}`, 'Marking batta as paid...', 'Payment recorded', async () => {
+      await markBattaPaidMutation.mutateAsync({ payoutId, paymentMethod })
+    })
+  }
+
+  async function handleProjectLocationSave() {
+    await runAction('crew-location-update', 'Updating project location...', 'Project location updated', async () => {
+      await updateLocationMutation.mutateAsync()
+    })
+  }
 
   if (isLoading) return <LoadingState message="Loading crew control..." />
-  if (isError) return <ErrorState message="Failed to load crew data" />
+  if (isError) return <ErrorState message="Failed to load crew data" retry={() => void refetch()} />
 
   return (
-    <div className="page-shell">
+    <div className="page-shell space-y-6">
       <header className="page-header">
         <div>
-          <span className="page-kicker">Wages Administration</span>
+          <span className="page-kicker">Digital Punch Card + Cash Engine</span>
           <h1 className="page-title page-title-compact">Crew Control Center</h1>
-          <p className="page-subtitle">Attendance, overtime, and batta flows now load directly from stored project records.</p>
+          <p className="page-subtitle">GPS-verified attendance, OT calculation after 6 PM, batta approvals, and OSM-only location visibility.</p>
+        </div>
+        <div className="flex flex-wrap items-center gap-3">
+          <StatusBadge variant="verified" label="OSM + Browser GPS" />
+          {permissions.summaryOnly && <StatusBadge variant="stable" label="Summary Only" />}
         </div>
       </header>
 
-      <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-6">
-        <KpiCard label="Total Crew" value={String(kpis.totalCrew)} subLabel="Attendance-backed headcount" />
-        <KpiCard label="Planned Headcount" value={String(kpis.plannedHeadcount)} subLabel="Derived from live staffing setup" />
-        <KpiCard label="Active OT Crew" value={String(kpis.activeOtCrew)} subLabel="From overtime groups" />
-        <KpiCard label="Total OT Cost" value={formatCurrency(kpis.totalOtCostUSD)} subLabel="Estimated OT cost" />
-        <KpiCard label="Batta Requested" value={formatCurrency(kpis.battaRequested)} subLabel="Pending batta amount" />
-        <KpiCard label="Batta Paid" value={formatCurrency(kpis.battaPaid)} subLabel="Settled batta amount" />
+      <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-5">
+        <KpiCard label="Total Crew" value={String(summary.totalCrew)} subLabel="Checked in today" />
+        <KpiCard label="Active OT Crew" value={String(summary.activeOTCrew)} subLabel="Live after 6 PM" />
+        <KpiCard label="Total OT Cost" value={formatCurrency(summary.totalOTCost, 'INR')} subLabel="Rate-aware estimate" />
+        <KpiCard label="Batta Requested" value={formatCurrency(summary.battaRequested, 'INR')} subLabel="Pending approvals" />
+        <KpiCard label="Batta Paid" value={formatCurrency(summary.battaPaid, 'INR')} subLabel="Settled cash engine" />
       </section>
 
-      {!hasData ? (
-        <Surface variant="table" padding="lg">
-          <EmptyState
-            icon="groups"
-            title="No crew data yet"
-            description="No attendance, overtime, or payout records have been stored for this project yet."
-          />
-        </Surface>
-      ) : (
-        <div className="space-y-8">
+      {permissions.summaryOnly ? (
+        <div className="grid gap-6 xl:grid-cols-2">
           <Surface variant="table" padding="lg">
             <div className="mb-6">
-              <p className="section-title">Live Attendance Tracker</p>
-              <p className="mt-2 text-sm text-zinc-500 dark:text-zinc-400">Verification and presence status for active crew.</p>
+              <p className="section-title">Project Geofence</p>
+              <p className="mt-2 text-sm text-zinc-500 dark:text-zinc-400">Read-only location summary for EP and LP visibility.</p>
             </div>
-            <DataTable<CrewMember>
-              columns={[
-                { key: 'name', label: 'Crew Name', render: row => <span className="font-medium text-zinc-900 dark:text-white">{row.name}</span> },
-                { key: 'role', label: 'Role', render: row => <span className="text-zinc-500 dark:text-zinc-400">{row.role}</span> },
-                { key: 'department', label: 'Dept', render: row => <span className="text-zinc-500 dark:text-zinc-400">{row.department}</span> },
-                { key: 'checkInTime', label: 'Check-In', render: row => <span className="font-mono text-[11px] text-zinc-500 dark:text-zinc-400">{row.checkInTime}</span> },
-                {
-                  key: 'verification',
-                  label: 'Verification',
-                  render: row => {
-                    const cfg = verificationConfig[row.verification]
-                    return (
-                      <span className={cn('inline-flex w-fit items-center gap-1.5 rounded-full px-2.5 py-1 text-[9px] font-semibold uppercase tracking-[0.16em]', cfg.colorClass)}>
-                        <span className="material-symbols-outlined text-xs">{cfg.icon}</span>
-                        {cfg.label}
-                      </span>
-                    )
-                  },
-                },
-                {
-                  key: 'status',
-                  label: 'Status',
-                  render: row => <StatusBadge variant={row.status === 'ot' ? 'ot' : row.status === 'offduty' ? 'idle' : 'active'} label={row.status === 'ot' ? 'OT' : row.status === 'offduty' ? 'Off Duty' : 'Active'} />,
-                },
-              ]}
-              data={crew}
-              getKey={row => row.id}
-            />
+            <div className="space-y-4">
+              <ShiftInfo label="Location" value={projectLocation?.name ?? 'Not configured'} />
+              <ShiftInfo label="Coordinates" value={projectLocation ? `${projectLocation.latitude.toFixed(5)}, ${projectLocation.longitude.toFixed(5)}` : '--'} link={projectLocation?.mapLink} />
+              <ShiftInfo label="Radius" value={projectLocation ? `${projectLocation.radiusMeters} m` : '--'} />
+            </div>
           </Surface>
-
-          <div className="grid gap-6 xl:grid-cols-2">
-            <Surface variant="table" padding="lg">
-              <div className="mb-6">
-                <p className="section-title">Overtime Groups</p>
-                <p className="mt-2 text-sm text-zinc-500 dark:text-zinc-400">Current OT groups derived from live overtime records.</p>
-              </div>
+          <Surface variant="table" padding="lg">
+            <div className="mb-6">
+              <p className="section-title">Recent Payout Activity</p>
+              <p className="mt-2 text-sm text-zinc-500 dark:text-zinc-400">Read-only batta settlement trail for financial monitoring.</p>
+            </div>
+            {payouts.length === 0 ? (
+              <EmptyState icon="currency_rupee" title="No payout activity yet" description="Crew payouts will appear here once the first attendance-backed batta request is processed." />
+            ) : (
               <div className="space-y-3">
-                {otGroups.length === 0 ? (
-                  <p className="text-sm text-zinc-500 dark:text-zinc-400">No overtime groups yet.</p>
-                ) : (
-                  otGroups.map(group => <OvertimeGroupCard key={group.id} group={group} />)
-                )}
-              </div>
-            </Surface>
-
-            <Surface variant="table" padding="lg">
-              <div className="mb-6">
-                <p className="section-title">Recent Payouts</p>
-                <p className="mt-2 text-sm text-zinc-500 dark:text-zinc-400">Latest batta and wage disbursement records.</p>
-              </div>
-              <div className="space-y-3">
-                {recentPayouts.length === 0 ? (
-                  <p className="text-sm text-zinc-500 dark:text-zinc-400">No payout records yet.</p>
-                ) : (
-                  recentPayouts.map(payout => <RecentPayoutItem key={payout.id} payout={payout} />)
-                )}
-              </div>
-            </Surface>
-          </div>
-
-          {headcountByDept.length > 0 && (
-            <Surface variant="muted" padding="md">
-              <div className="mb-5">
-                <p className="section-title">Headcount Distribution</p>
-                <p className="mt-2 text-sm text-zinc-500 dark:text-zinc-400">Department headcount based on live attendance.</p>
-              </div>
-              <div className="space-y-5">
-                {headcountByDept.map(item => (
-                  <div key={item.dept} className="space-y-2">
-                    <div className="flex items-center justify-between text-[11px] font-semibold uppercase tracking-[0.16em]">
-                      <span className="text-zinc-500 dark:text-zinc-400">{item.dept}</span>
-                      <span className="text-zinc-900 dark:text-white">{item.actual}</span>
+                {payouts.slice(0, 6).map(payout => (
+                  <div key={payout.id} className="flex items-center justify-between gap-4 rounded-[20px] bg-zinc-50 px-4 py-3 dark:bg-zinc-950">
+                    <div>
+                      <p className="text-sm font-medium text-zinc-900 dark:text-white">{payout.crewName}</p>
+                      <p className="text-[11px] text-zinc-500 dark:text-zinc-400">{formatDate(payout.timestamp)} - {payout.method}</p>
                     </div>
-                    <div className="h-2 rounded-full bg-zinc-200 dark:bg-zinc-800">
-                      <div className="h-full rounded-full bg-zinc-900 dark:bg-white" style={{ width: `${item.plannedPercent}%` }} />
+                    <div className="flex items-center gap-3">
+                      <span className="text-sm font-medium text-zinc-900 dark:text-white">{formatCurrency(payout.amount, 'INR')}</span>
+                      <StatusBadge variant={payoutStatusVariant(payout.status)} label={payout.status} />
                     </div>
                   </div>
                 ))}
               </div>
-            </Surface>
-          )}
+            )}
+          </Surface>
         </div>
+      ) : (
+        <>
+      {!projectLocation && (
+        <Surface variant="warning" padding="md">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <p className="section-title">Project Location Missing</p>
+              <p className="mt-2 text-sm text-zinc-600 dark:text-zinc-300">
+                Attendance cannot be verified until a PM or Transport Captain sets the active geofence.
+              </p>
+            </div>
+            {permissions.canManageLocation && (
+              <button onClick={() => void handleProjectLocationSave()} disabled={activeAction !== null} className="btn-primary">
+                Save Default Location
+              </button>
+            )}
+          </div>
+        </Surface>
+      )}
+
+      {gpsError && (
+        <Surface variant="warning" padding="md">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <p className="section-title">GPS Retry Needed</p>
+              <p className="mt-2 text-sm text-zinc-600 dark:text-zinc-300">{gpsError}</p>
+            </div>
+            <button
+              onClick={() => {
+                if (myShift.state === 'checked_in') {
+                  void handleShiftEnd()
+                  return
+                }
+                void handleShiftStart()
+              }}
+              className={secondaryButtonClass}
+              disabled={activeAction !== null}
+            >
+              Retry GPS
+            </button>
+          </div>
+        </Surface>
+      )}
+
+      <div className="grid gap-6 xl:grid-cols-[1.3fr_1fr]">
+        <Surface variant="table" padding="lg">
+          <div className="mb-6 flex items-start justify-between gap-4">
+            <div>
+              <p className="section-title">Today&apos;s Shift</p>
+              <p className="mt-2 text-sm text-zinc-500 dark:text-zinc-400">Start Shift and End Shift are protected by GPS radius checks and duplicate guards.</p>
+            </div>
+            <StatusBadge
+              variant={myShift.otActive ? 'ot' : myShift.state === 'checked_out' ? 'idle' : myShift.state === 'checked_in' ? 'active' : 'requested'}
+              label={myShift.otActive ? 'OT Active' : myShift.state === 'checked_out' ? 'Checked Out' : myShift.state === 'checked_in' ? 'Checked In' : 'Not Started'}
+            />
+          </div>
+
+          <div className="grid gap-4 md:grid-cols-3">
+            <MetricCard label="Working Time" value={formatDuration(liveWorkingSeconds)} helper={myShift.state === 'checked_in' ? 'Live timer running' : 'Latest recorded total'} />
+            <MetricCard label="OT Minutes" value={String(liveOtMinutes)} helper={liveOtMinutes > 0 ? 'Triggered after 6 PM' : 'No overtime yet'} />
+            <MetricCard label="GPS Status" value={myShift.geoVerified ? 'Verified' : 'Pending'} helper={myShift.checkInLocation ? formatCoordinates(myShift.checkInLocation) : 'No shift location yet'} />
+          </div>
+
+          <div className="mt-6 flex flex-wrap gap-3">
+            {permissions.canCheckIn && myShift.state === 'not_checked_in' && (
+              <button onClick={() => void handleShiftStart()} disabled={activeAction !== null || !projectLocation} className="btn-primary">
+                <span className="material-symbols-outlined text-sm">play_arrow</span>
+                {activeAction === 'crew-check-in' ? 'Starting...' : 'Start Shift'}
+              </button>
+            )}
+
+            {permissions.canCheckOut && myShift.state === 'checked_in' && (
+              <button onClick={() => void handleShiftEnd()} disabled={activeAction !== null} className="btn-primary">
+                <span className="material-symbols-outlined text-sm">stop_circle</span>
+                {activeAction === 'crew-check-out' ? 'Ending...' : 'End Shift'}
+              </button>
+            )}
+
+            {(myShift.state === 'checked_out' || permissions.summaryOnly || !permissions.canCheckIn) && (
+              <button className={secondaryButtonClass} disabled>
+                {permissions.summaryOnly ? 'Summary View' : myShift.state === 'checked_out' ? 'Shift Closed' : 'Role Restricted'}
+              </button>
+            )}
+          </div>
+
+          <div className="mt-6 grid gap-4 md:grid-cols-2">
+            <ShiftInfo label="Check In" value={myShift.checkInTime ? `${formatDate(myShift.checkInTime)} - ${formatTime(myShift.checkInTime)}` : '--'} />
+            <ShiftInfo label="Check Out" value={myShift.checkOutTime ? `${formatDate(myShift.checkOutTime)} - ${formatTime(myShift.checkOutTime)}` : '--'} />
+            <ShiftInfo label="Shift Status" value={myShift.shiftStatus} />
+            <ShiftInfo label="Open in Map" value={myShift.checkInLocation ? 'OSM Ready' : '--'} link={buildMapLink(myShift.checkInLocation)} />
+          </div>
+        </Surface>
+
+        <Surface variant="table" padding="lg">
+          <div className="mb-6">
+            <p className="section-title">Project Geofence</p>
+            <p className="mt-2 text-sm text-zinc-500 dark:text-zinc-400">OSM links only. No Mapbox dependency is used here.</p>
+          </div>
+
+          <div className="space-y-4">
+            <ShiftInfo label="Location" value={projectLocation?.name ?? 'Not configured'} />
+            <ShiftInfo label="Coordinates" value={projectLocation ? `${projectLocation.latitude.toFixed(5)}, ${projectLocation.longitude.toFixed(5)}` : '--'} link={projectLocation?.mapLink} />
+            <ShiftInfo label="Radius" value={projectLocation ? `${projectLocation.radiusMeters} m` : '--'} />
+          </div>
+
+          {permissions.canManageLocation ? (
+            <div className="mt-6 space-y-4 rounded-[24px] border border-zinc-200 bg-zinc-50 p-4 dark:border-zinc-800 dark:bg-zinc-950">
+              <div className="grid gap-3 md:grid-cols-2">
+                <label className="space-y-2 text-sm">
+                  <span className="text-zinc-500 dark:text-zinc-400">Location Name</span>
+                  <input value={locationName} onChange={event => setLocationName(event.target.value)} className={inputClass} />
+                </label>
+                <label className="space-y-2 text-sm">
+                  <span className="text-zinc-500 dark:text-zinc-400">Radius ({radiusMeters}m)</span>
+                  <input type="range" min={100} max={500} step={10} value={radiusMeters} onChange={event => setRadiusMeters(Number(event.target.value))} />
+                </label>
+                <label className="space-y-2 text-sm">
+                  <span className="text-zinc-500 dark:text-zinc-400">Latitude</span>
+                  <input value={latitude} onChange={event => setLatitude(event.target.value)} className={inputClass} />
+                </label>
+                <label className="space-y-2 text-sm">
+                  <span className="text-zinc-500 dark:text-zinc-400">Longitude</span>
+                  <input value={longitude} onChange={event => setLongitude(event.target.value)} className={inputClass} />
+                </label>
+              </div>
+              <button
+                onClick={() => void handleProjectLocationSave()}
+                disabled={activeAction !== null || !latitude || !longitude}
+                className="btn-primary"
+              >
+                <span className="material-symbols-outlined text-sm">place</span>
+                {activeAction === 'crew-location-update' ? 'Saving...' : 'Set Project Location'}
+              </button>
+            </div>
+          ) : (
+            <p className="mt-6 text-sm text-zinc-500 dark:text-zinc-400">Location updates are limited to PM and Transport Captain roles.</p>
+          )}
+        </Surface>
+      </div>
+
+      <div className="grid gap-6 xl:grid-cols-[1.1fr_1fr]">
+        <Surface variant="table" padding="lg">
+          <div className="mb-6 flex items-start justify-between gap-4">
+            <div>
+              <p className="section-title">Batta Flow</p>
+              <p className="mt-2 text-sm text-zinc-500 dark:text-zinc-400">Crew requests, PM approves, and payment is recorded before closure.</p>
+            </div>
+            {currentAttendancePayout && (
+              <StatusBadge variant={payoutStatusVariant(currentAttendancePayout.status)} label={currentAttendancePayout.status} />
+            )}
+          </div>
+
+          {permissions.canRequestBatta ? (
+            <div className="space-y-4">
+              <label className="space-y-2 text-sm">
+                <span className="text-zinc-500 dark:text-zinc-400">Batta Amount</span>
+                <input
+                  type="number"
+                  min={0}
+                  step={100}
+                  value={battaAmount}
+                  onChange={event => setBattaAmount(event.target.value)}
+                  placeholder="Enter amount"
+                  className={inputClass}
+                />
+              </label>
+              <button
+                onClick={() => void handleBattaRequest()}
+                disabled={activeAction !== null || !myShift.attendanceId || !battaAmount || Boolean(currentAttendancePayout)}
+                className="btn-primary"
+              >
+                <span className="material-symbols-outlined text-sm">currency_rupee</span>
+                {activeAction === 'crew-batta-request' ? 'Submitting...' : 'Request Batta'}
+              </button>
+              {currentAttendancePayout && (
+                <p className="text-sm text-zinc-500 dark:text-zinc-400">A batta request already exists for this attendance record.</p>
+              )}
+            </div>
+          ) : (
+            <EmptyState icon="currency_rupee" title="Batta requests are role-scoped" description="Crew members can request batta after a valid attendance record is available." />
+          )}
+
+          <div className="mt-6 space-y-3">
+            {myPayouts.length === 0 ? (
+              <p className="text-sm text-zinc-500 dark:text-zinc-400">No batta records linked to your recent shifts yet.</p>
+            ) : (
+              myPayouts.slice(0, 4).map(payout => (
+                <div key={payout.id} className="flex items-center justify-between gap-4 rounded-[20px] bg-zinc-50 px-4 py-3 dark:bg-zinc-950">
+                  <div>
+                    <p className="text-sm font-medium text-zinc-900 dark:text-white">{formatCurrency(payout.amount, 'INR')}</p>
+                    <p className="text-[11px] text-zinc-500 dark:text-zinc-400">{formatDate(payout.timestamp)} - {payout.method}</p>
+                  </div>
+                  <StatusBadge variant={payoutStatusVariant(payout.status)} label={payout.status} />
+                </div>
+              ))
+            )}
+          </div>
+        </Surface>
+
+        <Surface variant="table" padding="lg">
+          <div className="mb-6">
+            <p className="section-title">Manager Queue</p>
+            <p className="mt-2 text-sm text-zinc-500 dark:text-zinc-400">Approval and cash completion remain locked until the right stage is reached.</p>
+          </div>
+
+          {!permissions.canViewAllCrew ? (
+            <EmptyState icon="lock" title="Manager actions restricted" description="Only PM and Transport Captain roles can approve or mark batta as paid." />
+          ) : battaQueue.length === 0 ? (
+            <p className="text-sm text-zinc-500 dark:text-zinc-400">No batta requests are waiting right now.</p>
+          ) : (
+            <div className="space-y-4">
+              {battaQueue.map(payout => (
+                <div key={payout.id} className="rounded-[24px] border border-zinc-200 p-4 dark:border-zinc-800">
+                  <div className="flex flex-wrap items-start justify-between gap-4">
+                    <div>
+                      <p className="text-sm font-medium text-zinc-900 dark:text-white">{payout.crewName}</p>
+                      <p className="mt-1 text-[11px] uppercase tracking-[0.16em] text-zinc-500 dark:text-zinc-400">{payout.department}</p>
+                    </div>
+                    <StatusBadge variant={payoutStatusVariant(payout.status)} label={payout.status} />
+                  </div>
+                  <p className="mt-4 text-sm text-zinc-600 dark:text-zinc-300">{formatCurrency(payout.amount, 'INR')} - {payout.method}</p>
+                  <div className="mt-4 flex flex-wrap items-center gap-3">
+                    <button
+                      onClick={() => void handleApproveBatta(payout.id)}
+                      disabled={activeAction !== null || payout.status !== 'requested'}
+                      className="btn-primary px-4 py-2 text-[11px]"
+                    >
+                      {activeAction === `approve-${payout.id}` ? 'Approving...' : 'Approve'}
+                    </button>
+                    <select
+                      value={paymentMethods[payout.id] ?? 'CASH'}
+                      onChange={event => setPaymentMethods(current => ({ ...current, [payout.id]: event.target.value as PaymentMethod }))}
+                      className={inputClass}
+                    >
+                      <option value="CASH">Cash</option>
+                      <option value="UPI">UPI</option>
+                      <option value="BANK">Bank</option>
+                    </select>
+                    <button
+                      onClick={() => void handleMarkPaid(payout.id)}
+                      disabled={activeAction !== null || payout.status !== 'approved'}
+                      className={secondaryButtonClass}
+                    >
+                      {activeAction === `pay-${payout.id}` ? 'Paying...' : 'Mark Paid'}
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </Surface>
+      </div>
+
+      {permissions.canViewAllCrew ? (
+        <Surface variant="table" padding="lg">
+          <div className="mb-6">
+            <p className="section-title">Crew Table</p>
+            <p className="mt-2 text-sm text-zinc-500 dark:text-zinc-400">Name, check-in time, coordinates, status, OT minutes, and batta state for the active project day.</p>
+          </div>
+          {!hasData ? (
+            <EmptyState icon="groups" title="No crew activity yet" description="No attendance has been captured for the current project day." />
+          ) : (
+            <DataTable<CrewMember>
+              columns={[
+                { key: 'name', label: 'Name', render: row => <span className="font-medium text-zinc-900 dark:text-white">{row.name}</span> },
+                { key: 'checkInTime', label: 'Check-In', render: row => <span className="font-mono text-[11px] text-zinc-500 dark:text-zinc-400">{row.checkInTime}</span> },
+                {
+                  key: 'location',
+                  label: 'Location',
+                  render: row => row.location ? (
+                    <div className="space-y-1">
+                      <p className="text-sm text-zinc-900 dark:text-white">{formatCoordinates(row.location)}</p>
+                      <a href={row.mapLink ?? buildMapLink(row.location) ?? undefined} target="_blank" rel="noreferrer" className="text-[11px] font-semibold uppercase tracking-[0.16em] text-orange-600 dark:text-orange-400">
+                        Open in Map
+                      </a>
+                    </div>
+                  ) : (
+                    <span className="text-zinc-500 dark:text-zinc-400">--</span>
+                  ),
+                },
+                { key: 'status', label: 'Status', render: row => <StatusBadge variant={shiftStatusVariant(row.status)} label={row.status === 'offduty' ? 'Checked Out' : row.status === 'ot' ? 'OT' : 'Active'} /> },
+                { key: 'otMinutes', label: 'OT Minutes', render: row => <span className="font-medium text-zinc-900 dark:text-white">{row.otMinutes ?? 0}</span> },
+                {
+                  key: 'attendanceId',
+                  label: 'Batta Status',
+                  render: row => {
+                    const status = battaStatusByAttendanceId.get(row.attendanceId ?? '')
+                    return status ? <StatusBadge variant={payoutStatusVariant(status)} label={status} /> : <span className="text-zinc-500 dark:text-zinc-400">None</span>
+                  },
+                },
+              ]}
+              data={crew}
+              getKey={row => row.attendanceId ?? row.id}
+            />
+          )}
+        </Surface>
+      ) : (
+        <Surface variant="table" padding="lg">
+          <div className="mb-6">
+            <p className="section-title">My Records</p>
+            <p className="mt-2 text-sm text-zinc-500 dark:text-zinc-400">Recent shifts are shown here with checkout status, OT minutes, and location links.</p>
+          </div>
+          {myRecords.length === 0 ? (
+            <EmptyState icon="badge" title="No records yet" description="Start your first shift once GPS is available inside the project radius." />
+          ) : (
+            <DataTable<CrewAttendanceHistoryItem>
+              columns={[
+                { key: 'checkInTime', label: 'Date', render: row => row.checkInTime ? <span className="text-zinc-900 dark:text-white">{formatDate(row.checkInTime)}</span> : '--' },
+                { key: 'shiftStatus', label: 'Status', render: row => <StatusBadge variant={row.state === 'checked_out' ? 'idle' : row.otMinutes > 0 ? 'ot' : 'active'} label={row.shiftStatus} /> },
+                { key: 'durationMinutes', label: 'Duration', render: row => `${row.durationMinutes} min` },
+                { key: 'otMinutes', label: 'OT Minutes', render: row => String(row.otMinutes) },
+                {
+                  key: 'location',
+                  label: 'Location',
+                  render: row => row.location ? (
+                    <a href={row.mapLink ?? undefined} target="_blank" rel="noreferrer" className="text-orange-600 dark:text-orange-400">
+                      {formatCoordinates(row.location)}
+                    </a>
+                  ) : (
+                    '--'
+                  ),
+                },
+              ]}
+              data={myRecords}
+              getKey={row => row.id}
+            />
+          )}
+        </Surface>
+      )}
+        </>
       )}
     </div>
   )
 }
 
-function OvertimeGroupCard({ group }: { group: OvertimeGroup }) {
+function MetricCard({ label, value, helper }: { label: string; value: string; helper: string }) {
   return (
-    <div className="rounded-[22px] bg-zinc-50 p-4 dark:bg-zinc-900">
-      <div className="flex items-center justify-between gap-4">
-        <div>
-          <p className="text-sm font-medium text-zinc-900 dark:text-white">{group.name}</p>
-          <p className="mt-2 text-sm text-zinc-500 dark:text-zinc-400">{group.memberCount} members • {group.startTime}</p>
-        </div>
-        <StatusBadge variant={group.authorized ? 'approved' : 'requested'} label={group.authorized ? 'Authorized' : 'Unapproved'} />
-      </div>
-      <p className="mt-3 text-sm text-zinc-500 dark:text-zinc-400">
-        {group.elapsedLabel} • {formatCurrency(group.estimatedCostUSD)}
-      </p>
+    <div className="rounded-[22px] bg-zinc-50 p-4 dark:bg-zinc-950">
+      <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-zinc-500 dark:text-zinc-400">{label}</p>
+      <p className="mt-4 text-2xl font-semibold tracking-[-0.04em] text-zinc-900 dark:text-white">{value}</p>
+      <p className="mt-2 text-sm text-zinc-500 dark:text-zinc-400">{helper}</p>
     </div>
   )
 }
 
-function RecentPayoutItem({ payout }: { payout: WagePayout }) {
+function ShiftInfo({ label, value, link }: { label: string; value: string; link?: string | null }) {
   return (
-    <div className="flex items-center justify-between gap-4 rounded-[20px] bg-zinc-50 px-3 py-3 dark:bg-zinc-950">
-      <div>
-        <p className="text-sm font-medium text-zinc-900 dark:text-white">{payout.crewName}</p>
-        <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-zinc-500 dark:text-zinc-400">{payout.type} • {payout.method}</p>
-      </div>
-      <p className="text-sm font-medium text-zinc-900 dark:text-white">${payout.amount.toFixed(2)}</p>
+    <div className="rounded-[20px] border border-zinc-200 px-4 py-3 dark:border-zinc-800">
+      <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-zinc-500 dark:text-zinc-400">{label}</p>
+      {link ? (
+        <a href={link} target="_blank" rel="noreferrer" className="mt-2 inline-block text-sm font-medium text-orange-600 dark:text-orange-400">
+          {value}
+        </a>
+      ) : (
+        <p className="mt-2 text-sm font-medium text-zinc-900 dark:text-white">{value}</p>
+      )}
     </div>
   )
 }
