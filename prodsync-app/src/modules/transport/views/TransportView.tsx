@@ -1,5 +1,6 @@
 import { useEffect, useEffectEvent, useMemo, useRef, useState, type ReactNode } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
+import { ActionFeedbackToast, type ActionFeedbackState } from '@/components/shared/ActionFeedbackToast'
 import { KpiCard } from '@/components/shared/KpiCard'
 import { DataTable } from '@/components/shared/DataTable'
 import { StatusBadge } from '@/components/shared/StatusBadge'
@@ -168,6 +169,7 @@ export function TransportView() {
   const [destinationSearchLoading, setDestinationSearchLoading] = useState(false)
   const [startLocationState, setStartLocationState] = useState<LocationFetchState>(idleLocationFetchState)
   const [endLocationState, setEndLocationState] = useState<LocationFetchState>(idleLocationFetchState)
+  const [feedback, setFeedback] = useState<ActionFeedbackState | null>(null)
 
   const startLocationFetchedRef = useRef(false)
   const endLocationFetchedRef = useRef(false)
@@ -214,7 +216,7 @@ export function TransportView() {
       return visibleVehicles
     }
 
-    const query = vehicleSearch.trim().toLowerCase()
+    const query = (vehicleSearch || '').trim().toLowerCase()
     if (!query) {
       return visibleVehicles
     }
@@ -465,7 +467,7 @@ export function TransportView() {
       return
     }
 
-    const query = tripStartForm.destination.trim()
+    const query = (tripStartForm.destination || '').trim()
     if (query.length < 2) {
       setDestinationSuggestions([])
       setDestinationSearchError(null)
@@ -733,6 +735,8 @@ export function TransportView() {
 
   return (
     <div className="page-shell">
+      <ActionFeedbackToast feedback={feedback} onDismiss={() => setFeedback(null)} />
+
       <header className="page-header">
         <div>
           <span className="page-kicker">Logistics Control</span>
@@ -884,10 +888,29 @@ export function TransportView() {
                 <div>
                   <p className="section-title">Live Tracking</p>
                   <p className="mt-2 text-sm text-zinc-500 dark:text-zinc-400">
-                    Hybrid checkpoint tracking with smooth marker animation, cached routing, and graceful fallback when premium map usage is restricted.
+                    Hybrid checkpoint tracking with smooth marker animation, OSM-safe routing fallback, and automatic Mapbox cutoff protection.
                   </p>
                 </div>
-                <StatusBadge variant={liveLocations.length > 0 ? 'live' : 'pending'} label={liveLocations.length > 0 ? 'Live' : 'Standby'} />
+                <div className="flex flex-wrap items-center gap-3">
+                  <button
+                    type="button"
+                    aria-disabled={!liveMeta?.mapEnabled}
+                    onClick={() => {
+                      setFeedback({
+                        type: 'info',
+                        message: 'Mapbox integration under development',
+                      })
+                    }}
+                    className={`rounded-full border px-4 py-2 text-xs font-semibold uppercase tracking-[0.16em] transition ${
+                      liveMeta?.mapEnabled
+                        ? 'border-orange-300 bg-orange-50 text-orange-700 hover:border-orange-400 dark:border-orange-500/40 dark:bg-orange-500/10 dark:text-orange-200'
+                        : 'border-zinc-200 bg-zinc-50 text-zinc-500 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-400'
+                    }`}
+                  >
+                    Map Mode: OSM / Mapbox
+                  </button>
+                  <StatusBadge variant={liveLocations.length > 0 ? 'live' : 'pending'} label={liveLocations.length > 0 ? 'Live' : 'Standby'} />
+                </div>
               </div>
 
               {liveLocationsFailed && (
@@ -905,7 +928,7 @@ export function TransportView() {
                   <div>
                     <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-zinc-500 dark:text-zinc-400">Active Fleet</p>
                     <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-300">
-                      Vehicles animate between checkpoints, and trips pause intermediate updates automatically once they enter the final 5-8 km band.
+                      Vehicles animate between checkpoints, and trips pause intermediate updates automatically once they enter the final 5-8 km band without depending on Mapbox.
                     </p>
                   </div>
                   <StatusBadge variant={liveLocations.length > 0 ? 'live' : 'pending'} label={`${liveLocations.length} live`} />

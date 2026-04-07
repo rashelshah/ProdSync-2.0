@@ -19,8 +19,8 @@ type MarkerHandle = {
 }
 
 const ROUTE_SOURCE_ID = 'transport-live-routes'
-const MAPBOX_PUBLIC_TOKEN = import.meta.env.VITE_MAPBOX_PUBLIC_TOKEN?.trim() ?? ''
-const MAPBOX_STYLE_URL = import.meta.env.VITE_MAPBOX_STYLE_URL?.trim() || 'mapbox://styles/mapbox/navigation-day-v1'
+const MAPBOX_PUBLIC_TOKEN = (import.meta.env.VITE_MAPBOX_PUBLIC_TOKEN || '').trim()
+const MAPBOX_STYLE_URL = (import.meta.env.VITE_MAPBOX_STYLE_URL || '').trim() || 'mapbox://styles/mapbox/navigation-day-v1'
 
 function formatStatus(value: LiveVehicleLocation['movingStatus']) {
   switch (value) {
@@ -177,7 +177,7 @@ export const TransportTrackingMap = memo(function TransportTrackingMap({
   const [mapUnavailable, setMapUnavailable] = useState(false)
 
   const routeCollection = useMemo(() => buildRouteCollection(liveLocations), [liveLocations])
-  const canUseMapbox = Boolean(MAPBOX_PUBLIC_TOKEN && liveMeta?.mapboxEnabledForAdmin)
+  const canUseMapbox = Boolean(MAPBOX_PUBLIC_TOKEN && liveMeta?.mapEnabled && liveMeta?.provider === 'mapbox')
   const shouldUseMapbox = canUseMapbox && !mapUnavailable
 
   useEffect(() => {
@@ -425,10 +425,10 @@ export const TransportTrackingMap = memo(function TransportTrackingMap({
     return (
       <div className="space-y-4">
         <div className="flex h-[320px] items-center justify-center rounded-[28px] border border-dashed border-zinc-300 bg-zinc-100 px-6 text-center text-sm text-zinc-500 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-400">
-          {!MAPBOX_PUBLIC_TOKEN
-            ? 'Map unavailable due to configuration. Add a restricted public Mapbox token to enable rendering.'
-            : liveMeta?.mapboxMode === 'disabled'
-              ? 'Mapbox is disabled for cost control, so the system is showing a lightweight fallback with last known positions only.'
+          {liveMeta?.mode === 'disabled'
+            ? 'Map features temporarily limited due to usage limits'
+            : !MAPBOX_PUBLIC_TOKEN || liveMeta?.provider !== 'mapbox'
+              ? 'OSM fallback is active. Vehicle data and hybrid tracking continue without Mapbox.'
               : 'Mapbox is unavailable in this environment, so the system is showing last known positions only.'}
         </div>
 

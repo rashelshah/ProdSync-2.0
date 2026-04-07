@@ -67,7 +67,7 @@ export async function reverseGeocode(projectId: string, location: LocationPoint)
   })
   const response = await apiFetch(`/location/reverse?${params.toString()}`)
   const payload = await readApiJson<{ address: string }>(response)
-  const address = payload.address?.trim() || `${location.latitude.toFixed(5)}, ${location.longitude.toFixed(5)}`
+  const address = (payload.address || '').trim() || `${location.latitude.toFixed(5)}, ${location.longitude.toFixed(5)}`
   reverseGeocodeCache.set(cacheKey, address)
   return address
 }

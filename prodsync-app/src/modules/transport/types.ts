@@ -139,6 +139,11 @@ export interface LiveVehicleLocation {
 }
 
 export interface LiveTrackingMeta {
+  mapEnabled: boolean
+  provider: 'mapbox' | 'osm'
+  mode: 'normal' | 'restricted' | 'disabled' | 'fallback'
+  fallback: boolean
+  reason?: string | null
   mapboxMode: 'healthy' | 'restricted' | 'disabled'
   mapboxEnabledForAdmin: boolean
   fallbackActive: boolean

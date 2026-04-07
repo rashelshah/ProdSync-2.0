@@ -1,6 +1,19 @@
 import type { LocationPoint } from '../models/transport.types'
-import { env } from '../utils/env'
-import { getCacheJson, getCacheString, incrementCacheCounter, setCacheJson } from './cache.service'
+import { getCacheJson, setCacheJson } from './cache.service'
+import {
+  getMapboxToken,
+  getMapboxUsageState,
+  hasMapboxToken,
+  incrementMapboxUsage,
+  mapboxUsageSnapshot,
+  safeMapboxCall,
+  type MapboxUsageState,
+  type MapProviderRole,
+} from './mapboxUsageService'
+
+export { hasMapboxToken }
+export { incrementMapboxUsage }
+export type { MapProviderRole }
 
 export type GeocodeProvider = 'cache' | 'osm' | 'mapbox'
 
@@ -11,21 +24,14 @@ export interface LocationSuggestionRecord {
   location: LocationPoint
 }
 
-export interface MapboxBudgetState {
-  dailyCount: number
-  monthlyCount: number
-  dailyRatio: number
-  monthlyRatio: number
-  mode: 'healthy' | 'restricted' | 'disabled'
-  enabled: boolean
-}
+export type MapboxBudgetState = MapboxUsageState
 
 export interface ReverseGeocodeResult {
   address: string
   provider: GeocodeProvider
   sourceProvider: Exclude<GeocodeProvider, 'cache'>
   cacheHit: boolean
-  budget: ReturnType<typeof mapboxBudgetSnapshot>
+  budget: ReturnType<typeof mapboxUsageSnapshot>
 }
 
 export interface ForwardGeocodeResult {
@@ -33,7 +39,7 @@ export interface ForwardGeocodeResult {
   provider: GeocodeProvider
   sourceProvider: Exclude<GeocodeProvider, 'cache'>
   cacheHit: boolean
-  budget: ReturnType<typeof mapboxBudgetSnapshot>
+  budget: ReturnType<typeof mapboxUsageSnapshot>
 }
 
 interface ReverseCacheEntry {
@@ -56,7 +62,6 @@ const OSM_THROTTLE_MS = 1_000
 const REQUEST_TIMEOUT_MS = 8_000
 const OSM_REVERSE_URL = 'https://nominatim.openstreetmap.org/reverse'
 const OSM_FORWARD_URL = 'https://nominatim.openstreetmap.org/search'
-const MAPBOX_REVERSE_URL = 'https://api.mapbox.com/search/geocode/v6/reverse'
 const MAPBOX_FORWARD_URL = 'https://api.mapbox.com/search/geocode/v6/forward'
 
 const reverseInflight = new Map<string, Promise<ReverseGeocodeResult>>()
@@ -101,27 +106,6 @@ function reverseCacheKey(location: NormalizedLocation) {
 
 function searchCacheKey(query: string) {
   return `search:${(query ?? '').trim().toLowerCase()}`
-}
-
-function dailyUsageKey() {
-  return `mapbox:daily_count:${new Date().toISOString().slice(0, 10)}`
-}
-
-function monthlyUsageKey() {
-  return `mapbox:monthly_count:${new Date().toISOString().slice(0, 7)}`
-}
-
-function secondsUntilEndOfDay() {
-  const now = new Date()
-  const end = new Date(now)
-  end.setHours(23, 59, 59, 999)
-  return Math.max(1, Math.ceil((end.getTime() - now.getTime()) / 1000))
-}
-
-function secondsUntilEndOfMonth() {
-  const now = new Date()
-  const end = new Date(now.getFullYear(), now.getMonth() + 1, 1)
-  return Math.max(1, Math.ceil((end.getTime() - now.getTime()) / 1000))
 }
 
 async function fetchJson<T>(url: string): Promise<T> {
@@ -193,71 +177,40 @@ function buildSuggestionLabel(properties: Record<string, unknown>, fallback: str
   return parts.length > 0 ? parts.slice(0, 4).join(', ') : fallback
 }
 
-function hasMapboxToken() {
-  return env.mapboxAccessToken.trim().length > 0
+export function mapboxBudgetSnapshot(budget: MapboxBudgetState) {
+  return mapboxUsageSnapshot(budget)
+}
+
+export function getMapProvider(userRole: MapProviderRole, budget?: MapboxBudgetState) {
+  if (!hasMapboxToken()) {
+    return 'osm'
+  }
+
+  if (budget && (!budget.enabled || budget.mode === 'disabled')) {
+    return 'osm'
+  }
+
+  if (userRole === 'ADMIN' || userRole === 'PRODUCER') {
+    return 'mapbox'
+  }
+
+  return 'osm'
 }
 
 export async function getMapboxBudgetState(): Promise<MapboxBudgetState> {
-  if (!hasMapboxToken()) {
-    return {
-      dailyCount: 0,
-      monthlyCount: 0,
-      dailyRatio: 1,
-      monthlyRatio: 1,
-      mode: 'disabled',
-      enabled: false,
-    }
-  }
-
-  const [dailyResult, monthlyResult] = await Promise.allSettled([
-    getCacheString(dailyUsageKey()),
-    getCacheString(monthlyUsageKey()),
-  ])
-
-  const dailyCount = Number(dailyResult.status === 'fulfilled' ? (dailyResult.value ?? 0) : 0)
-  const monthlyCount = Number(monthlyResult.status === 'fulfilled' ? (monthlyResult.value ?? 0) : 0)
-  const dailyRatio = dailyCount / env.mapboxDailyLimit
-  const monthlyRatio = monthlyCount / env.mapboxMonthlyLimit
-  const highestRatio = Math.max(dailyRatio, monthlyRatio)
-
-  return {
-    dailyCount,
-    monthlyCount,
-    dailyRatio,
-    monthlyRatio,
-    mode: highestRatio > 0.9 ? 'disabled' : highestRatio >= 0.7 ? 'restricted' : 'healthy',
-    enabled: highestRatio <= 0.9,
-  }
+  return getMapboxUsageState()
 }
 
-export async function incrementMapboxUsage() {
-  await Promise.allSettled([
-    incrementCacheCounter(dailyUsageKey(), secondsUntilEndOfDay()),
-    incrementCacheCounter(monthlyUsageKey(), secondsUntilEndOfMonth()),
-  ])
+function canUseMapboxForFallback(userRole: MapProviderRole, budget: MapboxBudgetState) {
+  return getMapProvider(userRole, budget) === 'mapbox' && budget.mode !== 'disabled'
 }
 
-export function mapboxBudgetSnapshot(budget: MapboxBudgetState) {
-  return {
-    dailyCount: budget.dailyCount,
-    monthlyCount: budget.monthlyCount,
-    dailyRatio: Number(budget.dailyRatio.toFixed(4)),
-    monthlyRatio: Number(budget.monthlyRatio.toFixed(4)),
-    mode: budget.mode,
-    enabled: budget.enabled,
-  }
+function canUseMapboxForWeakSearch(userRole: MapProviderRole, budget: MapboxBudgetState) {
+  return getMapProvider(userRole, budget) === 'mapbox' && budget.mode === 'normal'
 }
 
-function canUseMapboxForFallback(budget: MapboxBudgetState) {
-  return hasMapboxToken() && budget.mode !== 'disabled'
-}
-
-function canUseMapboxForWeakSearch(budget: MapboxBudgetState) {
-  return hasMapboxToken() && budget.mode === 'healthy'
-}
-
-export function providerOrder(_audience: 'admin' | 'driver' | 'member', budget: MapboxBudgetState): Array<Exclude<GeocodeProvider, 'cache'>> {
-  if (!hasMapboxToken() || budget.mode === 'disabled') {
+export function providerOrder(userRole: MapProviderRole, budget: MapboxBudgetState): Array<Exclude<GeocodeProvider, 'cache'>> {
+  if (getMapProvider(userRole, budget) !== 'mapbox' || budget.mode === 'disabled') {
     return ['osm']
   }
 
@@ -275,48 +228,6 @@ async function reverseWithOsm(location: NormalizedLocation) {
 
   const payload = await scheduleOsmRequest(() => fetchJson<{ display_name?: string }>(`${OSM_REVERSE_URL}?${params.toString()}`))
   return normalizeAddress(payload.display_name, coordinateFallback(location))
-}
-
-async function reverseWithMapbox(location: NormalizedLocation) {
-  const params = new URLSearchParams({
-    latitude: String(location.latitude),
-    longitude: String(location.longitude),
-    access_token: env.mapboxAccessToken,
-    limit: '1',
-  })
-
-  const payload = await fetchJson<{
-    features?: Array<{
-      properties?: Record<string, unknown>
-      place_name?: string
-      name_preferred?: string
-      text?: string
-    }>
-  }>(`${MAPBOX_REVERSE_URL}?${params.toString()}`)
-
-  const feature = payload.features?.[0]
-  if (!feature) {
-    throw new Error('Mapbox returned no reverse geocoding result.')
-  }
-
-  const properties = feature.properties ?? {}
-  const address = normalizeAddress(
-    typeof properties.full_address === 'string'
-      ? properties.full_address
-      : typeof properties.place_formatted === 'string'
-        ? properties.place_formatted
-        : typeof feature.place_name === 'string'
-          ? feature.place_name
-          : typeof feature.name_preferred === 'string'
-            ? feature.name_preferred
-            : typeof feature.text === 'string'
-              ? feature.text
-              : null,
-    coordinateFallback(location),
-  )
-
-  await incrementMapboxUsage()
-  return address
 }
 
 async function searchWithOsm(query: string) {
@@ -358,9 +269,10 @@ async function searchWithOsm(query: string) {
 }
 
 async function searchWithMapbox(query: string) {
+  const token = getMapboxToken()
   const params = new URLSearchParams({
     q: query,
-    access_token: env.mapboxAccessToken,
+    access_token: token,
     limit: '5',
     autocomplete: 'true',
   })
@@ -441,7 +353,11 @@ async function writeSearchCache(query: string, entry: SearchCacheEntry) {
   await setCacheJson(searchCacheKey(query), entry, CACHE_TTL_SECONDS)
 }
 
-export async function reverseGeocode(latitude: number, longitude: number): Promise<ReverseGeocodeResult> {
+export async function reverseGeocode(
+  latitude: number,
+  longitude: number,
+  _userRole: MapProviderRole = 'MEMBER',
+): Promise<ReverseGeocodeResult> {
   if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) {
     return {
       address: 'Location unavailable',
@@ -491,26 +407,6 @@ export async function reverseGeocode(latitude: number, longitude: number): Promi
         })
       }
 
-      if (canUseMapboxForFallback(budget)) {
-        try {
-          const address = await reverseWithMapbox(location)
-          await writeReverseCache(location, { address, provider: 'mapbox' })
-          return {
-            address,
-            provider: 'mapbox' as const,
-            sourceProvider: 'mapbox' as const,
-            cacheHit: false,
-            budget: mapboxBudgetSnapshot(await getMapboxBudgetState()),
-          }
-        } catch (error) {
-          console.warn('[location][reverse] mapbox fallback failed', {
-            latitude: location.latitude,
-            longitude: location.longitude,
-            error: error instanceof Error ? error.message : error,
-          })
-        }
-      }
-
       const fallbackAddress = 'Location unavailable'
       await writeReverseCache(location, { address: fallbackAddress, provider: 'osm' })
       return {
@@ -537,7 +433,10 @@ export async function reverseGeocode(latitude: number, longitude: number): Promi
   }
 }
 
-export async function forwardGeocode(query: string | null | undefined): Promise<ForwardGeocodeResult> {
+export async function forwardGeocode(
+  query: string | null | undefined,
+  userRole: MapProviderRole = 'MEMBER',
+): Promise<ForwardGeocodeResult> {
   const normalizedQuery = (query ?? '').trim()
   const budget = await getMapboxBudgetState()
   if (normalizedQuery.length < 2) {
@@ -587,27 +486,20 @@ export async function forwardGeocode(query: string | null | undefined): Promise<
         }
 
         const allowMapbox = osmSuggestions.length === 0
-          ? canUseMapboxForFallback(budget)
-          : canUseMapboxForWeakSearch(budget)
+          ? canUseMapboxForFallback(userRole, budget)
+          : canUseMapboxForWeakSearch(userRole, budget)
 
         if (allowMapbox) {
-          try {
-            const mapboxSuggestions = await searchWithMapbox(normalizedQuery)
-            if (mapboxSuggestions.length > 0) {
-              await writeSearchCache(normalizedQuery, { suggestions: mapboxSuggestions, provider: 'mapbox' })
-              return {
-                suggestions: mapboxSuggestions,
-                provider: 'mapbox' as const,
-                sourceProvider: 'mapbox' as const,
-                cacheHit: false,
-                budget: mapboxBudgetSnapshot(await getMapboxBudgetState()),
-              }
+          const mapboxSuggestions = await safeMapboxCall(() => searchWithMapbox(normalizedQuery))
+          if (mapboxSuggestions && mapboxSuggestions.length > 0) {
+            await writeSearchCache(normalizedQuery, { suggestions: mapboxSuggestions, provider: 'mapbox' })
+            return {
+              suggestions: mapboxSuggestions,
+              provider: 'mapbox' as const,
+              sourceProvider: 'mapbox' as const,
+              cacheHit: false,
+              budget: mapboxBudgetSnapshot(await getMapboxBudgetState()),
             }
-          } catch (error) {
-            console.warn('[location][search] mapbox fallback failed', {
-              query: normalizedQuery,
-              error: error instanceof Error ? error.message : error,
-            })
           }
         }
 
@@ -624,25 +516,6 @@ export async function forwardGeocode(query: string | null | undefined): Promise<
           query: normalizedQuery,
           error: error instanceof Error ? error.message : error,
         })
-      }
-
-      if (canUseMapboxForFallback(budget)) {
-        try {
-          const mapboxSuggestions = await searchWithMapbox(normalizedQuery)
-          await writeSearchCache(normalizedQuery, { suggestions: mapboxSuggestions, provider: 'mapbox' })
-          return {
-            suggestions: mapboxSuggestions,
-            provider: 'mapbox' as const,
-            sourceProvider: 'mapbox' as const,
-            cacheHit: false,
-            budget: mapboxBudgetSnapshot(await getMapboxBudgetState()),
-          }
-        } catch (error) {
-          console.warn('[location][search] mapbox fallback failed after osm error', {
-            query: normalizedQuery,
-            error: error instanceof Error ? error.message : error,
-          })
-        }
       }
 
       await writeSearchCache(normalizedQuery, { suggestions: [], provider: 'osm' })

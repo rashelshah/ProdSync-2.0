@@ -20,7 +20,7 @@ export const env = {
   supabaseServiceRoleKey: requireEnv('SUPABASE_SERVICE_ROLE_KEY'),
   clientOrigin: process.env.CLIENT_ORIGIN ?? 'http://localhost:5173',
   redisUrl: process.env.REDIS_URL ?? '',
-  mapboxAccessToken: process.env.MAPBOX_ACCESS_TOKEN ?? '',
+  mapboxAccessToken: process.env.MAPBOX_TOKEN ?? process.env.MAPBOX_ACCESS_TOKEN ?? '',
   mapboxStaticStyleOwner: process.env.MAPBOX_STATIC_STYLE_OWNER ?? 'mapbox',
   mapboxStaticStyleId: process.env.MAPBOX_STATIC_STYLE_ID ?? 'streets-v12',
   mapboxDailyLimit: Math.max(1, Number(process.env.MAPBOX_DAILY_LIMIT ?? 1500)),

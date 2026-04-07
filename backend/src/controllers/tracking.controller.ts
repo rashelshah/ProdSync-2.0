@@ -1,27 +1,46 @@
 import type { Request, Response } from 'express'
 import { trackingLiveQuerySchema, trackingMapQuerySchema } from '../models/transport.schemas'
+import { hasMapboxToken } from '../services/location.service'
 import { listLiveVehicleLocationsForActor, buildTrackingMapImageForActor, getTrackingLiveMetaForRoles } from '../services/tracking.service'
 import { getTransportAccessRoles } from '../utils/role'
 
 export async function getLiveTrackingController(req: Request, res: Response) {
-  const roles = getTransportAccessRoles(req)
-  const meta = await getTrackingLiveMetaForRoles(roles)
-
   try {
+    const roles = getTransportAccessRoles(req)
+    const meta = await getTrackingLiveMetaForRoles(roles)
     const query = trackingLiveQuerySchema.parse(req.query)
     const locations = await listLiveVehicleLocationsForActor(query, req.authUser?.id ?? null, roles)
-    return res.json({ data: locations, meta })
+    const mapboxEnabled = hasMapboxToken()
+    return res.json({
+      data: locations,
+      vehicles: locations,
+      meta,
+      mapEnabled: mapboxEnabled,
+      provider: mapboxEnabled ? 'mapbox' : 'osm',
+      fallback: !mapboxEnabled,
+    })
   } catch (error) {
     console.warn('[tracking][live] safe fallback', {
       query: req.query,
       error: error instanceof Error ? error.message : error,
     })
+
     return res.json({
       data: [],
+      vehicles: [],
       meta: {
-        ...meta,
+        mapEnabled: false,
+        provider: 'osm',
+        mode: 'fallback',
+        fallback: true,
+        reason: 'Fallback active',
+        mapboxMode: 'disabled',
+        mapboxEnabledForAdmin: false,
         fallbackActive: true,
       },
+      mapEnabled: false,
+      provider: 'osm',
+      fallback: true,
     })
   }
 }

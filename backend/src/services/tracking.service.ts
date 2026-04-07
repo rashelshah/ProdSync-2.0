@@ -8,7 +8,7 @@ import { env } from '../utils/env'
 import { HttpError } from '../utils/httpError'
 import type { TransportAccessRole } from '../utils/role'
 import { getCacheJson, getCacheStrings, setCacheJson } from './cache.service'
-import { getMapboxBudgetState, incrementMapboxUsage, providerOrder, type LocationAudience } from './location.service'
+import { getMapboxBudgetState, getMapProvider, hasMapboxToken } from './location.service'
 import { haversineDistanceKm, roundDistance } from '../utils/location'
 import {
   buildHybridTrackingPolicy,
@@ -17,6 +17,7 @@ import {
   resolveCheckpointIntervalMs,
   type HybridTrackingPolicy,
 } from './trackingPolicy.service'
+import { getMapboxToken, incrementMapboxUsage, safeMapboxCall, type MapProviderRole } from './mapboxUsageService'
 
 const LAST_LOCATION_TTL_SECONDS = 24 * 60 * 60
 const MAP_IMAGE_TTL_SECONDS = 5 * 60
@@ -54,6 +55,11 @@ export interface TrackingMapImagePayload {
 }
 
 export interface TrackingLiveMeta {
+  mapEnabled: boolean
+  provider: 'mapbox' | 'osm'
+  mode: 'normal' | 'restricted' | 'disabled' | 'fallback'
+  fallback: boolean
+  reason?: string
   mapboxMode: 'healthy' | 'restricted' | 'disabled'
   mapboxEnabledForAdmin: boolean
   fallbackActive: boolean
@@ -125,16 +131,20 @@ function trackingMapCacheKey(projectId: string, width: number, height: number, l
   return `tracking:map:${projectId}:${hash}`
 }
 
-function normalizeAudience(roles: Set<TransportAccessRole>): LocationAudience {
-  if (roles.has('LINE_PRODUCER') || roles.has('TRANSPORT_CAPTAIN')) {
-    return 'admin'
+function resolveMapProviderRole(roles: Set<TransportAccessRole>): MapProviderRole {
+  if (roles.has('LINE_PRODUCER')) {
+    return 'PRODUCER'
+  }
+
+  if (roles.has('TRANSPORT_CAPTAIN')) {
+    return 'CAPTAIN'
   }
 
   if (roles.has('DRIVER')) {
-    return 'driver'
+    return 'DRIVER'
   }
 
-  return 'member'
+  return 'MEMBER'
 }
 
 function extractTrackingPlan(metadata: Record<string, unknown> | null | undefined): TrackingPlan {
@@ -173,10 +183,11 @@ function buildStraightLineRoute(from: { latitude: number; longitude: number }, t
 }
 
 async function fetchMapboxRoute(from: { latitude: number; longitude: number }, to: { latitude: number; longitude: number }) {
+  const token = getMapboxToken()
   const params = new URLSearchParams({
     geometries: 'geojson',
     overview: 'full',
-    access_token: env.mapboxAccessToken,
+    access_token: token,
   })
   const coordinates = `${from.longitude},${from.latitude};${to.longitude},${to.latitude}`
   const response = await fetch(`https://api.mapbox.com/directions/v5/mapbox/driving/${coordinates}?${params.toString()}`, {
@@ -257,7 +268,7 @@ function deriveMovingStatus(mode: TrackingMode, capturedAt: string) {
 async function resolveRouteCoordinates(
   from: { latitude: number; longitude: number } | null,
   to: { latitude: number; longitude: number },
-  audience: LocationAudience,
+  userRole: MapProviderRole,
 ) {
   if (!from) {
     return {
@@ -266,20 +277,26 @@ async function resolveRouteCoordinates(
     }
   }
 
-  const fallbackRoute = buildStraightLineRoute(from, to)
+  return generateRoute(from, to, userRole)
+}
+
+async function generateRoute(
+  previousLocation: { latitude: number; longitude: number },
+  nextLocation: { latitude: number; longitude: number },
+  userRole: MapProviderRole,
+) {
+  const fallbackRoute = buildStraightLineRoute(previousLocation, nextLocation)
   const budget = await getMapboxBudgetState()
-  const shouldUseMapbox = audience === 'admin'
-    && budget.mode === 'healthy'
-    && env.mapboxAccessToken
-    && providerOrder(audience, budget).includes('mapbox')
-  if (!shouldUseMapbox) {
+  const provider = getMapProvider(userRole, budget)
+
+  if (provider !== 'mapbox') {
     return {
       routeCoordinates: fallbackRoute,
       routeProvider: 'straight_line' as const,
     }
   }
 
-  const cacheKey = routeCacheKey(from, to, 'mapbox')
+  const cacheKey = routeCacheKey(previousLocation, nextLocation, 'mapbox')
   const cached = await getCacheJson<Array<[number, number]>>(cacheKey)
   if (cached && cached.length > 1) {
     return {
@@ -288,29 +305,47 @@ async function resolveRouteCoordinates(
     }
   }
 
-  try {
-    const routeCoordinates = await fetchMapboxRoute(from, to)
-    await setCacheJson(cacheKey, routeCoordinates, ROUTE_CACHE_TTL_SECONDS)
-    return {
-      routeCoordinates,
-      routeProvider: 'mapbox' as const,
-    }
-  } catch {
+  const routeCoordinates = await safeMapboxCall(() => fetchMapboxRoute(previousLocation, nextLocation))
+  if (!routeCoordinates || routeCoordinates.length < 2) {
     return {
       routeCoordinates: fallbackRoute,
       routeProvider: 'straight_line' as const,
     }
   }
+
+  await setCacheJson(cacheKey, routeCoordinates, ROUTE_CACHE_TTL_SECONDS)
+  return {
+    routeCoordinates,
+    routeProvider: 'mapbox' as const,
+  }
 }
 
-function buildTrackingMeta(roles: Set<TransportAccessRole>, mode: TrackingLiveMeta['mapboxMode']): TrackingLiveMeta {
-  const audience = normalizeAudience(roles)
-  const mapboxEnabledForAdmin = audience === 'admin' && env.mapboxAccessToken.length > 0 && mode !== 'disabled'
+function buildTrackingMeta(
+  roles: Set<TransportAccessRole>,
+  budget: Awaited<ReturnType<typeof getMapboxBudgetState>>,
+): TrackingLiveMeta {
+  const providerRole = resolveMapProviderRole(roles)
+  const provider = getMapProvider(providerRole, budget)
+  const mapEnabled = provider === 'mapbox'
+  const fallback = !mapEnabled
+  const legacyMode = budget.mode === 'normal' ? 'healthy' : budget.mode
+  const mode = !hasMapboxToken()
+    ? 'fallback'
+    : budget.mode === 'disabled'
+      ? 'disabled'
+      : mapEnabled
+        ? budget.mode
+        : 'fallback'
 
   return {
-    mapboxMode: mode,
-    mapboxEnabledForAdmin,
-    fallbackActive: !mapboxEnabledForAdmin,
+    mapEnabled,
+    provider: mapEnabled ? 'mapbox' : 'osm',
+    mode,
+    fallback,
+    reason: !hasMapboxToken() ? 'No token' : budget.reason,
+    mapboxMode: legacyMode,
+    mapboxEnabledForAdmin: mapEnabled,
+    fallbackActive: fallback,
   }
 }
 
@@ -509,12 +544,13 @@ function renderTrackingSvg(locations: LiveVehicleLocationRecord[], width: number
 }
 
 async function fetchMapboxStaticMap(locations: LiveVehicleLocationRecord[], width: number, height: number) {
+  const token = getMapboxToken()
   const markers = locations.slice(0, 10).map((location, index) => {
     const label = `${(index + 1) % 10}`
     return `pin-s-${label}+f97316(${location.longitude},${location.latitude})`
   }).join(',')
 
-  const url = `https://api.mapbox.com/styles/v1/${encodeURIComponent(env.mapboxStaticStyleOwner)}/${encodeURIComponent(env.mapboxStaticStyleId)}/static/${markers || 'auto'}/auto/${width}x${height}?padding=48&access_token=${encodeURIComponent(env.mapboxAccessToken)}`
+  const url = `https://api.mapbox.com/styles/v1/${encodeURIComponent(env.mapboxStaticStyleOwner)}/${encodeURIComponent(env.mapboxStaticStyleId)}/static/${markers || 'auto'}/auto/${width}x${height}?padding=48&access_token=${encodeURIComponent(token)}`
   const response = await fetch(url, {
     headers: {
       Accept: 'image/png',
@@ -556,7 +592,7 @@ export async function listLiveVehicleLocationsForActor(
   actorUserId: string | null,
   roles: Set<TransportAccessRole>,
 ) {
-  const audience = normalizeAudience(roles)
+  const providerRole = resolveMapProviderRole(roles)
   const activeTrips = await listAccessibleActiveTrips(query.projectId, actorUserId, roles)
   if (activeTrips.length === 0) {
     return [] as LiveVehicleLocationRecord[]
@@ -566,13 +602,13 @@ export async function listLiveVehicleLocationsForActor(
   const liveLocationResults = await Promise.allSettled(activeTrips.map(async trip => {
     const cached = cachedLookup.get(trip.vehicle_id)
     if (cached && cached.tripId === trip.id) {
-      const resolvedRoute = await resolveRouteCoordinates(
-        cached.previousLatitude != null && cached.previousLongitude != null
-          ? { latitude: cached.previousLatitude, longitude: cached.previousLongitude }
-          : null,
-        { latitude: cached.latitude, longitude: cached.longitude },
-        audience,
-      )
+        const resolvedRoute = await resolveRouteCoordinates(
+          cached.previousLatitude != null && cached.previousLongitude != null
+            ? { latitude: cached.previousLatitude, longitude: cached.previousLongitude }
+            : null,
+          { latitude: cached.latitude, longitude: cached.longitude },
+          providerRole,
+        )
 
       return {
         ...cached,
@@ -592,7 +628,7 @@ export async function listLiveVehicleLocationsForActor(
           ? { latitude: mapped.previousLatitude, longitude: mapped.previousLongitude }
           : null,
         { latitude: mapped.latitude, longitude: mapped.longitude },
-        audience,
+        providerRole,
       )
       mapped.routeCoordinates = resolvedRoute.routeCoordinates
       mapped.routeProvider = resolvedRoute.routeProvider
@@ -616,8 +652,21 @@ export async function listLiveVehicleLocationsForActor(
 }
 
 export async function getTrackingLiveMetaForRoles(roles: Set<TransportAccessRole>): Promise<TrackingLiveMeta> {
+  if (!hasMapboxToken()) {
+    return {
+      mapEnabled: false,
+      provider: 'osm',
+      mode: 'fallback',
+      fallback: true,
+      reason: 'No token',
+      mapboxMode: 'disabled',
+      mapboxEnabledForAdmin: false,
+      fallbackActive: true,
+    }
+  }
+
   const budget = await getMapboxBudgetState()
-  return buildTrackingMeta(roles, budget.mode)
+  return buildTrackingMeta(roles, budget)
 }
 
 export async function recordVehicleLocationUpdate(
@@ -708,8 +757,8 @@ export async function recordVehicleLocationUpdate(
     ? { latitude: previousState.lastLat, longitude: previousState.lastLng }
     : null
   const currentLocation = { latitude: input.latitude, longitude: input.longitude }
-  const audience = normalizeAudience(roles)
-  const route = await resolveRouteCoordinates(previousLocation, currentLocation, audience)
+  const providerRole = resolveMapProviderRole(roles)
+  const route = await resolveRouteCoordinates(previousLocation, currentLocation, providerRole)
 
   const payload: LiveVehicleLocationRecord = {
     projectId: input.projectId,
@@ -781,9 +830,9 @@ export async function buildTrackingMapImageForActor(
   roles: Set<TransportAccessRole>,
 ): Promise<TrackingMapImagePayload> {
   const locations = await listLiveVehicleLocationsForActor({ projectId: query.projectId, page: 1, pageSize: 100 }, actorUserId, roles)
-  const audience = normalizeAudience(roles)
   const budget = await getMapboxBudgetState()
-  const canUseMapbox = env.mapboxAccessToken && providerOrder(audience, budget).includes('mapbox') && audience === 'admin'
+  const providerRole = resolveMapProviderRole(roles)
+  const canUseMapbox = getMapProvider(providerRole, budget) === 'mapbox'
   const provider = canUseMapbox ? 'mapbox' : 'internal'
   const cacheKey = trackingMapCacheKey(query.projectId, query.width, query.height, locations, provider)
   const cached = await getCacheJson<{ contentType: string; bodyBase64: string; provider: 'mapbox' | 'internal' }>(cacheKey)
@@ -798,17 +847,19 @@ export async function buildTrackingMapImageForActor(
 
   try {
     if (provider === 'mapbox' && locations.length > 0) {
-      const body = await fetchMapboxStaticMap(locations, query.width, query.height)
-      await setCacheJson(cacheKey, {
-        contentType: 'image/png',
-        bodyBase64: body.toString('base64'),
-        provider: 'mapbox',
-      }, MAP_IMAGE_TTL_SECONDS)
+      const body = await safeMapboxCall(() => fetchMapboxStaticMap(locations, query.width, query.height))
+      if (body) {
+        await setCacheJson(cacheKey, {
+          contentType: 'image/png',
+          bodyBase64: body.toString('base64'),
+          provider: 'mapbox',
+        }, MAP_IMAGE_TTL_SECONDS)
 
-      return {
-        contentType: 'image/png',
-        body,
-        provider: 'mapbox',
+        return {
+          contentType: 'image/png',
+          body,
+          provider: 'mapbox',
+        }
       }
     }
   } catch (error) {
