@@ -8,7 +8,24 @@ import { Surface } from '@/components/shared/Surface'
 import { EmptyState, ErrorState, LoadingState } from '@/components/system/SystemStates'
 import { RoleGuard } from '@/features/auth/RoleGuard'
 import { useResolvedProjectContext } from '@/features/projects/useResolvedProjectContext'
+import type { ApprovalRequest } from '@/types'
 import { formatDate, formatTime, timeAgo } from '@/utils'
+
+function approvalStageBadge(item: ApprovalRequest) {
+  if (item.workflowStatus === 'pending_art_director') {
+    return <StatusBadge variant="pending" label="Waiting for Director" />
+  }
+
+  if (item.workflowStatus === 'pending_producer') {
+    return <StatusBadge variant="pending" label="Ready for Producer" />
+  }
+
+  if (item.workflowStatus === 'pending_dop') {
+    return <StatusBadge variant="pending" label="Waiting for DOP" />
+  }
+
+  return <StatusBadge variant="pending" label={item.stageLabel ?? 'Pending'} />
+}
 
 export function ApprovalsView() {
   const qc = useQueryClient()
@@ -35,7 +52,7 @@ export function ApprovalsView() {
   const approveAllMutation = useMutation({
     mutationFn: async () => {
       if (!activeProjectId) return
-      const pending = pendingQ.data ?? []
+      const pending = (pendingQ.data ?? []).filter(item => item.canAct !== false)
       await Promise.all(pending.map(item => approvalsService.approveItem(activeProjectId, item.id)))
     },
   })
@@ -76,6 +93,7 @@ export function ApprovalsView() {
   const pending = pendingQ.data ?? []
   const history = historyQ.data ?? []
   const kpis = kpisQ.data
+  const actionablePending = pending.filter(item => item.canAct !== false)
   const hasData = pending.length > 0 || history.length > 0 || Boolean(kpis && (kpis.totalPending > 0 || kpis.pendingValueINR > 0))
 
   return (
@@ -92,7 +110,7 @@ export function ApprovalsView() {
           <button
             onClick={() => runApprovalAction(() => approveAllMutation.mutateAsync(), 'All pending requests approved.', 'approve-all')}
             className="btn-primary"
-            disabled={!activeProjectId || pending.length === 0 || activeAction !== null}
+            disabled={!activeProjectId || actionablePending.length === 0 || activeAction !== null}
           >
             <span className="material-symbols-outlined text-sm">done_all</span>
             {activeAction === 'approve-all' ? 'Updating...' : 'Approve All'}
@@ -132,25 +150,33 @@ export function ApprovalsView() {
               ) : (
                 pending.map(item => (
                   <div key={item.id} className="rounded-[24px] bg-zinc-50 px-4 py-4 dark:bg-zinc-900">
-                    <p className="text-sm font-medium text-zinc-900 dark:text-white">{item.type}</p>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <p className="text-sm font-medium text-zinc-900 dark:text-white">{item.type}</p>
+                      {approvalStageBadge(item)}
+                    </div>
                     <p className="mt-2 text-sm text-zinc-500 dark:text-zinc-400">{item.department} | Rs {item.amountINR.toLocaleString()}</p>
                     <p className="mt-1 text-xs uppercase tracking-[0.12em] text-zinc-500 dark:text-zinc-400">
                       {item.requestedBy} | {timeAgo(item.timestamp)}
                     </p>
                     {item.notes && <p className="mt-3 text-sm text-zinc-600 dark:text-zinc-300">{item.notes}</p>}
+                    {item.canAct === false && (
+                      <p className="mt-3 text-xs uppercase tracking-[0.12em] text-zinc-500 dark:text-zinc-400">
+                        Visible for sync. Action unlocks after the current department approval stage is completed.
+                      </p>
+                    )}
                     <RoleGuard permission="canApproveExpense">
                       <div className="mt-4 flex gap-3">
                         <button
                           onClick={() => runApprovalAction(() => approvalsService.approveItem(activeProjectId!, item.id), `${item.type} approved.`, `approve-${item.id}`)}
                           className="btn-primary px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.14em]"
-                          disabled={!activeProjectId || activeAction !== null}
+                          disabled={!activeProjectId || activeAction !== null || item.canAct === false}
                         >
                           {activeAction === `approve-${item.id}` ? 'Approving...' : 'Approve'}
                         </button>
                         <button
                           onClick={() => runApprovalAction(() => approvalsService.rejectItem(activeProjectId!, item.id), `${item.type} denied.`, `reject-${item.id}`)}
                           className="btn-ghost px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-red-500 dark:text-red-400"
-                          disabled={!activeProjectId || activeAction !== null}
+                          disabled={!activeProjectId || activeAction !== null || item.canAct === false}
                         >
                           {activeAction === `reject-${item.id}` ? 'Denying...' : 'Deny'}
                         </button>

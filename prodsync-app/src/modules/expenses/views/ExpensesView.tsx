@@ -14,6 +14,7 @@ import {
   canManageArtProps,
   canManageArtSets,
   canViewArtBudget,
+  isArtDirector,
 } from '@/features/auth/role-capabilities'
 import { useResolvedProjectContext } from '@/features/projects/useResolvedProjectContext'
 import { useArtData } from '@/modules/expenses/hooks/useArtData'
@@ -121,7 +122,18 @@ function expenseApprovalBadge(status: ArtExpenseApprovalStatus) {
     return <StatusBadge variant="rejected" label="Denied" />
   }
 
+  if (status === 'pending_art_director') {
+    return <StatusBadge variant="pending" label="Pending Art Director" />
+  }
+
   return <StatusBadge variant="pending" label="Pending Producer" />
+}
+
+function expenseApprovalText(status: ArtExpenseApprovalStatus) {
+  if (status === 'approved') return 'Producer approved'
+  if (status === 'denied') return 'Denied'
+  if (status === 'pending_art_director') return 'Waiting for Art Director'
+  return 'Art Director approved | Waiting for Producer'
 }
 
 function propStatusBadge(status: ArtPropStatus) {
@@ -676,7 +688,8 @@ export function ExpensesView() {
   const canRemoveProps = canDeleteArtProps(user)
   const canManageSetsAccess = canManageArtSets(user)
   const canViewBudgetAccess = canViewArtBudget(user)
-  const canApproveExpense = canApproveArtExpense(user)
+  const canApproveExpenseAsProducer = canApproveArtExpense(user)
+  const canApproveExpenseAsArtDirector = isArtDirector(user)
   const { expenses, props, sets, budget, alerts, isLoading, isError } = useArtData(activeProjectId, { includeBudget: canViewBudgetAccess })
   const [feedback, setFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null)
   const [expenseModalOpen, setExpenseModalOpen] = useState(false)
@@ -949,8 +962,18 @@ export function ExpensesView() {
   }
 
   async function handleExpenseApproval(expense: ArtExpense, decision: 'approved' | 'denied') {
-    if (!canApproveExpense) {
-      setFeedback({ type: 'error', message: 'Only production leadership can approve or deny expenses.' })
+    const canApproveCurrentExpense = (
+      (canApproveExpenseAsArtDirector && expense.approvalStatus === 'pending_art_director')
+      || (canApproveExpenseAsProducer && expense.approvalStatus === 'pending_producer')
+    )
+
+    if (!canApproveCurrentExpense) {
+      setFeedback({
+        type: 'error',
+        message: expense.approvalStatus === 'pending_art_director'
+          ? 'Only the Art Director can approve or deny this expense at this stage.'
+          : 'Only production leadership can approve or deny this expense at this stage.',
+      })
       return
     }
 
@@ -1381,14 +1404,16 @@ export function ExpensesView() {
                           {expenseCategoryLabel(expense.category)} | Qty {expense.quantity} | Logged by {expense.createdByName ?? 'ProdSync User'} | {formatDateTime(expense.createdAt)}
                         </p>
                         <p className="mt-2 text-sm text-zinc-500 dark:text-zinc-400">
-                          Producer status: {expense.approvalStatus === 'approved' ? 'Approved' : expense.approvalStatus === 'denied' ? 'Denied' : 'Awaiting approval'}
+                          Approval status: {expenseApprovalText(expense.approvalStatus)}
                           {expense.reviewedAt ? ` | ${formatDateTime(expense.reviewedAt)}` : ''}
                           {expense.reviewedByName ? ` | ${expense.reviewedByName}` : ''}
                         </p>
                         {expense.approvalNote && (
                           <p className="mt-2 text-sm text-zinc-600 dark:text-zinc-300">{expense.approvalNote}</p>
                         )}
-                        {canApproveExpense && expense.approvalStatus === 'pending' && expense.approvalId && (
+                        {(((canApproveExpenseAsArtDirector && expense.approvalStatus === 'pending_art_director')
+                          || (canApproveExpenseAsProducer && expense.approvalStatus === 'pending_producer'))
+                          && expense.approvalId) && (
                           <div className="mt-3 flex flex-wrap gap-3">
                             <button
                               onClick={() => void handleExpenseApproval(expense, 'approved')}
@@ -1723,13 +1748,13 @@ export function ExpensesView() {
                                  {expenseApprovalBadge(expense.approvalStatus)}
                                </div>
                              </div>
-                             <p className="text-[10px] text-zinc-500 mt-1">
-                               {expense.approvalStatus === 'approved' ? 'Producer approved' : expense.approvalStatus === 'denied' ? 'Producer denied' : 'Waiting for producer'}
-                             </p>
+                             <p className="text-[10px] text-zinc-500 mt-1">{expenseApprovalText(expense.approvalStatus)}</p>
                               {expense.approvalNote && (
                                 <p className="text-[10px] text-zinc-500 mt-1 leading-relaxed">{expense.approvalNote}</p>
                               )}
-                              {canApproveExpense && expense.approvalStatus === 'pending' && expense.approvalId && (
+                              {(((canApproveExpenseAsArtDirector && expense.approvalStatus === 'pending_art_director')
+                                || (canApproveExpenseAsProducer && expense.approvalStatus === 'pending_producer'))
+                                && expense.approvalId) && (
                                 <div className="mt-2 flex gap-2">
                                   <button
                                     onClick={() => void handleExpenseApproval(expense, 'approved')}

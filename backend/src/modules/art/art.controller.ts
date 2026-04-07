@@ -62,7 +62,7 @@ export async function createArtExpenseController(req: Request, res: Response) {
     anomaly: expense.anomaly,
     extractedAmount: expense.extractedAmount,
     manualAmount: expense.manualAmount,
-    message: `Expense logged and sent to producer for approval. ${validationMessage}`,
+    message: `Expense logged and sent to the Art Director for approval. ${validationMessage}`,
   })
 }
 

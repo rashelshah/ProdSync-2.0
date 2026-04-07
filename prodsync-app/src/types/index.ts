@@ -185,6 +185,7 @@ export interface CrewKpis {
 export type ApprovalType = string
 export type ApprovalStatus = 'pending' | 'approved' | 'rejected'
 export type ApprovalPriority = 'emergency' | 'high' | 'normal'
+export type ApprovalWorkflowStatus = 'pending' | 'pending_dop' | 'pending_art_director' | 'pending_producer' | 'approved' | 'rejected'
 
 export interface ApprovalRequest {
   id: string
@@ -196,6 +197,9 @@ export interface ApprovalRequest {
   timestamp: string
   status: ApprovalStatus
   priority: ApprovalPriority
+  workflowStatus?: ApprovalWorkflowStatus
+  stageLabel?: string
+  canAct?: boolean
   notes?: string
 }
 

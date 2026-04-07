@@ -1,5 +1,5 @@
 export type ArtExpenseCategory = 'construction' | 'props' | 'materials' | 'misc'
-export type ArtExpenseApprovalStatus = 'pending' | 'approved' | 'denied'
+export type ArtExpenseApprovalStatus = 'pending_art_director' | 'pending_producer' | 'approved' | 'denied'
 export type ArtPropSourcingType = 'sourced' | 'hired'
 export type ArtPropStatus = 'in_use' | 'in_storage' | 'returned' | 'missing'
 export type ArtSetStatus = 'planned' | 'in_progress' | 'completed'
@@ -26,6 +26,7 @@ export interface ArtExpense {
   mismatchFlag: boolean
   approvalId: string | null
   approvalStatus: ArtExpenseApprovalStatus
+  approvalPendingWith: 'art_director' | 'producer' | null
   approvalNote: string | null
   reviewedById: string | null
   reviewedByName: string | null

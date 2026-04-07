@@ -36,6 +36,8 @@ interface UserRow {
   role: string | null
 }
 
+type PendingWorkflowStatus = 'pending' | 'pending_dop' | 'pending_art_director' | 'pending_producer' | 'approved' | 'rejected'
+
 function asString(value: unknown) {
   return typeof value === 'string' && value.trim() ? value : null
 }
@@ -78,6 +80,19 @@ function isArtExpenseApproval(row: ApprovalRow) {
   )
 }
 
+function canManageArtDirectorExpenseApprovals(req: Request) {
+  const authRole = normalizeRole(req.authUser?.role)
+  const membershipRole = normalizeRole(req.projectAccess?.membershipRole)
+  const projectRole = normalizeRole(req.projectAccess?.projectRole)
+  const department = normalizeRole(req.projectAccess?.department)
+
+  return Boolean(
+    projectRole === 'ART_DIRECTOR'
+      || (department === 'ART' && membershipRole === 'HOD')
+      || (department === 'ART' && authRole === 'HOD'),
+  )
+}
+
 function artExpenseDecision(row: ApprovalRow) {
   if (!isArtExpenseApproval(row)) {
     return null
@@ -86,6 +101,41 @@ function artExpenseDecision(row: ApprovalRow) {
   const metadata = asObject(row.metadata)
   const decision = asString(metadata.decision)
   return decision === 'approved' || decision === 'rejected' ? decision : null
+}
+
+function artExpenseWorkflowStatus(row: ApprovalRow) {
+  if (!isArtExpenseApproval(row)) {
+    return null
+  }
+
+  const metadata = asObject(row.metadata)
+  const workflowStatus = asString(metadata.workflowStatus)
+
+  if (workflowStatus === 'pending_art_director' || workflowStatus === 'pending_producer' || workflowStatus === 'approved' || workflowStatus === 'rejected') {
+    return workflowStatus
+  }
+
+  const decision = artExpenseDecision(row)
+  if (decision === 'approved') return 'approved'
+  if (decision === 'rejected') return 'rejected'
+  return 'pending_producer'
+}
+
+function approvalWorkflowStatus(row: ApprovalRow): PendingWorkflowStatus {
+  const artStatus = artExpenseWorkflowStatus(row)
+  if (artStatus) {
+    return artStatus
+  }
+
+  if (isCameraApproval(row)) {
+    return workflowStatus(row)
+  }
+
+  if (row.status === 'approved' || row.status === 'rejected') {
+    return row.status
+  }
+
+  return 'pending'
 }
 
 function workflowStatus(row: ApprovalRow) {
@@ -105,7 +155,8 @@ function workflowStatus(row: ApprovalRow) {
 
 function isPendingForProducer(row: ApprovalRow) {
   if (isArtExpenseApproval(row)) {
-    return row.status === 'pending' && artExpenseDecision(row) == null
+    const artStatus = artExpenseWorkflowStatus(row)
+    return row.status === 'pending' && (artStatus === 'pending_art_director' || artStatus === 'pending_producer')
   }
 
   if (!isCameraApproval(row)) {
@@ -115,9 +166,100 @@ function isPendingForProducer(row: ApprovalRow) {
   return workflowStatus(row) === 'pending_producer'
 }
 
+function canActOnPendingApproval(req: Request, row: ApprovalRow) {
+  if (isArtExpenseApproval(row)) {
+    const artStatus = artExpenseWorkflowStatus(row)
+
+    if (artStatus === 'pending_art_director') {
+      return canManageArtDirectorExpenseApprovals(req)
+    }
+
+    if (artStatus === 'pending_producer') {
+      return canManageApprovals(req)
+    }
+
+    return false
+  }
+
+  if (isCameraApproval(row)) {
+    return canManageApprovals(req) && workflowStatus(row) === 'pending_producer'
+  }
+
+  return canManageApprovals(req) && row.status === 'pending'
+}
+
+function stageLabelForPendingApproval(row: ApprovalRow) {
+  const status = approvalWorkflowStatus(row)
+
+  if (status === 'pending_art_director') {
+    return 'Awaiting Art Director'
+  }
+
+  if (status === 'pending_producer') {
+    return 'Awaiting Producer'
+  }
+
+  if (status === 'pending_dop') {
+    return 'Awaiting DOP'
+  }
+
+  return 'Pending'
+}
+
+function formatAuditTimestamp(value: string | null) {
+  if (!value) {
+    return null
+  }
+
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) {
+    return value
+  }
+
+  return new Intl.DateTimeFormat('en-IN', {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+  }).format(date)
+}
+
+function pendingApprovalNote(row: ApprovalRow, userMap: Map<string, UserRow>) {
+  const metadata = asObject(row.metadata)
+
+  if (!isArtExpenseApproval(row)) {
+    return asString(metadata.notes) ?? row.request_description ?? undefined
+  }
+
+  const artStatus = artExpenseWorkflowStatus(row)
+  const detailNote = row.request_description ?? asString(metadata.notes) ?? undefined
+
+  if (artStatus === 'pending_art_director') {
+    return detailNote
+      ? `Awaiting Art Director approval. ${detailNote}`
+      : 'Awaiting Art Director approval before producer sign-off.'
+  }
+
+  if (artStatus === 'pending_producer') {
+    const directorId = asString(metadata.artDirectorReviewedBy)
+    const directorName = directorId ? userMap.get(directorId)?.full_name ?? 'Art Director' : 'Art Director'
+    const reviewedAt = formatAuditTimestamp(asString(metadata.artDirectorReviewedAt))
+    const approvalLine = reviewedAt
+      ? `${directorName} approved on ${reviewedAt}. Awaiting producer approval.`
+      : `${directorName} approved this expense. Awaiting producer approval.`
+
+    return detailNote
+      ? `${approvalLine} ${detailNote}`
+      : approvalLine
+  }
+
+  return asString(metadata.notes) ?? detailNote
+}
+
 function isCompletedApproval(row: ApprovalRow) {
-  const artDecision = artExpenseDecision(row)
-  if (artDecision) {
+  const artStatus = artExpenseWorkflowStatus(row)
+  if (artStatus === 'approved' || artStatus === 'rejected') {
     return true
   }
 
@@ -187,7 +329,15 @@ requestsRouter.get('/:projectId', authMiddleware, projectAccessMiddleware, async
 
     const approvals = await getApprovalsForProject(projectId)
     const pendingApprovals = approvals.filter(isPendingForProducer)
-    const userMap = await getUserMap(Array.from(new Set(pendingApprovals.map(row => row.requested_by))))
+    const userIds = Array.from(
+      new Set(
+        pendingApprovals.flatMap(row => {
+          const metadata = asObject(row.metadata)
+          return [row.requested_by, asString(metadata.artDirectorReviewedBy)].filter((value): value is string => Boolean(value))
+        }),
+      ),
+    )
+    const userMap = await getUserMap(userIds)
 
     const requests = pendingApprovals.map(row => {
       const requester = userMap.get(row.requested_by)
@@ -202,7 +352,10 @@ requestsRouter.get('/:projectId', authMiddleware, projectAccessMiddleware, async
         timestamp: row.submitted_at,
         status: row.status,
         priority: row.priority,
-        notes: asString(asObject(row.metadata).notes) ?? row.request_description ?? undefined,
+        workflowStatus: approvalWorkflowStatus(row),
+        stageLabel: stageLabelForPendingApproval(row),
+        canAct: canActOnPendingApproval(req, row),
+        notes: pendingApprovalNote(row, userMap),
       }
     })
 
@@ -235,7 +388,9 @@ requestsRouter.get('/:projectId/history', authMiddleware, projectAccessMiddlewar
 
     const history = completedApprovals.map(row => {
       const actor = row.approved_by ? userMap.get(row.approved_by) : null
-      const action = artExpenseDecision(row) ?? (workflowStatus(row) === 'rejected' ? 'rejected' : 'approved')
+      const action = isArtExpenseApproval(row)
+        ? (artExpenseWorkflowStatus(row) === 'rejected' ? 'rejected' : 'approved')
+        : (workflowStatus(row) === 'rejected' ? 'rejected' : 'approved')
       const metadata = asObject(row.metadata)
       return {
         requestId: row.request_title || row.id,
@@ -281,16 +436,16 @@ requestsRouter.get('/:projectId/kpis', authMiddleware, projectAccessMiddleware, 
         row => row.priority === 'high' || row.priority === 'emergency' || Number(row.amount ?? 0) >= 100000,
       ).length,
       approvedToday: approvals.filter(row => {
-        const artDecision = artExpenseDecision(row)
-        if (artDecision === 'approved') {
+        const artStatus = artExpenseWorkflowStatus(row)
+        if (artStatus === 'approved') {
           return (asString(asObject(row.metadata).updatedAt) ?? row.approved_at ?? '').startsWith(today)
         }
 
         return workflowStatus(row) === 'approved' && (row.approved_at ?? '').startsWith(today)
       }).length,
       rejectedToday: approvals.filter(row => {
-        const artDecision = artExpenseDecision(row)
-        if (artDecision === 'rejected') {
+        const artStatus = artExpenseWorkflowStatus(row)
+        if (artStatus === 'rejected') {
           return (asString(asObject(row.metadata).updatedAt) ?? row.rejected_at ?? '').startsWith(today)
         }
 
@@ -315,15 +470,26 @@ requestsRouter.post('/:projectId/:requestId/approve', authMiddleware, projectAcc
     const reviewerId = req.authUser?.id
     console.log('[requests][approve] route hit', { projectId, requestId, reviewerId })
 
-    if (!canManageApprovals(req)) {
-      throw new HttpError(403, 'Only production leadership can approve requests.')
-    }
-
     const approvals = await getApprovalsForProject(projectId)
     const approval = approvals.find(row => row.id === requestId)
 
     if (!approval) {
       throw new HttpError(404, 'Approval request not found.')
+    }
+
+    if (isArtExpenseApproval(approval)) {
+      const artStatus = artExpenseWorkflowStatus(approval)
+      const canManageArtApproval = artStatus === 'pending_art_director'
+        ? canManageArtDirectorExpenseApprovals(req)
+        : canManageApprovals(req)
+
+      if (!canManageArtApproval) {
+        throw new HttpError(403, artStatus === 'pending_art_director'
+          ? 'Only the Art Director can approve this expense at the department stage.'
+          : 'Only production leadership can approve this expense.')
+      }
+    } else if (!canManageApprovals(req)) {
+      throw new HttpError(403, 'Only production leadership can approve requests.')
     }
 
     if (isCameraApproval(approval) && workflowStatus(approval) !== 'pending_producer') {
@@ -334,11 +500,18 @@ requestsRouter.post('/:projectId/:requestId/approve', authMiddleware, projectAcc
     const now = new Date().toISOString()
 
     if (isArtExpenseApproval(approval)) {
+      const artStatus = artExpenseWorkflowStatus(approval)
+
+      if (artStatus !== 'pending_art_director' && artStatus !== 'pending_producer') {
+        throw new HttpError(409, 'This art expense is not awaiting approval.')
+      }
+
       await resolveArtExpenseApprovalDecision({
         projectId,
         expenseId: approval.approvable_id,
         approvalId: requestId,
         reviewerId: reviewerId ?? null,
+        stage: artStatus === 'pending_art_director' ? 'art_director' : 'producer',
         decision: 'approved',
         reason: null,
       })
@@ -346,14 +519,21 @@ requestsRouter.post('/:projectId/:requestId/approve', authMiddleware, projectAcc
       const { data, error } = await adminClient
         .from('approvals')
         .update({
-          approved_by: reviewerId,
-          approved_at: now,
+          approved_by: artStatus === 'pending_producer' ? reviewerId : null,
+          approved_at: artStatus === 'pending_producer' ? now : null,
           rejected_at: null,
           rejection_reason: null,
           metadata: {
             ...metadata,
-            decision: 'approved',
-            notes: asString(metadata.notes) ?? approval.request_description ?? 'Approved from producer approvals.',
+            workflowStatus: artStatus === 'pending_art_director' ? 'pending_producer' : 'approved',
+            decision: artStatus === 'pending_producer' ? 'approved' : null,
+            notes: artStatus === 'pending_art_director'
+              ? 'Art Director approved. Awaiting producer approval.'
+              : (asString(metadata.notes) ?? approval.request_description ?? 'Approved from producer approvals.'),
+            artDirectorReviewedBy: artStatus === 'pending_art_director' ? reviewerId : asString(metadata.artDirectorReviewedBy),
+            artDirectorReviewedAt: artStatus === 'pending_art_director' ? now : asString(metadata.artDirectorReviewedAt),
+            producerReviewedBy: artStatus === 'pending_producer' ? reviewerId : asString(metadata.producerReviewedBy),
+            producerReviewedAt: artStatus === 'pending_producer' ? now : asString(metadata.producerReviewedAt),
             updatedAt: now,
             actedBy: reviewerId,
           },
@@ -427,15 +607,26 @@ requestsRouter.post('/:projectId/:requestId/reject', authMiddleware, projectAcce
     const reason = typeof req.body?.reason === 'string' ? req.body.reason.trim() : ''
     console.log('[requests][reject] route hit', { projectId, requestId, reviewerId, hasReason: Boolean(reason) })
 
-    if (!canManageApprovals(req)) {
-      throw new HttpError(403, 'Only production leadership can reject requests.')
-    }
-
     const approvals = await getApprovalsForProject(projectId)
     const approval = approvals.find(row => row.id === requestId)
 
     if (!approval) {
       throw new HttpError(404, 'Approval request not found.')
+    }
+
+    if (isArtExpenseApproval(approval)) {
+      const artStatus = artExpenseWorkflowStatus(approval)
+      const canManageArtApproval = artStatus === 'pending_art_director'
+        ? canManageArtDirectorExpenseApprovals(req)
+        : canManageApprovals(req)
+
+      if (!canManageArtApproval) {
+        throw new HttpError(403, artStatus === 'pending_art_director'
+          ? 'Only the Art Director can reject this expense at the department stage.'
+          : 'Only production leadership can reject this expense.')
+      }
+    } else if (!canManageApprovals(req)) {
+      throw new HttpError(403, 'Only production leadership can reject requests.')
     }
 
     if (isCameraApproval(approval) && workflowStatus(approval) !== 'pending_producer') {
@@ -446,13 +637,20 @@ requestsRouter.post('/:projectId/:requestId/reject', authMiddleware, projectAcce
     const now = new Date().toISOString()
 
     if (isArtExpenseApproval(approval)) {
+      const artStatus = artExpenseWorkflowStatus(approval)
+
+      if (artStatus !== 'pending_art_director' && artStatus !== 'pending_producer') {
+        throw new HttpError(409, 'This art expense is not awaiting approval.')
+      }
+
       await resolveArtExpenseApprovalDecision({
         projectId,
         expenseId: approval.approvable_id,
         approvalId: requestId,
         reviewerId: reviewerId ?? null,
+        stage: artStatus === 'pending_art_director' ? 'art_director' : 'producer',
         decision: 'rejected',
-        reason: reason || 'Denied from producer approvals.',
+        reason: reason || (artStatus === 'pending_art_director' ? 'Denied by Art Director.' : 'Denied from producer approvals.'),
       })
 
       const { data, error } = await adminClient
@@ -461,11 +659,16 @@ requestsRouter.post('/:projectId/:requestId/reject', authMiddleware, projectAcce
           approved_by: reviewerId,
           approved_at: null,
           rejected_at: now,
-          rejection_reason: reason || 'Denied from producer approvals.',
+          rejection_reason: reason || (artStatus === 'pending_art_director' ? 'Denied by Art Director.' : 'Denied from producer approvals.'),
           metadata: {
             ...metadata,
             decision: 'rejected',
-            notes: reason || asString(metadata.notes) || 'Denied from producer approvals.',
+            workflowStatus: 'rejected',
+            notes: reason || asString(metadata.notes) || (artStatus === 'pending_art_director' ? 'Denied by Art Director.' : 'Denied from producer approvals.'),
+            artDirectorReviewedBy: artStatus === 'pending_art_director' ? reviewerId : asString(metadata.artDirectorReviewedBy),
+            artDirectorReviewedAt: artStatus === 'pending_art_director' ? now : asString(metadata.artDirectorReviewedAt),
+            producerReviewedBy: artStatus === 'pending_producer' ? reviewerId : asString(metadata.producerReviewedBy),
+            producerReviewedAt: artStatus === 'pending_producer' ? now : asString(metadata.producerReviewedAt),
             updatedAt: now,
             actedBy: reviewerId,
           },

@@ -38,6 +38,7 @@ interface ApprovalRecord {
   approved_at: string | null
   rejected_at: string | null
   rejection_reason: string | null
+  metadata: DbRow
 }
 
 let bucketReadyPromise: Promise<void> | null = null
@@ -163,7 +164,22 @@ function formatCategoryLabel(category: ArtExpenseCategory) {
 function mapApprovalStatus(
   expenseStatus: string | null | undefined,
   approvalStatus: string | null | undefined,
+  approvalMetadata?: DbRow,
 ): ArtExpenseApprovalStatus {
+  const workflowStatus = asString(approvalMetadata?.workflowStatus)
+
+  if (workflowStatus === 'pending_art_director' || workflowStatus === 'pending_producer') {
+    return workflowStatus
+  }
+
+  if (workflowStatus === 'approved' || approvalMetadata?.decision === 'approved') {
+    return 'approved'
+  }
+
+  if (workflowStatus === 'rejected' || approvalMetadata?.decision === 'rejected') {
+    return 'denied'
+  }
+
   if (approvalStatus === 'approved' || expenseStatus === 'approved') {
     return 'approved'
   }
@@ -172,7 +188,7 @@ function mapApprovalStatus(
     return 'denied'
   }
 
-  return 'pending'
+  return 'pending_producer'
 }
 
 function buildArtExpenseApprovalDescription(params: {
@@ -369,7 +385,7 @@ async function listApprovalRecords(projectId: string, approvalIds: Array<string 
 
   const { data, error } = await adminClient
     .from('approvals')
-    .select('id, status, approved_by, approved_at, rejected_at, rejection_reason')
+    .select('id, status, approved_by, approved_at, rejected_at, rejection_reason, metadata')
     .eq('project_id', projectId)
     .in('id', uniqueIds)
 
@@ -387,6 +403,7 @@ async function listApprovalRecords(projectId: string, approvalIds: Array<string 
         approved_at: asString(row.approved_at),
         rejected_at: asString(row.rejected_at),
         rejection_reason: asString(row.rejection_reason),
+        metadata: asObject(row.metadata),
       },
     ]),
   )
@@ -430,6 +447,7 @@ async function createArtExpenseApproval(params: {
       metadata: {
         artModuleType: 'expense_approval',
         expenseId: params.expenseId,
+        workflowStatus: 'pending_art_director',
         category: params.category,
         quantity: params.quantity,
         hasReceipt: params.hasReceipt,
@@ -439,7 +457,7 @@ async function createArtExpenseApproval(params: {
         createdAt: new Date().toISOString(),
       },
     })
-    .select('id, status, approved_by, approved_at, rejected_at, rejection_reason')
+    .select('id, status, approved_by, approved_at, rejected_at, rejection_reason, metadata')
     .single()
 
   if (error) {
@@ -453,6 +471,7 @@ async function createArtExpenseApproval(params: {
     approved_at: asString(data.approved_at),
     rejected_at: asString(data.rejected_at),
     rejection_reason: asString(data.rejection_reason),
+    metadata: asObject(data.metadata),
   }
 
   await createApprovalAction({
@@ -548,12 +567,30 @@ function toArtExpenseRecord(
   const mismatchLabel = asString(metadata.mismatchLabel) ?? asString(extractedData.mismatchLabel)
   const extractedQuantity = asNumber(metadata.extractedQuantity ?? extractedData.extractedQuantity)
   const previewText = asString(extractedData.previewText) ?? ocrText
-  const reviewedById = approval?.approved_by ?? asString(metadata.approvalReviewedBy)
-  const approvalStatus = mapApprovalStatus(asString(row.status), approval?.status ?? asString(metadata.approvalStatus))
-  const reviewedAt = approvalStatus === 'approved'
-    ? (approval?.approved_at ?? asString(metadata.approvalReviewedAt))
+  const approvalMetadata = approval?.metadata ?? {}
+  const artDirectorReviewedBy = asString(approvalMetadata.artDirectorReviewedBy) ?? asString(metadata.artDirectorReviewedBy)
+  const artDirectorReviewedAt = asString(approvalMetadata.artDirectorReviewedAt) ?? asString(metadata.artDirectorReviewedAt)
+  const producerReviewedBy = asString(approvalMetadata.producerReviewedBy) ?? asString(metadata.producerReviewedBy)
+  const producerReviewedAt = asString(approvalMetadata.producerReviewedAt) ?? asString(metadata.producerReviewedAt)
+  const approvalStatus = mapApprovalStatus(asString(row.status), approval?.status ?? asString(metadata.approvalStatus), approval?.metadata)
+  const approvalPendingWith = approvalStatus === 'pending_art_director'
+    ? 'art_director'
+    : approvalStatus === 'pending_producer'
+      ? 'producer'
+      : null
+  const reviewedById = approvalStatus === 'pending_producer'
+    ? artDirectorReviewedBy
+    : approvalStatus === 'approved'
+      ? (producerReviewedBy ?? approval?.approved_by ?? asString(metadata.approvalReviewedBy))
+      : approvalStatus === 'denied'
+        ? (producerReviewedBy ?? artDirectorReviewedBy ?? approval?.approved_by ?? asString(metadata.approvalReviewedBy))
+        : null
+  const reviewedAt = approvalStatus === 'pending_producer'
+    ? artDirectorReviewedAt
+    : approvalStatus === 'approved'
+      ? (producerReviewedAt ?? approval?.approved_at ?? asString(metadata.approvalReviewedAt))
     : approvalStatus === 'denied'
-      ? (approval?.rejected_at ?? asString(metadata.approvalReviewedAt))
+      ? (producerReviewedAt ?? artDirectorReviewedAt ?? approval?.rejected_at ?? asString(metadata.approvalReviewedAt))
       : null
   const approvalNote = approvalStatus === 'denied'
     ? (approval?.rejection_reason ?? asString(metadata.approvalNote))
@@ -580,6 +617,7 @@ function toArtExpenseRecord(
     mismatchFlag,
     approvalId: asString(row.approval_id) ?? asString(metadata.approvalId),
     approvalStatus,
+    approvalPendingWith,
     approvalNote,
     reviewedById,
     reviewedByName: reviewedById ? userNames.get(reviewedById) ?? 'ProdSync User' : null,
@@ -676,6 +714,7 @@ export async function resolveArtExpenseApprovalDecision(params: {
   expenseId: string | null
   approvalId: string | null
   reviewerId: string | null
+  stage: 'art_director' | 'producer'
   decision: ApprovalDecision
   reason: string | null
 }) {
@@ -701,23 +740,38 @@ export async function resolveArtExpenseApprovalDecision(params: {
   }
 
   const actedAt = new Date().toISOString()
-  const nextApprovalStatus = params.decision === 'approved' ? 'approved' : 'denied'
   const currentMetadata = asObject(data.metadata)
+  const nextExpenseStatus = params.stage === 'art_director' && params.decision === 'approved'
+    ? 'submitted'
+    : params.decision
+  const nextApprovalStatus = params.stage === 'art_director' && params.decision === 'approved'
+    ? 'pending_producer'
+    : params.decision === 'approved'
+      ? 'approved'
+      : 'denied'
+  const nextApprovalNote = params.stage === 'art_director' && params.decision === 'approved'
+    ? 'Art Director approved. Awaiting producer approval.'
+    : params.decision === 'rejected'
+      ? (params.reason || (params.stage === 'art_director' ? 'Denied by Art Director.' : 'Denied from producer approvals.'))
+      : (params.reason || null)
 
   const updateResult = await adminClient
     .from('expenses')
     .update({
-      status: params.decision,
+      status: nextExpenseStatus,
       approval_id: params.approvalId,
       metadata: {
         ...currentMetadata,
         approvalId: params.approvalId,
         approvalStatus: nextApprovalStatus,
-        approvalReviewedBy: params.reviewerId,
-        approvalReviewedAt: actedAt,
-        approvalNote: params.decision === 'rejected'
-          ? (params.reason || 'Denied from producer approvals.')
-          : (params.reason || null),
+        approvalPendingWith: nextApprovalStatus === 'pending_producer' ? 'producer' : null,
+        approvalReviewedBy: nextApprovalStatus === 'pending_producer' ? null : params.reviewerId,
+        approvalReviewedAt: nextApprovalStatus === 'pending_producer' ? null : actedAt,
+        approvalNote: nextApprovalNote,
+        artDirectorReviewedBy: params.stage === 'art_director' ? params.reviewerId : asString(currentMetadata.artDirectorReviewedBy),
+        artDirectorReviewedAt: params.stage === 'art_director' ? actedAt : asString(currentMetadata.artDirectorReviewedAt),
+        producerReviewedBy: params.stage === 'producer' ? params.reviewerId : asString(currentMetadata.producerReviewedBy),
+        producerReviewedAt: params.stage === 'producer' ? actedAt : asString(currentMetadata.producerReviewedAt),
       },
     })
     .eq('project_id', params.projectId)
@@ -734,7 +788,7 @@ export async function resolveArtExpenseApprovalDecision(params: {
       projectId: params.projectId,
       action: params.decision,
       actorId: params.reviewerId,
-      note: params.reason,
+      note: nextApprovalNote,
     })
   }
 }
@@ -881,7 +935,13 @@ export async function listArtExpenses(projectId: string): Promise<ArtExpenseReco
   const rows = (data ?? []) as DbRow[]
   const approvalMap = await listApprovalRecords(projectId, rows.map(row => asString(row.approval_id)))
   const reviewerIds = Array.from(
-    new Set(Array.from(approvalMap.values()).map(row => row.approved_by).filter((value): value is string => Boolean(value))),
+    new Set(
+      Array.from(approvalMap.values()).flatMap(row => [
+        row.approved_by,
+        asString(row.metadata.artDirectorReviewedBy),
+        asString(row.metadata.producerReviewedBy),
+      ].filter((value): value is string => Boolean(value))),
+    ),
   )
   const [receiptMap, userNames] = await Promise.all([
     listExpenseReceipts(projectId, rows.map(row => String(row.id))),
@@ -902,7 +962,12 @@ export async function getArtExpenseById(projectId: string, expenseId: string): P
   const approval = approvalMap.get(asString(expense.approval_id) ?? '')
   const [receiptMap, userNames] = await Promise.all([
     listExpenseReceipts(projectId, [expenseId]),
-    loadUserNames([asString(expense.requested_by), approval?.approved_by]),
+    loadUserNames([
+      asString(expense.requested_by),
+      approval?.approved_by,
+      asString(approval?.metadata.artDirectorReviewedBy),
+      asString(approval?.metadata.producerReviewedBy),
+    ]),
   ])
 
   return toArtExpenseRecord(expense, receiptMap.get(expenseId), userNames, approval)
@@ -942,7 +1007,8 @@ export async function createArtExpense(
         ocrText: null,
         receiptPath: null,
         approvalId: null,
-        approvalStatus: 'pending',
+        approvalStatus: 'pending_art_director',
+        approvalPendingWith: 'art_director',
         approvalReviewedBy: null,
         approvalReviewedAt: null,
         approvalNote: null,
@@ -973,7 +1039,8 @@ export async function createArtExpense(
     ocrText: null as string | null,
     receiptPath: null as string | null,
     approvalId: null as string | null,
-    approvalStatus: 'pending' as ArtExpenseApprovalStatus,
+    approvalStatus: 'pending_art_director' as ArtExpenseApprovalStatus,
+    approvalPendingWith: 'art_director' as const,
     approvalReviewedBy: null as string | null,
     approvalReviewedAt: null as string | null,
     approvalNote: null as string | null,
@@ -1125,7 +1192,8 @@ export async function createArtExpense(
   nextMetadata = {
     ...nextMetadata,
     approvalId: approval.id,
-    approvalStatus: 'pending',
+    approvalStatus: 'pending_art_director',
+    approvalPendingWith: 'art_director',
     approvalReviewedBy: null,
     approvalReviewedAt: null,
     approvalNote: null,
