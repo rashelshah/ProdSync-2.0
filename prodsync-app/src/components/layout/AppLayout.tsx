@@ -27,7 +27,7 @@ export function AppLayout({ children }: { children?: ReactNode }) {
       />
 
       <div
-        className="relative min-h-screen transition-[margin] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)]"
+        className="relative min-h-screen transition-[margin] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] max-md:!ml-0"
         style={{ marginLeft: sidebarWidth }}
       >
         <Header
@@ -36,7 +36,7 @@ export function AppLayout({ children }: { children?: ReactNode }) {
           sidebarOffset={sidebarWidth}
         />
 
-        <main className="relative pt-24">
+        <main className="relative pt-24 max-md:pt-4">
           {children ?? <Outlet />}
         </main>
       </div>

@@ -23,7 +23,7 @@ export function Sidebar({ isCollapsed, onToggle, width }: SidebarProps) {
 
   return (
     <aside
-      className="fixed inset-y-0 left-0 z-40 border-r border-zinc-200 bg-white/90 backdrop-blur-md transition-[width,background-color,border-color] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] dark:border-zinc-800 dark:bg-zinc-950/90"
+      className="max-md:hidden fixed inset-y-0 left-0 z-40 border-r border-zinc-200 bg-white/90 backdrop-blur-md transition-[width,background-color,border-color] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] dark:border-zinc-800 dark:bg-zinc-950/90"
       style={{ width }}
     >
       <div

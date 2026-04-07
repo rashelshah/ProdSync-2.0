@@ -193,12 +193,12 @@ export function ProjectsView() {
   }
 
   return (
-    <div className="page-shell page-shell-narrow">
-      <header className="page-header">
+    <div className="page-shell page-shell-narrow max-md:pt-16">
+      <header className="page-header max-md:py-4 max-md:px-2">
         <div>
-          <span className="page-kicker">Access Control</span>
-          <h1 className="page-title page-title-compact">Projects Hub</h1>
-          <p className="page-subtitle">
+          <span className="page-kicker max-md:text-[10px]">Access Control</span>
+          <h1 className="page-title page-title-compact max-md:text-2xl mt-1">Projects Hub</h1>
+          <p className="page-subtitle mt-2 max-md:text-xs max-md:leading-snug">
             Project membership is the gatekeeper for every module. Producers manage creation and approvals, while crew and department users can only request access.
           </p>
         </div>
@@ -480,43 +480,43 @@ function ProjectCard({
   openLabel?: string
 }) {
   return (
-    <Surface variant="raised" className="rounded-[30px]">
-      <div className="flex flex-wrap items-start justify-between gap-4">
+    <Surface variant="raised" className="rounded-[30px] max-md:rounded-[24px] max-md:p-4">
+      <div className="flex flex-wrap items-start justify-between gap-4 max-md:gap-2">
         <div>
-          <div className={cn('inline-flex rounded-full px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em]', badgeClass)}>
+          <div className={cn('inline-flex rounded-full px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] max-md:text-[9px] max-md:px-2 max-md:py-0.5', badgeClass)}>
             {project.status}
           </div>
-          <h3 className="mt-4 text-2xl font-semibold tracking-[-0.04em] text-zinc-900 dark:text-white">{project.name}</h3>
-          <p className="mt-2 text-sm text-zinc-500 dark:text-zinc-400">{project.ownerName} - {project.location}</p>
+          <h3 className="mt-4 text-2xl font-semibold tracking-[-0.04em] text-zinc-900 dark:text-white max-md:mt-3 max-md:text-[18px] max-md:leading-tight">{project.name}</h3>
+          <p className="mt-2 text-sm text-zinc-500 dark:text-zinc-400 max-md:mt-1 max-md:text-xs">{project.ownerName} - {project.location}</p>
         </div>
 
         {membershipLabel && (
-          <div className="rounded-full bg-zinc-100 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-zinc-600 dark:bg-white/6 dark:text-zinc-300">
+          <div className="rounded-full bg-zinc-100 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-zinc-600 dark:bg-white/6 dark:text-zinc-300 max-md:text-[9px] max-md:px-2 max-md:py-0.5">
             {membershipLabel}
           </div>
         )}
       </div>
 
-      <div className="mt-6 grid gap-4 sm:grid-cols-3">
-        <MetricTile label="Budget" value={formatCurrency(project.budgetUSD)} icon={<ShieldCheck className="h-4 w-4" />} />
-        <MetricTile label="Active crew" value={`${project.activeCrew}`} icon={<Users className="h-4 w-4" />} />
-        <MetricTile label="Progress" value={`${project.progressPercent}%`} icon={<CheckCircle2 className="h-4 w-4" />} />
+      <div className="mt-6 grid gap-4 sm:grid-cols-3 max-md:mt-5 max-md:gap-2">
+        <MetricTile label="Budget" value={formatCurrency(project.budgetUSD)} icon={<ShieldCheck className="h-4 w-4 max-md:h-3 max-md:w-3" />} />
+        <MetricTile label="Active crew" value={`${project.activeCrew}`} icon={<Users className="h-4 w-4 max-md:h-3 max-md:w-3" />} />
+        <MetricTile label="Progress" value={`${project.progressPercent}%`} icon={<CheckCircle2 className="h-4 w-4 max-md:h-3 max-md:w-3" />} />
       </div>
 
-      <div className="mt-6 flex flex-wrap gap-2 text-sm text-zinc-500 dark:text-zinc-400">
+      <div className="mt-6 flex flex-wrap gap-2 text-sm text-zinc-500 dark:text-zinc-400 max-md:mt-5 max-md:gap-1.5">
         {project.enabledDepartments.map(department => (
-          <span key={department} className="rounded-full bg-zinc-100 px-3 py-1.5 dark:bg-white/6">{department}</span>
+          <span key={department} className="rounded-full bg-zinc-100 px-3 py-1.5 dark:bg-white/6 max-md:px-2 max-md:py-1 max-md:text-[10px]">{department}</span>
         ))}
       </div>
 
-      <div className="mt-8 flex flex-wrap items-center gap-3">
-        {onOpen && <button onClick={onOpen} className="btn-primary">{openLabel}</button>}
+      <div className="mt-8 flex flex-wrap items-center gap-3 max-md:mt-5 max-md:gap-2">
+        {onOpen && <button onClick={onOpen} className="btn-primary max-md:flex-1 max-md:h-10 max-md:text-xs">{openLabel}</button>}
         {onJoin && (
-          <button onClick={onJoin} disabled={joinDisabled} className={cn('btn-soft', joinDisabled && 'cursor-not-allowed opacity-60')}>
+          <button onClick={onJoin} disabled={joinDisabled} className={cn('btn-soft max-md:flex-1 max-md:h-10 max-md:text-xs', joinDisabled && 'cursor-not-allowed opacity-60')}>
             {joinLabel}
           </button>
         )}
-        <span className="text-xs font-semibold uppercase tracking-[0.18em] text-zinc-500 dark:text-zinc-400">
+        <span className="text-xs font-semibold uppercase tracking-[0.18em] text-zinc-500 dark:text-zinc-400 max-md:w-full max-md:text-center max-md:text-[9px] max-md:mt-2">
           {formatDate(project.startDate)} - {formatDate(project.endDate)}
         </span>
       </div>
@@ -526,9 +526,9 @@ function ProjectCard({
 
 function MetricTile({ label, value, icon }: { label: string; value: string; icon: ReactNode }) {
   return (
-    <div className="rounded-[24px] bg-zinc-50 px-4 py-4 dark:bg-zinc-900">
-      <div className="flex items-center gap-2 text-zinc-500 dark:text-zinc-400">{icon}<span className="text-xs font-semibold uppercase tracking-[0.18em]">{label}</span></div>
-      <p className="mt-3 text-xl font-semibold tracking-[-0.04em] text-zinc-900 dark:text-white">{value}</p>
+    <div className="rounded-[24px] bg-zinc-50 px-4 py-4 dark:bg-zinc-900 max-md:rounded-[16px] max-md:px-3 max-md:py-3">
+      <div className="flex items-center gap-2 text-zinc-500 dark:text-zinc-400 max-md:gap-1.5">{icon}<span className="text-xs font-semibold uppercase tracking-[0.18em] max-md:text-[9px]">{label}</span></div>
+      <p className="mt-3 text-xl font-semibold tracking-[-0.04em] text-zinc-900 dark:text-white max-md:mt-1.5 max-md:text-sm">{value}</p>
     </div>
   )
 }

@@ -72,10 +72,12 @@ export function getDefaultAuthorizedPath(user: User) {
 }
 
 export function getDefaultWorkspacePath(user: User) {
-  if (canAccessRoute(user, 'dashboard')) return '/dashboard'
-  if (user.role === 'Driver' && canAccessRoute(user, 'transport')) return '/transport'
-  if (user.role === 'DataWrangler' && canAccessRoute(user, 'camera')) return '/camera'
-  if (user.role === 'Crew' && canAccessRoute(user, 'crew')) return '/crew'
+  for (const item of APP_NAV_ITEMS) {
+    if (item.routeId === 'projects') continue
+    if (canAccessRoute(user, item.routeId)) {
+      return item.path
+    }
+  }
   return '/projects'
 }
 

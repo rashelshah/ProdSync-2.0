@@ -18,21 +18,23 @@ export function Header({ isSidebarCollapsed, onToggleSidebar, sidebarOffset }: H
   const { alerts, unreadCount, acknowledgeAll, isAcknowledgingAll } = useProjectAlerts()
   const user = useAuthStore(s => s.user)
   const { theme, toggleTheme } = useTheme()
+  const logout = useAuthStore(s => s.logout)
   const [showAlerts, setShowAlerts] = useState(false)
+  const [showProfileMenu, setShowProfileMenu] = useState(false)
 
   const recentAlerts = alerts.slice(0, 5)
   const userRoleLabel = user ? getUserRoleLabel(user) : 'Crew Member'
 
   return (
     <header
-      className="fixed right-0 top-0 z-30 border-b border-zinc-200/80 bg-white/85 px-6 py-5 backdrop-blur-xl transition-[left] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] dark:border-zinc-800/80 dark:bg-zinc-950/85 lg:px-8"
-      style={{ left: sidebarOffset }}
+      className="fixed right-0 top-0 z-30 border-b border-zinc-200/80 bg-white/85 px-6 py-5 backdrop-blur-xl transition-[left] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] dark:border-zinc-800/80 dark:bg-zinc-950/85 lg:px-8 max-md:bg-transparent max-md:dark:bg-transparent max-md:border-transparent max-md:backdrop-blur-none max-md:pointer-events-none"
+      style={{ left: typeof window !== 'undefined' && window.innerWidth < 768 ? 0 : sidebarOffset }}
     >
       <div className="flex items-center justify-between gap-6">
         <div className="flex min-w-0 flex-1 items-center gap-3">
           <button
             onClick={onToggleSidebar}
-            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-zinc-200 bg-white text-zinc-500 transition-colors hover:border-orange-200 hover:bg-orange-50 hover:text-orange-600 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-400 dark:hover:border-orange-500/20 dark:hover:bg-orange-500/10 dark:hover:text-orange-400"
+            className="max-md:hidden flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-zinc-200 bg-white text-zinc-500 transition-colors hover:border-orange-200 hover:bg-orange-50 hover:text-orange-600 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-400 dark:hover:border-orange-500/20 dark:hover:bg-orange-500/10 dark:hover:text-orange-400 pointer-events-auto"
             aria-label={isSidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
           >
             <span className="material-symbols-outlined text-[20px]">
@@ -40,7 +42,7 @@ export function Header({ isSidebarCollapsed, onToggleSidebar, sidebarOffset }: H
             </span>
           </button>
 
-          <div className="flex min-w-0 flex-1 items-center gap-3 rounded-full border border-zinc-200 bg-zinc-50 px-4 py-3 dark:border-zinc-800 dark:bg-zinc-900">
+          <div className="max-md:hidden flex min-w-0 flex-1 items-center gap-3 rounded-full border border-zinc-200 bg-zinc-50 px-4 py-3 dark:border-zinc-800 dark:bg-zinc-900 pointer-events-auto">
             <span className="material-symbols-outlined text-[18px] text-zinc-400 dark:text-zinc-500">search</span>
             <input
               type="text"
@@ -53,7 +55,7 @@ export function Header({ isSidebarCollapsed, onToggleSidebar, sidebarOffset }: H
         <div className="flex items-center gap-3">
           <button
             onClick={() => navigate('/projects')}
-            className="flex h-11 w-11 items-center justify-center rounded-full bg-orange-500 text-black transition-colors hover:bg-orange-600"
+            className="max-md:hidden flex h-11 w-11 items-center justify-center rounded-full bg-orange-500 text-black transition-colors hover:bg-orange-600 pointer-events-auto"
             aria-label="Create or join project"
           >
             <Plus className="h-4 w-4" />
@@ -61,16 +63,16 @@ export function Header({ isSidebarCollapsed, onToggleSidebar, sidebarOffset }: H
 
           <button
             onClick={toggleTheme}
-            className="flex h-11 w-11 items-center justify-center rounded-full border border-zinc-200 bg-white text-zinc-500 transition-colors hover:border-orange-200 hover:bg-orange-50 hover:text-orange-600 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-400 dark:hover:border-orange-500/20 dark:hover:bg-orange-500/10 dark:hover:text-orange-400"
+            className="max-md:hidden flex h-11 w-11 items-center justify-center rounded-full border border-zinc-200 bg-white text-zinc-500 transition-colors hover:border-orange-200 hover:bg-orange-50 hover:text-orange-600 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-400 dark:hover:border-orange-500/20 dark:hover:bg-orange-500/10 dark:hover:text-orange-400 pointer-events-auto"
             aria-label={`Switch to ${theme === 'light' ? 'dark' : 'light'} mode`}
           >
             <span className="material-symbols-outlined text-[18px]">{theme === 'light' ? 'dark_mode' : 'light_mode'}</span>
           </button>
 
-          <div className="relative">
+          <div className="relative pointer-events-auto">
             <button
               onClick={() => setShowAlerts(value => !value)}
-              className="relative flex h-11 w-11 items-center justify-center rounded-full border border-zinc-200 bg-white text-zinc-500 transition-colors hover:border-orange-200 hover:bg-orange-50 hover:text-orange-600 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-400 dark:hover:border-orange-500/20 dark:hover:bg-orange-500/10 dark:hover:text-orange-400"
+              className="relative flex h-11 w-11 items-center justify-center rounded-full border border-zinc-200 bg-white text-zinc-500 transition-colors hover:border-orange-200 hover:bg-orange-50 hover:text-orange-600 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-400 dark:hover:border-orange-500/20 dark:hover:bg-orange-500/10 dark:hover:text-orange-400 max-md:bg-transparent max-md:dark:bg-zinc-900/60 max-md:border-zinc-200 max-md:dark:border-white/10 max-md:backdrop-blur-xl"
             >
               <span className="material-symbols-outlined text-[20px]">notifications</span>
               {unreadCount > 0 && (
@@ -131,14 +133,34 @@ export function Header({ isSidebarCollapsed, onToggleSidebar, sidebarOffset }: H
             )}
           </div>
 
-          <div className="flex items-center gap-3 rounded-full border border-zinc-200 bg-white px-2 py-2 pl-3 pr-2.5 dark:border-zinc-800 dark:bg-zinc-900">
-            <div className="hidden text-right sm:block">
-              <p className="text-sm font-semibold text-zinc-900 dark:text-white">{user?.name}</p>
-              <p className="text-xs text-zinc-500 dark:text-zinc-400">{userRoleLabel}</p>
-            </div>
-            <div className="flex h-11 w-11 items-center justify-center rounded-full bg-zinc-900 text-sm font-bold text-white dark:bg-white dark:text-zinc-900">
-              {user?.name.charAt(0) ?? 'U'}
-            </div>
+          <div className="relative">
+            <button onClick={() => setShowProfileMenu(prev => !prev)} className="flex items-center gap-3 rounded-full border border-zinc-200 bg-white px-2 py-2 pl-3 pr-2.5 dark:border-zinc-800 dark:bg-zinc-900 transition-colors hover:border-orange-200 hover:bg-orange-50 dark:hover:border-orange-500/20 dark:hover:bg-orange-500/10 max-md:p-0 max-md:border-none max-md:hover:bg-transparent max-md:bg-transparent max-md:dark:bg-transparent pointer-events-auto outline-none">
+              <div className="hidden text-right sm:block">
+                <p className="text-sm font-semibold text-zinc-900 dark:text-white">{user?.name}</p>
+                <p className="text-xs text-zinc-500 dark:text-zinc-400">{userRoleLabel}</p>
+              </div>
+              <div className="flex h-11 w-11 items-center justify-center rounded-full bg-zinc-900 text-sm font-bold text-white dark:bg-white dark:text-zinc-900 border border-zinc-200 dark:border-zinc-800 shadow-sm shadow-black/5 dark:shadow-black/20">
+                {user?.name.charAt(0) ?? 'U'}
+              </div>
+            </button>
+
+            {showProfileMenu && (
+              <div className="absolute right-0 top-full mt-3 w-48 rounded-[24px] border border-zinc-200 bg-white p-2 shadow-soft dark:border-zinc-800 dark:bg-zinc-900 pointer-events-auto flex flex-col gap-1 z-50">
+                 <button onClick={() => { toggleTheme(); setShowProfileMenu(false); }} className="flex items-center gap-3 w-full px-3 py-2.5 rounded-[16px] text-sm font-medium text-zinc-700 hover:bg-zinc-50 dark:text-zinc-300 dark:hover:bg-zinc-800/50 transition-colors text-left">
+                    <span className="material-symbols-outlined text-[18px]">{theme === 'light' ? 'dark_mode' : 'light_mode'}</span>
+                    {theme === 'light' ? 'Dark Mode' : 'Light Mode'}
+                 </button>
+                 <button onClick={() => { navigate('/projects'); setShowProfileMenu(false); }} className="flex items-center gap-3 w-full px-3 py-2.5 rounded-[16px] text-sm font-medium text-zinc-700 hover:bg-zinc-50 dark:text-zinc-300 dark:hover:bg-zinc-800/50 transition-colors text-left hidden max-md:flex">
+                    <Plus className="h-4 w-4" />
+                    Projects
+                 </button>
+                 <div className="h-px bg-zinc-200 dark:bg-zinc-800 my-1 mx-2" />
+                 <button onClick={() => { logout(); navigate('/auth'); setShowProfileMenu(false); }} className="flex items-center gap-3 w-full px-3 py-2.5 rounded-[16px] text-sm font-medium text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-500/10 transition-colors text-left">
+                    <span className="material-symbols-outlined text-[18px]">logout</span>
+                    Sign Out
+                 </button>
+              </div>
+            )}
           </div>
         </div>
       </div>

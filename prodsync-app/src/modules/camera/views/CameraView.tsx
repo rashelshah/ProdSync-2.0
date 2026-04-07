@@ -146,9 +146,9 @@ function ModalShell({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/55 px-4 backdrop-blur-sm">
-      <Surface variant="table" padding="lg" className="w-full max-w-xl border border-zinc-200 shadow-2xl dark:border-zinc-800">
-        <div className="flex items-start justify-between gap-4">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/55 px-4 py-8 backdrop-blur-sm pt-safe">
+      <Surface variant="table" padding="lg" className="w-full max-w-xl border border-zinc-200 shadow-2xl dark:border-zinc-800 flex flex-col max-h-[85vh] sm:max-h-[85vh]">
+        <div className="flex items-start justify-between gap-4 shrink-0">
           <div>
             <p className="section-kicker">{kicker}</p>
             <h2 className="section-title">{title}</h2>
@@ -159,9 +159,9 @@ function ModalShell({
           </button>
         </div>
 
-        <div className="mt-6">{children}</div>
+        <div className="mt-6 flex-1 overflow-y-auto pr-2 break-words custom-scrollbar">{children}</div>
 
-        <div className="mt-6 flex justify-end gap-3">
+        <div className="mt-6 flex justify-end gap-3 shrink-0">
           <button onClick={onClose} disabled={isSubmitting} className="btn-ghost">
             Cancel
           </button>
@@ -611,6 +611,7 @@ function RequestApprovalModal({
 }
 
 export function CameraView() {
+  const [activeMobileTab, setActiveMobileTab] = useState<'home' | 'activity' | 'reports' | 'alerts' | 'wishlist'>('home')
   const queryClient = useQueryClient()
   const user = useAuthStore(state => state.user)
   const { activeProjectId, activeProject, isLoadingProjectContext } = useResolvedProjectContext()
@@ -1087,7 +1088,8 @@ export function CameraView() {
         onNotesChange={setApprovalNotes}
       />
 
-      <header className="page-header">
+      <div className="hidden md:block space-y-6">
+        <header className="page-header">
         <div>
           <span className="page-kicker">Asset Operations</span>
           <h1 className="page-title page-title-compact">Camera & Assets</h1>
@@ -1332,6 +1334,469 @@ export function CameraView() {
             )}
           </Surface>
         </div>
+      </div>
+      </div>
+
+      <div className="md:hidden space-y-6 pb-32 mt-2 px-1">
+        <header className="px-3">
+          <span className="page-kicker text-orange-500">Asset Operations</span>
+          <h1 className="page-title page-title-compact mt-1 text-zinc-900 dark:text-white">Camera & Assets</h1>
+          <p className="page-subtitle mt-2 text-zinc-500 dark:text-zinc-400">Manage gear, requests, and movement logs</p>
+        </header>
+
+        {activeMobileTab === 'home' && (
+
+        <div className="animate-in fade-in slide-in-from-bottom-2 duration-300 pb-20">
+          
+          {/** Alerts Area **/}
+          <div className="animate-in fade-in slide-in-from-bottom-2 duration-300 px-3 space-y-8">
+            {alerts.length > 0 && alerts.some((a: any) => a.type === 'critical') && (
+              <section className="space-y-3">
+                <h2 className="text-xs font-bold text-orange-500/80 tracking-widest uppercase mb-2 px-1">Critical Alerts</h2>
+                {alerts.filter((a: any) => a.type === 'critical').map((alert: any, index: number) => (
+                  <div key={index} className="bg-red-500/10 p-4 rounded-xl flex items-start gap-4 border-l-4 border-red-500">
+                    <span className="material-symbols-outlined text-red-500 mt-0.5" style={{ fontVariationSettings: "'FILL' 1" }}>warning</span>
+                    <div className="flex-1">
+                      <p className="text-sm font-bold text-zinc-900 dark:text-white">{alert.message}</p>
+                      <p className="text-xs text-red-200 mt-1">{formatDateTime(alert.timestamp)}</p>
+                    </div>
+                  </div>
+                ))}
+              </section>
+            )}
+
+            <section className="space-y-4">
+              <div className="flex justify-between items-center px-1">
+                <h2 className="text-lg font-bold text-zinc-900 dark:text-white tracking-tight">Pending Requests</h2>
+              </div>
+              
+              {requests.length === 0 ? (
+                <div className="bg-white dark:bg-zinc-900 p-6 rounded-xl text-center border border-zinc-200 dark:border-zinc-800">
+                   <p className="text-sm font-medium text-zinc-500 dark:text-zinc-400">No requests.</p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {requests.map(request => {
+                    const approvalStatus = nextApprovalStatus(request)
+                    const approvalLabel = request.status === 'pending_dop' ? 'Send to Producer' : 'Approve'
+                    const canReview = canApproveRequest(request)
+                    
+                    return (
+                      <div key={request.id} className="bg-white dark:bg-zinc-900 p-4 rounded-xl border border-zinc-200 dark:border-zinc-800 flex flex-col gap-3 shadow-lg">
+                        <div className="flex justify-between items-start">
+                          <div>
+                            <p className="text-zinc-900 dark:text-white font-bold text-sm">{request.itemName}</p>
+                            <p className="text-zinc-500 text-xs mt-1">Requested by {request.requestedByName ?? 'User'} • Qty: {request.quantity}</p>
+                          </div>
+                          <div className="flex-shrink-0 scale-90 origin-top-right">
+                            {requestStatusBadge(request.status)}
+                          </div>
+                        </div>
+                        {canReview && (
+                           <div className="flex gap-2 mt-2 pt-3 border-t border-zinc-200 dark:border-zinc-800/50">
+                              {approvalStatus && (
+                                <button onClick={() => openApprovalModal(request, approvalStatus)} className="flex-1 bg-orange-500 text-black py-2 rounded-lg text-[10px] font-bold uppercase tracking-widest active:scale-95 transition-transform">
+                                  {approvalLabel}
+                                </button>
+                              )}
+                              <button onClick={() => openApprovalModal(request, 'rejected')} className="flex-1 bg-zinc-100 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 text-red-400 py-2 rounded-lg text-[10px] font-bold uppercase tracking-widest active:scale-95 transition-transform">
+                                Reject
+                              </button>
+                           </div>
+                        )}
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+            </section>
+          </div>
+
+          {/** Stats Area **/}
+          <section className="flex overflow-x-auto gap-4 hide-scrollbar -mx-6 px-6 snap-x pb-2 mt-4">
+              <div className="min-w-[140px] snap-center bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 p-4 rounded-xl flex flex-col justify-between shadow-lg">
+                <span className="text-[10px] font-bold text-zinc-500 tracking-widest uppercase">Wishlist</span>
+                <div className="mt-4 flex items-end justify-between">
+                  <span className="text-3xl font-black text-zinc-900 dark:text-white">{wishlist.length}</span>
+                  <span className="material-symbols-outlined text-orange-500">favorite</span>
+                </div>
+              </div>
+              <div className="min-w-[140px] snap-center bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 p-4 rounded-xl flex flex-col justify-between shadow-lg">
+                <span className="text-[10px] font-bold text-zinc-500 tracking-widest uppercase">Pending</span>
+                <div className="mt-4 flex items-end justify-between">
+                  <span className="text-3xl font-black text-zinc-900 dark:text-white">{pendingRequests.length}</span>
+                  <span className="material-symbols-outlined text-yellow-500">hourglass_empty</span>
+                </div>
+              </div>
+              <div className="min-w-[140px] snap-center bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 p-4 rounded-xl flex flex-col justify-between shadow-lg">
+                <span className="text-[10px] font-bold text-zinc-500 tracking-widest uppercase">Checked In</span>
+                <div className="mt-4 flex items-end justify-between">
+                  <span className="text-3xl font-black text-zinc-900 dark:text-white">{checkedInAssets.length}</span>
+                  <span className="material-symbols-outlined text-green-500">task_alt</span>
+                </div>
+              </div>
+              <div className="min-w-[140px] snap-center bg-white dark:bg-zinc-900 p-4 rounded-xl flex flex-col justify-between border-l-2 border-red-500/50">
+                <span className="text-[10px] font-bold text-zinc-500 tracking-widest uppercase">Damage/Loss</span>
+                <div className="mt-4 flex items-end justify-between">
+                  <span className="text-3xl font-black text-red-500">{damageReports.length}</span>
+                  <span className="material-symbols-outlined text-red-500">report</span>
+                </div>
+              </div>
+            </section>
+
+          {/** Activity Area **/}
+          
+            <section className="space-y-4">
+              <div className="flex justify-between items-center px-1">
+                <h2 className="text-lg font-bold text-zinc-900 dark:text-white tracking-tight">Movement Log</h2>
+                <button onClick={openScanModal} className="text-orange-500 text-xs font-bold uppercase tracking-widest flex items-center gap-1">
+                  Log +
+                </button>
+              </div>
+              
+              {logs.length === 0 ? (
+                <div className="bg-white dark:bg-zinc-900 p-6 rounded-xl text-center border border-zinc-200 dark:border-zinc-800">
+                   <p className="text-sm font-medium text-zinc-500 dark:text-zinc-400">No movement logs.</p>
+                </div>
+              ) : (
+                <div className="relative ml-4 pl-6 border-l-2 border-zinc-200 dark:border-zinc-800 space-y-6 py-2">
+                  {logs.map(log => (
+                     <div key={log.id} className="relative">
+                        <div className={`absolute -left-[32px] top-1 w-3.5 h-3.5 rounded-full border-4 border-black ${log.status === 'checked_in' ? 'bg-green-500' : 'bg-orange-500'}`}></div>
+                        <div className="bg-white dark:bg-zinc-900 rounded-xl p-4 shadow-lg border border-zinc-200 dark:border-zinc-800/80">
+                          <div className="flex justify-between items-start">
+                             <div>
+                               <p className="text-sm font-bold text-zinc-900 dark:text-white">{log.assetName}</p>
+                               <p className="text-[10px] text-zinc-500 font-mono mt-1">
+                                 {log.status === 'checked_in' ? 'In: ' + (log.checkInTime ? formatTime(log.checkInTime) : formatTime(log.createdAt)) : 'Out: ' + (log.checkOutTime ? formatTime(log.checkOutTime) : formatTime(log.createdAt))}
+                               </p>
+                             </div>
+                             <div className="flex flex-col items-end gap-1 scale-90 origin-top-right">
+                               <StatusBadge variant={log.status === 'checked_in' ? 'active' : 'completed'} label={log.status === 'checked_in' ? 'Checked In' : 'Checked Out'} />
+                             </div>
+                          </div>
+                          <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-3">{log.scannedByName ?? 'ProdSync User'}{log.notes ? ` • ${log.notes}` : ''}</p>
+                        </div>
+                     </div>
+                  ))}
+                </div>
+              )}
+            </section>
+
+          {/** Wishlist Area **/}
+          
+            <section className="space-y-4">
+              <div className="flex justify-between items-center px-1">
+                <h2 className="text-lg font-bold text-zinc-900 dark:text-white tracking-tight">Wishlist Items</h2>
+                <button onClick={openWishlistModal} className="text-orange-500 text-xs font-bold uppercase tracking-widest flex items-center gap-1">
+                  Add +
+                </button>
+              </div>
+              
+              {wishlist.length === 0 ? (
+                <div className="bg-white dark:bg-zinc-900 p-6 rounded-xl text-center border border-zinc-200 dark:border-zinc-800">
+                   <p className="text-sm font-medium text-zinc-500 dark:text-zinc-400">No wishlist items.</p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 gap-4">
+                  {wishlist.map(item => (
+                    <div key={item.id} className="bg-white dark:bg-zinc-900 rounded-xl overflow-hidden flex flex-col shadow-lg border border-zinc-200 dark:border-zinc-800">
+                       <div className="p-4 flex-1 flex flex-col justify-between gap-4">
+                          <div>
+                            <div className="flex justify-between items-start">
+                              <p className="font-bold text-sm text-zinc-900 dark:text-white">{item.itemName}</p>
+                              <span className="text-orange-500 text-xs font-bold italic">Qty: {item.quantity}</span>
+                            </div>
+                            <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-1 capitalize">Category: {item.category}</p>
+                            <p className="text-[10px] text-zinc-500 mt-1">Est: {item.estimatedRate != null ? formatCurrency(item.estimatedRate) : 'N/A'}</p>
+                          </div>
+                          <div className="flex justify-between items-end border-t border-zinc-200 dark:border-zinc-800 pt-3">
+                             <p className="text-[10px] text-zinc-500">Added by: {item.createdByName ?? 'User'}</p>
+                             <div className="flex gap-4 items-center">
+                                <button onClick={() => handleDeleteWishlistItem(item)} className="material-symbols-outlined text-[16px] text-red-500">delete</button>
+                                <button onClick={() => handleEditWishlistItem(item)} className="material-symbols-outlined text-[16px] text-zinc-500 dark:text-zinc-400">edit</button>
+                             </div>
+                          </div>
+                       </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </section>
+
+          {/** Reports Area **/}
+          <div className="animate-in fade-in slide-in-from-bottom-2 duration-300 px-3">
+            <section className="space-y-4">
+              <div className="flex justify-between items-center px-1">
+                <h2 className="text-lg font-bold text-zinc-900 dark:text-white tracking-tight">Damage & Loss Reports</h2>
+                <button onClick={openDamageModal} className="text-orange-500 text-xs font-bold uppercase tracking-widest flex items-center gap-1">
+                  Report +
+                </button>
+              </div>
+              {damageReports.length === 0 ? (
+                <div className="bg-white dark:bg-zinc-900 p-6 rounded-xl text-center border border-zinc-200 dark:border-zinc-800">
+                   <p className="text-sm font-medium text-zinc-500 dark:text-zinc-400">No issues reported.</p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {damageReports.map(report => (
+                     <div key={report.id} className="bg-white dark:bg-zinc-900 p-4 rounded-xl flex flex-col gap-3 border border-zinc-200 dark:border-zinc-800 shadow-lg">
+                        <div className="flex items-center gap-4">
+                          <div className="p-2 bg-red-500/10 rounded-lg flex-shrink-0">
+                             <span className="material-symbols-outlined text-red-500 font-bold">{report.issueType === 'damaged' ? 'broken_image' : 'inventory_2'}</span>
+                          </div>
+                          <div className="flex-1">
+                             <div className="flex justify-between items-start">
+                               <p className="text-sm font-bold text-zinc-900 dark:text-white leading-tight">{report.assetName}</p>
+                               <span className={`font-black text-[9px] uppercase px-2 py-0.5 rounded ml-2 whitespace-nowrap ${report.issueType === 'lost' ? 'bg-red-500/20 text-red-400' : 'bg-orange-500/10 text-orange-400'}`}>{issueLabel(report.issueType)}</span>
+                             </div>
+                             <p className="text-[10px] text-zinc-500 mt-1">Reported: {formatDate(report.createdAt)}</p>
+                          </div>
+                        </div>
+                        {(report.notes || report.imageUrl) && (
+                           <div className="mt-1 pt-3 border-t border-zinc-200 dark:border-zinc-800/50 flex flex-col gap-2">
+                             {report.notes && <p className="text-xs text-zinc-500 dark:text-zinc-400 leading-relaxed max-h-20 overflow-y-auto">{report.notes}</p>}
+                             {report.imageUrl && (
+                               <a href={report.imageUrl} target="_blank" rel="noreferrer" className="text-[10px] uppercase font-bold tracking-widest text-orange-500 flex items-center gap-1 w-max">
+                                  View Image <span className="material-symbols-outlined text-[14px]">open_in_new</span>
+                               </a>
+                             )}
+                           </div>
+                        )}
+                      </div>
+                   ))}
+                 </div>
+               )}
+            </section>
+          </div>
+
+          {/** Bottom Actions Area **/}
+          <div className="mt-8 border-t border-zinc-200 dark:border-zinc-800 pt-6 px-2 grid grid-cols-2 gap-3 pb-8">
+               <button onClick={openScanModal} className="bg-gradient-to-r from-orange-500 to-orange-400 active:scale-95 transition-all text-black py-4 rounded-xl flex flex-col items-center justify-center gap-1 shadow-xl shadow-orange-500/20 font-bold min-h-[96px]">
+                  <span className="material-symbols-outlined mb-0.5 text-2xl">qr_code_scanner</span>
+                  <span className="font-label text-[11px] font-black uppercase tracking-wider">Scan QR</span>
+               </button>
+               <button onClick={openRequestModal} className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 active:scale-95 transition-all text-zinc-900 dark:text-white py-4 rounded-xl flex flex-col items-center justify-center gap-1 shadow-xl font-bold min-h-[96px]">
+                  <span className="material-symbols-outlined text-orange-500 mb-0.5 text-2xl">shopping_cart_checkout</span>
+                  <span className="font-label text-[11px] font-bold uppercase tracking-wider text-orange-500">Request</span>
+               </button>
+            </div>
+        </div>
+        
+        )}
+
+        {activeMobileTab === 'activity' && (
+          <div className="animate-in fade-in slide-in-from-bottom-2 duration-300 px-3">
+            <section className="space-y-4">
+              <div className="flex justify-between items-center px-1">
+                <h2 className="text-lg font-bold text-zinc-900 dark:text-white tracking-tight">Movement Log</h2>
+                <button onClick={openScanModal} className="text-orange-500 text-xs font-bold uppercase tracking-widest flex items-center gap-1">
+                  Log +
+                </button>
+              </div>
+              {logs.length === 0 ? (
+                <div className="bg-white dark:bg-zinc-900 p-6 rounded-xl text-center border border-zinc-200 dark:border-zinc-800">
+                   <p className="text-sm font-medium text-zinc-500 dark:text-zinc-400">No movement logs.</p>
+                </div>
+              ) : (
+                <div className="relative ml-4 pl-6 border-l-2 border-zinc-200 dark:border-zinc-800 space-y-6 py-2">
+                  {logs.map(log => (
+                     <div key={log.id} className="relative">
+                        <div className={`absolute -left-[32px] top-1 w-3.5 h-3.5 rounded-full border-4 border-black ${log.status === 'checked_in' ? 'bg-green-500' : 'bg-orange-500'}`}></div>
+                        <div className="bg-white dark:bg-zinc-900 rounded-xl p-4 shadow-lg border border-zinc-200 dark:border-zinc-800/80">
+                          <div className="flex justify-between items-start">
+                             <div>
+                               <p className="text-sm font-bold text-zinc-900 dark:text-white">{log.assetName}</p>
+                               <p className="text-[10px] text-zinc-500 font-mono mt-1">
+                                 {log.status === 'checked_in' ? 'In: ' + (log.checkInTime ? formatTime(log.checkInTime) : formatTime(log.createdAt)) : 'Out: ' + (log.checkOutTime ? formatTime(log.checkOutTime) : formatTime(log.createdAt))}
+                               </p>
+                             </div>
+                             <div className="flex flex-col items-end gap-1 scale-90 origin-top-right">
+                               <StatusBadge variant={log.status === 'checked_in' ? 'active' : 'completed'} label={log.status === 'checked_in' ? 'Checked In' : 'Checked Out'} />
+                             </div>
+                          </div>
+                          <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-3">{log.scannedByName ?? 'ProdSync User'}{log.notes ? ` • ${log.notes}` : ''}</p>
+                        </div>
+                     </div>
+                  ))}
+                </div>
+              )}
+            </section>
+          </div>
+        )}
+
+        {activeMobileTab === 'reports' && (
+          <div className="animate-in fade-in slide-in-from-bottom-2 duration-300 px-3">
+            <section className="space-y-4">
+              <div className="flex justify-between items-center px-1">
+                <h2 className="text-lg font-bold text-zinc-900 dark:text-white tracking-tight">Damage & Loss Reports</h2>
+                <button onClick={openDamageModal} className="text-orange-500 text-xs font-bold uppercase tracking-widest flex items-center gap-1">
+                  Report +
+                </button>
+              </div>
+              {damageReports.length === 0 ? (
+                <div className="bg-white dark:bg-zinc-900 p-6 rounded-xl text-center border border-zinc-200 dark:border-zinc-800">
+                   <p className="text-sm font-medium text-zinc-500 dark:text-zinc-400">No issues reported.</p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {damageReports.map(report => (
+                     <div key={report.id} className="bg-white dark:bg-zinc-900 p-4 rounded-xl flex flex-col gap-3 border border-zinc-200 dark:border-zinc-800 shadow-lg">
+                        <div className="flex items-center gap-4">
+                          <div className="p-2 bg-red-500/10 rounded-lg flex-shrink-0">
+                             <span className="material-symbols-outlined text-red-500 font-bold">{report.issueType === 'damaged' ? 'broken_image' : 'inventory_2'}</span>
+                          </div>
+                          <div className="flex-1">
+                             <div className="flex justify-between items-start">
+                               <p className="text-sm font-bold text-zinc-900 dark:text-white leading-tight">{report.assetName}</p>
+                               <span className={`font-black text-[9px] uppercase px-2 py-0.5 rounded ml-2 whitespace-nowrap ${report.issueType === 'lost' ? 'bg-red-500/20 text-red-400' : 'bg-orange-500/10 text-orange-400'}`}>{issueLabel(report.issueType)}</span>
+                             </div>
+                             <p className="text-[10px] text-zinc-500 mt-1">Reported: {formatDate(report.createdAt)}</p>
+                          </div>
+                        </div>
+                        {(report.notes || report.imageUrl) && (
+                           <div className="mt-1 pt-3 border-t border-zinc-200 dark:border-zinc-800/50 flex flex-col gap-2">
+                             {report.notes && <p className="text-xs text-zinc-500 dark:text-zinc-400 leading-relaxed max-h-20 overflow-y-auto">{report.notes}</p>}
+                             {report.imageUrl && (
+                               <a href={report.imageUrl} target="_blank" rel="noreferrer" className="text-[10px] uppercase font-bold tracking-widest text-orange-500 flex items-center gap-1 w-max">
+                                  View Image <span className="material-symbols-outlined text-[14px]">open_in_new</span>
+                               </a>
+                             )}
+                           </div>
+                        )}
+                     </div>
+                  ))}
+                </div>
+              )}
+            </section>
+          </div>
+        )}
+
+        {activeMobileTab === 'alerts' && (
+          <div className="animate-in fade-in slide-in-from-bottom-2 duration-300 px-3 space-y-8">
+            {alerts.length > 0 && alerts.some((a: any) => a.type === 'critical') && (
+              <section className="space-y-3">
+                <h2 className="text-xs font-bold text-orange-500/80 tracking-widest uppercase mb-2 px-1">Critical Alerts</h2>
+                {alerts.filter((a: any) => a.type === 'critical').map((alert: any, index: number) => (
+                  <div key={index} className="bg-red-500/10 p-4 rounded-xl flex items-start gap-4 border-l-4 border-red-500">
+                    <span className="material-symbols-outlined text-red-500 mt-0.5" style={{ fontVariationSettings: "'FILL' 1" }}>warning</span>
+                    <div className="flex-1">
+                      <p className="text-sm font-bold text-zinc-900 dark:text-white">{alert.message}</p>
+                      <p className="text-xs text-red-200 mt-1">{formatDateTime(alert.timestamp)}</p>
+                    </div>
+                  </div>
+                ))}
+              </section>
+            )}
+
+            <section className="space-y-4">
+              <div className="flex justify-between items-center px-1">
+                <h2 className="text-lg font-bold text-zinc-900 dark:text-white tracking-tight">Pending Requests</h2>
+              </div>
+              
+              {requests.length === 0 ? (
+                <div className="bg-white dark:bg-zinc-900 p-6 rounded-xl text-center border border-zinc-200 dark:border-zinc-800">
+                   <p className="text-sm font-medium text-zinc-500 dark:text-zinc-400">No requests.</p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {requests.map(request => {
+                    const approvalStatus = nextApprovalStatus(request)
+                    const approvalLabel = request.status === 'pending_dop' ? 'Send to Producer' : 'Approve'
+                    const canReview = canApproveRequest(request)
+                    
+                    return (
+                      <div key={request.id} className="bg-white dark:bg-zinc-900 p-4 rounded-xl border border-zinc-200 dark:border-zinc-800 flex flex-col gap-3 shadow-lg">
+                        <div className="flex justify-between items-start">
+                          <div>
+                            <p className="text-zinc-900 dark:text-white font-bold text-sm">{request.itemName}</p>
+                            <p className="text-zinc-500 text-xs mt-1">Requested by {request.requestedByName ?? 'User'} • Qty: {request.quantity}</p>
+                          </div>
+                          <div className="flex-shrink-0 scale-90 origin-top-right">
+                            {requestStatusBadge(request.status)}
+                          </div>
+                        </div>
+                        {canReview && (
+                           <div className="flex gap-2 mt-2 pt-3 border-t border-zinc-200 dark:border-zinc-800/50">
+                              {approvalStatus && (
+                                <button onClick={() => openApprovalModal(request, approvalStatus)} className="flex-1 bg-orange-500 text-black py-2 rounded-lg text-[10px] font-bold uppercase tracking-widest active:scale-95 transition-transform">
+                                  {approvalLabel}
+                                </button>
+                              )}
+                              <button onClick={() => openApprovalModal(request, 'rejected')} className="flex-1 bg-zinc-100 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 text-red-400 py-2 rounded-lg text-[10px] font-bold uppercase tracking-widest active:scale-95 transition-transform">
+                                Reject
+                              </button>
+                           </div>
+                        )}
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+            </section>
+          </div>
+        )}
+
+        {activeMobileTab === 'wishlist' && (
+          <div className="animate-in fade-in slide-in-from-bottom-2 duration-300 px-3">
+            <section className="space-y-4">
+              <div className="flex justify-between items-center px-1">
+                <h2 className="text-lg font-bold text-zinc-900 dark:text-white tracking-tight">Wishlist Items</h2>
+                <button onClick={openWishlistModal} className="text-orange-500 text-xs font-bold uppercase tracking-widest flex items-center gap-1">
+                  Add +
+                </button>
+              </div>
+              {wishlist.length === 0 ? (
+                <div className="bg-white dark:bg-zinc-900 p-6 rounded-xl text-center border border-zinc-200 dark:border-zinc-800">
+                   <p className="text-sm font-medium text-zinc-500 dark:text-zinc-400">No wishlist items.</p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 gap-4">
+                  {wishlist.map(item => (
+                    <div key={item.id} className="bg-white dark:bg-zinc-900 rounded-xl overflow-hidden flex flex-col shadow-lg border border-zinc-200 dark:border-zinc-800">
+                       <div className="p-4 flex-1 flex flex-col justify-between gap-4">
+                          <div>
+                            <div className="flex justify-between items-start">
+                              <p className="font-bold text-sm text-zinc-900 dark:text-white">{item.itemName}</p>
+                              <span className="text-orange-500 text-xs font-bold italic">Qty: {item.quantity}</span>
+                            </div>
+                            <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-1 capitalize">Category: {item.category}</p>
+                            <p className="text-[10px] text-zinc-500 mt-1">Est: {item.estimatedRate != null ? formatCurrency(item.estimatedRate) : 'N/A'}</p>
+                          </div>
+                          <div className="flex justify-between items-end border-t border-zinc-200 dark:border-zinc-800 pt-3">
+                             <p className="text-[10px] text-zinc-500">Added by: {item.createdByName ?? 'User'}</p>
+                             <div className="flex gap-4 items-center">
+                                <button onClick={() => handleDeleteWishlistItem(item)} className="material-symbols-outlined text-[16px] text-red-500">delete</button>
+                                <button onClick={() => handleEditWishlistItem(item)} className="material-symbols-outlined text-[16px] text-zinc-500 dark:text-zinc-400">edit</button>
+                             </div>
+                          </div>
+                       </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </section>
+          </div>
+        )}
+
+        <nav className="fixed bottom-0 left-0 right-0 h-[84px] bg-white/95 dark:bg-zinc-950/95 backdrop-blur-3xl border-t border-zinc-200 dark:border-zinc-800 flex justify-around items-center px-1 pb-safe shadow-[0_-8px_32px_rgba(0,0,0,0.5)] z-40">
+          {[
+            { id: 'home', icon: 'home', label: 'Home' },
+            { id: 'activity', icon: 'history', label: 'Activity' },
+            { id: 'reports', icon: 'report_problem', label: 'Reports' },
+            { id: 'alerts', icon: 'notifications_active', label: 'Alerts' },
+            { id: 'wishlist', icon: 'favorite', label: 'Wishlist' },
+          ].map(tab => (
+            <button
+              key={tab.id}
+              onClick={() => setActiveMobileTab(tab.id as any)}
+              className={`flex flex-col items-center justify-center w-16 gap-1 transition-colors duration-200 ${activeMobileTab === tab.id ? 'text-orange-500' : 'text-zinc-500 hover:text-zinc-500 dark:text-zinc-400'}`}
+            >
+               <span className={`material-symbols-outlined text-2xl transition-transform duration-300 ${activeMobileTab === tab.id ? 'scale-110' : ''}`} style={activeMobileTab === tab.id ? { fontVariationSettings: "'FILL' 1" } : {}}>{tab.icon}</span>
+               <span className="text-[10px] font-bold uppercase tracking-wider">{tab.label}</span>
+            </button>
+          ))}
+        </nav>
       </div>
     </div>
   )

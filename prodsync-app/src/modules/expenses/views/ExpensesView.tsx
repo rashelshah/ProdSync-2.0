@@ -147,9 +147,9 @@ function ModalShell({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/55 px-4 backdrop-blur-sm">
-      <Surface variant="table" padding="lg" className="w-full max-w-xl border border-zinc-200 shadow-2xl dark:border-zinc-800">
-        <div className="flex items-start justify-between gap-4">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/55 px-4 py-8 backdrop-blur-sm pt-safe">
+      <Surface variant="table" padding="lg" className="w-full max-w-xl border border-zinc-200 shadow-2xl dark:border-zinc-800 flex flex-col max-h-[85vh] sm:max-h-[85vh]">
+        <div className="flex items-start justify-between gap-4 shrink-0">
           <div>
             <p className="section-kicker">{kicker}</p>
             <h2 className="section-title">{title}</h2>
@@ -160,9 +160,9 @@ function ModalShell({
           </button>
         </div>
 
-        <div className="mt-6">{children}</div>
+        <div className="mt-6 flex-1 overflow-y-auto pr-2 break-words custom-scrollbar">{children}</div>
 
-        <div className="mt-6 flex justify-end gap-3">
+        <div className="mt-6 flex justify-end gap-3 shrink-0">
           <button onClick={onClose} disabled={isSubmitting} className="btn-ghost">
             Cancel
           </button>
@@ -623,6 +623,7 @@ function SetModal({
 }
 
 export function ExpensesView() {
+  const [activeMobileTab, setActiveMobileTab] = useState<'home' | 'expenses' | 'props' | 'sets'>('home')
   const queryClient = useQueryClient()
   const { activeProjectId, activeProject, isLoadingProjectContext } = useResolvedProjectContext()
   const { expenses, props, sets, budget, alerts, isLoading, isError } = useArtData(activeProjectId)
@@ -1120,7 +1121,8 @@ export function ExpensesView() {
         onClose={closeReceiptPreview}
       />
 
-      <header className="page-header">
+      <div className="hidden md:block space-y-6">
+        <header className="page-header">
         <div>
           <span className="page-kicker">Budget Tracking</span>
           <h1 className="page-title page-title-compact">Art & Expenses</h1>
@@ -1374,6 +1376,309 @@ export function ExpensesView() {
             )}
           </Surface>
         </div>
+      </div>
+      </div>
+
+      <div className="md:hidden space-y-6 pb-40 mt-2 px-1">
+        <header className="px-3">
+          <span className="page-kicker text-orange-500">Budget Tracking</span>
+          <h1 className="page-title page-title-compact mt-1 text-zinc-900 dark:text-white">Art & Expenses</h1>
+          <p className="page-subtitle mt-2 text-zinc-500 dark:text-zinc-400">Track expenses, props, and set builds</p>
+        </header>
+
+        {activeMobileTab === 'home' && (
+
+        <div className="animate-in fade-in slide-in-from-bottom-2 duration-300 pb-40">
+          
+            <section className="flex overflow-x-auto gap-4 hide-scrollbar -mx-6 px-6 snap-x pb-2 mt-4">
+              <div className="min-w-[140px] snap-center bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 p-4 rounded-xl flex flex-col justify-between shadow-lg">
+                <span className="text-[10px] font-bold text-zinc-500 tracking-widest uppercase">Art Spend</span>
+                <div className="mt-4">
+                  <div className="text-2xl font-black text-zinc-900 dark:text-white">{formatCurrency(budget.usedBudget, 'INR')}</div>
+                  <div className="text-[11px] text-orange-500 mt-1">{expenses.length} logged</div>
+                </div>
+              </div>
+              <div className="min-w-[140px] snap-center bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 p-4 rounded-xl flex flex-col justify-between shadow-lg">
+                <span className="text-[10px] font-bold text-zinc-500 tracking-widest uppercase">Remaining</span>
+                <div className="mt-4">
+                  <div className="text-2xl font-black text-zinc-900 dark:text-white">{formatCurrency(budget.remainingBudget, 'INR')}</div>
+                  <div className={`text-[11px] mt-1 ${budget.isExceeded ? 'text-red-500' : 'text-zinc-500 dark:text-zinc-400'}`}>{budget.isExceeded ? 'Exceeded' : 'Buffer'}</div>
+                </div>
+              </div>
+              <div className="min-w-[140px] snap-center bg-white dark:bg-zinc-900 p-4 rounded-xl flex flex-col justify-between border-l-2 border-orange-500/50 shadow-lg">
+                <span className="text-[10px] font-bold text-zinc-500 tracking-widest uppercase">Props</span>
+                <div className="mt-4">
+                  <div className="text-2xl font-black text-zinc-900 dark:text-white">{props.length}</div>
+                  <div className="text-[11px] text-red-400 mt-1">{overdueProps} flagged</div>
+                </div>
+              </div>
+              <div className="min-w-[140px] snap-center bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 p-4 rounded-xl flex flex-col justify-between shadow-lg">
+                <span className="text-[10px] font-bold text-zinc-500 tracking-widest uppercase">Set Builds</span>
+                <div className="mt-4">
+                  <div className="text-2xl font-black text-zinc-900 dark:text-white">{sets.length}</div>
+                  <div className="text-[11px] text-zinc-500 dark:text-zinc-400 mt-1">{activeSets} active</div>
+                </div>
+              </div>
+            </section>
+
+            {alerts.length > 0 && alerts.some((a: any) => a.type === 'critical') && (
+              <section className="space-y-3 mt-8 px-2">
+                <h2 className="text-xs font-bold text-orange-500/80 tracking-widest uppercase mb-2 px-1">Critical Alerts</h2>
+                {alerts.filter((a: any) => a.type === 'critical').map((alert: any, index: number) => (
+                  <div key={index} className="bg-red-500/10 p-4 rounded-xl flex items-start gap-4 border-l-4 border-red-500">
+                    <span className="material-symbols-outlined text-red-500 mt-0.5" style={{ fontVariationSettings: "'FILL' 1" }}>report</span>
+                    <div className="flex-1">
+                      <p className="text-sm font-bold text-zinc-900 dark:text-white leading-tight">{alert.message}</p>
+                      <p className="text-[10px] text-red-200 mt-1.5 uppercase tracking-widest">{formatDateTime(alert.timestamp)}</p>
+                    </div>
+                  </div>
+                ))}
+              </section>
+            )}
+
+            <section className="space-y-3 mt-8 px-2 pb-8">
+              <h2 className="text-lg font-bold text-zinc-900 dark:text-white tracking-tight px-1 mb-2">Budget Analytics</h2>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="col-span-2 bg-white dark:bg-zinc-900 p-5 rounded-xl border-l-4 border-orange-500 shadow-lg border-y border-r border-zinc-200 dark:border-zinc-800/50">
+                  <div className="text-[10px] font-bold text-zinc-500 tracking-widest uppercase">Allocated</div>
+                  <div className="text-3xl font-black text-zinc-900 dark:text-white mt-1">{formatCurrency(budget.allocatedBudget, 'INR')}</div>
+                </div>
+                <div className="bg-white dark:bg-zinc-900 p-4 rounded-xl border border-zinc-200 dark:border-zinc-800 shadow-lg">
+                  <div className="text-[10px] font-bold text-zinc-500 tracking-widest uppercase">Used</div>
+                  <div className="text-xl font-bold text-zinc-900 dark:text-white mt-1">{formatCurrency(budget.usedBudget, 'INR')}</div>
+                </div>
+                <div className="bg-white dark:bg-zinc-900 p-4 rounded-xl border border-zinc-200 dark:border-zinc-800 shadow-lg">
+                  <div className="text-[10px] font-bold text-zinc-500 tracking-widest uppercase">Remaining</div>
+                  <div className="text-xl font-bold text-orange-500 mt-1">{formatCurrency(budget.remainingBudget, 'INR')}</div>
+                </div>
+              </div>
+            </section>
+          
+
+          <div className="mt-8 border-t border-zinc-200 dark:border-zinc-800 pt-6 px-2 grid grid-cols-2 gap-3 pb-8">
+              <button onClick={openExpenseModal} className="col-span-2 w-full h-[52px] bg-gradient-to-r from-orange-500 to-orange-400 text-black font-black uppercase text-[11px] tracking-wider rounded-xl shadow-2xl shadow-orange-500/20 flex items-center justify-center gap-2 active:scale-95 duration-200">
+                  <span className="material-symbols-outlined text-[18px]">payments</span>
+                  Add Expense
+              </button>
+              <button onClick={openCreatePropModal} className="w-full h-[52px] bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 text-zinc-900 dark:text-white font-bold text-[10px] uppercase tracking-widest rounded-xl flex items-center justify-center gap-2 active:scale-95 duration-200 shadow-lg">
+                  <span className="material-symbols-outlined text-[16px] text-orange-500">category</span>
+                  Add Prop
+              </button>
+              <button onClick={openCreateSetModal} className="w-full h-[52px] bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 text-zinc-900 dark:text-white font-bold text-[10px] uppercase tracking-widest rounded-xl flex items-center justify-center gap-2 active:scale-95 duration-200 shadow-lg">
+                  <span className="material-symbols-outlined text-[16px] text-orange-500">foundation</span>
+                  Add Set
+              </button>
+          </div>
+        </div>
+        )}
+
+        {activeMobileTab === 'expenses' && (
+          <div className="animate-in fade-in slide-in-from-bottom-2 duration-300 px-3 pb-8">
+            <section className="space-y-4">
+              <div className="flex justify-between items-center px-1">
+                <h2 className="text-lg font-bold text-zinc-900 dark:text-white tracking-tight">Petty Cash & Receipts</h2>
+                <button onClick={openExpenseModal} className="text-orange-500 text-xs font-bold uppercase tracking-widest flex items-center gap-1">
+                  Add +
+                </button>
+              </div>
+              {expenses.length === 0 ? (
+                <div className="bg-white dark:bg-zinc-900 p-6 rounded-xl text-center border border-zinc-200 dark:border-zinc-800">
+                   <p className="text-sm font-medium text-zinc-500 dark:text-zinc-400">No expenses yet.</p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {expenses.map(expense => (
+                    <div key={expense.id} className="bg-white dark:bg-zinc-900 p-4 rounded-xl flex flex-col gap-3 shadow-lg border border-zinc-200 dark:border-zinc-800">
+                      <div className="flex justify-between items-start">
+                        <div className="flex items-start gap-4">
+                          <div className="w-10 h-10 bg-zinc-100 dark:bg-zinc-800 rounded-lg flex items-center justify-center flex-shrink-0">
+                             <span className="material-symbols-outlined text-zinc-500 dark:text-zinc-400">receipt_long</span>
+                          </div>
+                          <div>
+                             <h3 className="font-bold text-sm text-zinc-900 dark:text-white">{expense.description}</h3>
+                             <div className="flex items-center gap-2 mt-1">
+                               <div className="scale-90 origin-left">
+                                 {expense.status === 'anomaly' ? (
+                                   <StatusBadge variant="mismatch" label={String(expense.ocrData.mismatchLabel ?? 'Amount Mismatch')} />
+                                 ) : expense.status === 'verified' ? (
+                                   <StatusBadge variant="active" label="Verified" />
+                                 ) : (
+                                   <StatusBadge variant="warning" label={expense.hasReceipt ? 'Pending' : 'No Receipt'} />
+                                 )}
+                               </div>
+                             </div>
+                             <p className="text-[10px] text-zinc-500 mt-1 capitalize">{expenseCategoryLabel(expense.category)} • Qty: {expense.quantity}</p>
+                          </div>
+                        </div>
+                        <div className="text-right">
+                           <div className="text-lg font-black text-zinc-900 dark:text-white">{formatCurrency(expense.manualAmount, 'INR')}</div>
+                           <div className="text-[10px] text-zinc-500 mt-1">{formatDate(expense.createdAt)}</div>
+                        </div>
+                      </div>
+                      {(expense.status === 'anomaly' || expense.receiptUrl) && (
+                         <div className="mt-2 pt-3 border-t border-zinc-200 dark:border-zinc-800/50 flex flex-col gap-2">
+                           {expense.status === 'anomaly' && (
+                             <div className="bg-red-500/10 p-2 text-xs text-red-400 rounded border border-red-500/20 leading-relaxed font-medium">
+                               <span className="font-bold">OCR Mismatch:</span> Receipt shows {formatCurrency(expense.extractedAmount, 'INR')} with quantity {typeof expense.ocrData.extractedQuantity === 'number' ? Number(expense.ocrData.extractedQuantity) : 'unknown'}
+                             </div>
+                           )}
+                           <div className="flex justify-between items-center mt-1">
+                              {expense.receiptUrl && (
+                                 <button onClick={() => openUploadedReceiptPreview(expense)} className="text-[10px] uppercase font-bold tracking-widest text-orange-500 flex items-center gap-1">
+                                    Preview Receipt <span className="material-symbols-outlined text-[14px]">open_in_new</span>
+                                 </button>
+                              )}
+                              <button onClick={() => handleDeleteExpense(expense)} className="text-[10px] font-bold tracking-widest text-red-500 uppercase flex items-center gap-1 ml-auto">
+                                 <span className="material-symbols-outlined text-[14px]">delete</span>
+                              </button>
+                           </div>
+                         </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </section>
+          </div>
+        )}
+
+        {activeMobileTab === 'props' && (
+          <div className="animate-in fade-in slide-in-from-bottom-2 duration-300 px-3 pb-8">
+            <section className="space-y-4">
+              <div className="flex justify-between items-center px-1">
+                <h2 className="text-lg font-bold text-zinc-900 dark:text-white tracking-tight">Props Lifecycle</h2>
+                <button onClick={openCreatePropModal} className="text-orange-500 text-xs font-bold uppercase tracking-widest flex items-center gap-1">
+                  Add +
+                </button>
+              </div>
+              {props.length === 0 ? (
+                <div className="bg-white dark:bg-zinc-900 p-6 rounded-xl text-center border border-zinc-200 dark:border-zinc-800">
+                   <p className="text-sm font-medium text-zinc-500 dark:text-zinc-400">No props tracked.</p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {props.map(prop => (
+                    <div key={prop.id} className="bg-white dark:bg-zinc-900 p-4 rounded-xl flex flex-col gap-3 shadow-lg border border-zinc-200 dark:border-zinc-800">
+                       <div className="flex justify-between items-start">
+                         <div className="flex items-start gap-4">
+                           <div className="w-10 h-10 bg-orange-500/10 rounded-lg flex items-center justify-center flex-shrink-0">
+                             <span className="material-symbols-outlined text-orange-500">inventory_2</span>
+                           </div>
+                           <div>
+                             <h3 className="font-bold text-sm text-zinc-900 dark:text-white">{prop.propName}</h3>
+                             <div className="flex items-center gap-2 mt-1 scale-90 origin-left">
+                               {propStatusBadge(prop.status)}
+                               {prop.isOverdue && <StatusBadge variant="warning" label="Overdue" />}
+                             </div>
+                             <p className="text-[10px] text-zinc-500 mt-1 capitalize">{prop.category} • {prop.sourcingType}</p>
+                           </div>
+                         </div>
+                       </div>
+                       <div className="flex justify-between items-end mt-2 pt-3 border-t border-zinc-200 dark:border-zinc-800/50">
+                         <p className="text-[10px] text-zinc-500 min-h-3">{prop.returnDueDate ? `Due: ${formatDate(prop.returnDueDate)}` : ''}</p>
+                         <div className="flex gap-4 items-center">
+                            <button onClick={() => handleDeleteProp(prop)} className="material-symbols-outlined text-[16px] text-red-500">delete</button>
+                            <button onClick={() => openEditPropModal(prop)} className="material-symbols-outlined text-[16px] text-zinc-500 dark:text-zinc-400">edit</button>
+                         </div>
+                       </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </section>
+          </div>
+        )}
+
+        {activeMobileTab === 'sets' && (
+          <div className="animate-in fade-in slide-in-from-bottom-2 duration-300 px-3 pb-8">
+            <section className="space-y-4">
+              <div className="flex justify-between items-center px-1">
+                <h2 className="text-lg font-bold text-zinc-900 dark:text-white tracking-tight">Set Construction</h2>
+                <button onClick={openCreateSetModal} className="text-orange-500 text-xs font-bold uppercase tracking-widest flex items-center gap-1">
+                  Add +
+                </button>
+              </div>
+              {sets.length === 0 ? (
+                <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl p-8 flex flex-col items-center text-center shadow-lg">
+                  <span className="material-symbols-outlined text-zinc-400 dark:text-zinc-600 text-3xl mb-3">architecture</span>
+                  <p className="text-sm font-medium text-zinc-500 dark:text-zinc-400">No set construction entries.</p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {sets.map(set => (
+                    <div key={set.id} className="bg-white dark:bg-zinc-900 p-4 rounded-xl shadow-lg border border-zinc-200 dark:border-zinc-800 flex flex-col gap-3">
+                       <div className="flex justify-between items-start">
+                         <div>
+                           <h3 className="font-bold text-sm text-zinc-900 dark:text-white">{set.setName}</h3>
+                           <p className="text-[10px] text-zinc-500 mt-1">Est: {formatCurrency(set.estimatedCost, 'INR')} • Act: <span className={set.isOverBudget ? 'text-red-400 font-bold' : ''}>{formatCurrency(set.actualCost, 'INR')}</span></p>
+                         </div>
+                         <div className="scale-90 origin-top-right flex flex-col items-end gap-1">
+                           {setStatusBadge(set.status)}
+                           {set.isOverBudget && <StatusBadge variant="over" label="Over Budget" />}
+                         </div>
+                       </div>
+                       <div className="flex items-center gap-3">
+                         <div className="flex-1 h-1.5 bg-zinc-100 dark:bg-zinc-800 rounded-full overflow-hidden">
+                           <div className="h-full bg-orange-500 rounded-full" style={{ width: `${set.progressPercentage}%` }}></div>
+                         </div>
+                         <span className="text-[10px] font-mono text-zinc-500 dark:text-zinc-400">{set.progressPercentage}%</span>
+                       </div>
+                       <div className="flex justify-end pt-2 border-t border-zinc-200 dark:border-zinc-800/50">
+                          <button onClick={() => openEditSetModal(set)} className="text-[10px] uppercase font-bold tracking-widest text-zinc-500 dark:text-zinc-400 flex items-center gap-1">
+                             Update <span className="material-symbols-outlined text-[14px]">edit</span>
+                          </button>
+                       </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </section>
+          </div>
+        )}
+
+        <div className="fixed bottom-[84px] left-0 right-0 w-full px-4 z-40 pointer-events-none mb-4 max-w-sm mx-auto">
+          {activeMobileTab === 'expenses' && (
+            <div className="pointer-events-auto">
+              <button onClick={openExpenseModal} className="w-full h-[52px] bg-gradient-to-r from-orange-500 to-orange-400 text-black font-black uppercase text-[11px] tracking-wider rounded-xl shadow-2xl shadow-orange-500/20 flex items-center justify-center gap-2 active:scale-95 duration-200">
+                  <span className="material-symbols-outlined text-[18px]">payments</span>
+                  Add Expense
+              </button>
+            </div>
+          )}
+          {activeMobileTab === 'props' && (
+            <div className="pointer-events-auto">
+              <button onClick={openCreatePropModal} className="w-full h-[52px] bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 text-zinc-900 dark:text-white font-bold text-[10px] uppercase tracking-widest rounded-xl flex items-center justify-center gap-2 active:scale-95 duration-200 shadow-lg">
+                  <span className="material-symbols-outlined text-[16px] text-orange-500">category</span>
+                  Add Prop
+              </button>
+            </div>
+          )}
+          {activeMobileTab === 'sets' && (
+            <div className="pointer-events-auto">
+              <button onClick={openCreateSetModal} className="w-full h-[52px] bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 text-zinc-900 dark:text-white font-bold text-[10px] uppercase tracking-widest rounded-xl flex items-center justify-center gap-2 active:scale-95 duration-200 shadow-lg">
+                  <span className="material-symbols-outlined text-[16px] text-orange-500">foundation</span>
+                  Add Set
+              </button>
+            </div>
+          )}
+        </div>
+        <nav className="fixed bottom-0 left-0 right-0 h-[84px] bg-white/95 dark:bg-zinc-950/95 backdrop-blur-3xl border-t border-zinc-200 dark:border-zinc-800 flex justify-around items-center px-1 pb-safe shadow-[0_-8px_32px_rgba(0,0,0,0.5)] z-40">
+          {[
+            { id: 'home', icon: 'home', label: 'Home' },
+            { id: 'expenses', icon: 'payments', label: 'Expenses' },
+            { id: 'props', icon: 'category', label: 'Props' },
+            { id: 'sets', icon: 'foundation', label: 'Sets' },
+          ].map(tab => (
+            <button
+              key={tab.id}
+              onClick={() => setActiveMobileTab(tab.id as any)}
+              className={`flex flex-col items-center justify-center w-16 gap-1 transition-colors duration-200 ${activeMobileTab === tab.id ? 'text-orange-500' : 'text-zinc-500 hover:text-zinc-500 dark:text-zinc-400'}`}
+            >
+               <span className={`material-symbols-outlined text-2xl transition-transform duration-300 ${activeMobileTab === tab.id ? 'scale-110' : ''}`} style={activeMobileTab === tab.id ? { fontVariationSettings: "'FILL' 1" } : {}}>{tab.icon}</span>
+               <span className="text-[10px] font-bold uppercase tracking-wider">{tab.label}</span>
+            </button>
+          ))}
+        </nav>
       </div>
     </div>
   )
