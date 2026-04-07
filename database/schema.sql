@@ -210,7 +210,10 @@ create type public.costume_status as enum (
   'fitted',
   'on_set',
   'laundry',
-  'repair'
+  'repair',
+  'in_storage',
+  'in_laundry',
+  'missing'
 );
 
 create type public.laundry_status as enum (
@@ -218,7 +221,11 @@ create type public.laundry_status as enum (
   'washing',
   'drying',
   'ready',
-  'delivered'
+  'delivered',
+  'sent',
+  'in_cleaning',
+  'returned',
+  'delayed'
 );
 
 create type public.report_type as enum (
@@ -788,6 +795,7 @@ create table public.costumes (
   size_label text,
   actor_name text,
   status public.costume_status not null default 'available',
+  last_used_scene text,
   continuity_notes text,
   storage_location text,
   last_cleaned_at timestamptz,
@@ -806,6 +814,7 @@ create table public.laundry_logs (
   batch_number text,
   status public.laundry_status not null default 'queued',
   sent_at timestamptz,
+  expected_return_date date,
   returned_at timestamptz,
   vendor_name text,
   cleaning_notes text,
@@ -822,6 +831,7 @@ create table public.continuity_logs (
   project_id uuid not null references public.projects (id) on delete cascade,
   costume_id uuid references public.costumes (id) on delete set null,
   character_name text,
+  actor_name text,
   scene_number text not null,
   shot_number text,
   look_description text,
@@ -833,6 +843,18 @@ create table public.continuity_logs (
   created_at timestamptz not null default timezone('utc', now()),
   updated_at timestamptz not null default timezone('utc', now()),
   constraint continuity_logs_metadata_is_object check (jsonb_typeof(metadata) = 'object')
+);
+
+create table public.accessory_inventory (
+  id uuid primary key default gen_random_uuid(),
+  project_id uuid not null references public.projects (id) on delete cascade,
+  item_name text not null,
+  category text not null check (category in ('jewellery', 'accessory')),
+  assigned_character text,
+  status text not null default 'in_safe' check (status in ('on_set', 'in_safe', 'in_use', 'missing')),
+  last_checkin_time timestamptz,
+  created_at timestamptz not null default timezone('utc', now()),
+  updated_at timestamptz not null default timezone('utc', now())
 );
 
 create table public.approvals (

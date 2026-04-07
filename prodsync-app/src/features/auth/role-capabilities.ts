@@ -108,3 +108,29 @@ export function canViewArtBudget(user: UserLike) {
 export function canApproveArtExpense(user: UserLike) {
   return isProducerUser(user)
 }
+
+export function isCostumeSupervisor(user: UserLike) {
+  return Boolean(
+    hasProjectRole(user, ['Costume Supervisor'])
+      || (user?.departmentId === 'wardrobe' && user.role === 'HOD'),
+  )
+}
+
+export function isWardrobeStylist(user: UserLike) {
+  return Boolean(
+    hasProjectRole(user, ['Wardrobe Stylist'])
+      || (user?.departmentId === 'wardrobe' && user.role === 'Crew'),
+  )
+}
+
+export function canAccessWardrobeWorkspace(user: UserLike) {
+  return isProducerUser(user) || isCostumeSupervisor(user) || isWardrobeStylist(user)
+}
+
+export function canManageWardrobeOperations(user: UserLike) {
+  return canAccessWardrobeWorkspace(user)
+}
+
+export function canDeleteWardrobeContinuity(user: UserLike) {
+  return isProducerUser(user) || isCostumeSupervisor(user)
+}

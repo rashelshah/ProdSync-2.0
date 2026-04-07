@@ -121,3 +121,36 @@ export function canViewArtBudget(req: Request) {
       || (department(req) === 'ART' && membershipRole(req) === 'HOD'),
   )
 }
+
+export function canAccessWardrobeModule(req: Request) {
+  return Boolean(
+    isProducerRequest(req)
+      || projectRole(req) === 'COSTUME_SUPERVISOR'
+      || projectRole(req) === 'WARDROBE_STYLIST'
+      || department(req) === 'WARDROBE',
+  )
+}
+
+export function canManageWardrobeContinuity(req: Request) {
+  return canAccessWardrobeModule(req)
+}
+
+export function canDeleteWardrobeContinuity(req: Request) {
+  return Boolean(
+    isProducerRequest(req)
+      || projectRole(req) === 'COSTUME_SUPERVISOR'
+      || (department(req) === 'WARDROBE' && membershipRole(req) === 'HOD'),
+  )
+}
+
+export function canManageWardrobeLaundry(req: Request) {
+  return canAccessWardrobeModule(req)
+}
+
+export function canManageWardrobeInventory(req: Request) {
+  return canAccessWardrobeModule(req)
+}
+
+export function canManageWardrobeAccessories(req: Request) {
+  return canAccessWardrobeModule(req)
+}

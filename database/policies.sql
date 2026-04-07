@@ -28,6 +28,7 @@ alter table public.vendor_payments enable row level security;
 alter table public.costumes enable row level security;
 alter table public.laundry_logs enable row level security;
 alter table public.continuity_logs enable row level security;
+alter table public.accessory_inventory enable row level security;
 alter table public.approvals enable row level security;
 alter table public.approval_actions enable row level security;
 alter table public.report_snapshots enable row level security;
@@ -66,6 +67,7 @@ alter table public.vendor_payments force row level security;
 alter table public.costumes force row level security;
 alter table public.laundry_logs force row level security;
 alter table public.continuity_logs force row level security;
+alter table public.accessory_inventory force row level security;
 alter table public.approvals force row level security;
 alter table public.approval_actions force row level security;
 alter table public.report_snapshots force row level security;
@@ -834,6 +836,29 @@ with check (
   public.can_manage_project(project_id)
   or public.can_access_department(project_id, 'wardrobe')
   or logged_by = auth.uid()
+);
+
+create policy accessory_inventory_select_scoped
+on public.accessory_inventory
+for select
+using (
+  public.is_project_member(project_id)
+  and (
+    public.can_manage_project(project_id)
+    or public.can_access_department(project_id, 'wardrobe')
+  )
+);
+
+create policy accessory_inventory_manage_scoped
+on public.accessory_inventory
+for all
+using (
+  public.can_manage_project(project_id)
+  or public.can_access_department(project_id, 'wardrobe')
+)
+with check (
+  public.can_manage_project(project_id)
+  or public.can_access_department(project_id, 'wardrobe')
 );
 
 -- Approvals and reporting
