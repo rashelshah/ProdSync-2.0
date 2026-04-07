@@ -14,12 +14,20 @@ export async function getVehiclesController(req: Request, res: Response) {
 }
 
 export async function getAssignableDriversController(req: Request, res: Response) {
-  console.log('[transport][vehicles][drivers] route hit', { query: req.query })
-  const query = vehicleDriversQuerySchema.parse(req.query)
-  const drivers = await listAssignableDrivers(query.projectId)
-  console.log('[transport][vehicles][drivers] db result', { projectId: query.projectId, count: drivers.length })
+  try {
+    console.log('[transport][vehicles][drivers] route hit', { query: req.query })
+    const query = vehicleDriversQuerySchema.parse(req.query)
+    const drivers = await listAssignableDrivers(query.projectId)
+    console.log('[transport][vehicles][drivers] db result', { projectId: query.projectId, count: drivers.length })
 
-  res.json({ drivers })
+    return res.json({ drivers })
+  } catch (error) {
+    console.warn('[transport][vehicles][drivers] safe fallback', {
+      query: req.query,
+      error: error instanceof Error ? error.message : error,
+    })
+    return res.json({ drivers: [] })
+  }
 }
 
 export async function createVehicleController(req: Request, res: Response) {

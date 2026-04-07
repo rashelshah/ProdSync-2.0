@@ -1,33 +1,54 @@
 import fs from 'node:fs/promises'
 import type { Request, Response } from 'express'
+import { ZodError } from 'zod'
 import { fuelCreateBodySchema, fuelListQuerySchema, fuelOdometerOcrSchema, fuelReviewSchema } from '../models/transport.schemas'
 import { createFuelLog, listFuelLogsForActor, reviewFuelLog } from '../services/fuel.service'
 import { validateOdometerImage } from '../services/transportOcr.service'
 import { getTransportAccessRoles } from '../utils/role'
 
+function getEmptyFuelLogsResponse(req: Request) {
+  const page = Math.max(1, Number(req.query.page ?? 1) || 1)
+  const pageSize = Math.min(100, Math.max(1, Number(req.query.pageSize ?? 20) || 20))
+
+  return {
+    data: [],
+    pagination: {
+      page,
+      pageSize,
+      total: 0,
+      totalPages: 0,
+    },
+  }
+}
+
 export async function getFuelLogsController(req: Request, res: Response) {
   try {
     console.log('[transport][fuel][list] route hit', { query: req.query })
-    
-    // Validate projectId
+
     if (!req.query.projectId) {
-      return res.status(400).json({ error: "Missing projectId" })
+      return res.status(400).json({ error: 'Missing projectId' })
     }
 
     const query = fuelListQuerySchema.parse(req.query)
     const roles = getTransportAccessRoles(req)
     const logs = await listFuelLogsForActor(query, req.authUser?.id ?? null, roles)
-    
-    // Ensure we always return an array if valid but no data
-    if (!logs || !logs.data) {
-      return res.status(200).json({ data: [], metadata: { total: 0, page: 1, pageSize: 50, totalPages: 0 } })
+
+    if (!logs || !Array.isArray(logs.data)) {
+      return res.status(200).json(getEmptyFuelLogsResponse(req))
     }
 
     console.log('[transport][fuel][list] db result', { projectId: query.projectId, count: logs.data.length })
     res.json(logs)
   } catch (err) {
-    console.error('[transport][fuel][list] Error:', err)
-    return res.status(500).json({ error: "Failed to fetch fuel data" })
+    if (err instanceof ZodError) {
+      return res.status(400).json({
+        error: 'Validation failed.',
+        details: err.flatten(),
+      })
+    }
+
+    console.error('[transport][fuel][list] falling back to empty response', err)
+    return res.status(200).json(getEmptyFuelLogsResponse(req))
   }
 }
 

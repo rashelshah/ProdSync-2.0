@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type ReactNode } from 'react'
+import { useEffect, useEffectEvent, useMemo, useRef, useState, type ReactNode } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { KpiCard } from '@/components/shared/KpiCard'
 import { DataTable } from '@/components/shared/DataTable'
@@ -7,15 +7,32 @@ import { Surface } from '@/components/shared/Surface'
 import { EmptyState, ErrorState, LoadingState } from '@/components/system/SystemStates'
 import { useAuthStore } from '@/features/auth/auth.store'
 import { useResolvedProjectContext } from '@/features/projects/useResolvedProjectContext'
+import { apiOrigin } from '@/lib/api'
 import { transportService } from '@/services/transport.service'
 import { formatCurrency, formatDate, formatTime } from '@/utils'
 import { useTransportData } from '../hooks/useTransportData'
 import { useTransportLiveTracking } from '../hooks/useTransportLiveTracking'
-import type { FuelLogInput, FuelLogUI, TripFilters, TripUI, UpdateVehicleInput, Vehicle, VehicleStatus } from '../types'
+import { TransportTrackingMap } from './TransportTrackingMap'
+import {
+  getCurrentDeviceLocation,
+  reverseGeocode,
+  searchDestinationSuggestions,
+  type LocationSuggestion,
+} from '../location-intelligence'
+import type {
+  FuelLogInput,
+  FuelLogUI,
+  LocationPoint,
+  TripFilters,
+  TripUI,
+  UpdateVehicleInput,
+  Vehicle,
+  VehicleStatus,
+} from '../types'
 
 const initialCoordinates = {
-  latitude: '13.0827',
-  longitude: '80.2707',
+  latitude: '',
+  longitude: '',
   address: '',
 }
 
@@ -51,6 +68,7 @@ const emptyTripStartForm = {
 const emptyTripEndForm = {
   odometerKm: '',
   destination: '',
+  remarks: '',
   ...initialCoordinates,
 }
 
@@ -65,15 +83,54 @@ const emptyFuelForm = {
   odometerImage: null as File | null,
 }
 
+const purposeOptions = [
+  'Crew Pickup',
+  'Cast Movement',
+  'Equipment Transfer',
+  'Airport Transfer',
+  'Location Run',
+  'Supply Run',
+]
+
+type LocationFetchState = {
+  status: 'idle' | 'fetching' | 'ready' | 'error'
+  message: string
+}
+
+const idleLocationFetchState: LocationFetchState = {
+  status: 'idle',
+  message: '',
+}
+
+function hasCoordinatePair(latitude: string, longitude: string) {
+  return latitude.trim().length > 0 && longitude.trim().length > 0
+}
+
+function tripOriginLabel(trip: TripUI) {
+  return trip.origin?.trim() || trip.startLocation?.address?.trim() || 'Location unavailable'
+}
+
+function tripDestinationLabel(trip: TripUI) {
+  if (trip.status === 'active') {
+    return 'Yet to be reached'
+  }
+
+  return trip.destination?.trim() || trip.endLocation?.address?.trim() || 'Location unavailable'
+}
+
 export function TransportView() {
   const queryClient = useQueryClient()
   const user = useAuthStore(state => state.user)
   const { activeProjectId, activeProject, isLoadingProjectContext } = useResolvedProjectContext()
 
   const [tripFilters, setTripFilters] = useState<TripFilters>(initialTripFilters)
+  const [vehicleSearch, setVehicleSearch] = useState('')
   const {
     isLoading,
     isError,
+    isFuelLoading,
+    isAlertsLoading,
+    isDriversLoading,
     kpis,
     trips,
     fuelLogs,
@@ -83,21 +140,37 @@ export function TransportView() {
     canViewAlerts,
     canManageTransport,
     fuelFailed,
+    alertsFailed,
+    driversFailed,
   } = useTransportData(tripFilters)
 
   const hasData = trips.length > 0 || fuelLogs.length > 0 || vehicles.length > 0 || alerts.length > 0
   const isDriver = user?.role === 'Driver' || user?.projectRoleTitle === 'Driver'
+  const canOperateTrips = isDriver || canManageTransport
+  const canLogFuel = isDriver || canManageTransport
 
   const [vehicleModalOpen, setVehicleModalOpen] = useState(false)
   const [vehicleDetailId, setVehicleDetailId] = useState<string | null>(null)
+  const [vehicleAssignId, setVehicleAssignId] = useState<string | null>(null)
   const [tripStartModalOpen, setTripStartModalOpen] = useState(false)
   const [tripEndTripId, setTripEndTripId] = useState<string | null>(null)
   const [fuelModalOpen, setFuelModalOpen] = useState(false)
+  const [fuelPreview, setFuelPreview] = useState<{ title: string; src: string } | null>(null)
 
   const [vehicleForm, setVehicleForm] = useState(emptyVehicleForm)
+  const [assignDriverUserId, setAssignDriverUserId] = useState('')
   const [tripStartForm, setTripStartForm] = useState(emptyTripStartForm)
   const [tripEndForm, setTripEndForm] = useState(emptyTripEndForm)
   const [fuelForm, setFuelForm] = useState(emptyFuelForm)
+  const [tripStartDestinationPoint, setTripStartDestinationPoint] = useState<LocationPoint | null>(null)
+  const [destinationSuggestions, setDestinationSuggestions] = useState<LocationSuggestion[]>([])
+  const [destinationSearchError, setDestinationSearchError] = useState<string | null>(null)
+  const [destinationSearchLoading, setDestinationSearchLoading] = useState(false)
+  const [startLocationState, setStartLocationState] = useState<LocationFetchState>(idleLocationFetchState)
+  const [endLocationState, setEndLocationState] = useState<LocationFetchState>(idleLocationFetchState)
+
+  const startLocationFetchedRef = useRef(false)
+  const endLocationFetchedRef = useRef(false)
 
   const fuelByTripId = useMemo(() => {
     const summary = new Map<string, { liters: number; cost: number }>()
@@ -120,15 +193,45 @@ export function TransportView() {
     () => trips.filter(trip => trip.status === 'active'),
     [trips],
   )
+
+  const activeTripByVehicleId = useMemo(() => {
+    const mapping = new Map<string, TripUI>()
+
+    for (const trip of activeTrips) {
+      mapping.set(trip.vehicleId, trip)
+    }
+
+    return mapping
+  }, [activeTrips])
+
   const visibleVehicles = useMemo(
     () => (isDriver ? vehicles.filter(vehicle => vehicle.assignedDriverUserId === user?.id) : vehicles),
     [isDriver, user?.id, vehicles],
   )
+
+  const filteredVehicles = useMemo(() => {
+    if (isDriver) {
+      return visibleVehicles
+    }
+
+    const query = vehicleSearch.trim().toLowerCase()
+    if (!query) {
+      return visibleVehicles
+    }
+
+    return visibleVehicles.filter(vehicle =>
+      [vehicle.name, vehicle.registrationNumber, vehicle.assignedDriverName]
+        .filter(Boolean)
+        .some(value => String(value).toLowerCase().includes(query)),
+    )
+  }, [isDriver, vehicleSearch, visibleVehicles])
+
   const {
     liveLocations,
-    mapImageUrl,
-    mapLoading,
+    liveMeta,
+    trackingLoading,
     streamState,
+    liveLocationsFailed,
   } = useTransportLiveTracking({
     activeProjectId,
     activeTrips,
@@ -138,6 +241,8 @@ export function TransportView() {
 
   const selectedTripForEnd = activeTrips.find(trip => trip.id === tripEndTripId) ?? null
   const selectedVehicle = vehicles.find(vehicle => vehicle.id === vehicleDetailId) ?? null
+  const selectedVehicleForAssignment = vehicles.find(vehicle => vehicle.id === vehicleAssignId) ?? null
+  const driverOptions = drivers.map(driver => ({ value: driver.userId, label: driver.fullName }))
 
   useEffect(() => {
     if (!selectedVehicle) {
@@ -156,6 +261,15 @@ export function TransportView() {
     })
   }, [selectedVehicle])
 
+  useEffect(() => {
+    if (!selectedVehicleForAssignment) {
+      setAssignDriverUserId('')
+      return
+    }
+
+    setAssignDriverUserId(selectedVehicleForAssignment.assignedDriverUserId ?? '')
+  }, [selectedVehicleForAssignment])
+
   const refreshProjectQueries = async () => {
     if (!activeProjectId) {
       return
@@ -170,6 +284,7 @@ export function TransportView() {
       queryClient.invalidateQueries({ queryKey: ['gps-logs', activeProjectId] }),
       queryClient.invalidateQueries({ queryKey: ['activity', activeProjectId] }),
       queryClient.invalidateQueries({ queryKey: ['alerts', activeProjectId] }),
+      queryClient.invalidateQueries({ queryKey: ['tracking-live', activeProjectId] }),
     ])
   }
 
@@ -191,11 +306,27 @@ export function TransportView() {
     },
   })
 
+  const assignDriverMutation = useMutation({
+    mutationFn: ({ vehicleId, driverUserId }: { vehicleId: string; driverUserId: string }) => {
+      if (!activeProjectId) {
+        throw new Error('Project context is required.')
+      }
+
+      return transportService.updateVehicle(vehicleId, {
+        projectId: activeProjectId,
+        assignedDriverUserId: driverUserId || null,
+      })
+    },
+    onSuccess: async () => {
+      setVehicleAssignId(null)
+      await refreshProjectQueries()
+    },
+  })
+
   const startTripMutation = useMutation({
     mutationFn: transportService.startTrip,
     onSuccess: async () => {
-      setTripStartModalOpen(false)
-      setTripStartForm(emptyTripStartForm)
+      closeTripStartModal()
       await refreshProjectQueries()
     },
   })
@@ -203,8 +334,7 @@ export function TransportView() {
   const endTripMutation = useMutation({
     mutationFn: transportService.endTrip,
     onSuccess: async () => {
-      setTripEndTripId(null)
-      setTripEndForm(emptyTripEndForm)
+      closeTripEndModal()
       await refreshProjectQueries()
     },
   })
@@ -227,6 +357,163 @@ export function TransportView() {
     onSuccess: refreshProjectQueries,
   })
 
+  const fetchStartLocation = useEffectEvent(async (force = false) => {
+    if (!activeProjectId) {
+      return
+    }
+
+    if (!force && startLocationFetchedRef.current) {
+      return
+    }
+
+    setStartLocationState({
+      status: 'fetching',
+      message: 'Fetching location...',
+    })
+
+    try {
+      const location = await getCurrentDeviceLocation()
+      startLocationFetchedRef.current = true
+
+      setTripStartForm(current => ({
+        ...current,
+        latitude: String(location.latitude),
+        longitude: String(location.longitude),
+      }))
+
+      const address = await reverseGeocode(activeProjectId, location)
+
+      setTripStartForm(current => ({
+        ...current,
+        origin: address,
+        address,
+      }))
+
+      setStartLocationState({
+        status: 'ready',
+        message: address,
+      })
+    } catch (error) {
+      setStartLocationState({
+        status: 'error',
+        message: error instanceof Error ? error.message : 'Unable to fetch current location.',
+      })
+    }
+  })
+
+  const fetchEndLocation = useEffectEvent(async (force = false) => {
+    if (!activeProjectId) {
+      return
+    }
+
+    if (!force && endLocationFetchedRef.current) {
+      return
+    }
+
+    setEndLocationState({
+      status: 'fetching',
+      message: 'Fetching location...',
+    })
+
+    try {
+      const location = await getCurrentDeviceLocation()
+      endLocationFetchedRef.current = true
+
+      setTripEndForm(current => ({
+        ...current,
+        latitude: String(location.latitude),
+        longitude: String(location.longitude),
+      }))
+
+      const address = await reverseGeocode(activeProjectId, location)
+
+      setTripEndForm(current => ({
+        ...current,
+        destination: address,
+        address,
+      }))
+
+      setEndLocationState({
+        status: 'ready',
+        message: address,
+      })
+    } catch (error) {
+      setEndLocationState({
+        status: 'error',
+        message: error instanceof Error ? error.message : 'Unable to fetch current location.',
+      })
+    }
+  })
+
+  useEffect(() => {
+    if (tripStartModalOpen) {
+      void fetchStartLocation()
+    }
+  }, [tripStartModalOpen])
+
+  useEffect(() => {
+    if (tripEndTripId) {
+      void fetchEndLocation()
+    }
+  }, [tripEndTripId])
+
+  useEffect(() => {
+    if (!tripStartModalOpen || !activeProjectId) {
+      setDestinationSuggestions([])
+      setDestinationSearchError(null)
+      setDestinationSearchLoading(false)
+      return
+    }
+
+    const query = tripStartForm.destination.trim()
+    if (query.length < 2) {
+      setDestinationSuggestions([])
+      setDestinationSearchError(null)
+      setDestinationSearchLoading(false)
+      return
+    }
+
+    if (tripStartDestinationPoint?.address && query === tripStartDestinationPoint.address) {
+      setDestinationSuggestions([])
+      setDestinationSearchError(null)
+      setDestinationSearchLoading(false)
+      return
+    }
+
+    let cancelled = false
+    setDestinationSearchLoading(true)
+    setDestinationSearchError(null)
+
+    const timeoutId = window.setTimeout(() => {
+      void searchDestinationSuggestions(activeProjectId, query)
+        .then(results => {
+          if (cancelled) {
+            return
+          }
+
+          setDestinationSuggestions(results)
+        })
+        .catch(error => {
+          if (cancelled) {
+            return
+          }
+
+          setDestinationSearchError(error instanceof Error ? error.message : 'Could not fetch destination suggestions.')
+          setDestinationSuggestions([])
+        })
+        .finally(() => {
+          if (!cancelled) {
+            setDestinationSearchLoading(false)
+          }
+        })
+    }, 260)
+
+    return () => {
+      cancelled = true
+      window.clearTimeout(timeoutId)
+    }
+  }, [activeProjectId, tripStartDestinationPoint, tripStartForm.destination, tripStartModalOpen])
+
   if (isLoadingProjectContext) {
     return <LoadingState message="Resolving project access..." />
   }
@@ -245,8 +532,52 @@ export function TransportView() {
     )
   }
 
-  if (isLoading) return <LoadingState message="Loading fleet data..." />
-  if (isError) return <ErrorState message="Could not load transport data" />
+  if (isLoading) {
+    return <LoadingState message="Loading fleet data..." />
+  }
+
+  if (isError) {
+    return <ErrorState message="Could not load transport data" />
+  }
+
+  function closeTripStartModal() {
+    setTripStartModalOpen(false)
+    setTripStartForm(emptyTripStartForm)
+    setTripStartDestinationPoint(null)
+    setDestinationSuggestions([])
+    setDestinationSearchError(null)
+    setDestinationSearchLoading(false)
+    setStartLocationState(idleLocationFetchState)
+    startLocationFetchedRef.current = false
+  }
+
+  function closeTripEndModal() {
+    setTripEndTripId(null)
+    setTripEndForm(emptyTripEndForm)
+    setEndLocationState(idleLocationFetchState)
+    endLocationFetchedRef.current = false
+  }
+
+  function openStartTripModal(vehicle?: Vehicle) {
+    setTripStartForm({
+      ...emptyTripStartForm,
+      vehicleId: vehicle?.id ?? '',
+      driverId: vehicle?.assignedDriverUserId ?? '',
+    })
+    setTripStartDestinationPoint(null)
+    setDestinationSuggestions([])
+    setDestinationSearchError(null)
+    setTripStartModalOpen(true)
+  }
+
+  function openFuelModal(vehicle?: Vehicle, trip?: TripUI | null) {
+    setFuelForm({
+      ...emptyFuelForm,
+      vehicleId: vehicle?.id ?? '',
+      tripId: trip?.id ?? '',
+    })
+    setFuelModalOpen(true)
+  }
 
   function submitVehicle() {
     if (!activeProjectId) {
@@ -287,8 +618,33 @@ export function TransportView() {
     })
   }
 
+  function submitDriverAssignment() {
+    if (!selectedVehicleForAssignment) {
+      return
+    }
+
+    assignDriverMutation.mutate({
+      vehicleId: selectedVehicleForAssignment.id,
+      driverUserId: assignDriverUserId,
+    })
+  }
+
   function submitTripStart() {
     if (!activeProjectId) {
+      return
+    }
+
+    if (!tripStartForm.vehicleId) {
+      return
+    }
+
+    const hasGpsLocation = hasCoordinatePair(tripStartForm.latitude, tripStartForm.longitude)
+    const manualAddress = tripStartForm.address.trim() || tripStartForm.origin.trim()
+    if (!hasGpsLocation && !manualAddress) {
+      setStartLocationState({
+        status: 'error',
+        message: 'Unable to fetch location. Please enter manually.',
+      })
       return
     }
 
@@ -297,14 +653,19 @@ export function TransportView() {
       vehicleId: tripStartForm.vehicleId,
       driverId: canManageTransport && tripStartForm.driverId ? tripStartForm.driverId : undefined,
       odometerKm: tripStartForm.odometerKm ? Number(tripStartForm.odometerKm) : undefined,
-      purpose: tripStartForm.purpose.trim() || undefined,
+      purpose: tripStartForm.purpose || undefined,
       origin: tripStartForm.origin.trim() || undefined,
       destination: tripStartForm.destination.trim() || undefined,
       startLocation: {
-        latitude: Number(tripStartForm.latitude),
-        longitude: Number(tripStartForm.longitude),
-        address: tripStartForm.address.trim() || undefined,
+        ...(hasGpsLocation
+          ? {
+            latitude: Number(tripStartForm.latitude),
+            longitude: Number(tripStartForm.longitude),
+          }
+          : {}),
+        address: manualAddress || undefined,
       },
+      destinationLocation: tripStartDestinationPoint ?? undefined,
     })
   }
 
@@ -313,15 +674,38 @@ export function TransportView() {
       return
     }
 
+    if (!tripEndForm.odometerKm) {
+      setEndLocationState({
+        status: 'error',
+        message: 'End odometer is required to end the trip.',
+      })
+      return
+    }
+
+    const hasGpsLocation = hasCoordinatePair(tripEndForm.latitude, tripEndForm.longitude)
+    const manualAddress = tripEndForm.address.trim() || tripEndForm.destination.trim()
+    if (!hasGpsLocation && !manualAddress) {
+      setEndLocationState({
+        status: 'error',
+        message: 'Unable to fetch location. Please enter manually.',
+      })
+      return
+    }
+
     endTripMutation.mutate({
       projectId: activeProjectId,
       tripId: tripEndTripId,
       odometerKm: Number(tripEndForm.odometerKm),
       destination: tripEndForm.destination.trim() || undefined,
+      remarks: tripEndForm.remarks.trim() || undefined,
       endLocation: {
-        latitude: Number(tripEndForm.latitude),
-        longitude: Number(tripEndForm.longitude),
-        address: tripEndForm.address.trim() || undefined,
+        ...(hasGpsLocation
+          ? {
+            latitude: Number(tripEndForm.latitude),
+            longitude: Number(tripEndForm.longitude),
+          }
+          : {}),
+        address: manualAddress || undefined,
       },
     })
   }
@@ -359,23 +743,16 @@ export function TransportView() {
           </p>
         </div>
 
-        <div className="flex flex-wrap gap-3">
+        <div className="flex justify-end">
           {canManageTransport && (
-            <button onClick={() => {
-              setVehicleForm(emptyVehicleForm)
-              setVehicleModalOpen(true)
-            }} className="btn-soft">
+            <button
+              onClick={() => {
+                setVehicleForm(emptyVehicleForm)
+                setVehicleModalOpen(true)
+              }}
+              className="btn-primary"
+            >
               Add Vehicle
-            </button>
-          )}
-          {(isDriver || canManageTransport) && (
-            <button onClick={() => setTripStartModalOpen(true)} className="btn-primary">
-              Start Trip
-            </button>
-          )}
-          {(isDriver || canManageTransport) && (
-            <button onClick={() => setFuelModalOpen(true)} className="btn-soft">
-              Log Fuel
             </button>
           )}
         </div>
@@ -387,7 +764,7 @@ export function TransportView() {
         <KpiCard label="Idle Vehicles" value={String(kpis.idleVehicles)} subLabel="Not moving right now" />
         <KpiCard label="Trips Today" value={String(kpis.tripsToday)} subLabel="Project-only transport runs" />
         <KpiCard label="Total Distance" value={`${kpis.totalDistanceKm.toLocaleString()} km`} subLabel="Completed and active trips" />
-        <KpiCard label="Fuel Cost" value={formatCurrency(kpis.fuelCost)} subLabel="Logged spend" />
+        <KpiCard label="Fuel Cost" value={formatCurrency(kpis.fuelCost)} subLabel={fuelFailed ? 'Fuel data unavailable' : 'Logged spend'} />
       </section>
 
       {!hasData ? (
@@ -402,66 +779,97 @@ export function TransportView() {
         <div className="space-y-8">
           <Surface variant="table" padding="lg">
             <div className="mb-6 flex flex-wrap items-start justify-between gap-4">
-              <div>
-                <p className="section-title">{isDriver ? 'My Assignment' : 'Fleet Management'}</p>
-                <p className="mt-2 text-sm text-zinc-500 dark:text-zinc-400">
+              <div className="space-y-2">
+                <p className="section-title">{isDriver ? 'My Vehicle' : 'Fleet Management'}</p>
+                <p className="text-sm text-zinc-500 dark:text-zinc-400">
                   {isDriver
-                    ? 'Your assigned vehicle stays front and center, with live trip streaming handled in the background.'
-                    : 'Vehicle readiness, assigned drivers, and live transport status for the captain and producer.'}
+                    ? 'Your assigned vehicle stays front and center, with trip actions kept simple and stable.'
+                    : 'Compact fleet visibility with quick driver assignment, trip control, and fuel logging.'}
                 </p>
                 {isDriver && (
-                  <p className={`mt-3 text-sm ${streamState.status === 'error' ? 'text-red-500 dark:text-red-400' : 'text-zinc-500 dark:text-zinc-400'}`}>
+                  <p className={`text-sm ${streamState.status === 'error' ? 'text-red-500 dark:text-red-400' : 'text-zinc-500 dark:text-zinc-400'}`}>
                     {streamState.message}
                   </p>
                 )}
               </div>
-              <p className="text-xs uppercase tracking-[0.18em] text-zinc-500 dark:text-zinc-400">
-                {visibleVehicles.length} vehicle{visibleVehicles.length === 1 ? '' : 's'} tracked
-              </p>
+
+              <div className="flex flex-wrap items-center gap-4">
+                {!isDriver && (
+                  <label className="flex items-center gap-3 rounded-full border border-zinc-200 bg-zinc-50 px-4 py-2 dark:border-zinc-800 dark:bg-zinc-950">
+                    <span className="text-sm font-semibold text-zinc-600 dark:text-zinc-300">Search</span>
+                    <input
+                      value={vehicleSearch}
+                      onChange={event => setVehicleSearch(event.target.value)}
+                      placeholder="Vehicle, number, or driver"
+                      className="h-9 min-w-[220px] bg-transparent text-base text-zinc-900 outline-none placeholder:text-zinc-400 dark:text-white dark:placeholder:text-zinc-500"
+                    />
+                  </label>
+                )}
+
+                <p className="text-xs uppercase tracking-[0.18em] text-zinc-500 dark:text-zinc-400">
+                  {filteredVehicles.length} vehicle{filteredVehicles.length === 1 ? '' : 's'}
+                </p>
+              </div>
             </div>
 
-            {visibleVehicles.length === 0 ? (
-              <p className="text-sm text-zinc-500 dark:text-zinc-400">No vehicles added for this project yet.</p>
+            {driversFailed && canManageTransport && (
+              <InlineBanner tone="warning" message="Driver assignments are temporarily unavailable. Existing fleet data is still loaded." />
+            )}
+
+            {filteredVehicles.length === 0 ? (
+              <p className="text-sm text-zinc-500 dark:text-zinc-400">
+                {isDriver ? 'No vehicle is assigned to you yet.' : 'No vehicles match the current search.'}
+              </p>
             ) : (
-              <div className="grid gap-4 xl:grid-cols-2">
-                {visibleVehicles.map(vehicle => {
-                  const status = deriveVehicleOperationalStatus(vehicle, activeTrips)
+              <div className="space-y-3">
+                {filteredVehicles.map(vehicle => {
+                  const activeTrip = activeTripByVehicleId.get(vehicle.id) ?? null
+                  const cardStatus = activeTrip ? 'In Transit' : 'Idle'
 
                   return (
                     <div
                       key={vehicle.id}
-                      className="rounded-[28px] border border-zinc-200 bg-zinc-50 px-5 py-5 dark:border-zinc-800 dark:bg-zinc-950"
+                      className="rounded-[2rem] border border-zinc-200 bg-zinc-50 px-5 py-4 dark:border-zinc-800 dark:bg-zinc-950"
                     >
-                      <div className="flex flex-wrap items-start justify-between gap-4">
-                        <div>
-                          <p className="text-base font-semibold text-zinc-900 dark:text-white">{vehicle.name}</p>
-                          <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">{vehicle.vehicleType}</p>
+                      <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
+                        <div className="flex flex-1 flex-wrap items-center gap-4">
+                          <VehicleCardMetric label="Vehicle Name" value={vehicle.name} strong />
+                          <VehicleCardMetric label="Vehicle Number" value={vehicle.registrationNumber ?? 'Not added'} />
+                          <VehicleCardMetric label="Driver" value={vehicle.assignedDriverName ?? 'Unassigned'} />
+                          <div className="min-w-[120px]">
+                            <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-zinc-500 dark:text-zinc-400">Status</p>
+                            <div className="mt-2">
+                              <StatusBadge variant={cardStatus === 'In Transit' ? 'active' : 'pending'} label={cardStatus} />
+                            </div>
+                          </div>
                         </div>
-                        <StatusBadge variant={mapVehicleStatus(status)} label={vehicleStatusLabel(status)} />
-                      </div>
 
-                      <div className="mt-5 grid grid-cols-2 gap-4 text-sm">
-                        <Metric label="Vehicle Number" value={vehicle.registrationNumber ?? 'Not added'} />
-                        <Metric label="Assigned Driver" value={vehicle.assignedDriverName ?? 'Unassigned'} />
-                        <Metric label="Base" value={vehicle.baseLocation ?? 'Not set'} />
-                        <Metric label="Category" value={vehicle.vehicleType} />
-                      </div>
-
-                      <div className="mt-5 flex flex-wrap gap-3">
-                        <button
-                          onClick={() => setVehicleDetailId(vehicle.id)}
-                          className="btn-soft px-4 py-2 text-xs"
-                        >
-                          View Details
-                        </button>
-                        {canManageTransport && (
-                          <button
-                            onClick={() => setVehicleDetailId(vehicle.id)}
-                            className="btn-primary px-4 py-2 text-xs"
-                          >
-                            Assign Driver
+                        <div className="flex flex-wrap gap-2 xl:justify-end">
+                          {canManageTransport && !isDriver && (
+                            <button onClick={() => setVehicleAssignId(vehicle.id)} className="btn-soft px-4 py-2 text-[11px]">
+                              Assign Driver
+                            </button>
+                          )}
+                          {canOperateTrips && (
+                            activeTrip ? (
+                              <button onClick={() => setTripEndTripId(activeTrip.id)} className="btn-primary px-4 py-2 text-[11px]">
+                                End Trip
+                              </button>
+                            ) : (
+                              <button onClick={() => openStartTripModal(vehicle)} className="btn-primary px-4 py-2 text-[11px]">
+                                Start Trip
+                              </button>
+                            )
+                          )}
+                          {canLogFuel && (
+                            <button onClick={() => openFuelModal(vehicle, activeTrip)} className="btn-soft px-4 py-2 text-[11px]">
+                              Log Fuel
+                            </button>
+                          )}
+                          <button onClick={() => setVehicleDetailId(vehicle.id)} className="btn-soft px-4 py-2 text-[11px]">
+                            View Details
                           </button>
-                        )}
+                        </div>
                       </div>
                     </div>
                   )
@@ -476,32 +884,28 @@ export function TransportView() {
                 <div>
                   <p className="section-title">Live Tracking</p>
                   <p className="mt-2 text-sm text-zinc-500 dark:text-zinc-400">
-                    Real-time fleet tracking with socket updates, backend-rendered maps, and graceful fallback when premium routing is restricted.
+                    Hybrid checkpoint tracking with smooth marker animation, cached routing, and graceful fallback when premium map usage is restricted.
                   </p>
                 </div>
                 <StatusBadge variant={liveLocations.length > 0 ? 'live' : 'pending'} label={liveLocations.length > 0 ? 'Live' : 'Standby'} />
               </div>
 
-              <div className="overflow-hidden rounded-[28px] border border-zinc-200 bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-950">
-                {mapImageUrl ? (
-                  <img
-                    src={mapImageUrl}
-                    alt="Live fleet tracking map"
-                    className="h-[320px] w-full object-cover"
-                  />
-                ) : (
-                  <div className="flex h-[320px] items-center justify-center px-6 text-center text-sm text-zinc-500 dark:text-zinc-400">
-                    {mapLoading ? 'Refreshing the latest fleet map...' : 'Live map is waiting for the next active vehicle update.'}
-                  </div>
-                )}
-              </div>
+              {liveLocationsFailed && (
+                <InlineBanner tone="warning" message="Live tracking is temporarily unavailable. The rest of transport operations remain active." />
+              )}
+
+              <TransportTrackingMap
+                liveLocations={liveLocations}
+                liveMeta={liveMeta}
+                loading={trackingLoading}
+              />
 
               <div className="mt-5 rounded-[24px] border border-zinc-200 bg-zinc-50 px-5 py-5 dark:border-zinc-800 dark:bg-zinc-950">
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <div>
                     <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-zinc-500 dark:text-zinc-400">Active Fleet</p>
                     <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-300">
-                      Select a vehicle from the live stream below and inspect its current checkpoint state.
+                      Vehicles animate between checkpoints, and trips pause intermediate updates automatically once they enter the final 5-8 km band.
                     </p>
                   </div>
                   <StatusBadge variant={liveLocations.length > 0 ? 'live' : 'pending'} label={`${liveLocations.length} live`} />
@@ -535,115 +939,104 @@ export function TransportView() {
                   Active and completed journeys with live status, fuel linkage, idle time, and outstation detection.
                 </p>
               </div>
-              <button
-                onClick={() => setTripFilters(initialTripFilters)}
-                className="btn-soft px-4 py-2 text-xs"
-              >
-                Clear Filters
-              </button>
+              {canManageTransport && (
+                <button onClick={() => setTripFilters(initialTripFilters)} className="btn-soft px-4 py-2 text-xs">
+                  Clear Filters
+                </button>
+              )}
             </div>
 
-            <div className="mb-6 grid gap-4 md:grid-cols-2 xl:grid-cols-5">
-              <SelectField
-                label="Vehicle"
-                value={tripFilters.vehicleId ?? ''}
-                onChange={value => setTripFilters(current => ({ ...current, vehicleId: value }))}
-                options={vehicles.map(vehicle => ({ value: vehicle.id, label: vehicle.name }))}
-              />
-              <SelectField
-                label="Driver"
-                value={tripFilters.driverId ?? ''}
-                onChange={value => setTripFilters(current => ({ ...current, driverId: value }))}
-                options={drivers.map(driver => ({ value: driver.userId, label: driver.fullName }))}
-              />
-              <DateField
-                label="From"
-                value={tripFilters.dateFrom ?? ''}
-                onChange={value => setTripFilters(current => ({ ...current, dateFrom: value }))}
-              />
-              <DateField
-                label="To"
-                value={tripFilters.dateTo ?? ''}
-                onChange={value => setTripFilters(current => ({ ...current, dateTo: value }))}
-              />
-              <SelectField
-                label="Status"
-                value={tripFilters.status ?? ''}
-                onChange={value => setTripFilters(current => ({ ...current, status: value as TripFilters['status'] }))}
-                options={[
-                  { value: 'active', label: 'Active' },
-                  { value: 'completed', label: 'Completed' },
-                  { value: 'flagged', label: 'Flagged' },
-                  { value: 'planned', label: 'Planned' },
-                  { value: 'cancelled', label: 'Cancelled' },
-                ]}
-              />
-            </div>
+            {canManageTransport && (
+              <div className="mb-6 grid gap-4 md:grid-cols-2 xl:grid-cols-5">
+                <SelectField
+                  label="Vehicle"
+                  value={tripFilters.vehicleId ?? ''}
+                  onChange={value => setTripFilters(current => ({ ...current, vehicleId: value }))}
+                  options={vehicles.map(vehicle => ({ value: vehicle.id, label: vehicle.name }))}
+                />
+                <SelectField
+                  label="Driver"
+                  value={tripFilters.driverId ?? ''}
+                  onChange={value => setTripFilters(current => ({ ...current, driverId: value }))}
+                  options={drivers.map(driver => ({ value: driver.userId, label: driver.fullName }))}
+                />
+                <DateField
+                  label="From"
+                  value={tripFilters.dateFrom ?? ''}
+                  onChange={value => setTripFilters(current => ({ ...current, dateFrom: value }))}
+                />
+                <DateField
+                  label="To"
+                  value={tripFilters.dateTo ?? ''}
+                  onChange={value => setTripFilters(current => ({ ...current, dateTo: value }))}
+                />
+                <SelectField
+                  label="Status"
+                  value={tripFilters.status ?? ''}
+                  onChange={value => setTripFilters(current => ({ ...current, status: value as TripFilters['status'] }))}
+                  options={[
+                    { value: 'active', label: 'Active' },
+                    { value: 'completed', label: 'Completed' },
+                    { value: 'flagged', label: 'Flagged' },
+                    { value: 'planned', label: 'Planned' },
+                    { value: 'cancelled', label: 'Cancelled' },
+                  ]}
+                />
+              </div>
+            )}
 
-            <DataTable<TripUI>
-              columns={[
-                { key: 'vehicleName', label: 'Vehicle', render: row => <span className="font-medium text-zinc-900 dark:text-white">{row.vehicleName}</span> },
-                { key: 'driverName', label: 'Driver', render: row => row.driverName ?? 'Unassigned' },
-                {
-                  key: 'durationLabel',
-                  label: 'Timeline',
-                  render: row => (
-                    <div className="space-y-1">
-                      <p>{formatDate(row.startTime)} {formatTime(row.startTime)}</p>
-                      <p className="text-xs text-zinc-500 dark:text-zinc-400">
-                        {row.endTime ? `${formatDate(row.endTime)} ${formatTime(row.endTime)}` : 'Live trip'}
-                      </p>
-                    </div>
-                  ),
-                },
-                { key: 'distanceKm', label: 'Distance', align: 'right', render: row => `${row.distanceKm.toFixed(1)} km` },
-                { key: 'duration', label: 'Duration', align: 'right', render: row => row.durationLabel },
-                { key: 'idle', label: 'Idle', align: 'right', render: row => row.idleLabel },
-                {
-                  key: 'fuel',
-                  label: 'Fuel',
-                  render: row => {
-                    const summary = fuelByTripId.get(row.id)
-                    if (!summary) {
-                      return 'No fuel log'
-                    }
-
-                    return `${summary.liters.toFixed(1)}L / ${formatCurrency(summary.cost)}`
+            {trips.length === 0 ? (
+              <p className="text-sm text-zinc-500 dark:text-zinc-400">No trips match the current filters.</p>
+            ) : (
+              <DataTable<TripUI>
+                columns={[
+                  { key: 'vehicleName', label: 'Vehicle', render: row => <span className="font-medium text-zinc-900 dark:text-white">{row.vehicleName}</span> },
+                  { key: 'driverName', label: 'Driver', render: row => row.driverName ?? 'Unassigned' },
+                  {
+                    key: 'durationLabel',
+                    label: 'Timeline',
+                    render: row => (
+                      <div className="space-y-1">
+                        <p>{formatDate(row.startTime)} {formatTime(row.startTime)}</p>
+                        <p className="text-xs text-zinc-500 dark:text-zinc-400">
+                          {row.endTime ? `${formatDate(row.endTime)} ${formatTime(row.endTime)}` : 'Live trip'}
+                        </p>
+                      </div>
+                    ),
                   },
-                },
-                {
-                  key: 'flags',
-                  label: 'Flags',
-                  render: row => (
-                    <div className="space-x-2">
-                      <StatusBadge variant={mapTripStatus(row.status)} />
-                      {row.outstationFlag && <StatusBadge variant="warning" label="Outstation" />}
-                      {row.abnormalityScore >= 60 && <StatusBadge variant="flagged" label="Suspicious" />}
-                    </div>
-                  ),
-                },
-                {
-                  key: 'actions',
-                  label: 'Action',
-                  align: 'right',
-                  render: row => row.status === 'active' && (isDriver || canManageTransport) ? (
-                    <button
-                      onClick={event => {
-                        event.stopPropagation()
-                        setTripEndTripId(row.id)
-                      }}
-                      className="btn-soft px-3 py-2 text-[10px]"
-                    >
-                      End Trip
-                    </button>
-                  ) : (
-                    <span className="text-xs text-zinc-400">-</span>
-                  ),
-                },
-              ]}
-              data={trips}
-              getKey={row => row.id}
-            />
+                  { key: 'origin', label: 'Origin', render: row => tripOriginLabel(row) },
+                  { key: 'destination', label: 'Destination', render: row => tripDestinationLabel(row) },
+                  { key: 'distanceKm', label: 'Distance', align: 'right', render: row => `${row.distanceKm.toFixed(1)} km` },
+                  { key: 'duration', label: 'Duration', align: 'right', render: row => row.durationLabel },
+                  { key: 'idle', label: 'Idle', align: 'right', render: row => row.idleLabel },
+                  {
+                    key: 'fuel',
+                    label: 'Fuel',
+                    render: row => {
+                      const summary = fuelByTripId.get(row.id)
+                      if (!summary) {
+                        return 'No fuel log'
+                      }
+
+                      return `${summary.liters.toFixed(1)}L / ${formatCurrency(summary.cost)}`
+                    },
+                  },
+                  {
+                    key: 'flags',
+                    label: 'Flags',
+                    render: row => (
+                      <div className="space-x-2">
+                        <StatusBadge variant={mapTripStatus(row.status)} />
+                        {row.outstationFlag && <StatusBadge variant="warning" label="Outstation" />}
+                        {row.abnormalityScore >= 60 && <StatusBadge variant="flagged" label="Suspicious" />}
+                      </div>
+                    ),
+                  },
+                ]}
+                data={trips}
+                getKey={row => row.id}
+              />
+            )}
           </Surface>
 
           <Surface variant="table" padding="lg">
@@ -653,64 +1046,19 @@ export function TransportView() {
                 Receipt-backed fuel logs with fraud scoring, mileage validation, and captain review.
               </p>
             </div>
+
             {fuelFailed ? (
-              <div className="rounded-lg bg-red-500/10 p-4 text-sm text-red-500 dark:bg-red-500/20 dark:text-red-400">
-                Fuel data unavailable. The service is currently experiencing issues.
-              </div>
+              <InlineBanner tone="danger" message="Fuel data unavailable" />
+            ) : isFuelLoading ? (
+              <LoadingState message="Loading fuel ledger..." />
+            ) : fuelLogs.length === 0 ? (
+              <p className="text-sm text-zinc-500 dark:text-zinc-400">No fuel logs recorded yet.</p>
             ) : (
-              <DataTable<FuelLogUI>
-                columns={[
-                  { key: 'logDate', label: 'Entry Date', render: row => formatDate(row.logDate) },
-                  { key: 'vehicleName', label: 'Vehicle' },
-                  { key: 'loggedByName', label: 'Driver', render: row => row.loggedByName ?? row.loggedBy },
-                  { key: 'liters', label: 'Litres', render: row => `${row.liters.toFixed(1)}L` },
-                  { key: 'cost', label: 'Cost', render: row => formatCurrency(row.cost ?? 0) },
-                  { key: 'expectedMileage', label: 'Expected', render: row => `${row.expectedMileage.toFixed(1)} km/L` },
-                  { key: 'actualMileage', label: 'Actual', render: row => `${row.actualMileage.toFixed(1)} km/L` },
-                  {
-                    key: 'auditStatus',
-                    label: 'Status',
-                    render: row => (
-                      <div className="space-x-2">
-                        <StatusBadge variant={row.efficiencyRating === 'good' ? 'verified' : 'mismatch'} label={row.auditStatus} />
-                        {row.fraudStatus !== 'NORMAL' && <StatusBadge variant={row.fraudStatus === 'FRAUD' ? 'flagged' : 'warning'} label={row.fraudStatus} />}
-                      </div>
-                    ),
-                  },
-                  {
-                    key: 'actions',
-                    label: 'Action',
-                    align: 'right',
-                    render: row => canManageTransport ? (
-                      <div className="flex justify-end gap-2">
-                        <button
-                          onClick={event => {
-                            event.stopPropagation()
-                            reviewFuelMutation.mutate({ id: row.id, auditStatus: 'verified' })
-                          }}
-                          className="btn-soft px-3 py-2 text-[10px]"
-                          disabled={reviewFuelMutation.isPending}
-                        >
-                          Approve
-                        </button>
-                        <button
-                          onClick={event => {
-                            event.stopPropagation()
-                            reviewFuelMutation.mutate({ id: row.id, auditStatus: 'mismatch' })
-                          }}
-                          className="btn-soft px-3 py-2 text-[10px]"
-                          disabled={reviewFuelMutation.isPending}
-                        >
-                          Flag
-                        </button>
-                      </div>
-                    ) : (
-                      <span className="text-xs text-zinc-400">-</span>
-                    ),
-                  },
-                ]}
-                data={fuelLogs}
-                getKey={row => row.id}
+              <FuelLedger
+                fuelLogs={fuelLogs}
+                canManageTransport={canManageTransport}
+                reviewFuelMutation={reviewFuelMutation}
+                onPreview={setFuelPreview}
               />
             )}
           </Surface>
@@ -723,57 +1071,15 @@ export function TransportView() {
                   Fuel fraud, suspicious trips, and outstation triggers emitted by the backend.
                 </p>
               </div>
-              {alerts.length === 0 ? (
+
+              {alertsFailed ? (
+                <InlineBanner tone="warning" message="Transport alerts are temporarily unavailable." />
+              ) : isAlertsLoading ? (
+                <LoadingState message="Loading transport alerts..." />
+              ) : alerts.length === 0 ? (
                 <p className="text-sm text-zinc-500 dark:text-zinc-400">No active transport alerts for this project.</p>
               ) : (
-                <div className="overflow-hidden rounded-[24px] border border-zinc-200 dark:border-zinc-800">
-                  <div className="hidden grid-cols-[1.1fr,2.2fr,0.9fr,1fr,1.1fr] gap-4 bg-zinc-50 px-5 py-4 text-[10px] font-semibold uppercase tracking-[0.18em] text-zinc-500 dark:bg-zinc-950 dark:text-zinc-400 lg:grid">
-                    <span>Alert Type</span>
-                    <span>Details</span>
-                    <span>Severity</span>
-                    <span>Triggered At</span>
-                    <span>Related Record</span>
-                  </div>
-
-                  <div className="divide-y divide-zinc-200 dark:divide-zinc-800">
-                    {alerts.map(alert => (
-                      <div key={alert.id} className={alertRowTone(alert.severity)}>
-                        <div className="grid gap-4 lg:grid-cols-[1.1fr,2.2fr,0.9fr,1fr,1.1fr] lg:items-start">
-                          <div>
-                            <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-zinc-500 dark:text-zinc-400 lg:hidden">Alert Type</p>
-                            <p className="mt-1 text-sm font-semibold text-zinc-900 dark:text-white">{prettifyAlertType(alert.alertType)}</p>
-                          </div>
-
-                          <div>
-                            <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-zinc-500 dark:text-zinc-400 lg:hidden">Details</p>
-                            <p className="mt-1 text-sm font-semibold text-zinc-900 dark:text-white">{alert.title}</p>
-                            <p className="mt-2 text-sm leading-6 text-zinc-600 dark:text-zinc-300">{alert.message}</p>
-                          </div>
-
-                          <div>
-                            <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-zinc-500 dark:text-zinc-400 lg:hidden">Severity</p>
-                            <div className="mt-1">
-                              <span className={alertSeverityBadgeTone(alert.severity)}>
-                                {alert.severity === 'warning' ? 'Medium' : alert.severity}
-                              </span>
-                            </div>
-                          </div>
-
-                          <div>
-                            <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-zinc-500 dark:text-zinc-400 lg:hidden">Triggered At</p>
-                            <p className="mt-1 text-sm text-zinc-900 dark:text-white">{formatDate(alert.triggeredAt)}</p>
-                            <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">{formatTime(alert.triggeredAt)}</p>
-                          </div>
-
-                          <div>
-                            <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-zinc-500 dark:text-zinc-400 lg:hidden">Related Record</p>
-                            <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-300">{resolveAlertReference(alert, vehicles, trips)}</p>
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
+                <AlertRows alerts={alerts} vehicles={vehicles} trips={trips} />
               )}
             </Surface>
           )}
@@ -786,12 +1092,14 @@ export function TransportView() {
             <TextField label="Vehicle Name" value={vehicleForm.name} onChange={value => setVehicleForm(current => ({ ...current, name: value }))} placeholder="Unit Van 01" />
             <TextField label="Category" value={vehicleForm.vehicleType} onChange={value => setVehicleForm(current => ({ ...current, vehicleType: value }))} placeholder="Pax Car / Vanity Van / Gen Truck" />
             <TextField label="Vehicle Number" value={vehicleForm.registrationNumber} onChange={value => setVehicleForm(current => ({ ...current, registrationNumber: value }))} placeholder="TN 09 AB 1234" />
-            <TextField label="Capacity" value={vehicleForm.capacity} onChange={value => setVehicleForm(current => ({ ...current, capacity: value }))} placeholder="4" />
+            <TextField label="Capacity" type="number" value={vehicleForm.capacity} onChange={value => setVehicleForm(current => ({ ...current, capacity: value }))} placeholder="4" />
             <SelectField
               label="Assign Driver"
               value={vehicleForm.assignedDriverUserId}
               onChange={value => setVehicleForm(current => ({ ...current, assignedDriverUserId: value }))}
-              options={drivers.map(driver => ({ value: driver.userId, label: driver.fullName }))}
+              options={driverOptions}
+              placeholder={isDriversLoading ? 'Loading drivers...' : 'Choose a driver'}
+              disabled={isDriversLoading || driverOptions.length === 0}
             />
             <SelectField
               label="Status"
@@ -814,84 +1122,200 @@ export function TransportView() {
       {selectedVehicle && (
         <ModalShell title={`Vehicle Details - ${selectedVehicle.name}`} onClose={() => setVehicleDetailId(null)}>
           <div className="grid gap-4 md:grid-cols-2">
-            <TextField label="Vehicle Name" value={vehicleForm.name} onChange={value => setVehicleForm(current => ({ ...current, name: value }))} />
-            <TextField label="Category" value={vehicleForm.vehicleType} onChange={value => setVehicleForm(current => ({ ...current, vehicleType: value }))} />
-            <TextField label="Vehicle Number" value={vehicleForm.registrationNumber} onChange={value => setVehicleForm(current => ({ ...current, registrationNumber: value }))} />
-            <TextField label="Capacity" value={vehicleForm.capacity} onChange={value => setVehicleForm(current => ({ ...current, capacity: value }))} />
-            <SelectField
-              label="Assign Driver"
-              value={vehicleForm.assignedDriverUserId}
-              onChange={value => setVehicleForm(current => ({ ...current, assignedDriverUserId: value }))}
-              options={drivers.map(driver => ({ value: driver.userId, label: driver.fullName }))}
+            <TextField
+              label="Vehicle Name"
+              value={vehicleForm.name}
+              onChange={value => setVehicleForm(current => ({ ...current, name: value }))}
+              disabled={!canManageTransport}
             />
-            <SelectField
+            <TextField
+              label="Category"
+              value={vehicleForm.vehicleType}
+              onChange={value => setVehicleForm(current => ({ ...current, vehicleType: value }))}
+              disabled={!canManageTransport}
+            />
+            <TextField
+              label="Vehicle Number"
+              value={vehicleForm.registrationNumber}
+              onChange={value => setVehicleForm(current => ({ ...current, registrationNumber: value }))}
+              disabled={!canManageTransport}
+            />
+            <TextField
+              label="Capacity"
+              type="number"
+              value={vehicleForm.capacity}
+              onChange={value => setVehicleForm(current => ({ ...current, capacity: value }))}
+              disabled={!canManageTransport}
+            />
+            <TextField
+              label="Assigned Driver"
+              value={selectedVehicle.assignedDriverName ?? 'Unassigned'}
+              onChange={() => {}}
+              disabled
+            />
+            <TextField
               label="Status"
-              value={vehicleForm.status}
-              onChange={value => setVehicleForm(current => ({ ...current, status: value as VehicleStatus }))}
-              options={[
-                { value: 'idle', label: 'Idle' },
-                { value: 'active', label: 'Active' },
-                { value: 'maintenance', label: 'Maintenance' },
-                { value: 'exception', label: 'Exception' },
-              ]}
+              value={vehicleStatusLabel(deriveVehicleOperationalStatus(selectedVehicle, activeTrips))}
+              onChange={() => {}}
+              disabled
             />
-            <TextField label="Base Location" value={vehicleForm.baseLocation} onChange={value => setVehicleForm(current => ({ ...current, baseLocation: value }))} />
-            <TextField label="Notes" value={vehicleForm.notes} onChange={value => setVehicleForm(current => ({ ...current, notes: value }))} />
+            <TextField
+              label="Base Location"
+              value={vehicleForm.baseLocation}
+              onChange={value => setVehicleForm(current => ({ ...current, baseLocation: value }))}
+              disabled={!canManageTransport}
+            />
+            <TextField
+              label="Notes"
+              value={vehicleForm.notes}
+              onChange={value => setVehicleForm(current => ({ ...current, notes: value }))}
+              disabled={!canManageTransport}
+            />
           </div>
 
-          <div className="mt-6 grid grid-cols-2 gap-4 rounded-[24px] border border-zinc-200 bg-zinc-50 px-4 py-4 text-sm dark:border-zinc-800 dark:bg-zinc-950">
+          <div className="mt-6 grid gap-4 rounded-[24px] border border-zinc-200 bg-zinc-50 px-4 py-4 text-sm md:grid-cols-2 dark:border-zinc-800 dark:bg-zinc-950">
             <Metric label="Operational Status" value={vehicleStatusLabel(deriveVehicleOperationalStatus(selectedVehicle, activeTrips))} />
             <Metric label="Current Driver" value={selectedVehicle.assignedDriverName ?? 'Unassigned'} />
-            <Metric label="Active Trip" value={activeTrips.find(trip => trip.vehicleId === selectedVehicle.id)?.driverName ?? 'None'} />
+            <Metric label="Active Trip" value={activeTripByVehicleId.get(selectedVehicle.id)?.driverName ?? 'None'} />
             <Metric label="Base" value={selectedVehicle.baseLocation ?? 'Not set'} />
           </div>
 
-          <ModalActions onClose={() => setVehicleDetailId(null)} onSubmit={submitVehicleUpdate} submitLabel={updateVehicleMutation.isPending ? 'Saving...' : 'Save Changes'} />
+          <ModalActions
+            onClose={() => setVehicleDetailId(null)}
+            onSubmit={canManageTransport ? submitVehicleUpdate : () => setVehicleDetailId(null)}
+            submitLabel={canManageTransport ? (updateVehicleMutation.isPending ? 'Saving...' : 'Save Changes') : 'Close'}
+          />
+        </ModalShell>
+      )}
+
+      {selectedVehicleForAssignment && (
+        <ModalShell title={`Assign Driver - ${selectedVehicleForAssignment.name}`} onClose={() => setVehicleAssignId(null)}>
+          <div className="space-y-4">
+            <p className="text-sm text-zinc-500 dark:text-zinc-400">
+              Only users with the Driver role are available here.
+            </p>
+            {isDriversLoading ? (
+              <p className="text-sm text-zinc-500 dark:text-zinc-400">Loading available drivers...</p>
+            ) : driverOptions.length === 0 ? (
+              <p className="text-sm text-zinc-500 dark:text-zinc-400">No active drivers are available for assignment right now.</p>
+            ) : null}
+            <SelectField
+              label="Driver"
+              value={assignDriverUserId}
+              onChange={setAssignDriverUserId}
+              placeholder="Choose a driver"
+              options={driverOptions}
+              disabled={isDriversLoading || driverOptions.length === 0}
+            />
+          </div>
+          <ModalActions onClose={() => setVehicleAssignId(null)} onSubmit={submitDriverAssignment} submitLabel={assignDriverMutation.isPending ? 'Saving...' : 'Save Assignment'} />
         </ModalShell>
       )}
 
       {tripStartModalOpen && (
-        <ModalShell title="Start Trip" onClose={() => setTripStartModalOpen(false)}>
+        <ModalShell title="Start Trip" onClose={closeTripStartModal}>
           <div className="grid gap-4 md:grid-cols-2">
             <SelectField
               label="Vehicle"
               value={tripStartForm.vehicleId}
               onChange={value => setTripStartForm(current => ({ ...current, vehicleId: value }))}
-              options={vehicles.map(vehicle => ({ value: vehicle.id, label: `${vehicle.name} (${vehicle.vehicleType})` }))}
+              options={visibleVehicles.map(vehicle => ({ value: vehicle.id, label: `${vehicle.name} (${vehicle.registrationNumber ?? vehicle.vehicleType})` }))}
             />
-            {canManageTransport && (
+            {canManageTransport ? (
               <SelectField
                 label="Driver"
                 value={tripStartForm.driverId}
                 onChange={value => setTripStartForm(current => ({ ...current, driverId: value }))}
-                options={drivers.map(driver => ({ value: driver.userId, label: driver.fullName }))}
+                options={driverOptions}
+                placeholder={isDriversLoading ? 'Loading drivers...' : 'Select'}
+                disabled={isDriversLoading || driverOptions.length === 0}
+              />
+            ) : (
+              <TextField
+                label="Driver"
+                value={user?.name ?? 'Assigned Driver'}
+                onChange={() => {}}
+                disabled
               />
             )}
-            <TextField label="Origin" value={tripStartForm.origin} onChange={value => setTripStartForm(current => ({ ...current, origin: value }))} placeholder="Production base" />
-            <TextField label="Destination" value={tripStartForm.destination} onChange={value => setTripStartForm(current => ({ ...current, destination: value }))} placeholder="Location / airport / studio" />
-            <TextField label="Start Latitude" value={tripStartForm.latitude} onChange={value => setTripStartForm(current => ({ ...current, latitude: value }))} />
-            <TextField label="Start Longitude" value={tripStartForm.longitude} onChange={value => setTripStartForm(current => ({ ...current, longitude: value }))} />
-            <TextField label="Address" value={tripStartForm.address} onChange={value => setTripStartForm(current => ({ ...current, address: value }))} placeholder="Set parking bay" />
-            <TextField label="Start Odometer (km)" value={tripStartForm.odometerKm} onChange={value => setTripStartForm(current => ({ ...current, odometerKm: value }))} placeholder="12450" />
+            <TextField
+              label="Start Odometer (km)"
+              type="number"
+              value={tripStartForm.odometerKm}
+              onChange={value => setTripStartForm(current => ({ ...current, odometerKm: value }))}
+              placeholder="12450"
+            />
+            <SelectField
+              label="Purpose"
+              value={tripStartForm.purpose}
+              onChange={value => setTripStartForm(current => ({ ...current, purpose: value }))}
+              options={purposeOptions.map(option => ({ value: option, label: option }))}
+            />
             <div className="md:col-span-2">
-              <TextField label="Purpose" value={tripStartForm.purpose} onChange={value => setTripStartForm(current => ({ ...current, purpose: value }))} placeholder="Crew pickup / location run" />
+              <LocationField
+                label="Origin"
+                value={tripStartForm.origin}
+                state={startLocationState}
+                onRefresh={() => void fetchStartLocation(true)}
+                onManualChange={value => setTripStartForm(current => ({ ...current, origin: value, address: value }))}
+                manualPlaceholder="Enter origin address manually"
+              />
+            </div>
+            <div className="md:col-span-2">
+              <AutocompleteField
+                label="Destination"
+                value={tripStartForm.destination}
+                onChange={value => {
+                  setTripStartDestinationPoint(null)
+                  setTripStartForm(current => ({ ...current, destination: value }))
+                }}
+                onSelect={suggestion => {
+                  setTripStartDestinationPoint(suggestion.location)
+                  setTripStartForm(current => ({
+                    ...current,
+                    destination: suggestion.address,
+                  }))
+                  setDestinationSuggestions([])
+                }}
+                suggestions={destinationSuggestions}
+                isLoading={destinationSearchLoading}
+                error={destinationSearchError}
+                placeholder="Search destination"
+              />
             </div>
           </div>
-          <ModalActions onClose={() => setTripStartModalOpen(false)} onSubmit={submitTripStart} submitLabel={startTripMutation.isPending ? 'Starting...' : 'Start Trip'} />
+          <ModalActions onClose={closeTripStartModal} onSubmit={submitTripStart} submitLabel={startTripMutation.isPending ? 'Starting...' : 'Start Trip'} />
         </ModalShell>
       )}
 
       {selectedTripForEnd && (
-        <ModalShell title={`End Trip - ${selectedTripForEnd.vehicleName}`} onClose={() => setTripEndTripId(null)}>
+        <ModalShell title={`End Trip - ${selectedTripForEnd.vehicleName}`} onClose={closeTripEndModal}>
           <div className="grid gap-4 md:grid-cols-2">
-            <TextField label="Destination" value={tripEndForm.destination} onChange={value => setTripEndForm(current => ({ ...current, destination: value }))} placeholder="Wrap location" />
-            <div />
-            <TextField label="End Latitude" value={tripEndForm.latitude} onChange={value => setTripEndForm(current => ({ ...current, latitude: value }))} />
-            <TextField label="End Longitude" value={tripEndForm.longitude} onChange={value => setTripEndForm(current => ({ ...current, longitude: value }))} />
-            <TextField label="Address" value={tripEndForm.address} onChange={value => setTripEndForm(current => ({ ...current, address: value }))} placeholder="Wrap location" />
-            <TextField label="End Odometer (km)" value={tripEndForm.odometerKm} onChange={value => setTripEndForm(current => ({ ...current, odometerKm: value }))} placeholder="12528" />
+            <div className="md:col-span-2">
+              <LocationField
+                label="Destination"
+                value={tripEndForm.destination}
+                state={endLocationState}
+                onRefresh={() => void fetchEndLocation(true)}
+                onManualChange={value => setTripEndForm(current => ({ ...current, destination: value, address: value }))}
+                manualPlaceholder="Enter destination manually"
+              />
+            </div>
+            <TextField
+              label="End Odometer (km)"
+              type="number"
+              value={tripEndForm.odometerKm}
+              onChange={value => setTripEndForm(current => ({ ...current, odometerKm: value }))}
+              placeholder="12528"
+            />
+            <TextField
+              label="Remarks (Optional)"
+              value={tripEndForm.remarks}
+              onChange={value => setTripEndForm(current => ({ ...current, remarks: value }))}
+              placeholder="Wrap complete, returning to base"
+            />
           </div>
-          <ModalActions onClose={() => setTripEndTripId(null)} onSubmit={submitTripEnd} submitLabel={endTripMutation.isPending ? 'Ending...' : 'End Trip'} />
+          <ModalActions onClose={closeTripEndModal} onSubmit={submitTripEnd} submitLabel={endTripMutation.isPending ? 'Ending...' : 'End Trip'} />
         </ModalShell>
       )}
 
@@ -902,7 +1326,7 @@ export function TransportView() {
               label="Vehicle"
               value={fuelForm.vehicleId}
               onChange={value => setFuelForm(current => ({ ...current, vehicleId: value }))}
-              options={vehicles.map(vehicle => ({ value: vehicle.id, label: vehicle.name }))}
+              options={visibleVehicles.map(vehicle => ({ value: vehicle.id, label: vehicle.name }))}
             />
             <SelectField
               label="Related Trip"
@@ -910,9 +1334,9 @@ export function TransportView() {
               onChange={value => setFuelForm(current => ({ ...current, tripId: value }))}
               options={[{ value: '', label: 'No linked trip' }, ...activeTrips.map(trip => ({ value: trip.id, label: `${trip.vehicleName} - ${trip.driverName ?? 'Driver'}` }))]}
             />
-            <TextField label="Litres" value={fuelForm.liters} onChange={value => setFuelForm(current => ({ ...current, liters: value }))} placeholder="18.5" />
-            <TextField label="Cost" value={fuelForm.cost} onChange={value => setFuelForm(current => ({ ...current, cost: value }))} placeholder="2200" />
-            <TextField label="Odometer (km)" value={fuelForm.odometerKm} onChange={value => setFuelForm(current => ({ ...current, odometerKm: value }))} placeholder="12528" />
+            <TextField label="Litres" type="number" value={fuelForm.liters} onChange={value => setFuelForm(current => ({ ...current, liters: value }))} placeholder="18.5" />
+            <TextField label="Cost" type="number" value={fuelForm.cost} onChange={value => setFuelForm(current => ({ ...current, cost: value }))} placeholder="2200" />
+            <TextField label="Odometer (km)" type="number" value={fuelForm.odometerKm} onChange={value => setFuelForm(current => ({ ...current, odometerKm: value }))} placeholder="12528" />
             <TextField label="Notes" value={fuelForm.notes} onChange={value => setFuelForm(current => ({ ...current, notes: value }))} placeholder="Shell station near ECR" />
             <FileField label="Receipt Image" onChange={file => setFuelForm(current => ({ ...current, receiptImage: file }))} />
             <FileField label="Odometer Image" onChange={file => setFuelForm(current => ({ ...current, odometerImage: file }))} />
@@ -920,6 +1344,198 @@ export function TransportView() {
           <ModalActions onClose={() => setFuelModalOpen(false)} onSubmit={submitFuelLog} submitLabel={logFuelMutation.isPending ? 'Uploading...' : 'Submit Fuel Log'} />
         </ModalShell>
       )}
+
+      {fuelPreview && (
+        <ModalShell title={fuelPreview.title} onClose={() => setFuelPreview(null)} size="xl">
+          <div className="mb-4">
+            <p className="section-kicker">Receipt Preview</p>
+          </div>
+          <div className="overflow-hidden rounded-[24px] border border-zinc-200 bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-950">
+            <img src={fuelPreview.src} alt={fuelPreview.title} className="max-h-[70vh] w-full object-contain" />
+          </div>
+        </ModalShell>
+      )}
+    </div>
+  )
+}
+
+function FuelLedger({
+  fuelLogs,
+  canManageTransport,
+  reviewFuelMutation,
+  onPreview,
+}: {
+  fuelLogs: FuelLogUI[]
+  canManageTransport: boolean
+  reviewFuelMutation: {
+    mutate: (payload: { id: string; auditStatus: 'verified' | 'mismatch' }) => void
+    isPending: boolean
+  }
+  onPreview: (preview: { title: string; src: string }) => void
+}) {
+  return (
+    <div className="overflow-hidden rounded-[24px] border border-zinc-200 dark:border-zinc-800">
+      <div className="hidden grid-cols-[0.9fr,1fr,1fr,0.7fr,0.8fr,0.8fr,0.8fr,0.9fr,0.9fr,0.9fr,1fr] gap-4 bg-zinc-50 px-5 py-4 text-[10px] font-semibold uppercase tracking-[0.18em] text-zinc-500 dark:bg-zinc-950 dark:text-zinc-400 xl:grid">
+        <span>Date</span>
+        <span>Vehicle</span>
+        <span>Driver</span>
+        <span className="text-right">Litres</span>
+        <span className="text-right">Cost</span>
+        <span className="text-right">Expected km/L</span>
+        <span className="text-right">Actual km/L</span>
+        <span>Status</span>
+        <span>Receipt Image</span>
+        <span>Odometer Image</span>
+        <span className="text-right">Action</span>
+      </div>
+
+      <div className="divide-y divide-zinc-200 dark:divide-zinc-800">
+        {fuelLogs.map(row => {
+          const receiptUrl = resolveUploadUrl(row.receiptFilePath)
+          const odometerUrl = resolveUploadUrl(row.odometerImagePath)
+
+          return (
+            <div key={row.id} className="px-5 py-4">
+              <div className="grid gap-4 xl:grid-cols-[0.9fr,1fr,1fr,0.7fr,0.8fr,0.8fr,0.8fr,0.9fr,0.9fr,0.9fr,1fr] xl:items-start">
+                <LedgerCell label="Date">
+                  <p className="font-medium text-zinc-900 dark:text-white">{formatDate(row.logDate)}</p>
+                </LedgerCell>
+                <LedgerCell label="Vehicle">
+                  <p className="font-medium text-zinc-900 dark:text-white">{row.vehicleName}</p>
+                </LedgerCell>
+                <LedgerCell label="Driver">
+                  <p>{row.loggedByName ?? row.loggedBy}</p>
+                </LedgerCell>
+                <LedgerCell label="Litres" align="right">
+                  <p>{row.liters.toFixed(1)}L</p>
+                </LedgerCell>
+                <LedgerCell label="Cost" align="right">
+                  <p>{formatCurrency(row.cost ?? 0)}</p>
+                </LedgerCell>
+                <LedgerCell label="Expected km/L" align="right">
+                  <p>{row.expectedMileage.toFixed(1)}</p>
+                </LedgerCell>
+                <LedgerCell label="Actual km/L" align="right">
+                  <p>{row.actualMileage.toFixed(1)}</p>
+                </LedgerCell>
+                <LedgerCell label="Status">
+                  <div className="flex flex-wrap gap-2">
+                    <StatusBadge variant={row.efficiencyRating === 'good' ? 'verified' : 'mismatch'} label={row.auditStatus} />
+                    {row.fraudStatus !== 'NORMAL' && (
+                      <StatusBadge variant={row.fraudStatus === 'FRAUD' ? 'flagged' : 'warning'} label={row.fraudStatus} />
+                    )}
+                    {row.metadata?.ocrStatus === 'processing' && (
+                      <StatusBadge variant="pending" label="OCR Pending" />
+                    )}
+                  </div>
+                </LedgerCell>
+                <LedgerCell label="Receipt Image">
+                  {receiptUrl ? (
+                    <button onClick={() => onPreview({ title: `${row.vehicleName} Receipt`, src: receiptUrl })} className="btn-soft px-3 py-2 text-[10px]">
+                      Preview
+                    </button>
+                  ) : (
+                    <span className="text-xs text-zinc-400">Unavailable</span>
+                  )}
+                </LedgerCell>
+                <LedgerCell label="Odometer Image">
+                  {odometerUrl ? (
+                    <button onClick={() => onPreview({ title: `${row.vehicleName} Odometer`, src: odometerUrl })} className="btn-soft px-3 py-2 text-[10px]">
+                      Preview
+                    </button>
+                  ) : (
+                    <span className="text-xs text-zinc-400">Unavailable</span>
+                  )}
+                </LedgerCell>
+                <LedgerCell label="Action" align="right">
+                  {canManageTransport ? (
+                    <div className="flex flex-wrap justify-end gap-2">
+                      <button
+                        onClick={() => reviewFuelMutation.mutate({ id: row.id, auditStatus: 'verified' })}
+                        className="btn-soft px-3 py-2 text-[10px]"
+                        disabled={reviewFuelMutation.isPending}
+                      >
+                        Approve
+                      </button>
+                      <button
+                        onClick={() => reviewFuelMutation.mutate({ id: row.id, auditStatus: 'mismatch' })}
+                        className="btn-soft px-3 py-2 text-[10px]"
+                        disabled={reviewFuelMutation.isPending}
+                      >
+                        Flag
+                      </button>
+                      {row.reviewedAt && (
+                        <span className="w-full text-right text-xs text-zinc-500 dark:text-zinc-400">
+                          Reviewed {formatDate(row.reviewedAt)} {formatTime(row.reviewedAt)}
+                        </span>
+                      )}
+                    </div>
+                  ) : (
+                    <span className="text-xs text-zinc-400">{row.reviewedAt ? 'Reviewed' : '-'}</span>
+                  )}
+                </LedgerCell>
+              </div>
+            </div>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
+function AlertRows({
+  alerts,
+  vehicles,
+  trips,
+}: {
+  alerts: Array<{
+    id: string
+    alertType: string
+    message: string
+    severity: 'critical' | 'warning' | 'info'
+    vehicleId?: string | null
+    tripId?: string | null
+    triggeredAt: string
+  }>
+  vehicles: Vehicle[]
+  trips: TripUI[]
+}) {
+  return (
+    <div className="overflow-hidden rounded-[24px] border border-zinc-200 dark:border-zinc-800">
+      <div className="hidden grid-cols-[1.05fr,2.2fr,0.9fr,1fr,1.1fr] gap-4 bg-zinc-50 px-5 py-4 text-[10px] font-semibold uppercase tracking-[0.18em] text-zinc-500 dark:bg-zinc-950 dark:text-zinc-400 lg:grid">
+        <span>Type</span>
+        <span>Message</span>
+        <span>Severity</span>
+        <span>Vehicle</span>
+        <span>Time</span>
+      </div>
+
+      <div className="divide-y divide-zinc-200 dark:divide-zinc-800">
+        {alerts.map(alert => (
+          <div key={alert.id} className="px-5 py-4">
+            <div className="grid gap-4 lg:grid-cols-[1.05fr,2.2fr,0.9fr,1fr,1.1fr]">
+              <LedgerCell label="Type">
+                <p className="font-medium text-zinc-900 dark:text-white">{prettifyAlertType(alert.alertType)}</p>
+              </LedgerCell>
+              <LedgerCell label="Message">
+                <p className="text-zinc-700 dark:text-zinc-200">{alert.message}</p>
+              </LedgerCell>
+              <LedgerCell label="Severity">
+                <span className={alertSeverityBadgeTone(alert.severity)}>
+                  {alert.severity}
+                </span>
+              </LedgerCell>
+              <LedgerCell label="Vehicle">
+                <p>{resolveAlertVehicle(alert, vehicles, trips)}</p>
+              </LedgerCell>
+              <LedgerCell label="Time">
+                <p className="font-medium text-zinc-900 dark:text-white">{formatDate(alert.triggeredAt)}</p>
+                <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">{formatTime(alert.triggeredAt)}</p>
+              </LedgerCell>
+            </div>
+          </div>
+        ))}
+      </div>
     </div>
   )
 }
@@ -952,22 +1568,6 @@ function vehicleStatusLabel(status: VehicleStatus | 'in_transit') {
   return 'Active'
 }
 
-function mapVehicleStatus(status: VehicleStatus | 'in_transit'): 'active' | 'pending' | 'warning' | 'flagged' {
-  if (status === 'in_transit' || status === 'active') {
-    return 'active'
-  }
-
-  if (status === 'idle') {
-    return 'pending'
-  }
-
-  if (status === 'maintenance') {
-    return 'warning'
-  }
-
-  return 'flagged'
-}
-
 function mapTripStatus(status: TripUI['status']): 'active' | 'completed' | 'flagged' | 'pending' {
   if (status === 'planned') {
     return 'pending'
@@ -978,18 +1578,6 @@ function mapTripStatus(status: TripUI['status']): 'active' | 'completed' | 'flag
   }
 
   return status
-}
-
-function alertRowTone(severity: 'critical' | 'warning' | 'info') {
-  if (severity === 'critical') {
-    return 'border-l-4 border-l-red-500 bg-red-500/[0.05] px-5 py-4'
-  }
-
-  if (severity === 'warning') {
-    return 'border-l-4 border-l-amber-500 bg-amber-500/[0.06] px-5 py-4'
-  }
-
-  return 'border-l-4 border-l-sky-500 bg-zinc-50 px-5 py-4 dark:bg-zinc-950'
 }
 
 function alertSeverityBadgeTone(severity: 'critical' | 'warning' | 'info') {
@@ -1019,27 +1607,49 @@ function prettifyAlertType(alertType: string) {
       return 'Outstation Trip'
     default:
       return alertType.replace(/_/g, ' ')
-  }
+    }
 }
 
-function resolveAlertReference(
+function resolveAlertVehicle(
   alert: { vehicleId?: string | null; tripId?: string | null },
   vehicles: Vehicle[],
   trips: TripUI[],
 ) {
   const vehicle = vehicles.find(item => item.id === alert.vehicleId)
-  const trip = trips.find(item => item.id === alert.tripId)
+  if (vehicle) {
+    return vehicle.name
+  }
 
-  if (vehicle && trip) return `${vehicle.name} | ${trip.driverName ?? 'Driver'}`
-  if (vehicle) return vehicle.name
-  if (trip) return `${trip.vehicleName} | ${trip.driverName ?? 'Driver'}`
+  const trip = trips.find(item => item.id === alert.tripId)
+  if (trip) {
+    return trip.vehicleName
+  }
+
   return 'Linked record'
 }
 
-function ModalShell({ title, children, onClose }: { title: string; children: ReactNode; onClose: () => void }) {
+function resolveUploadUrl(path: string | null) {
+  if (!path) {
+    return null
+  }
+
+  return `${apiOrigin()}/uploads/${path.replace(/^\/+/, '')}`
+}
+
+function ModalShell({
+  title,
+  children,
+  onClose,
+  size = 'lg',
+}: {
+  title: string
+  children: ReactNode
+  onClose: () => void
+  size?: 'lg' | 'xl'
+}) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-zinc-950/35 px-4 py-8 backdrop-blur-sm">
-      <div className="clay-panel w-full max-w-4xl p-6 sm:p-7">
+      <div className={`clay-panel w-full ${size === 'xl' ? 'max-w-5xl' : 'max-w-4xl'} p-6 sm:p-7`}>
         <div className="flex items-center justify-between gap-4">
           <h2 className="text-2xl font-semibold tracking-[-0.04em] text-zinc-900 dark:text-white">{title}</h2>
           <button onClick={onClose} className="clay-icon-button">
@@ -1078,21 +1688,80 @@ function Metric({ label, value }: { label: string; value: string }) {
   )
 }
 
+function VehicleCardMetric({
+  label,
+  value,
+  strong = false,
+}: {
+  label: string
+  value: string
+  strong?: boolean
+}) {
+  return (
+    <div className="min-w-[150px]">
+      <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-zinc-500 dark:text-zinc-400">{label}</p>
+      <p className={`mt-2 ${strong ? 'text-base font-semibold text-zinc-900 dark:text-white' : 'text-sm text-zinc-700 dark:text-zinc-200'}`}>{value}</p>
+    </div>
+  )
+}
+
+function InlineBanner({
+  tone,
+  message,
+}: {
+  tone: 'warning' | 'danger'
+  message: string
+}) {
+  const className = tone === 'danger'
+    ? 'mb-4 rounded-lg bg-red-500/10 px-4 py-3 text-sm text-red-500 dark:bg-red-500/20 dark:text-red-400'
+    : 'mb-4 rounded-lg bg-amber-500/10 px-4 py-3 text-sm text-amber-700 dark:bg-amber-500/20 dark:text-amber-300'
+
+  return <div className={className}>{message}</div>
+}
+
+function LedgerCell({
+  label,
+  children,
+  align = 'left',
+}: {
+  label: string
+  children: ReactNode
+  align?: 'left' | 'right'
+}) {
+  return (
+    <div className={align === 'right' ? 'text-left xl:text-right' : ''}>
+      <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-zinc-500 dark:text-zinc-400 xl:hidden">{label}</p>
+      <div className="mt-1 text-sm text-zinc-600 dark:text-zinc-300">{children}</div>
+    </div>
+  )
+}
+
 function TextField({
   label,
   value,
   onChange,
   placeholder,
+  type = 'text',
+  disabled = false,
 }: {
   label: string
   value: string
   onChange: (value: string) => void
   placeholder?: string
+  type?: 'text' | 'number'
+  disabled?: boolean
 }) {
   return (
     <label className="auth-field">
       <span className="auth-field-label">{label}</span>
-      <input value={value} onChange={event => onChange(event.target.value)} className="project-modal-select" placeholder={placeholder} />
+      <input
+        type={type}
+        value={value}
+        onChange={event => onChange(event.target.value)}
+        className="project-modal-control"
+        placeholder={placeholder}
+        disabled={disabled}
+      />
     </label>
   )
 }
@@ -1109,7 +1778,7 @@ function DateField({
   return (
     <label className="auth-field">
       <span className="auth-field-label">{label}</span>
-      <input type="date" value={value} onChange={event => onChange(event.target.value)} className="project-modal-select" />
+      <input type="date" value={value} onChange={event => onChange(event.target.value)} className="project-modal-control" />
     </label>
   )
 }
@@ -1119,17 +1788,21 @@ function SelectField({
   value,
   onChange,
   options,
+  placeholder = 'Select',
+  disabled = false,
 }: {
   label: string
   value: string
   onChange: (value: string) => void
   options: Array<{ value: string; label: string }>
+  placeholder?: string
+  disabled?: boolean
 }) {
   return (
     <label className="auth-field">
       <span className="auth-field-label">{label}</span>
-      <select value={value} onChange={event => onChange(event.target.value)} className="project-modal-select">
-        <option value="">Select</option>
+      <select value={value} onChange={event => onChange(event.target.value)} className="project-modal-select" disabled={disabled}>
+        <option value="">{placeholder}</option>
         {options.map(option => (
           <option key={`${option.value}-${option.label}`} value={option.value}>{option.label}</option>
         ))}
@@ -1142,7 +1815,117 @@ function FileField({ label, onChange }: { label: string; onChange: (file: File |
   return (
     <label className="auth-field">
       <span className="auth-field-label">{label}</span>
-      <input type="file" accept="image/*" onChange={event => onChange(event.target.files?.[0] ?? null)} className="project-modal-select" />
+      <input type="file" accept="image/*" onChange={event => onChange(event.target.files?.[0] ?? null)} className="project-modal-control" />
+    </label>
+  )
+}
+
+function LocationField({
+  label,
+  value,
+  state,
+  onRefresh,
+  onManualChange,
+  manualPlaceholder,
+}: {
+  label: string
+  value: string
+  state: LocationFetchState
+  onRefresh: () => void
+  onManualChange?: (value: string) => void
+  manualPlaceholder?: string
+}) {
+  const showManualEntry = state.status === 'error' && Boolean(onManualChange)
+
+  return (
+    <div className="auth-field">
+      <div className="flex items-center justify-between gap-4">
+        <span className="auth-field-label">{label}</span>
+        <button onClick={onRefresh} type="button" className="btn-soft px-3 py-2 text-[10px]">
+          {state.status === 'error' ? 'Retry GPS' : 'Refresh GPS'}
+        </button>
+      </div>
+      <div className="rounded-[1.4rem] border border-zinc-200 bg-white px-4 py-4 dark:border-zinc-800 dark:bg-zinc-950">
+        <p className={`text-sm ${state.status === 'error' ? 'text-red-500 dark:text-red-400' : 'text-zinc-500 dark:text-zinc-400'}`}>
+          {state.status === 'error'
+            ? 'Unable to fetch location. Please enter manually.'
+            : state.status === 'fetching'
+              ? 'Fetching location...'
+              : state.message || 'GPS location will appear here.'}
+        </p>
+        {showManualEntry ? (
+          <>
+            {state.message && (
+              <p className="mt-2 text-xs text-zinc-500 dark:text-zinc-400">{state.message}</p>
+            )}
+            <input
+              value={value}
+              onChange={event => onManualChange?.(event.target.value)}
+              className="project-modal-control mt-3"
+              placeholder={manualPlaceholder ?? 'Enter location manually'}
+            />
+          </>
+        ) : (
+          <p className="mt-3 text-sm font-medium text-zinc-900 dark:text-white">
+            {value || 'Waiting for GPS fix'}
+          </p>
+        )}
+      </div>
+    </div>
+  )
+}
+
+function AutocompleteField({
+  label,
+  value,
+  onChange,
+  onSelect,
+  suggestions,
+  isLoading,
+  error,
+  placeholder,
+}: {
+  label: string
+  value: string
+  onChange: (value: string) => void
+  onSelect: (suggestion: LocationSuggestion) => void
+  suggestions: LocationSuggestion[]
+  isLoading: boolean
+  error: string | null
+  placeholder?: string
+}) {
+  return (
+    <label className="auth-field">
+      <span className="auth-field-label">{label}</span>
+      <div className="relative">
+        <input
+          value={value}
+          onChange={event => onChange(event.target.value)}
+          className="project-modal-control"
+          placeholder={placeholder}
+        />
+        {(isLoading || error || suggestions.length > 0) && (
+          <div className="absolute left-0 right-0 top-[calc(100%+0.5rem)] z-10 overflow-hidden rounded-[1.4rem] border border-zinc-200 bg-white shadow-lg dark:border-zinc-800 dark:bg-zinc-950">
+            {isLoading && (
+              <div className="px-4 py-3 text-sm text-zinc-500 dark:text-zinc-400">Searching destinations...</div>
+            )}
+            {!isLoading && error && (
+              <div className="px-4 py-3 text-sm text-red-500 dark:text-red-400">{error}</div>
+            )}
+            {!isLoading && !error && suggestions.map(suggestion => (
+              <button
+                key={suggestion.id}
+                type="button"
+                onClick={() => onSelect(suggestion)}
+                className="block w-full border-b border-zinc-200 px-4 py-3 text-left text-sm text-zinc-700 transition-colors last:border-b-0 hover:bg-zinc-50 dark:border-zinc-800 dark:text-zinc-200 dark:hover:bg-zinc-900"
+              >
+                <p className="font-medium text-zinc-900 dark:text-white">{suggestion.label}</p>
+                <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">{suggestion.address}</p>
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
     </label>
   )
 }

@@ -57,6 +57,10 @@ export function useTransportData(filters: TripFilters = {}) {
   const vehicles = vehiclesQ.data ?? []
   const alerts = alertsQ.data ?? []
   const drivers = driversQ.data ?? []
+  const isCoreLoading = isLoadingProjectContext || tripsQ.isLoading || vehiclesQ.isLoading
+  const isCoreError = isErrorProjectContext || tripsQ.isError || vehiclesQ.isError
+  const isAlertsLoading = canViewAlerts ? alertsQ.isLoading : false
+  const isDriversLoading = canManageTransport ? driversQ.isLoading : false
 
   useEffect(() => {
     if (!activeProjectId) {
@@ -111,9 +115,16 @@ export function useTransportData(filters: TripFilters = {}) {
 
   return {
     activeProjectId,
-    isLoading: isLoadingProjectContext || tripsQ.isLoading || fuelQ.isLoading || vehiclesQ.isLoading,
-    isError: isErrorProjectContext || tripsQ.isError || vehiclesQ.isError || alertsQ.isError || driversQ.isError,
+    isLoading: isCoreLoading,
+    isError: isCoreError,
+    isTripsLoading: tripsQ.isLoading,
+    isFuelLoading: fuelQ.isLoading,
+    isVehiclesLoading: vehiclesQ.isLoading,
+    isAlertsLoading,
+    isDriversLoading,
     fuelFailed: fuelQ.isError,
+    alertsFailed: alertsQ.isError,
+    driversFailed: driversQ.isError,
     kpis,
     trips: tripsUI,
     fuelLogs: fuelLogsUI,

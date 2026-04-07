@@ -3,10 +3,18 @@ import { z } from 'zod'
 const uuidSchema = z.string().uuid()
 
 export const locationSchema = z.object({
-  latitude: z.number().min(-90).max(90),
-  longitude: z.number().min(-180).max(180),
+  latitude: z.number().min(-90).max(90).optional(),
+  longitude: z.number().min(-180).max(180).optional(),
   address: z.string().trim().max(300).optional(),
 })
+  .refine(value => (value.latitude == null && value.longitude == null) || (value.latitude != null && value.longitude != null), {
+    message: 'Latitude and longitude must both be provided when using GPS coordinates.',
+    path: ['latitude'],
+  })
+  .refine(value => (value.latitude != null && value.longitude != null) || Boolean(value.address?.trim()), {
+    message: 'Either GPS coordinates or an address is required.',
+    path: ['address'],
+  })
 
 const paginationSchema = z.object({
   page: z.coerce.number().int().min(1).default(1),

@@ -6,8 +6,8 @@ export type AlertSeverity = 'critical' | 'warning' | 'info'
 export type AlertStatus = 'open' | 'acknowledged' | 'resolved'
 
 export interface LocationPoint {
-  latitude: number
-  longitude: number
+  latitude?: number
+  longitude?: number
   address?: string
 }
 

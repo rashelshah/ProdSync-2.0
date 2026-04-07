@@ -1,6 +1,7 @@
 import { Router, type Request } from 'express'
 import { adminClient } from '../../config/supabaseClient'
 import { authMiddleware } from '../../middleware/auth.middleware'
+import { resolveTransportApprovalDecision } from '../../services/transportApproval.service'
 import { projectAccessMiddleware } from '../../middleware/projectAccess.middleware'
 import { HttpError } from '../../utils/httpError'
 
@@ -318,6 +319,14 @@ requestsRouter.post('/:projectId/:requestId/approve', authMiddleware, projectAcc
       throw new HttpError(404, 'Approval request not found.')
     }
 
+    await resolveTransportApprovalDecision({
+      projectId,
+      reviewerId: reviewerId ?? null,
+      decision: 'approved',
+      reason: null,
+      metadata,
+    })
+
     console.log('[requests][approve] db result', { projectId, requestId })
     res.json({ ok: true })
   } catch (error) {
@@ -381,6 +390,14 @@ requestsRouter.post('/:projectId/:requestId/reject', authMiddleware, projectAcce
     if (!data) {
       throw new HttpError(404, 'Approval request not found.')
     }
+
+    await resolveTransportApprovalDecision({
+      projectId,
+      reviewerId: reviewerId ?? null,
+      decision: 'rejected',
+      reason: reason || 'Rejected from approvals center.',
+      metadata,
+    })
 
     console.log('[requests][reject] db result', { projectId, requestId })
     res.json({ ok: true })

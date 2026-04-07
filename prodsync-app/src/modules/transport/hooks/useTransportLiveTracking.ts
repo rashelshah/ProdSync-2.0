@@ -3,7 +3,8 @@ import { useQuery } from '@tanstack/react-query'
 import { useAuthStore } from '@/features/auth/auth.store'
 import { transportService } from '@/services/transport.service'
 import { getTransportSocket } from '../realtime'
-import type { LiveVehicleLocation, TripUI } from '../types'
+import { extractTripTrackingPlan } from '../tracking-policy'
+import type { LiveTrackingMeta, LiveVehicleLocation, TripUI } from '../types'
 
 interface UseTransportLiveTrackingArgs {
   activeProjectId: string | null | undefined
@@ -13,17 +14,14 @@ interface UseTransportLiveTrackingArgs {
 }
 
 type TrackingStreamState = {
-  status: 'idle' | 'streaming' | 'error'
+  status: 'idle' | 'scheduled' | 'uploading' | 'paused' | 'error'
   message: string
 }
 
 const DEFAULT_STREAM_STATE: TrackingStreamState = {
   status: 'idle',
-  message: 'Live tracking activates when an active trip is detected on this device.',
+  message: 'Hybrid tracking activates when an active trip is detected on this device.',
 }
-
-const GPS_PUSH_INTERVAL_MS = 10_000
-const GPS_MIN_DISTANCE_METERS = 20
 
 function toRadians(value: number) {
   return (value * Math.PI) / 180
@@ -41,6 +39,10 @@ function distanceMeters(a: { latitude: number; longitude: number }, b: { latitud
     Math.cos(latitudeA) * Math.cos(latitudeB) * Math.sin(longitudeDelta / 2) * Math.sin(longitudeDelta / 2)
 
   return earthRadiusMeters * 2 * Math.atan2(Math.sqrt(haversine), Math.sqrt(1 - haversine))
+}
+
+function hasCoordinates(location: { latitude?: number | null; longitude?: number | null } | null | undefined): location is { latitude: number; longitude: number } {
+  return location != null && typeof location.latitude === 'number' && typeof location.longitude === 'number'
 }
 
 function upsertLiveLocation(current: LiveVehicleLocation[], next: LiveVehicleLocation) {
@@ -62,26 +64,50 @@ export function useTransportLiveTracking({
 }: UseTransportLiveTrackingArgs) {
   const user = useAuthStore(state => state.user)
   const [liveLocations, setLiveLocations] = useState<LiveVehicleLocation[]>([])
-  const [mapImageUrl, setMapImageUrl] = useState<string | null>(null)
-  const [mapLoading, setMapLoading] = useState(false)
+  const [liveMeta, setLiveMeta] = useState<LiveTrackingMeta | null>(null)
   const [streamState, setStreamState] = useState<TrackingStreamState>(DEFAULT_STREAM_STATE)
-  const lastSentRef = useRef<{ latitude: number; longitude: number; capturedAt: number } | null>(null)
-  const objectUrlRef = useRef<string | null>(null)
+  const lastCheckpointRef = useRef<{
+    latitude: number
+    longitude: number
+    capturedAt: number
+    updateIntervalMs: number | null
+    expectedNextUpdateAt: number | null
+  } | null>(null)
+  const latestPositionRef = useRef<{
+    latitude: number
+    longitude: number
+    speedKph: number | null
+    heading: number | null
+    accuracyMeters: number | null
+    capturedAt: number
+  } | null>(null)
+  const uploadInFlightRef = useRef(false)
+  const previousFixRef = useRef<{ latitude: number; longitude: number } | null>(null)
 
   const activeTripForDriver = useMemo(
     () => activeTrips.find(trip => trip.driverUserId === user?.id) ?? null,
     [activeTrips, user?.id],
   )
+  const activeDriverLiveLocation = useMemo(
+    () => activeTripForDriver ? liveLocations.find(location => location.tripId === activeTripForDriver.id) ?? null : null,
+    [activeTripForDriver, liveLocations],
+  )
+  const trackingPlan = useMemo(
+    () => extractTripTrackingPlan(activeTripForDriver),
+    [activeTripForDriver],
+  )
 
   const liveLocationsQuery = useQuery({
     queryKey: ['tracking-live', activeProjectId],
-    queryFn: () => transportService.getLiveVehicleLocations(activeProjectId!),
+    queryFn: () => transportService.getLiveTrackingState(activeProjectId!),
     enabled: Boolean(activeProjectId && (canManageTransport || isDriver)),
+    refetchInterval: activeTrips.length > 0 ? 60_000 : false,
     staleTime: 15_000,
   })
 
   useEffect(() => {
-    setLiveLocations(liveLocationsQuery.data ?? [])
+    setLiveLocations(liveLocationsQuery.data?.data ?? [])
+    setLiveMeta(liveLocationsQuery.data?.meta ?? null)
   }, [liveLocationsQuery.data])
 
   useEffect(() => {
@@ -119,45 +145,141 @@ export function useTransportLiveTracking({
   }, [activeProjectId])
 
   useEffect(() => {
+    if (!activeDriverLiveLocation) {
+      lastCheckpointRef.current = null
+      return
+    }
+
+    lastCheckpointRef.current = {
+      latitude: activeDriverLiveLocation.latitude,
+      longitude: activeDriverLiveLocation.longitude,
+      capturedAt: new Date(activeDriverLiveLocation.capturedAt).getTime(),
+      updateIntervalMs: activeDriverLiveLocation.updateIntervalMs ?? null,
+      expectedNextUpdateAt: activeDriverLiveLocation.expectedNextUpdateAt
+        ? new Date(activeDriverLiveLocation.expectedNextUpdateAt).getTime()
+        : null,
+    }
+  }, [
+    activeDriverLiveLocation?.capturedAt,
+    activeDriverLiveLocation?.expectedNextUpdateAt,
+    activeDriverLiveLocation?.latitude,
+    activeDriverLiveLocation?.longitude,
+    activeDriverLiveLocation?.updateIntervalMs,
+  ])
+
+  useEffect(() => {
     if (!activeProjectId || !isDriver || !activeTripForDriver) {
       setStreamState(DEFAULT_STREAM_STATE)
-      lastSentRef.current = null
+      latestPositionRef.current = null
+      lastCheckpointRef.current = null
+      uploadInFlightRef.current = false
       return
     }
 
     if (typeof navigator === 'undefined' || !navigator.geolocation) {
       setStreamState({
         status: 'error',
-        message: 'This device does not support live GPS tracking.',
+        message: 'This device does not support trip checkpoint tracking.',
       })
       return
     }
 
     let cancelled = false
     let watchId: number | null = null
+    let intervalId: number | null = null
 
-    const pushLocation = (position: GeolocationPosition) => {
-      const latitude = position.coords.latitude
-      const longitude = position.coords.longitude
-      const capturedAt = Date.now()
-      const previous = lastSentRef.current
+    const resolveHeading = (position: GeolocationPosition) => {
+      if (position.coords.heading != null && Number.isFinite(position.coords.heading)) {
+        return Number(position.coords.heading.toFixed(2))
+      }
 
-      if (
-        previous &&
-        capturedAt - previous.capturedAt < GPS_PUSH_INTERVAL_MS &&
-        distanceMeters(previous, { latitude, longitude }) < GPS_MIN_DISTANCE_METERS
-      ) {
+      const previous = previousFixRef.current
+      if (!previous) {
+        return null
+      }
+
+      const latitudeA = toRadians(previous.latitude)
+      const latitudeB = toRadians(position.coords.latitude)
+      const longitudeDelta = toRadians(position.coords.longitude - previous.longitude)
+      const y = Math.sin(longitudeDelta) * Math.cos(latitudeB)
+      const x =
+        Math.cos(latitudeA) * Math.sin(latitudeB) -
+        Math.sin(latitudeA) * Math.cos(latitudeB) * Math.cos(longitudeDelta)
+
+      if (x === 0 && y === 0) {
+        return null
+      }
+
+      return Number(((((Math.atan2(y, x) * 180) / Math.PI) + 360) % 360).toFixed(2))
+    }
+
+    const maybeSendCheckpoint = () => {
+      if (cancelled || uploadInFlightRef.current) {
         return
       }
 
-      lastSentRef.current = { latitude, longitude, capturedAt }
+      const latestPosition = latestPositionRef.current
+      if (!latestPosition) {
+        setStreamState({
+          status: 'scheduled',
+          message: 'Waiting for the current device location before sending the next checkpoint.',
+        })
+        return
+      }
+
+      const checkpointState = lastCheckpointRef.current
+      const fallbackIntervalMs = trackingPlan?.hybridPolicy?.checkpointIntervalMs ?? null
+      const nextDueAt = checkpointState?.expectedNextUpdateAt
+        ?? (checkpointState && checkpointState.updateIntervalMs != null
+          ? checkpointState.capturedAt + checkpointState.updateIntervalMs
+          : fallbackIntervalMs != null
+            ? new Date(activeTripForDriver.startTime).getTime() + fallbackIntervalMs
+            : null)
+
+      const destinationLocation = trackingPlan?.destinationLocation ?? null
+      const nearDestinationRadiusKm = trackingPlan?.hybridPolicy?.nearDestinationRadiusKm ?? 6
+      if (
+        hasCoordinates(destinationLocation) &&
+        distanceMeters(latestPosition, destinationLocation) <= nearDestinationRadiusKm * 1000
+      ) {
+        setStreamState({
+          status: 'paused',
+          message: 'Near destination. Intermediate updates are paused and only the final stop will be recorded.',
+        })
+        return
+      }
+
+      if (nextDueAt == null) {
+        setStreamState({
+          status: 'scheduled',
+          message: 'Checkpoint tracking is active. The backend will decide when the next update is due.',
+        })
+        return
+      }
+
+      if (Date.now() < nextDueAt) {
+        setStreamState({
+          status: 'scheduled',
+          message: `Next checkpoint scheduled for ${new Date(nextDueAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}.`,
+        })
+        return
+      }
+
+      uploadInFlightRef.current = true
       setStreamState({
-        status: 'streaming',
-        message: 'Live GPS is streaming for your active trip.',
+        status: 'uploading',
+        message: 'Sending the next scheduled checkpoint for your trip.',
       })
 
       void getTransportSocket().then(socket => {
         if (!socket || cancelled) {
+          uploadInFlightRef.current = false
+          if (!cancelled) {
+            setStreamState({
+              status: 'error',
+              message: 'The tracking connection is unavailable right now.',
+            })
+          }
           return
         }
 
@@ -165,23 +287,61 @@ export function useTransportLiveTracking({
           projectId: activeProjectId,
           tripId: activeTripForDriver.id,
           vehicleId: activeTripForDriver.vehicleId,
-          latitude,
-          longitude,
-          speedKph: position.coords.speed != null ? Number((position.coords.speed * 3.6).toFixed(2)) : null,
-          heading: position.coords.heading != null ? Number(position.coords.heading.toFixed(2)) : null,
-          accuracyMeters: position.coords.accuracy != null ? Number(position.coords.accuracy.toFixed(2)) : null,
-          capturedAt: new Date(capturedAt).toISOString(),
-        }, (response: { ok: boolean; error?: string }) => {
-          if (response?.ok || cancelled) {
+          latitude: latestPosition.latitude,
+          longitude: latestPosition.longitude,
+          speedKph: latestPosition.speedKph,
+          heading: latestPosition.heading,
+          accuracyMeters: latestPosition.accuracyMeters,
+          capturedAt: new Date(latestPosition.capturedAt).toISOString(),
+        }, (response: { ok: boolean; error?: string; data?: LiveVehicleLocation }) => {
+          uploadInFlightRef.current = false
+          if (cancelled) {
+            return
+          }
+
+          if (response?.ok && response.data) {
+            setLiveLocations(current => upsertLiveLocation(current, response.data!))
+            lastCheckpointRef.current = {
+              latitude: response.data.latitude,
+              longitude: response.data.longitude,
+              capturedAt: new Date(response.data.capturedAt).getTime(),
+              updateIntervalMs: response.data.updateIntervalMs ?? null,
+              expectedNextUpdateAt: response.data.expectedNextUpdateAt
+                ? new Date(response.data.expectedNextUpdateAt).getTime()
+                : null,
+            }
+            setStreamState({
+              status: 'scheduled',
+              message: response.data.expectedNextUpdateAt
+                ? `Checkpoint sent. Next update after ${new Date(response.data.expectedNextUpdateAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}.`
+                : 'Checkpoint sent. The trip is now in final-stop mode near the destination.',
+            })
             return
           }
 
           setStreamState({
             status: 'error',
-            message: response.error ?? 'Live GPS could not be uploaded right now.',
+            message: response?.error ?? 'The scheduled checkpoint could not be uploaded right now.',
           })
         })
       })
+    }
+
+    const pushLocation = (position: GeolocationPosition) => {
+      const heading = resolveHeading(position)
+      previousFixRef.current = {
+        latitude: position.coords.latitude,
+        longitude: position.coords.longitude,
+      }
+      latestPositionRef.current = {
+        latitude: position.coords.latitude,
+        longitude: position.coords.longitude,
+        speedKph: position.coords.speed != null ? Number((position.coords.speed * 3.6).toFixed(2)) : null,
+        heading,
+        accuracyMeters: position.coords.accuracy != null ? Number(position.coords.accuracy.toFixed(2)) : null,
+        capturedAt: typeof position.timestamp === 'number' ? position.timestamp : Date.now(),
+      }
+      maybeSendCheckpoint()
     }
 
     const handleError = (error: GeolocationPositionError) => {
@@ -191,7 +351,7 @@ export function useTransportLiveTracking({
 
       setStreamState({
         status: 'error',
-        message: error.message || 'Location permission is required for live tracking.',
+        message: error.message || 'Location permission is required for trip checkpoint tracking.',
       })
     }
 
@@ -200,75 +360,24 @@ export function useTransportLiveTracking({
       maximumAge: 5_000,
       timeout: 20_000,
     })
+    intervalId = window.setInterval(maybeSendCheckpoint, 5_000)
 
     return () => {
       cancelled = true
+      uploadInFlightRef.current = false
       if (watchId != null) {
         navigator.geolocation.clearWatch(watchId)
       }
-    }
-  }, [activeProjectId, activeTripForDriver, isDriver])
-
-  useEffect(() => {
-    if (!activeProjectId || !canManageTransport) {
-      if (objectUrlRef.current) {
-        URL.revokeObjectURL(objectUrlRef.current)
-        objectUrlRef.current = null
-      }
-      setMapImageUrl(null)
-      setMapLoading(false)
-      return
-    }
-
-    let cancelled = false
-    setMapLoading(true)
-    const timeout = window.setTimeout(() => {
-      void transportService.getLiveTrackingMapBlob(activeProjectId, {
-        width: 1080,
-        height: 420,
-      })
-        .then(blob => {
-          if (cancelled) {
-            return
-          }
-
-          const nextUrl = URL.createObjectURL(blob)
-          if (objectUrlRef.current) {
-            URL.revokeObjectURL(objectUrlRef.current)
-          }
-
-          objectUrlRef.current = nextUrl
-          setMapImageUrl(nextUrl)
-          setMapLoading(false)
-        })
-        .catch(() => {
-          if (cancelled) {
-            return
-          }
-
-          setMapImageUrl(null)
-          setMapLoading(false)
-        })
-    }, 650)
-
-    return () => {
-      cancelled = true
-      window.clearTimeout(timeout)
-    }
-  }, [activeProjectId, canManageTransport, liveLocations])
-
-  useEffect(() => {
-    return () => {
-      if (objectUrlRef.current) {
-        URL.revokeObjectURL(objectUrlRef.current)
+      if (intervalId != null) {
+        window.clearInterval(intervalId)
       }
     }
-  }, [])
+  }, [activeProjectId, activeTripForDriver, isDriver, trackingPlan])
 
   return {
     liveLocations,
-    mapImageUrl,
-    mapLoading,
+    liveMeta,
+    trackingLoading: liveLocationsQuery.isLoading,
     streamState,
     liveLocationsFailed: liveLocationsQuery.isError,
   }

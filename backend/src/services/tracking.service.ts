@@ -7,9 +7,16 @@ import { emitTransportEvent } from '../realtime/socket'
 import { env } from '../utils/env'
 import { HttpError } from '../utils/httpError'
 import type { TransportAccessRole } from '../utils/role'
-import { getCacheJson, getCacheStrings, setCacheJson, setCacheString } from './cache.service'
+import { getCacheJson, getCacheStrings, setCacheJson } from './cache.service'
 import { getMapboxBudgetState, incrementMapboxUsage, providerOrder, type LocationAudience } from './location.service'
 import { haversineDistanceKm, roundDistance } from '../utils/location'
+import {
+  buildHybridTrackingPolicy,
+  hasEnteredNearDestinationWindow,
+  isHybridTrackingPolicy,
+  resolveCheckpointIntervalMs,
+  type HybridTrackingPolicy,
+} from './trackingPolicy.service'
 
 const LAST_LOCATION_TTL_SECONDS = 24 * 60 * 60
 const MAP_IMAGE_TTL_SECONDS = 5 * 60
@@ -84,6 +91,7 @@ type TrackingPlan = {
   } | null
   estimatedDistanceKm?: number | null
   estimatedDurationMinutes?: number | null
+  hybridPolicy?: HybridTrackingPolicy | null
 }
 
 function liveLocationCacheKey(projectId: string, vehicleId: string) {
@@ -135,7 +143,16 @@ function extractTrackingPlan(metadata: Record<string, unknown> | null | undefine
     return {}
   }
 
-  return raw as TrackingPlan
+  const trackingPlan = raw as TrackingPlan
+  return {
+    ...trackingPlan,
+    hybridPolicy: isHybridTrackingPolicy(trackingPlan.hybridPolicy)
+      ? trackingPlan.hybridPolicy
+      : buildHybridTrackingPolicy({
+        estimatedDurationMinutes: trackingPlan.estimatedDurationMinutes ?? null,
+        estimatedDistanceKm: trackingPlan.estimatedDistanceKm ?? null,
+      }),
+  }
 }
 
 function buildStraightLineRoute(from: { latitude: number; longitude: number }, to: { latitude: number; longitude: number }, steps = 18) {
@@ -196,12 +213,13 @@ function deriveTrackingMode(params: {
   speedKph: number | null
   estimatedDurationMinutes: number | null
   distanceRemainingKm: number | null
+  nearDestinationRadiusKm: number
 }) {
   if (params.distanceRemainingKm != null && params.distanceRemainingKm <= 0.25) {
     return 'arrived' as const
   }
 
-  if (params.distanceRemainingKm != null && params.distanceRemainingKm <= 8) {
+  if (params.distanceRemainingKm != null && params.distanceRemainingKm <= params.nearDestinationRadiusKm) {
     return 'approaching_destination' as const
   }
 
@@ -250,7 +268,10 @@ async function resolveRouteCoordinates(
 
   const fallbackRoute = buildStraightLineRoute(from, to)
   const budget = await getMapboxBudgetState()
-  const shouldUseMapbox = audience === 'admin' && env.mapboxAccessToken && providerOrder(audience, budget).includes('mapbox')
+  const shouldUseMapbox = audience === 'admin'
+    && budget.mode === 'healthy'
+    && env.mapboxAccessToken
+    && providerOrder(audience, budget).includes('mapbox')
   if (!shouldUseMapbox) {
     return {
       routeCoordinates: fallbackRoute,
@@ -350,6 +371,10 @@ function mapTripToLiveLocation(
 
   const trackingPlan = extractTrackingPlan(trip.metadata)
   const destinationLocation = trackingPlan.destinationLocation
+  const hybridPolicy = trackingPlan.hybridPolicy ?? buildHybridTrackingPolicy({
+    estimatedDurationMinutes: trackingPlan.estimatedDurationMinutes ?? null,
+    estimatedDistanceKm: trackingPlan.estimatedDistanceKm ?? null,
+  })
   const distanceRemainingKm = state?.distanceRemainingKm
     ?? (destinationLocation?.latitude != null && destinationLocation?.longitude != null
       ? roundDistance(haversineDistanceKm(
@@ -362,7 +387,11 @@ function mapTripToLiveLocation(
       speedKph: gps?.speed_kph ?? null,
       estimatedDurationMinutes: trackingPlan.estimatedDurationMinutes ?? null,
       distanceRemainingKm,
+      nearDestinationRadiusKm: hybridPolicy.nearDestinationRadiusKm,
     })
+  const updateIntervalMs = state?.updateIntervalMs
+    ?? resolveCheckpointIntervalMs(hybridPolicy, distanceRemainingKm)
+  const capturedAt = gps?.captured_at ?? trip.start_time
 
   return {
     projectId: trip.project_id,
@@ -377,18 +406,19 @@ function mapTripToLiveLocation(
     speedKph: gps?.speed_kph ?? null,
     heading: gps?.heading ?? null,
     accuracyMeters: typeof gps?.metadata?.accuracyMeters === 'number' ? gps.metadata.accuracyMeters : null,
-    capturedAt: gps?.captured_at ?? trip.start_time,
+    capturedAt,
     source,
     previousLatitude: state?.prevLat ?? null,
     previousLongitude: state?.prevLng ?? null,
     previousCapturedAt: state?.prevCapturedAt ?? null,
     routeCoordinates: [[longitude, latitude]],
     routeProvider: 'none',
-    updateIntervalMs: state?.updateIntervalMs ?? null,
-    expectedNextUpdateAt: state?.expectedNextUpdateAt ?? null,
+    updateIntervalMs,
+    expectedNextUpdateAt: state?.expectedNextUpdateAt
+      ?? (updateIntervalMs != null ? new Date(new Date(capturedAt).getTime() + updateIntervalMs).toISOString() : null),
     distanceRemainingKm,
     trackingMode,
-    movingStatus: state?.movingStatus ?? deriveMovingStatus(trackingMode, gps?.captured_at ?? trip.start_time),
+    movingStatus: state?.movingStatus ?? deriveMovingStatus(trackingMode, capturedAt),
   }
 }
 
@@ -470,7 +500,7 @@ function renderTrackingSvg(locations: LiveVehicleLocationRecord[], width: number
       <text x="${padding}" y="${height - 34}" fill="#475569" font-size="13" font-family="Arial, sans-serif" font-weight="700">Fallback tracking view</text>
       <text x="${padding}" y="${height - 14}" fill="#64748b" font-size="12" font-family="Arial, sans-serif">Mapbox is unavailable or throttled, so the live fleet is rendered from backend coordinates.</text>
       <text x="${width - padding}" y="${padding}" text-anchor="end" fill="#111827" font-size="18" font-family="Arial, sans-serif" font-weight="700">Live Fleet</text>
-      <text x="${padding}" y="${padding - 14}" fill="#64748b" font-size="12" font-family="Arial, sans-serif">Vehicles update every ${Math.round(env.transportTrackingIntervalMs / 1000)}s while the trip page is open.</text>
+      <text x="${padding}" y="${padding - 14}" fill="#64748b" font-size="12" font-family="Arial, sans-serif">Hybrid checkpoints keep tracking smooth while keeping map usage low.</text>
       <text x="${padding}" y="${padding + contentHeight + 24}" fill="#334155" font-size="12" font-family="Arial, sans-serif">${legend}</text>
     </svg>
   `
@@ -533,7 +563,7 @@ export async function listLiveVehicleLocationsForActor(
   }
 
   const cachedLookup = await getCachedLiveLocations(query.projectId, activeTrips.map(trip => trip.vehicle_id))
-  const liveLocations = await Promise.all(activeTrips.map(async trip => {
+  const liveLocationResults = await Promise.allSettled(activeTrips.map(async trip => {
     const cached = cachedLookup.get(trip.vehicle_id)
     if (cached && cached.tripId === trip.id) {
       const resolvedRoute = await resolveRouteCoordinates(
@@ -572,7 +602,17 @@ export async function listLiveVehicleLocationsForActor(
     return mapped
   }))
 
-  return liveLocations.filter((item): item is LiveVehicleLocationRecord => Boolean(item))
+  return liveLocationResults.flatMap(result => {
+    if (result.status === 'fulfilled') {
+      return result.value ? [result.value] : []
+    }
+
+    console.warn('[tracking][live] item fallback', {
+      projectId: query.projectId,
+      error: result.reason instanceof Error ? result.reason.message : result.reason,
+    })
+    return []
+  })
 }
 
 export async function getTrackingLiveMetaForRoles(roles: Set<TransportAccessRole>): Promise<TrackingLiveMeta> {
@@ -612,6 +652,10 @@ export async function recordVehicleLocationUpdate(
 
   const capturedAt = input.capturedAt ?? new Date().toISOString()
   const trackingPlan = extractTrackingPlan(((data as Record<string, unknown>).metadata as Record<string, unknown> | null) ?? null)
+  const hybridPolicy = trackingPlan.hybridPolicy ?? buildHybridTrackingPolicy({
+    estimatedDurationMinutes: trackingPlan.estimatedDurationMinutes ?? null,
+    estimatedDistanceKm: trackingPlan.estimatedDistanceKm ?? null,
+  })
   const previousState = await loadTrackingState(input.projectId, input.vehicleId)
   const destinationLocation = trackingPlan.destinationLocation
   const computedDistanceRemainingKm = destinationLocation?.latitude != null && destinationLocation?.longitude != null
@@ -625,15 +669,17 @@ export async function recordVehicleLocationUpdate(
     speedKph: input.speedKph ?? null,
     estimatedDurationMinutes: trackingPlan.estimatedDurationMinutes ?? null,
     distanceRemainingKm,
+    nearDestinationRadiusKm: hybridPolicy.nearDestinationRadiusKm,
   })
   const movingStatus = deriveMovingStatus(trackingMode, capturedAt)
-  const updateIntervalMs = previousState?.updateIntervalMs ?? null
+  const updateIntervalMs = resolveCheckpointIntervalMs(hybridPolicy, distanceRemainingKm)
   const expectedNextUpdateAt = updateIntervalMs != null
     ? new Date(new Date(capturedAt).getTime() + updateIntervalMs).toISOString()
     : null
   const metadata = {
-    source: 'live_stream',
+    source: 'hybrid_checkpoint',
     accuracyMeters: input.accuracyMeters ?? null,
+    updatesPausedNearDestination: hasEnteredNearDestinationWindow(distanceRemainingKm, hybridPolicy),
   }
 
   const { error: insertError } = await adminClient

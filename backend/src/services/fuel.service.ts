@@ -9,9 +9,39 @@ import type { TransportAccessRole } from '../utils/role'
 import { createTransportAlert } from './alert.service'
 import { assessFuelFraud } from './fraud.service'
 import { validateOdometerImage } from './transportOcr.service'
+import { runReceiptOcr, extractAmount, extractQuantity } from '../modules/art/services/ocrService'
 
 type UploadedFiles = Partial<Record<'receiptImage' | 'odometerImage', Express.Multer.File[]>>
 const ODOMETER_OCR_MARGIN_KM = Math.min(10, Math.max(5, Number(process.env.TRANSPORT_ODOMETER_OCR_MARGIN_KM ?? 7)))
+const RECEIPT_OCR_TOLERANCE_RATIO = Math.min(0.1, Math.max(0.05, Number(process.env.TRANSPORT_RECEIPT_OCR_TOLERANCE_RATIO ?? 0.08)))
+
+function isObject(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === 'object' && !Array.isArray(value)
+}
+
+function toOptionalString(value: unknown) {
+  if (typeof value !== 'string') {
+    return null
+  }
+
+  const trimmed = value.trim()
+  return trimmed ? trimmed : null
+}
+
+function isMissingDatabaseResourceError(error: unknown) {
+  const message = error instanceof Error
+    ? error.message
+    : isObject(error) && typeof error.message === 'string'
+      ? error.message
+      : ''
+
+  const details = isObject(error) && typeof error.details === 'string'
+    ? error.details
+    : ''
+
+  const combined = `${message} ${details}`.toLowerCase()
+  return combined.includes('does not exist') || combined.includes('relation') || combined.includes('schema cache')
+}
 
 function toFuelLogRecord(row: Record<string, unknown>): FuelLogRecord {
   const vehicle = row.vehicle as Record<string, unknown> | null
@@ -76,6 +106,123 @@ async function ensureVehicle(projectId: string, vehicleId: string) {
   return data as Record<string, unknown>
 }
 
+async function hydrateFuelLogRows(rows: Record<string, unknown>[]) {
+  if (rows.length === 0) {
+    return rows
+  }
+
+  const vehicleIds = Array.from(new Set(
+    rows
+      .map(row => toOptionalString(row.vehicle_id))
+      .filter((value): value is string => Boolean(value)),
+  ))
+  const loggerIds = Array.from(new Set(
+    rows
+      .map(row => toOptionalString(row.logged_by))
+      .filter((value): value is string => Boolean(value)),
+  ))
+
+  const [vehicleLookupResult, loggerLookupResult] = await Promise.allSettled([
+    (async () => {
+      if (vehicleIds.length === 0) {
+        return new Map<string, string>()
+      }
+
+      try {
+        const { data, error } = await adminClient
+          .from('vehicles')
+          .select('id, name')
+          .in('id', vehicleIds)
+
+        if (error) {
+          throw error
+        }
+
+        return new Map(
+          (data ?? []).map(item => [String(item.id), typeof item.name === 'string' ? item.name : 'Vehicle']),
+        )
+      } catch (error) {
+        console.warn('[transport][fuel][list] vehicle lookup unavailable', {
+          error: error instanceof Error ? error.message : error,
+        })
+        return new Map<string, string>()
+      }
+    })(),
+    (async () => {
+      if (loggerIds.length === 0) {
+        return new Map<string, string>()
+      }
+
+      try {
+        const { data, error } = await adminClient
+          .from('users')
+          .select('id, full_name')
+          .in('id', loggerIds)
+
+        if (error) {
+          throw error
+        }
+
+        return new Map(
+          (data ?? []).map(item => [String(item.id), typeof item.full_name === 'string' ? item.full_name : '']),
+        )
+      } catch (error) {
+        console.warn('[transport][fuel][list] user lookup unavailable', {
+          error: error instanceof Error ? error.message : error,
+        })
+        return new Map<string, string>()
+      }
+    })(),
+  ])
+
+  const vehicleLookup = vehicleLookupResult.status === 'fulfilled' ? vehicleLookupResult.value : new Map<string, string>()
+  const loggerLookup = loggerLookupResult.status === 'fulfilled' ? loggerLookupResult.value : new Map<string, string>()
+
+  return rows.map(row => {
+    const vehicleId = toOptionalString(row.vehicle_id)
+    const loggerId = toOptionalString(row.logged_by)
+    const existingVehicle = isObject(row.vehicle) ? row.vehicle : null
+    const existingLogger = isObject(row.logger) ? row.logger : null
+
+    return {
+      ...row,
+      vehicle: {
+        ...(existingVehicle ?? {}),
+        name: toOptionalString(existingVehicle?.name) ?? (vehicleId ? vehicleLookup.get(vehicleId) ?? 'Vehicle' : 'Vehicle'),
+      },
+      logger: loggerId
+        ? {
+          ...(existingLogger ?? {}),
+          full_name: toOptionalString(existingLogger?.full_name) ?? loggerLookup.get(loggerId) ?? null,
+        }
+        : existingLogger,
+    }
+  })
+}
+
+async function fetchFuelLogById(fuelLogId: string, projectId?: string) {
+  let request = adminClient
+    .from('fuel_logs')
+    .select('*')
+    .eq('id', fuelLogId)
+
+  if (projectId) {
+    request = request.eq('project_id', projectId)
+  }
+
+  const { data, error } = await request.maybeSingle()
+  if (error) {
+    throw error
+  }
+
+  if (!data) {
+    return null
+  }
+
+  const [hydratedRow] = await hydrateFuelLogRows([data as Record<string, unknown>])
+  return toFuelLogRecord(hydratedRow)
+}
+
 export async function listFuelLogs(query: FuelListQuery): Promise<PaginatedResult<FuelLogRecord>> {
   return listFuelLogsForActor(query, null, new Set<TransportAccessRole>(['LINE_PRODUCER']))
 }
@@ -88,7 +235,7 @@ export async function listFuelLogsForActor(
   const { from, to } = rangeFromPagination(query)
   let request = adminClient
     .from('fuel_logs')
-    .select('*, vehicle:vehicles(name), logger:users!logged_by(full_name)', { count: 'exact' })
+    .select('*', { count: 'exact' })
     .eq('project_id', query.projectId)
     .order('created_at', { ascending: false })
     .range(from, to)
@@ -119,10 +266,19 @@ export async function listFuelLogsForActor(
 
   const { data, error, count } = await request
   if (error) {
+    if (isMissingDatabaseResourceError(error)) {
+      console.warn('[transport][fuel][list] fuel_logs unavailable, returning empty data', {
+        projectId: query.projectId,
+        error: error instanceof Error ? error.message : error,
+      })
+      return toPaginatedResult([], 0, query)
+    }
+
     throw error
   }
 
-  return toPaginatedResult((data ?? []).map(item => toFuelLogRecord(item as Record<string, unknown>)), count ?? 0, query)
+  const hydratedRows = await hydrateFuelLogRows((data ?? []) as Record<string, unknown>[])
+  return toPaginatedResult(hydratedRows.map(item => toFuelLogRecord(item)), count ?? 0, query)
 }
 
 async function insertReceiptRecord(params: {
@@ -137,17 +293,28 @@ async function insertReceiptRecord(params: {
     return
   }
 
-  await adminClient.from('receipts').insert({
-    project_id: params.projectId,
-    fuel_log_id: params.fuelLogId,
-    uploaded_by: params.uploadedBy,
-    storage_path: storagePath,
-    file_name: params.receiptFile.originalname,
-    file_mime: params.receiptFile.mimetype,
-    file_size_bytes: params.receiptFile.size,
-    total_amount: params.totalAmount ?? null,
-    extracted_data: {},
-  })
+  try {
+    const { error } = await adminClient.from('receipts').insert({
+      project_id: params.projectId,
+      fuel_log_id: params.fuelLogId,
+      uploaded_by: params.uploadedBy,
+      storage_path: storagePath,
+      file_name: params.receiptFile.originalname,
+      file_mime: params.receiptFile.mimetype,
+      file_size_bytes: params.receiptFile.size,
+      total_amount: params.totalAmount ?? null,
+      extracted_data: {},
+    })
+
+    if (error) {
+      throw error
+    }
+  } catch (error) {
+    console.warn('[transport][fuel][create] receipt record insert skipped', {
+      fuelLogId: params.fuelLogId,
+      error: error instanceof Error ? error.message : error,
+    })
+  }
 }
 
 async function runFraudEvaluation(log: FuelLogRecord) {
@@ -161,7 +328,7 @@ async function runFraudEvaluation(log: FuelLogRecord) {
     })
 
     const auditStatus = assessment.status === 'NORMAL' ? 'verified' : 'mismatch'
-    const { data, error } = await adminClient
+    const { error } = await adminClient
       .from('fuel_logs')
       .update({
         actual_mileage: assessment.actualMileage,
@@ -172,14 +339,16 @@ async function runFraudEvaluation(log: FuelLogRecord) {
         audit_status: auditStatus,
       })
       .eq('id', log.id)
-      .select('*, vehicle:vehicles(name), logger:users!logged_by(full_name)')
-      .single()
 
-    if (error || !data) {
+    if (error) {
       return
     }
 
-    const updated = toFuelLogRecord(data as Record<string, unknown>)
+    const updated = await fetchFuelLogById(log.id, log.projectId)
+    if (!updated) {
+      return
+    }
+
     if (updated.fraudStatus !== 'NORMAL') {
       const alertType = updated.fraudReason?.toLowerCase().includes('distance')
         ? 'odometer_mismatch'
@@ -191,6 +360,7 @@ async function runFraudEvaluation(log: FuelLogRecord) {
         vehicleId: updated.vehicleId,
         fuelLogId: updated.id,
         tripId: updated.tripId,
+        requestedBy: updated.loggedBy,
         severity: updated.fraudStatus === 'FRAUD' ? 'critical' : 'warning',
         alertType,
         title: updated.fraudStatus === 'FRAUD' ? 'Potential fuel fraud detected' : 'Fuel mismatch detected',
@@ -205,6 +375,141 @@ async function runFraudEvaluation(log: FuelLogRecord) {
     }
   } catch {
     return
+  }
+}
+
+async function runFuelOcrValidation(params: {
+  record: FuelLogRecord
+  receiptImage: Express.Multer.File
+  odometerImage: Express.Multer.File
+  manualCost: number | null
+  manualLiters: number | null
+  manualOdometerKm: number | null
+}) {
+  const [receiptResult, odometerValidation] = await Promise.allSettled([
+    runReceiptOcr(params.receiptImage, {
+      manualAmount: params.manualCost ?? undefined,
+      manualQuantity: params.manualLiters ?? undefined,
+    }),
+    validateOdometerImage({
+      file: params.odometerImage,
+      manualOdometerKm: params.manualOdometerKm,
+      marginKm: ODOMETER_OCR_MARGIN_KM,
+    }),
+  ])
+
+  const receiptValidation = receiptResult.status === 'fulfilled'
+    ? (() => {
+      const extractedCost = params.manualCost != null
+        ? extractAmount(receiptResult.value.text, params.manualCost)
+        : (receiptResult.value.extractedAmount || 0)
+      const extractedLiters = params.manualLiters != null
+        ? extractQuantity(receiptResult.value.text, params.manualLiters)
+        : receiptResult.value.extractedQuantity
+      const allowedCostDelta = params.manualCost != null ? Math.max(1, params.manualCost * RECEIPT_OCR_TOLERANCE_RATIO) : null
+      const allowedLitersDelta = params.manualLiters != null ? Math.max(0.5, params.manualLiters * RECEIPT_OCR_TOLERANCE_RATIO) : null
+      const costDelta = params.manualCost != null && extractedCost > 0 ? Math.abs(extractedCost - params.manualCost) : null
+      const litersDelta = params.manualLiters != null && extractedLiters != null ? Math.abs(extractedLiters - params.manualLiters) : null
+      const flagged = (costDelta != null && allowedCostDelta != null && costDelta > allowedCostDelta)
+        || (litersDelta != null && allowedLitersDelta != null && litersDelta > allowedLitersDelta)
+
+      return {
+        success: receiptResult.value.success,
+        text: receiptResult.value.text,
+        previewText: receiptResult.value.previewText,
+        extractedCost: extractedCost > 0 ? extractedCost : null,
+        extractedLiters,
+        manualCost: params.manualCost,
+        manualLiters: params.manualLiters,
+        costDelta,
+        litersDelta,
+        allowedCostDelta,
+        allowedLitersDelta,
+        flagged,
+        errorMessage: receiptResult.value.errorMessage,
+        extractionSource: 'tesseract' as const,
+      }
+    })()
+    : {
+      success: false,
+      text: '',
+      previewText: 'OCR processing failed.',
+      extractedCost: null,
+      extractedLiters: null,
+      manualCost: params.manualCost,
+      manualLiters: params.manualLiters,
+      costDelta: null,
+      litersDelta: null,
+      allowedCostDelta: params.manualCost != null ? Math.max(1, params.manualCost * RECEIPT_OCR_TOLERANCE_RATIO) : null,
+      allowedLitersDelta: params.manualLiters != null ? Math.max(0.5, params.manualLiters * RECEIPT_OCR_TOLERANCE_RATIO) : null,
+      flagged: false,
+      errorMessage: receiptResult.reason instanceof Error ? receiptResult.reason.message : 'OCR processing failed.',
+      extractionSource: 'tesseract' as const,
+    }
+
+  const odometerResult = odometerValidation.status === 'fulfilled'
+    ? odometerValidation.value
+    : {
+      success: false,
+      text: '',
+      previewText: 'OCR processing failed.',
+      extractedOdometerKm: null,
+      manualOdometerKm: params.manualOdometerKm,
+      deltaKm: null,
+      marginKm: ODOMETER_OCR_MARGIN_KM,
+      withinMargin: null,
+      flagged: false,
+      errorMessage: odometerValidation.reason instanceof Error ? odometerValidation.reason.message : 'OCR processing failed.',
+      extractionSource: 'tesseract' as const,
+    }
+
+  const nextMetadata = {
+    ...params.record.metadata,
+    receiptValidation,
+    odometerValidation: odometerResult,
+    ocrStatus: 'completed',
+  }
+
+  await adminClient
+    .from('fuel_logs')
+    .update({
+      metadata: nextMetadata,
+    })
+    .eq('project_id', params.record.projectId)
+    .eq('id', params.record.id)
+
+  if (odometerResult.flagged && odometerResult.deltaKm != null) {
+    await createTransportAlert({
+      projectId: params.record.projectId,
+      vehicleId: params.record.vehicleId,
+      fuelLogId: params.record.id,
+      tripId: params.record.tripId,
+      requestedBy: params.record.loggedBy,
+      severity: 'warning',
+      alertType: 'odometer_mismatch',
+      title: 'Fuel log odometer mismatch',
+      message: `OCR extracted ${odometerResult.extractedOdometerKm ?? 'an unreadable'} km while the manual entry was ${odometerResult.manualOdometerKm ?? 'not provided'} km.`,
+      metadata: {
+        odometerValidation: odometerResult,
+      },
+    })
+  }
+
+  if (receiptValidation.flagged) {
+    await createTransportAlert({
+      projectId: params.record.projectId,
+      vehicleId: params.record.vehicleId,
+      fuelLogId: params.record.id,
+      tripId: params.record.tripId,
+      requestedBy: params.record.loggedBy,
+      severity: 'warning',
+      alertType: 'fuel_mismatch',
+      title: 'Possible fuel fraud',
+      message: 'Receipt OCR differs from the entered litres or cost beyond the allowed tolerance.',
+      metadata: {
+        receiptValidation,
+      },
+    })
   }
 }
 
@@ -227,12 +532,6 @@ export async function createFuelLog(params: {
 
   const receiptFilePath = getStoredRelativePath(receiptImage)
   const odometerImagePath = getStoredRelativePath(odometerImage)
-  const odometerValidation = await validateOdometerImage({
-    file: odometerImage,
-    manualOdometerKm: params.body.odometerKm ?? null,
-    marginKm: ODOMETER_OCR_MARGIN_KM,
-  })
-
   const { data, error } = await adminClient
     .from('fuel_logs')
     .insert({
@@ -251,17 +550,25 @@ export async function createFuelLog(params: {
       receipt_file_path: receiptFilePath,
       odometer_image_path: odometerImagePath,
       metadata: {
-        odometerValidation,
+        ocrStatus: 'processing',
       },
     })
-    .select('*, vehicle:vehicles(name), logger:users!logged_by(full_name)')
+    .select('*')
     .single()
 
   if (error) {
     throw error
   }
 
-  const record = toFuelLogRecord(data as Record<string, unknown>)
+  if (!data) {
+    throw new HttpError(500, 'Fuel log was created but no record was returned.')
+  }
+
+  const record = await fetchFuelLogById(String((data as Record<string, unknown>).id), params.body.projectId)
+  if (!record) {
+    throw new HttpError(500, 'Fuel log was created but could not be loaded.')
+  }
+
   await insertReceiptRecord({
     projectId: record.projectId,
     fuelLogId: record.id,
@@ -277,28 +584,27 @@ export async function createFuelLog(params: {
     data: record,
   })
 
-  if (odometerValidation.flagged && odometerValidation.deltaKm != null) {
-    await createTransportAlert({
+  void runFuelOcrValidation({
+    record,
+    receiptImage,
+    odometerImage,
+    manualCost: params.body.cost ?? null,
+    manualLiters: params.body.liters ?? null,
+    manualOdometerKm: params.body.odometerKm ?? null,
+  }).catch(error => {
+    console.warn('[transport][fuel][ocr] async validation failed', {
       projectId: record.projectId,
-      vehicleId: record.vehicleId,
       fuelLogId: record.id,
-      tripId: record.tripId,
-      severity: 'warning',
-      alertType: 'odometer_mismatch',
-      title: 'Fuel log odometer mismatch',
-      message: `OCR extracted ${odometerValidation.extractedOdometerKm ?? 'an unreadable'} km while the manual entry was ${odometerValidation.manualOdometerKm ?? 'not provided'} km.`,
-      metadata: {
-        odometerValidation,
-      },
+      error: error instanceof Error ? error.message : error,
     })
-  }
+  })
 
   void runFraudEvaluation(record)
   return record
 }
 
 export async function reviewFuelLog(fuelLogId: string, input: FuelReviewInput, actorUserId: string): Promise<FuelLogRecord> {
-  const { data, error } = await adminClient
+  const { error } = await adminClient
     .from('fuel_logs')
     .update({
       audit_status: input.auditStatus,
@@ -308,14 +614,15 @@ export async function reviewFuelLog(fuelLogId: string, input: FuelReviewInput, a
     })
     .eq('id', fuelLogId)
     .eq('project_id', input.projectId)
-    .select('*, vehicle:vehicles(name), logger:users!logged_by(full_name)')
-    .single()
 
   if (error) {
     throw error
   }
 
-  const record = toFuelLogRecord(data as Record<string, unknown>)
+  const record = await fetchFuelLogById(fuelLogId, input.projectId)
+  if (!record) {
+    throw new HttpError(404, 'Fuel log not found.')
+  }
 
   emitTransportEvent('fuel_logged', {
     projectId: record.projectId,

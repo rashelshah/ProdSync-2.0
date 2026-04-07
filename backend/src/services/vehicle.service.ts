@@ -5,6 +5,12 @@ import type { TransportAccessRole } from '../utils/role'
 import { HttpError } from '../utils/httpError'
 import { rangeFromPagination, toPaginatedResult } from '../utils/pagination'
 
+function normalizeRoleValue(value: unknown) {
+  return typeof value === 'string'
+    ? value.trim().toUpperCase().replace(/[\s-]+/g, '_')
+    : ''
+}
+
 function toVehicleRecord(row: Record<string, unknown>): VehicleRecord {
   const driver = row.assigned_driver as Record<string, unknown> | null
 
@@ -80,10 +86,9 @@ export async function listVehiclesForActor(
 export async function listAssignableDrivers(projectId: string): Promise<AssignableDriverRecord[]> {
   const { data, error } = await adminClient
     .from('project_members')
-    .select('user_id, department, access_role, role, user:users!project_members_user_id_fkey(full_name)')
+    .select('user_id, department, access_role, role, user:users!project_members_user_id_fkey(full_name, role)')
     .eq('project_id', projectId)
     .eq('status', 'active')
-    .eq('access_role', 'DRIVER')
     .order('approved_at', { ascending: false })
 
   if (error) {
@@ -95,17 +100,25 @@ export async function listAssignableDrivers(projectId: string): Promise<Assignab
 
   for (const row of (data ?? []) as Array<Record<string, unknown>>) {
     const userId = String(row.user_id ?? '')
+    const memberRole = normalizeRoleValue(row.role)
+    const accessRole = normalizeRoleValue(row.access_role)
     if (!userId || seen.has(userId)) {
       continue
     }
 
-    seen.add(userId)
     const user = row.user as Record<string, unknown> | null
+    const userRole = normalizeRoleValue(user?.role)
+    const isDriver = [memberRole, accessRole, userRole].includes('DRIVER')
+    if (!isDriver) {
+      continue
+    }
+
+    seen.add(userId)
     drivers.push({
       userId,
       fullName: user?.full_name ? String(user.full_name) : 'Driver',
       department: row.department ? String(row.department) : null,
-      role: row.role ? String(row.role) : null,
+      role: memberRole || accessRole || userRole || null,
     })
   }
 

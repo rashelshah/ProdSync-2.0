@@ -3,6 +3,7 @@ import type { AlertsListQuery } from '../models/transport.schemas'
 import type { PaginatedResult, TransportAlertRecord } from '../models/transport.types'
 import { emitTransportEvent } from '../realtime/socket'
 import { rangeFromPagination, toPaginatedResult } from '../utils/pagination'
+import { createTransportApproval } from './transportApproval.service'
 
 function toAlertRecord(row: Record<string, unknown>): TransportAlertRecord {
   return {
@@ -47,6 +48,7 @@ export interface CreateAlertInput {
   vehicleId?: string | null
   tripId?: string | null
   fuelLogId?: string | null
+  requestedBy?: string | null
   severity: TransportAlertRecord['severity']
   alertType: string
   title: string
@@ -76,6 +78,58 @@ export async function createTransportAlert(input: CreateAlertInput): Promise<Tra
   }
 
   const record = toAlertRecord(data as Record<string, unknown>)
+
+  if (input.alertType === 'abnormal_trip' && input.tripId) {
+    void createTransportApproval({
+      projectId: input.projectId,
+      requestedBy: input.requestedBy ?? null,
+      referenceId: input.tripId,
+      referenceTable: 'trips',
+      source: 'trip_alert',
+      title: input.title,
+      description: input.message,
+      priority: input.severity === 'critical' ? 'emergency' : input.severity === 'warning' ? 'high' : 'normal',
+      metadata: {
+        alertId: record.id,
+        alertType: input.alertType,
+        vehicleId: input.vehicleId ?? null,
+      },
+    }).catch(error => {
+      console.warn('[transport][approvals] failed to create trip approval', {
+        projectId: input.projectId,
+        tripId: input.tripId,
+        error: error instanceof Error ? error.message : error,
+      })
+    })
+  }
+
+  if (
+    input.fuelLogId &&
+    ['fuel_mismatch', 'high_fuel_usage', 'odometer_mismatch'].includes(input.alertType)
+  ) {
+    void createTransportApproval({
+      projectId: input.projectId,
+      requestedBy: input.requestedBy ?? null,
+      referenceId: input.fuelLogId,
+      referenceTable: 'fuel_logs',
+      source: 'fuel_alert',
+      title: input.title,
+      description: input.message,
+      priority: input.severity === 'critical' ? 'emergency' : 'high',
+      metadata: {
+        alertId: record.id,
+        alertType: input.alertType,
+        tripId: input.tripId ?? null,
+        vehicleId: input.vehicleId ?? null,
+      },
+    }).catch(error => {
+      console.warn('[transport][approvals] failed to create fuel approval', {
+        projectId: input.projectId,
+        fuelLogId: input.fuelLogId,
+        error: error instanceof Error ? error.message : error,
+      })
+    })
+  }
 
   emitTransportEvent('alert_created', {
     projectId: record.projectId,

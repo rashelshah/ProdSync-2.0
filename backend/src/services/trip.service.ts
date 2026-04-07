@@ -7,10 +7,28 @@ import { calculateDistanceVariancePercent, calculateTrackDistanceKm, haversineDi
 import { rangeFromPagination, toPaginatedResult } from '../utils/pagination'
 import type { TransportAccessRole } from '../utils/role'
 import { createTransportAlert } from './alert.service'
+import { buildHybridTrackingPolicy } from './trackingPolicy.service'
 
 const tripSelectClause = '*, vehicle:vehicles!trips_vehicle_id_fkey(name), driver:users!trips_driver_user_id_fkey(full_name)'
 const DISTANCE_TOLERANCE_PERCENT = Math.min(25, Math.max(5, Number(process.env.TRANSPORT_DISTANCE_TOLERANCE_PERCENT ?? 8)))
 const DISTANCE_TOLERANCE_MIN_KM = Math.max(1, Number(process.env.TRANSPORT_DISTANCE_TOLERANCE_MIN_KM ?? 3))
+
+function toOptionalCoordinate(value: unknown) {
+  if (typeof value === 'number') {
+    return Number.isFinite(value) ? value : undefined
+  }
+
+  if (typeof value === 'string' && value.trim()) {
+    const parsed = Number(value)
+    return Number.isFinite(parsed) ? parsed : undefined
+  }
+
+  return undefined
+}
+
+function hasCoordinates(location: LocationPoint | null | undefined): location is LocationPoint & { latitude: number; longitude: number } {
+  return location != null && typeof location.latitude === 'number' && typeof location.longitude === 'number'
+}
 
 function toLocation(value: unknown): LocationPoint | null {
   if (!value || typeof value !== 'object') {
@@ -18,17 +36,17 @@ function toLocation(value: unknown): LocationPoint | null {
   }
 
   const raw = value as Record<string, unknown>
-  const latitude = typeof raw.latitude === 'number' ? raw.latitude : Number(raw.latitude)
-  const longitude = typeof raw.longitude === 'number' ? raw.longitude : Number(raw.longitude)
+  const latitude = toOptionalCoordinate(raw.latitude)
+  const longitude = toOptionalCoordinate(raw.longitude)
+  const address = typeof raw.address === 'string' ? raw.address.trim() : ''
 
-  if (Number.isNaN(latitude) || Number.isNaN(longitude)) {
+  if ((latitude == null || longitude == null) && !address) {
     return null
   }
 
   return {
-    latitude,
-    longitude,
-    address: typeof raw.address === 'string' ? raw.address : undefined,
+    ...(latitude != null && longitude != null ? { latitude, longitude } : {}),
+    ...(address ? { address } : {}),
   }
 }
 
@@ -84,6 +102,10 @@ async function ensureVehicle(projectId: string, vehicleId: string) {
 }
 
 async function insertGpsLog(projectId: string, vehicleId: string, tripId: string, location: LocationPoint) {
+  if (!hasCoordinates(location)) {
+    return
+  }
+
   await adminClient.from('gps_logs').insert({
     project_id: projectId,
     vehicle_id: vehicleId,
@@ -152,7 +174,7 @@ function estimateIdleMinutes(distanceKm: number, totalDurationMinutes: number) {
 }
 
 function computeTripAbnormality(params: { distanceKm: number; startLocation: LocationPoint | null; endLocation: LocationPoint | null; durationMinutes: number }) {
-  const crowFlightKm = params.startLocation && params.endLocation
+  const crowFlightKm = hasCoordinates(params.startLocation) && hasCoordinates(params.endLocation)
     ? haversineDistanceKm(params.startLocation, params.endLocation)
     : null
 
@@ -269,7 +291,7 @@ export async function listTripsForActor(
 export async function startTrip(input: TripStartInput, actorUserId: string, isDriver: boolean): Promise<TripRecord> {
   const vehicle = await ensureVehicle(input.projectId, input.vehicleId)
   const driverId = isDriver ? actorUserId : input.driverId ?? (vehicle.assigned_driver_user_id ? String(vehicle.assigned_driver_user_id) : actorUserId)
-  const estimatedDistanceKm = input.destinationLocation
+  const estimatedDistanceKm = hasCoordinates(input.startLocation) && hasCoordinates(input.destinationLocation)
     ? roundDistance(haversineDistanceKm(input.startLocation, input.destinationLocation))
     : null
   const estimatedDurationMinutes = estimatedDistanceKm != null
@@ -279,6 +301,10 @@ export async function startTrip(input: TripStartInput, actorUserId: string, isDr
     destinationLocation: input.destinationLocation ?? null,
     estimatedDistanceKm,
     estimatedDurationMinutes,
+    hybridPolicy: buildHybridTrackingPolicy({
+      estimatedDurationMinutes,
+      estimatedDistanceKm,
+    }),
   }
 
   if (isDriver && vehicle.assigned_driver_user_id && String(vehicle.assigned_driver_user_id) !== actorUserId) {
@@ -362,7 +388,9 @@ export async function endTrip(input: TripEndInput, actorUserId: string, isDriver
     ...(gpsTrack.length > 0 ? gpsTrack : (trip.startLocation ? [trip.startLocation] : [])),
     input.endLocation,
   ])
-  const geodesicDistance = trip.startLocation ? haversineDistanceKm(trip.startLocation, input.endLocation) : 0
+  const geodesicDistance = hasCoordinates(trip.startLocation) && hasCoordinates(input.endLocation)
+    ? haversineDistanceKm(trip.startLocation, input.endLocation)
+    : 0
   const gpsDistance = gpsTrackDistance > 0 ? gpsTrackDistance : roundDistance(geodesicDistance)
   const distanceKm = roundDistance(odometerDistance != null && odometerDistance >= 0 ? odometerDistance : gpsDistance)
 
@@ -376,11 +404,13 @@ export async function endTrip(input: TripEndInput, actorUserId: string, isDriver
   })
 
   const geofence = await getGeofence(input.projectId)
-  const outstationFlag = geofence
-    ? haversineDistanceKm(geofence.center, input.endLocation) > geofence.radiusKm
-    : trip.startLocation
-      ? haversineDistanceKm(trip.startLocation, input.endLocation) > 80
-      : false
+  const outstationFlag = hasCoordinates(input.endLocation)
+    ? geofence
+      ? haversineDistanceKm(geofence.center, input.endLocation) > geofence.radiusKm
+      : hasCoordinates(trip.startLocation)
+        ? haversineDistanceKm(trip.startLocation, input.endLocation) > 80
+        : false
+    : false
 
   const abnormality = computeTripAbnormality({
     distanceKm,
@@ -445,6 +475,7 @@ export async function endTrip(input: TripEndInput, actorUserId: string, isDriver
       projectId: input.projectId,
       vehicleId: trip.vehicleId,
       tripId: trip.id,
+      requestedBy: actorUserId,
       severity: 'warning',
       alertType: 'odometer_mismatch',
       title: 'Odometer mismatch detected',
@@ -460,6 +491,7 @@ export async function endTrip(input: TripEndInput, actorUserId: string, isDriver
       projectId: input.projectId,
       vehicleId: trip.vehicleId,
       tripId: trip.id,
+      requestedBy: actorUserId,
       severity: 'warning',
       alertType: 'abnormal_trip',
       title: 'Abnormal trip detected',
@@ -478,6 +510,7 @@ export async function endTrip(input: TripEndInput, actorUserId: string, isDriver
       projectId: input.projectId,
       vehicleId: trip.vehicleId,
       tripId: trip.id,
+      requestedBy: actorUserId,
       severity: 'warning',
       alertType: 'outstation_trip',
       title: 'Outstation trip detected',

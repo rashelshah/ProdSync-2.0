@@ -5,8 +5,8 @@ export type FraudStatus = 'NORMAL' | 'SUSPICIOUS' | 'FRAUD'
 export type AlertSeverity = 'critical' | 'warning' | 'info'
 
 export interface LocationPoint {
-  latitude: number
-  longitude: number
+  latitude?: number
+  longitude?: number
   address?: string
 }
 
@@ -77,6 +77,9 @@ export interface FuelLog {
   notes?: string | null
   receiptFilePath: string | null
   odometerImagePath: string | null
+  reviewedBy?: string | null
+  reviewedAt?: string | null
+  approvalNote?: string | null
   metadata?: Record<string, unknown>
 }
 

@@ -4,12 +4,26 @@ import { listLiveVehicleLocationsForActor, buildTrackingMapImageForActor, getTra
 import { getTransportAccessRoles } from '../utils/role'
 
 export async function getLiveTrackingController(req: Request, res: Response) {
-  const query = trackingLiveQuerySchema.parse(req.query)
   const roles = getTransportAccessRoles(req)
-  const locations = await listLiveVehicleLocationsForActor(query, req.authUser?.id ?? null, roles)
   const meta = await getTrackingLiveMetaForRoles(roles)
 
-  res.json({ data: locations, meta })
+  try {
+    const query = trackingLiveQuerySchema.parse(req.query)
+    const locations = await listLiveVehicleLocationsForActor(query, req.authUser?.id ?? null, roles)
+    return res.json({ data: locations, meta })
+  } catch (error) {
+    console.warn('[tracking][live] safe fallback', {
+      query: req.query,
+      error: error instanceof Error ? error.message : error,
+    })
+    return res.json({
+      data: [],
+      meta: {
+        ...meta,
+        fallbackActive: true,
+      },
+    })
+  }
 }
 
 export async function getTrackingMapImageController(req: Request, res: Response) {

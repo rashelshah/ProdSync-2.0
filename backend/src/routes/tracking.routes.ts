@@ -7,4 +7,4 @@ import { asyncHandler } from '../utils/asyncHandler'
 export const trackingRouter = Router()
 
 trackingRouter.get('/live', requireAuth, requireProjectAccess, requireRole('DRIVER', 'TRANSPORT_CAPTAIN', 'LINE_PRODUCER'), asyncHandler(getLiveTrackingController))
-trackingRouter.get('/map-image', requireAuth, requireProjectAccess, requireRole('DRIVER', 'TRANSPORT_CAPTAIN', 'LINE_PRODUCER'), asyncHandler(getTrackingMapImageController))
+trackingRouter.get('/map-image', requireAuth, requireProjectAccess, requireRole('TRANSPORT_CAPTAIN', 'LINE_PRODUCER'), asyncHandler(getTrackingMapImageController))

@@ -1,3 +1,4 @@
+import fs from 'node:fs/promises'
 import { recognize } from 'tesseract.js'
 
 export interface ReceiptOcrResult {
@@ -191,7 +192,8 @@ export async function runReceiptOcr(
   options?: { manualAmount?: number; manualQuantity?: number },
 ): Promise<ReceiptOcrResult> {
   try {
-    const result = await recognize(file.buffer, 'eng')
+    const buffer = file.buffer ?? await fs.readFile(file.path)
+    const result = await recognize(buffer, 'eng')
     const text = result.data.text?.trim() ?? ''
 
     return {

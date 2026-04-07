@@ -8,6 +8,15 @@ function degreesToRadians(value: number) {
 }
 
 export function haversineDistanceKm(from: LocationPoint, to: LocationPoint) {
+  if (
+    typeof from.latitude !== 'number' ||
+    typeof from.longitude !== 'number' ||
+    typeof to.latitude !== 'number' ||
+    typeof to.longitude !== 'number'
+  ) {
+    return 0
+  }
+
   const deltaLatitude = degreesToRadians(to.latitude - from.latitude)
   const deltaLongitude = degreesToRadians(to.longitude - from.longitude)
   const latitudeA = degreesToRadians(from.latitude)
@@ -34,7 +43,11 @@ export function calculateTrackDistanceKm(
 ) {
   const minSegmentMeters = options?.minSegmentMeters ?? DEFAULT_MIN_SEGMENT_METERS
   const maxSegmentKm = options?.maxSegmentKm ?? 500
-  const validPoints = points.filter((point): point is LocationPoint => Boolean(point))
+  const validPoints = points.filter((point): point is LocationPoint =>
+    Boolean(point) &&
+    typeof point?.latitude === 'number' &&
+    typeof point?.longitude === 'number',
+  )
 
   if (validPoints.length < 2) {
     return 0

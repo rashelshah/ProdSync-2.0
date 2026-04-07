@@ -11,12 +11,16 @@ export interface LocationSuggestion {
 const reverseGeocodeCache = new Map<string, string>()
 const destinationSearchCache = new Map<string, LocationSuggestion[]>()
 
-function reverseGeocodeCacheKey(projectId: string, location: LocationPoint) {
+function hasCoordinates(location: LocationPoint): location is LocationPoint & { latitude: number; longitude: number } {
+  return typeof location.latitude === 'number' && typeof location.longitude === 'number'
+}
+
+function reverseGeocodeCacheKey(projectId: string, location: LocationPoint & { latitude: number; longitude: number }) {
   return `${projectId}:${location.latitude.toFixed(5)}:${location.longitude.toFixed(5)}`
 }
 
 function destinationSearchCacheKey(projectId: string, query: string) {
-  return `${projectId}:${query.trim().toLowerCase()}`
+  return `${projectId}:${(query || '').trim().toLowerCase()}`
 }
 
 export function getCurrentDeviceLocation() {
@@ -46,6 +50,10 @@ export function getCurrentDeviceLocation() {
 }
 
 export async function reverseGeocode(projectId: string, location: LocationPoint) {
+  if (!hasCoordinates(location)) {
+    throw new Error('GPS coordinates are unavailable.')
+  }
+
   const cacheKey = reverseGeocodeCacheKey(projectId, location)
   const cachedAddress = reverseGeocodeCache.get(cacheKey)
   if (cachedAddress) {
@@ -65,8 +73,8 @@ export async function reverseGeocode(projectId: string, location: LocationPoint)
 }
 
 export async function searchDestinationSuggestions(projectId: string, query: string) {
-  const trimmedQuery = query.trim()
-  if (trimmedQuery.length < 3) {
+  const trimmedQuery = (query || '').trim()
+  if (trimmedQuery.length < 2) {
     return [] as LocationSuggestion[]
   }
 

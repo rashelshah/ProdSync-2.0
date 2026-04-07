@@ -21,6 +21,7 @@ export async function apiFetch(path: string, init: RequestInit = {}) {
   const headers = new Headers(init.headers)
   const isFormDataBody = typeof FormData !== 'undefined' && init.body instanceof FormData
   const method = init.method ?? 'GET'
+  const shouldLog = import.meta.env.DEV
 
   if (!headers.has('Content-Type') && init.body && !isFormDataBody) {
     headers.set('Content-Type', 'application/json')
@@ -30,26 +31,30 @@ export async function apiFetch(path: string, init: RequestInit = {}) {
     headers.set('Authorization', `Bearer ${accessToken}`)
   }
 
-  console.log('[apiFetch] request', {
-    method,
-    path,
-    url: `${apiBaseUrl}${path}`,
-    hasBody: Boolean(init.body),
-    isFormDataBody,
-    hasAccessToken: Boolean(accessToken),
-  })
+  if (shouldLog) {
+    console.log('[apiFetch] request', {
+      method,
+      path,
+      url: `${apiBaseUrl}${path}`,
+      hasBody: Boolean(init.body),
+      isFormDataBody,
+      hasAccessToken: Boolean(accessToken),
+    })
+  }
 
   const response = await fetch(`${apiBaseUrl}${path}`, {
     ...init,
     headers,
   })
 
-  console.log('[apiFetch] response', {
-    method,
-    path,
-    status: response.status,
-    ok: response.ok,
-  })
+  if (shouldLog) {
+    console.log('[apiFetch] response', {
+      method,
+      path,
+      status: response.status,
+      ok: response.ok,
+    })
+  }
 
   return response
 }
