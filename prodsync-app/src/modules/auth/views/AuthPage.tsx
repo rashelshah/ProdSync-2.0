@@ -36,6 +36,7 @@ import {
   getRoleOptionsForDepartment,
   mapProjectRoleToUserRole,
 } from '@/features/auth/onboarding'
+import { showError, showInfo, showLoading, showSuccess } from '@/lib/toast'
 import type { ProjectDepartment, ProjectRequestedRole, User } from '@/types'
 
 type AuthMode = 'signin' | 'signup'
@@ -143,7 +144,7 @@ function insetStyle(): CSSProperties {
   }
 }
 
-function primaryButtonStyle(): CSSProperties {
+function primaryButtonStyle(disabled = false): CSSProperties {
   return {
     minHeight: '50px',
     padding: '0 22px',
@@ -154,7 +155,8 @@ function primaryButtonStyle(): CSSProperties {
     color: '#111111',
     background: 'linear-gradient(180deg, #ff8c60 0%, #ff6a3d 100%)',
     boxShadow: '0 16px 26px rgba(255,106,61,0.22), inset 0 1px 1px rgba(255,255,255,0.42)',
-    cursor: 'pointer',
+    cursor: disabled ? 'not-allowed' : 'pointer',
+    opacity: disabled ? 0.72 : 1,
     display: 'inline-flex',
     alignItems: 'center',
     justifyContent: 'center',
@@ -162,7 +164,7 @@ function primaryButtonStyle(): CSSProperties {
   }
 }
 
-function secondaryButtonStyle(isDark: boolean): CSSProperties {
+function secondaryButtonStyle(isDark: boolean, disabled = false): CSSProperties {
   return {
     minHeight: '48px',
     padding: '0 20px',
@@ -175,7 +177,8 @@ function secondaryButtonStyle(isDark: boolean): CSSProperties {
     boxShadow: isDark
       ? '0 16px 28px rgba(0,0,0,0.24), inset 0 1px 1px rgba(255,255,255,0.05)'
       : '0 16px 28px rgba(220,213,205,0.22), inset 0 1px 1px rgba(255,255,255,0.92)',
-    cursor: 'pointer',
+    cursor: disabled ? 'not-allowed' : 'pointer',
+    opacity: disabled ? 0.72 : 1,
     display: 'inline-flex',
     alignItems: 'center',
     justifyContent: 'center',
@@ -326,6 +329,7 @@ export function AuthPage() {
   const [createdUser, setCreatedUser] = useState<User | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [info, setInfo] = useState<string | null>(null)
+  const [authAction, setAuthAction] = useState<'signin' | 'google' | 'signup' | 'workspace' | null>(null)
 
   useEffect(() => {
     if (isAuthenticated && user && sessionExpiresAt && sessionExpiresAt > Date.now()) {
@@ -360,20 +364,28 @@ export function AuthPage() {
     setInfo(null)
   }
 
+  function publishError(message: string) {
+    setError(message)
+    showError(message, { id: 'auth-error' })
+  }
+
   function openSignIn() {
     resetMessages()
+    setAuthAction(null)
     setMode('signin')
     setSignupStep('identity')
   }
 
   function openSignUp() {
     resetMessages()
+    setAuthAction(null)
     setMode('signup')
     setSignupStep('identity')
   }
 
   function handleBack() {
     resetMessages()
+    setAuthAction(null)
     if (signupStep === 'department') setSignupStep('identity')
     if (signupStep === 'role') setSignupStep('department')
     if (signupStep === 'permissions') setSignupStep('role')
@@ -385,37 +397,48 @@ export function AuthPage() {
     resetMessages()
 
     if (!signInEmail.trim() || !signInPassword) {
-      setError('Enter your email and password to sign in.')
+      publishError('Enter your email and password to sign in.')
       return
     }
+
+    setAuthAction('signin')
+    showLoading('Signing in...', { id: 'auth-signin' })
 
     const result = await signInWithEmail(signInEmail, signInPassword)
     if (!result.ok) {
+      setAuthAction(null)
       if (result.reason === 'not_configured') {
-        setError('Supabase is not configured yet. Add the frontend environment keys before signing in.')
+        publishError('Supabase is not configured yet. Add the frontend environment keys before signing in.')
         return
       }
 
-      setError(result.message ?? (
+      const message = result.message ?? (
         result.reason === 'account_not_found'
           ? 'No account was found for this email. Create one to continue.'
           : 'That password does not match this account.'
-      ))
+      )
+      publishError(message)
       return
     }
 
+    showSuccess('Welcome back!', { id: 'auth-signin' })
     navigate('/projects', { replace: true })
   }
 
   async function handleGoogleLogin() {
     resetMessages()
+    setAuthAction('google')
+    showLoading('Starting Google sign-in...', { id: 'auth-google' })
+
     const result = await signInWithGoogle()
     if (!result.ok) {
-      setError(result.reason === 'not_configured' ? 'Supabase is not configured yet. Add the frontend environment keys before using Google sign-in.' : (result.message ?? 'Google sign-in could not be started.'))
+      setAuthAction(null)
+      publishError(result.reason === 'not_configured' ? 'Supabase is not configured yet. Add the frontend environment keys before using Google sign-in.' : (result.message ?? 'Google sign-in could not be started.'))
       return
     }
 
     if (!result.redirected) {
+      showSuccess('Welcome back!', { id: 'auth-google' })
       navigate('/projects', { replace: true })
     }
   }
@@ -425,27 +448,27 @@ export function AuthPage() {
     resetMessages()
 
     if (!fullName.trim() || !phone.trim() || !email.trim() || !password || !confirmPassword) {
-      setError('Fill in every required field to continue.')
+      publishError('Fill in every required field to continue.')
       return
     }
 
     if (!emailPattern.test(email.trim())) {
-      setError('Enter a valid email address.')
+      publishError('Enter a valid email address.')
       return
     }
 
     if (phone.replace(/\D/g, '').length < 10) {
-      setError('Enter a valid phone number.')
+      publishError('Enter a valid phone number.')
       return
     }
 
     if (!Object.values(passwordChecks).every(Boolean)) {
-      setError('Password must meet all required rules.')
+      publishError('Password must meet all required rules.')
       return
     }
 
     if (password !== confirmPassword) {
-      setError('Passwords do not match.')
+      publishError('Passwords do not match.')
       return
     }
 
@@ -454,6 +477,9 @@ export function AuthPage() {
 
   async function completeSignup() {
     resetMessages()
+    setAuthAction('signup')
+    showLoading('Creating account...', { id: 'auth-signup' })
+
     const result = await registerAccount({
       name: fullName.trim(),
       phone: phone.trim(),
@@ -467,7 +493,8 @@ export function AuthPage() {
     })
 
     if (!result.ok) {
-      setError(
+      setAuthAction(null)
+      publishError(
         result.reason === 'not_configured'
           ? 'Supabase is not configured yet. Add the frontend environment keys before creating accounts.'
           : result.reason === 'email_exists'
@@ -484,6 +511,13 @@ export function AuthPage() {
     if (result.requiresEmailConfirmation) {
       setInfo('Account created. Confirm your email in Supabase, then sign in to enter the workspace.')
     }
+    setAuthAction(null)
+    showSuccess(
+      result.requiresEmailConfirmation
+        ? 'Account created. Check your email to continue.'
+        : 'Account created successfully.',
+      { id: 'auth-signup' },
+    )
     setSignupStep('confirmation')
   }
 
@@ -552,16 +586,16 @@ export function AuthPage() {
                 <p style={copyStyle}>Sign in with your email and password, or use Google to continue into the Projects Hub.</p>
               </div>
 
-              <button type="button" onClick={handleGoogleLogin} style={{ width: '100%', ...secondaryButtonStyle(isDark) }}>
-                <Globe size={18} />
-                Continue with Google
+              <button type="button" onClick={handleGoogleLogin} disabled={authAction !== null} style={{ width: '100%', ...secondaryButtonStyle(isDark, authAction !== null) }}>
+                {authAction === 'google' ? <span className="ui-spinner" /> : <Globe size={18} />}
+                {authAction === 'google' ? 'Opening Google...' : 'Continue with Google'}
               </button>
 
               <Field label="Email" icon={Mail} placeholder="crew@prodsync.app" value={signInEmail} onChange={setSignInEmail} type="email" />
               <PasswordField label="Password" value={signInPassword} onChange={setSignInPassword} visible={signInPasswordVisible} onToggleVisibility={() => setSignInPasswordVisible(current => !current)} placeholder="Enter your password" />
 
               <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-                <button type="button" onClick={() => { resetMessages(); setInfo('Password recovery is not wired to a backend yet, but the entry point is ready for it.') }} style={{ border: 0, background: 'transparent', color: '#c54a22', fontSize: '0.92rem', fontWeight: 700, cursor: 'pointer' }}>
+                <button type="button" onClick={() => { resetMessages(); setInfo('Password recovery is not wired to a backend yet, but the entry point is ready for it.'); showInfo('Password recovery is coming soon.', { id: 'auth-password-recovery' }) }} style={{ border: 0, background: 'transparent', color: '#c54a22', fontSize: '0.92rem', fontWeight: 700, cursor: 'pointer' }}>
                   Forgot Password?
                 </button>
               </div>
@@ -569,9 +603,10 @@ export function AuthPage() {
               {error ? <Notice tone="error">{error}</Notice> : null}
               {info ? <Notice tone="info">{info}</Notice> : null}
 
-              <button type="submit" style={primaryButtonStyle()}>
-                Sign In
-                <ArrowRight size={18} />
+              <button type="submit" disabled={authAction !== null} style={primaryButtonStyle(authAction !== null)}>
+                {authAction === 'signin' ? <span className="ui-spinner" /> : 'Sign In'}
+                {authAction === 'signin' ? 'Signing In...' : null}
+                {authAction === 'signin' ? null : <ArrowRight size={18} />}
               </button>
             </form>
           </StageFrame>
@@ -727,13 +762,14 @@ export function AuthPage() {
               {error ? <div style={{ marginTop: '18px' }}><Notice tone="error">{error}</Notice></div> : null}
 
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px', marginTop: '22px', flexWrap: 'wrap' }}>
-                <button type="button" onClick={handleBack} style={secondaryButtonStyle(isDark)}>
+                <button type="button" onClick={handleBack} disabled={authAction !== null} style={secondaryButtonStyle(isDark, authAction !== null)}>
                   <ArrowLeft size={18} />
                   Adjust Role
                 </button>
-                <button type="button" onClick={completeSignup} style={primaryButtonStyle()}>
-                  Continue
-                  <ArrowRight size={18} />
+                <button type="button" onClick={completeSignup} disabled={authAction !== null} style={primaryButtonStyle(authAction !== null)}>
+                  {authAction === 'signup' ? <span className="ui-spinner" /> : 'Continue'}
+                  {authAction === 'signup' ? 'Creating Account...' : null}
+                  {authAction === 'signup' ? null : <ArrowRight size={18} />}
                 </button>
               </div>
             </div>
@@ -753,9 +789,19 @@ export function AuthPage() {
                 <SummaryCard title="Department" value={selectedDepartment.label} icon={departmentIcons[selectedDepartment.id]} isDark={isDark} />
               </div>
 
-              <button type="button" onClick={() => navigate('/projects', { replace: true })} style={{ minWidth: '240px', ...primaryButtonStyle() }}>
-                Enter Workspace
-                <ArrowRight size={18} />
+              <button
+                type="button"
+                onClick={() => {
+                  setAuthAction('workspace')
+                  showLoading('Opening workspace...', { id: 'auth-workspace' })
+                  navigate('/projects', { replace: true })
+                }}
+                disabled={authAction === 'workspace'}
+                style={{ minWidth: '240px', ...primaryButtonStyle(authAction === 'workspace') }}
+              >
+                {authAction === 'workspace' ? <span className="ui-spinner" /> : 'Enter Workspace'}
+                {authAction === 'workspace' ? 'Opening Workspace...' : null}
+                {authAction === 'workspace' ? null : <ArrowRight size={18} />}
               </button>
               {info ? <div style={{ marginTop: '16px' }}><Notice tone="info">{info}</Notice></div> : null}
             </div>

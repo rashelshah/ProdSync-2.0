@@ -1,6 +1,5 @@
 import { useEffect, useEffectEvent, useMemo, useRef, useState, type ReactNode } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { ActionFeedbackToast, type ActionFeedbackState } from '@/components/shared/ActionFeedbackToast'
 import { KpiCard } from '@/components/shared/KpiCard'
 import { DataTable } from '@/components/shared/DataTable'
 import { StatusBadge } from '@/components/shared/StatusBadge'
@@ -9,6 +8,7 @@ import { EmptyState, ErrorState, LoadingState } from '@/components/system/System
 import { useAuthStore } from '@/features/auth/auth.store'
 import { useResolvedProjectContext } from '@/features/projects/useResolvedProjectContext'
 import { apiOrigin } from '@/lib/api'
+import { resolveErrorMessage, showError, showInfo, showLoading, showSuccess } from '@/lib/toast'
 import { transportService } from '@/services/transport.service'
 import { formatCurrency, formatDate, formatTime } from '@/utils'
 import { useTransportData } from '../hooks/useTransportData'
@@ -113,7 +113,7 @@ function tripOriginLabel(trip: TripUI) {
 
 function tripDestinationLabel(trip: TripUI) {
   if (trip.status === 'active') {
-    return 'Yet to be reached'
+    return 'Yet to reach'
   }
 
   return trip.destination?.trim() || trip.endLocation?.address?.trim() || 'Location unavailable'
@@ -169,7 +169,6 @@ export function TransportView() {
   const [destinationSearchLoading, setDestinationSearchLoading] = useState(false)
   const [startLocationState, setStartLocationState] = useState<LocationFetchState>(idleLocationFetchState)
   const [endLocationState, setEndLocationState] = useState<LocationFetchState>(idleLocationFetchState)
-  const [feedback, setFeedback] = useState<ActionFeedbackState | null>(null)
 
   const startLocationFetchedRef = useRef(false)
   const endLocationFetchedRef = useRef(false)
@@ -290,6 +289,27 @@ export function TransportView() {
     ])
   }
 
+  async function runTransportAction<T>(
+    action: () => Promise<T>,
+    options: {
+      toastId: string
+      loadingMessage: string
+      successMessage: string
+      errorMessage: string
+    },
+  ) {
+    showLoading(options.loadingMessage, { id: options.toastId })
+
+    try {
+      const result = await action()
+      showSuccess(options.successMessage, { id: options.toastId })
+      return result
+    } catch (error) {
+      showError(resolveErrorMessage(error, options.errorMessage), { id: options.toastId })
+      throw error
+    }
+  }
+
   const createVehicleMutation = useMutation({
     mutationFn: transportService.createVehicle,
     onSuccess: async () => {
@@ -391,11 +411,14 @@ export function TransportView() {
         address,
       }))
 
+      showSuccess('Location detected', { id: 'transport-start-location' })
+
       setStartLocationState({
         status: 'ready',
         message: address,
       })
     } catch (error) {
+      showInfo('Location unavailable, enter manually', { id: 'transport-start-location' })
       setStartLocationState({
         status: 'error',
         message: error instanceof Error ? error.message : 'Unable to fetch current location.',
@@ -435,11 +458,14 @@ export function TransportView() {
         address,
       }))
 
+      showSuccess('Location detected', { id: 'transport-end-location' })
+
       setEndLocationState({
         status: 'ready',
         message: address,
       })
     } catch (error) {
+      showInfo('Location unavailable, enter manually', { id: 'transport-end-location' })
       setEndLocationState({
         status: 'error',
         message: error instanceof Error ? error.message : 'Unable to fetch current location.',
@@ -500,6 +526,7 @@ export function TransportView() {
             return
           }
 
+          showInfo('Destination suggestions are unavailable right now.', { id: 'transport-destination-search' })
           setDestinationSearchError(error instanceof Error ? error.message : 'Could not fetch destination suggestions.')
           setDestinationSuggestions([])
         })
@@ -515,6 +542,22 @@ export function TransportView() {
       window.clearTimeout(timeoutId)
     }
   }, [activeProjectId, tripStartDestinationPoint, tripStartForm.destination, tripStartModalOpen])
+
+  useEffect(() => {
+    if (!liveLocationsFailed) {
+      return
+    }
+
+    showInfo('Tracking fallback active. Live updates will retry automatically.', { id: 'transport-tracking-fallback' })
+  }, [liveLocationsFailed])
+
+  useEffect(() => {
+    if (streamState.status !== 'error') {
+      return
+    }
+
+    showInfo(streamState.message || 'Tracking fallback is active for this trip.', { id: 'transport-stream-state' })
+  }, [streamState.message, streamState.status])
 
   if (isLoadingProjectContext) {
     return <LoadingState message="Resolving project access..." />
@@ -583,66 +626,106 @@ export function TransportView() {
 
   function submitVehicle() {
     if (!activeProjectId) {
+      showError('Select a project before adding a vehicle.', { id: 'transport-create-vehicle' })
       return
     }
 
-    createVehicleMutation.mutate({
-      projectId: activeProjectId,
-      name: vehicleForm.name.trim(),
-      vehicleType: vehicleForm.vehicleType.trim(),
-      registrationNumber: vehicleForm.registrationNumber.trim() || undefined,
-      capacity: vehicleForm.capacity ? Number(vehicleForm.capacity) : undefined,
-      assignedDriverUserId: vehicleForm.assignedDriverUserId || undefined,
-      baseLocation: vehicleForm.baseLocation.trim() || undefined,
-      status: vehicleForm.status,
-      notes: vehicleForm.notes.trim() || undefined,
-    })
-  }
-
-  function submitVehicleUpdate() {
-    if (!activeProjectId || !selectedVehicle) {
+    if (!vehicleForm.name.trim() || !vehicleForm.vehicleType.trim()) {
+      showError('Vehicle name and type are required.', { id: 'transport-create-vehicle' })
       return
     }
 
-    updateVehicleMutation.mutate({
-      id: selectedVehicle.id,
-      input: {
+    void runTransportAction(
+      () => createVehicleMutation.mutateAsync({
         projectId: activeProjectId,
         name: vehicleForm.name.trim(),
         vehicleType: vehicleForm.vehicleType.trim(),
         registrationNumber: vehicleForm.registrationNumber.trim() || undefined,
         capacity: vehicleForm.capacity ? Number(vehicleForm.capacity) : undefined,
-        assignedDriverUserId: vehicleForm.assignedDriverUserId || null,
+        assignedDriverUserId: vehicleForm.assignedDriverUserId || undefined,
         baseLocation: vehicleForm.baseLocation.trim() || undefined,
         status: vehicleForm.status,
         notes: vehicleForm.notes.trim() || undefined,
+      }),
+      {
+        toastId: 'transport-create-vehicle',
+        loadingMessage: 'Saving vehicle...',
+        successMessage: 'Vehicle added successfully.',
+        errorMessage: 'Vehicle could not be added.',
       },
-    })
+    )
+  }
+
+  function submitVehicleUpdate() {
+    if (!activeProjectId || !selectedVehicle) {
+      showError('Select a vehicle before saving changes.', { id: 'transport-update-vehicle' })
+      return
+    }
+
+    if (!vehicleForm.name.trim() || !vehicleForm.vehicleType.trim()) {
+      showError('Vehicle name and type are required.', { id: 'transport-update-vehicle' })
+      return
+    }
+
+    void runTransportAction(
+      () => updateVehicleMutation.mutateAsync({
+        id: selectedVehicle.id,
+        input: {
+          projectId: activeProjectId,
+          name: vehicleForm.name.trim(),
+          vehicleType: vehicleForm.vehicleType.trim(),
+          registrationNumber: vehicleForm.registrationNumber.trim() || undefined,
+          capacity: vehicleForm.capacity ? Number(vehicleForm.capacity) : undefined,
+          assignedDriverUserId: vehicleForm.assignedDriverUserId || null,
+          baseLocation: vehicleForm.baseLocation.trim() || undefined,
+          status: vehicleForm.status,
+          notes: vehicleForm.notes.trim() || undefined,
+        },
+      }),
+      {
+        toastId: 'transport-update-vehicle',
+        loadingMessage: 'Saving vehicle changes...',
+        successMessage: 'Vehicle updated successfully.',
+        errorMessage: 'Vehicle changes could not be saved.',
+      },
+    )
   }
 
   function submitDriverAssignment() {
     if (!selectedVehicleForAssignment) {
+      showError('Select a vehicle before assigning a driver.', { id: 'transport-assign-driver' })
       return
     }
 
-    assignDriverMutation.mutate({
-      vehicleId: selectedVehicleForAssignment.id,
-      driverUserId: assignDriverUserId,
-    })
+    void runTransportAction(
+      () => assignDriverMutation.mutateAsync({
+        vehicleId: selectedVehicleForAssignment.id,
+        driverUserId: assignDriverUserId,
+      }),
+      {
+        toastId: 'transport-assign-driver',
+        loadingMessage: 'Assigning driver...',
+        successMessage: 'Driver assigned successfully.',
+        errorMessage: 'Driver assignment failed.',
+      },
+    )
   }
 
   function submitTripStart() {
     if (!activeProjectId) {
+      showError('Select a project before starting a trip.', { id: 'transport-start-trip' })
       return
     }
 
     if (!tripStartForm.vehicleId) {
+      showError('Select a vehicle to start the trip.', { id: 'transport-start-trip' })
       return
     }
 
     const hasGpsLocation = hasCoordinatePair(tripStartForm.latitude, tripStartForm.longitude)
     const manualAddress = tripStartForm.address.trim() || tripStartForm.origin.trim()
     if (!hasGpsLocation && !manualAddress) {
+      showInfo('Location unavailable, enter manually', { id: 'transport-start-location' })
       setStartLocationState({
         status: 'error',
         message: 'Unable to fetch location. Please enter manually.',
@@ -650,33 +733,43 @@ export function TransportView() {
       return
     }
 
-    startTripMutation.mutate({
-      projectId: activeProjectId,
-      vehicleId: tripStartForm.vehicleId,
-      driverId: canManageTransport && tripStartForm.driverId ? tripStartForm.driverId : undefined,
-      odometerKm: tripStartForm.odometerKm ? Number(tripStartForm.odometerKm) : undefined,
-      purpose: tripStartForm.purpose || undefined,
-      origin: tripStartForm.origin.trim() || undefined,
-      destination: tripStartForm.destination.trim() || undefined,
-      startLocation: {
-        ...(hasGpsLocation
-          ? {
-            latitude: Number(tripStartForm.latitude),
-            longitude: Number(tripStartForm.longitude),
-          }
-          : {}),
-        address: manualAddress || undefined,
+    void runTransportAction(
+      () => startTripMutation.mutateAsync({
+        projectId: activeProjectId,
+        vehicleId: tripStartForm.vehicleId,
+        driverId: canManageTransport && tripStartForm.driverId ? tripStartForm.driverId : undefined,
+        odometerKm: tripStartForm.odometerKm ? Number(tripStartForm.odometerKm) : undefined,
+        purpose: tripStartForm.purpose || undefined,
+        origin: tripStartForm.origin.trim() || undefined,
+        destination: tripStartForm.destination.trim() || undefined,
+        startLocation: {
+          ...(hasGpsLocation
+            ? {
+              latitude: Number(tripStartForm.latitude),
+              longitude: Number(tripStartForm.longitude),
+            }
+            : {}),
+          address: manualAddress || undefined,
+        },
+        destinationLocation: tripStartDestinationPoint ?? undefined,
+      }),
+      {
+        toastId: 'transport-start-trip',
+        loadingMessage: 'Starting trip...',
+        successMessage: 'Trip started.',
+        errorMessage: 'Trip could not be started.',
       },
-      destinationLocation: tripStartDestinationPoint ?? undefined,
-    })
+    )
   }
 
   function submitTripEnd() {
     if (!activeProjectId || !tripEndTripId) {
+      showError('Select an active trip before ending it.', { id: 'transport-end-trip' })
       return
     }
 
     if (!tripEndForm.odometerKm) {
+      showError('End odometer is required to end the trip.', { id: 'transport-end-trip' })
       setEndLocationState({
         status: 'error',
         message: 'End odometer is required to end the trip.',
@@ -687,6 +780,7 @@ export function TransportView() {
     const hasGpsLocation = hasCoordinatePair(tripEndForm.latitude, tripEndForm.longitude)
     const manualAddress = tripEndForm.address.trim() || tripEndForm.destination.trim()
     if (!hasGpsLocation && !manualAddress) {
+      showInfo('Location unavailable, enter manually', { id: 'transport-end-location' })
       setEndLocationState({
         status: 'error',
         message: 'Unable to fetch location. Please enter manually.',
@@ -694,26 +788,50 @@ export function TransportView() {
       return
     }
 
-    endTripMutation.mutate({
-      projectId: activeProjectId,
-      tripId: tripEndTripId,
-      odometerKm: Number(tripEndForm.odometerKm),
-      destination: tripEndForm.destination.trim() || undefined,
-      remarks: tripEndForm.remarks.trim() || undefined,
-      endLocation: {
-        ...(hasGpsLocation
-          ? {
-            latitude: Number(tripEndForm.latitude),
-            longitude: Number(tripEndForm.longitude),
-          }
-          : {}),
-        address: manualAddress || undefined,
+    void runTransportAction(
+      () => endTripMutation.mutateAsync({
+        projectId: activeProjectId,
+        tripId: tripEndTripId,
+        odometerKm: Number(tripEndForm.odometerKm),
+        destination: tripEndForm.destination.trim() || undefined,
+        remarks: tripEndForm.remarks.trim() || undefined,
+        endLocation: {
+          ...(hasGpsLocation
+            ? {
+              latitude: Number(tripEndForm.latitude),
+              longitude: Number(tripEndForm.longitude),
+            }
+            : {}),
+          address: manualAddress || undefined,
+        },
+      }),
+      {
+        toastId: 'transport-end-trip',
+        loadingMessage: 'Ending trip...',
+        successMessage: 'Trip completed.',
+        errorMessage: 'Trip could not be ended.',
       },
-    })
+    )
   }
 
   function submitFuelLog() {
-    if (!activeProjectId || !fuelForm.receiptImage || !fuelForm.odometerImage) {
+    if (!activeProjectId) {
+      showError('Select a project before logging fuel.', { id: 'transport-log-fuel' })
+      return
+    }
+
+    if (!fuelForm.vehicleId) {
+      showError('Select a vehicle before logging fuel.', { id: 'transport-log-fuel' })
+      return
+    }
+
+    if (!fuelForm.liters || Number(fuelForm.liters) <= 0) {
+      showError('Enter the fuel quantity before submitting.', { id: 'transport-log-fuel' })
+      return
+    }
+
+    if (!fuelForm.receiptImage || !fuelForm.odometerImage) {
+      showError('Receipt and odometer images are required.', { id: 'transport-log-fuel' })
       return
     }
 
@@ -730,13 +848,31 @@ export function TransportView() {
     if (fuelForm.odometerKm) payload.odometerKm = Number(fuelForm.odometerKm)
     if (fuelForm.notes.trim()) payload.notes = fuelForm.notes.trim()
 
-    logFuelMutation.mutate(payload)
+    void runTransportAction(
+      () => logFuelMutation.mutateAsync(payload),
+      {
+        toastId: 'transport-log-fuel',
+        loadingMessage: 'Uploading fuel log...',
+        successMessage: 'Fuel log submitted.',
+        errorMessage: 'Fuel log could not be submitted.',
+      },
+    )
+  }
+
+  function reviewFuelLog(id: string, auditStatus: 'verified' | 'mismatch') {
+    void runTransportAction(
+      () => reviewFuelMutation.mutateAsync({ id, auditStatus }),
+      {
+        toastId: `transport-fuel-review-${auditStatus}`,
+        loadingMessage: auditStatus === 'verified' ? 'Approving fuel log...' : 'Flagging OCR mismatch...',
+        successMessage: auditStatus === 'verified' ? 'Approved successfully' : 'OCR mismatch flagged.',
+        errorMessage: auditStatus === 'verified' ? 'Fuel approval failed.' : 'Fuel mismatch could not be flagged.',
+      },
+    )
   }
 
   return (
     <div className="page-shell">
-      <ActionFeedbackToast feedback={feedback} onDismiss={() => setFeedback(null)} />
-
       <header className="page-header">
         <div>
           <span className="page-kicker">Logistics Control</span>
@@ -895,12 +1031,7 @@ export function TransportView() {
                   <button
                     type="button"
                     aria-disabled={!liveMeta?.mapEnabled}
-                    onClick={() => {
-                      setFeedback({
-                        type: 'info',
-                        message: 'Mapbox integration under development',
-                      })
-                    }}
+                    onClick={() => showInfo('Mapbox integration under development.', { id: 'transport-map-mode' })}
                     className={`rounded-full border px-4 py-2 text-xs font-semibold uppercase tracking-[0.16em] transition ${
                       liveMeta?.mapEnabled
                         ? 'border-orange-300 bg-orange-50 text-orange-700 hover:border-orange-400 dark:border-orange-500/40 dark:bg-orange-500/10 dark:text-orange-200'
@@ -1080,7 +1211,8 @@ export function TransportView() {
               <FuelLedger
                 fuelLogs={fuelLogs}
                 canManageTransport={canManageTransport}
-                reviewFuelMutation={reviewFuelMutation}
+                onReviewFuel={reviewFuelLog}
+                reviewFuelPending={reviewFuelMutation.isPending}
                 onPreview={setFuelPreview}
               />
             )}
@@ -1207,6 +1339,7 @@ export function TransportView() {
             onClose={() => setVehicleDetailId(null)}
             onSubmit={canManageTransport ? submitVehicleUpdate : () => setVehicleDetailId(null)}
             submitLabel={canManageTransport ? (updateVehicleMutation.isPending ? 'Saving...' : 'Save Changes') : 'Close'}
+            isSubmitting={updateVehicleMutation.isPending}
           />
         </ModalShell>
       )}
@@ -1231,7 +1364,13 @@ export function TransportView() {
               disabled={isDriversLoading || driverOptions.length === 0}
             />
           </div>
-          <ModalActions onClose={() => setVehicleAssignId(null)} onSubmit={submitDriverAssignment} submitLabel={assignDriverMutation.isPending ? 'Saving...' : 'Save Assignment'} />
+          <ModalActions
+            onClose={() => setVehicleAssignId(null)}
+            onSubmit={submitDriverAssignment}
+            submitLabel={assignDriverMutation.isPending ? 'Saving Assignment...' : 'Save Assignment'}
+            isSubmitting={assignDriverMutation.isPending}
+            submitDisabled={isDriversLoading || driverOptions.length === 0}
+          />
         </ModalShell>
       )}
 
@@ -1307,7 +1446,12 @@ export function TransportView() {
               />
             </div>
           </div>
-          <ModalActions onClose={closeTripStartModal} onSubmit={submitTripStart} submitLabel={startTripMutation.isPending ? 'Starting...' : 'Start Trip'} />
+          <ModalActions
+            onClose={closeTripStartModal}
+            onSubmit={submitTripStart}
+            submitLabel={startTripMutation.isPending ? 'Starting Trip...' : 'Start Trip'}
+            isSubmitting={startTripMutation.isPending}
+          />
         </ModalShell>
       )}
 
@@ -1338,7 +1482,12 @@ export function TransportView() {
               placeholder="Wrap complete, returning to base"
             />
           </div>
-          <ModalActions onClose={closeTripEndModal} onSubmit={submitTripEnd} submitLabel={endTripMutation.isPending ? 'Ending...' : 'End Trip'} />
+          <ModalActions
+            onClose={closeTripEndModal}
+            onSubmit={submitTripEnd}
+            submitLabel={endTripMutation.isPending ? 'Ending Trip...' : 'End Trip'}
+            isSubmitting={endTripMutation.isPending}
+          />
         </ModalShell>
       )}
 
@@ -1364,14 +1513,19 @@ export function TransportView() {
             <FileField label="Receipt Image" onChange={file => setFuelForm(current => ({ ...current, receiptImage: file }))} />
             <FileField label="Odometer Image" onChange={file => setFuelForm(current => ({ ...current, odometerImage: file }))} />
           </div>
-          <ModalActions onClose={() => setFuelModalOpen(false)} onSubmit={submitFuelLog} submitLabel={logFuelMutation.isPending ? 'Uploading...' : 'Submit Fuel Log'} />
+          <ModalActions
+            onClose={() => setFuelModalOpen(false)}
+            onSubmit={submitFuelLog}
+            submitLabel={logFuelMutation.isPending ? 'Uploading Fuel Log...' : 'Submit Fuel Log'}
+            isSubmitting={logFuelMutation.isPending}
+          />
         </ModalShell>
       )}
 
       {fuelPreview && (
         <ModalShell title={fuelPreview.title} onClose={() => setFuelPreview(null)} size="xl">
           <div className="mb-4">
-            <p className="section-kicker">Receipt Preview</p>
+            <p className="section-kicker">Image Preview</p>
           </div>
           <div className="overflow-hidden rounded-[24px] border border-zinc-200 bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-950">
             <img src={fuelPreview.src} alt={fuelPreview.title} className="max-h-[70vh] w-full object-contain" />
@@ -1385,15 +1539,14 @@ export function TransportView() {
 function FuelLedger({
   fuelLogs,
   canManageTransport,
-  reviewFuelMutation,
+  onReviewFuel,
+  reviewFuelPending,
   onPreview,
 }: {
   fuelLogs: FuelLogUI[]
   canManageTransport: boolean
-  reviewFuelMutation: {
-    mutate: (payload: { id: string; auditStatus: 'verified' | 'mismatch' }) => void
-    isPending: boolean
-  }
+  onReviewFuel: (id: string, auditStatus: 'verified' | 'mismatch') => void
+  reviewFuelPending: boolean
   onPreview: (preview: { title: string; src: string }) => void
 }) {
   return (
@@ -1402,7 +1555,7 @@ function FuelLedger({
         <table className="w-full min-w-[1120px] table-fixed border-collapse">
           <thead>
             <tr className="border-b border-zinc-200/80 dark:border-zinc-800">
-              <th className="px-6 py-4 text-left text-[10px] font-semibold uppercase tracking-[0.22em] text-zinc-500 dark:text-zinc-400">Entry Date</th>
+              <th className="px-6 py-4 text-left text-[10px] font-semibold uppercase tracking-[0.22em] text-zinc-500 dark:text-zinc-400">Date</th>
               <th className="px-4 py-4 text-left text-[10px] font-semibold uppercase tracking-[0.22em] text-zinc-500 dark:text-zinc-400">Vehicle</th>
               <th className="px-4 py-4 text-left text-[10px] font-semibold uppercase tracking-[0.22em] text-zinc-500 dark:text-zinc-400">Driver</th>
               <th className="px-4 py-4 text-right text-[10px] font-semibold uppercase tracking-[0.22em] text-zinc-500 dark:text-zinc-400">Litres</th>
@@ -1410,17 +1563,14 @@ function FuelLedger({
               <th className="px-4 py-4 text-right text-[10px] font-semibold uppercase tracking-[0.22em] text-zinc-500 dark:text-zinc-400">Expected</th>
               <th className="px-4 py-4 text-right text-[10px] font-semibold uppercase tracking-[0.22em] text-zinc-500 dark:text-zinc-400">Actual</th>
               <th className="px-4 py-4 text-left text-[10px] font-semibold uppercase tracking-[0.22em] text-zinc-500 dark:text-zinc-400">Status</th>
-              <th className="px-6 py-4 text-right text-[10px] font-semibold uppercase tracking-[0.22em] text-zinc-500 dark:text-zinc-400">Action</th>
+              <th className="px-4 py-4 text-center text-[10px] font-semibold uppercase tracking-[0.22em] text-zinc-500 dark:text-zinc-400">Receipt Image</th>
+              <th className="px-6 py-4 text-center text-[10px] font-semibold uppercase tracking-[0.22em] text-zinc-500 dark:text-zinc-400">Odometer Image</th>
             </tr>
           </thead>
           <tbody>
             {fuelLogs.map(row => {
               const receiptUrl = resolveUploadUrl(row.receiptFilePath)
               const odometerUrl = resolveUploadUrl(row.odometerImagePath)
-              const previewActions = [
-                receiptUrl ? { key: 'receipt', label: 'Receipt', title: `${row.vehicleName} Receipt`, src: receiptUrl } : null,
-                odometerUrl ? { key: 'odometer', label: 'Odometer', title: `${row.vehicleName} Odometer`, src: odometerUrl } : null,
-              ].filter(Boolean) as Array<{ key: string; label: string; title: string; src: string }>
 
               return (
                 <tr key={row.id} className="border-b border-zinc-200/70 last:border-b-0 dark:border-zinc-800">
@@ -1439,40 +1589,58 @@ function FuelLedger({
                       )}
                       {row.metadata?.ocrStatus === 'processing' && <StatusBadge variant="pending" label="OCR Pending" />}
                     </div>
+                    {(canManageTransport || row.reviewedAt || row.approvalNote) && (
+                      <div className="mt-3 space-y-2 text-xs text-zinc-500 dark:text-zinc-400">
+                        {canManageTransport && (
+                          <div className="flex flex-wrap gap-2">
+                            <button
+                              onClick={() => onReviewFuel(row.id, 'verified')}
+                              className="btn-soft rounded-full px-3 py-2 text-[10px]"
+                              disabled={reviewFuelPending}
+                            >
+                              {reviewFuelPending ? 'Working...' : 'Approve'}
+                            </button>
+                            <button
+                              onClick={() => onReviewFuel(row.id, 'mismatch')}
+                              className="btn-soft rounded-full px-3 py-2 text-[10px]"
+                              disabled={reviewFuelPending}
+                            >
+                              {reviewFuelPending ? 'Working...' : 'Flag'}
+                            </button>
+                          </div>
+                        )}
+                        {row.reviewedAt && (
+                          <p>
+                            Reviewed {formatDate(row.reviewedAt)} {formatTime(row.reviewedAt)}
+                          </p>
+                        )}
+                        {row.approvalNote && <p>{row.approvalNote}</p>}
+                      </div>
+                    )}
                   </td>
-                  <td className="px-6 py-5">
-                    <div className="flex flex-wrap justify-end gap-2">
-                      {previewActions.map(action => (
-                        <button key={action.key} onClick={() => onPreview({ title: action.title, src: action.src })} className="btn-soft px-3 py-2 text-[10px]">
-                          {action.label}
-                        </button>
-                      ))}
-                      {canManageTransport ? (
-                        <>
-                          <button
-                            onClick={() => reviewFuelMutation.mutate({ id: row.id, auditStatus: 'verified' })}
-                            className="btn-soft px-3 py-2 text-[10px]"
-                            disabled={reviewFuelMutation.isPending}
-                          >
-                            Approve
-                          </button>
-                          <button
-                            onClick={() => reviewFuelMutation.mutate({ id: row.id, auditStatus: 'mismatch' })}
-                            className="btn-soft px-3 py-2 text-[10px]"
-                            disabled={reviewFuelMutation.isPending}
-                          >
-                            Flag
-                          </button>
-                        </>
-                      ) : (
-                        <span className="text-xs text-zinc-400">{row.reviewedAt ? 'Reviewed' : '-'}</span>
-                      )}
-                      {row.reviewedAt && (
-                        <span className="w-full text-right text-xs text-zinc-500 dark:text-zinc-400">
-                          Reviewed {formatDate(row.reviewedAt)} {formatTime(row.reviewedAt)}
-                        </span>
-                      )}
-                    </div>
+                  <td className="px-4 py-5 text-center">
+                    {receiptUrl ? (
+                      <button
+                        onClick={() => onPreview({ title: `${row.vehicleName} Receipt`, src: receiptUrl })}
+                        className="btn-soft rounded-full px-3 py-2 text-[10px]"
+                      >
+                        Preview
+                      </button>
+                    ) : (
+                      <span className="text-xs text-zinc-400">Unavailable</span>
+                    )}
+                  </td>
+                  <td className="px-6 py-5 text-center">
+                    {odometerUrl ? (
+                      <button
+                        onClick={() => onPreview({ title: `${row.vehicleName} Odometer`, src: odometerUrl })}
+                        className="btn-soft rounded-full px-3 py-2 text-[10px]"
+                      >
+                        Preview
+                      </button>
+                    ) : (
+                      <span className="text-xs text-zinc-400">Unavailable</span>
+                    )}
                   </td>
                 </tr>
               )
@@ -1485,15 +1653,11 @@ function FuelLedger({
         {fuelLogs.map(row => {
           const receiptUrl = resolveUploadUrl(row.receiptFilePath)
           const odometerUrl = resolveUploadUrl(row.odometerImagePath)
-          const previewActions = [
-            receiptUrl ? { key: 'receipt', label: 'Receipt', title: `${row.vehicleName} Receipt`, src: receiptUrl } : null,
-            odometerUrl ? { key: 'odometer', label: 'Odometer', title: `${row.vehicleName} Odometer`, src: odometerUrl } : null,
-          ].filter(Boolean) as Array<{ key: string; label: string; title: string; src: string }>
 
           return (
             <div key={row.id} className="px-6 py-5">
-              <div className="grid gap-5 lg:grid-cols-[1.05fr,1fr,0.75fr,0.6fr,0.72fr,0.78fr,0.78fr,1.18fr,1.08fr] lg:items-center">
-                <LedgerCell label="Entry Date">
+              <div className="grid gap-5 lg:grid-cols-[1.05fr,1fr,0.75fr,0.6fr,0.72fr,0.78fr,0.78fr,1.18fr,0.82fr,0.9fr] lg:items-center">
+                <LedgerCell label="Date">
                   <p className="font-medium text-zinc-900 dark:text-white">{formatDate(row.logDate)}</p>
                 </LedgerCell>
                 <LedgerCell label="Vehicle">
@@ -1524,51 +1688,58 @@ function FuelLedger({
                       <StatusBadge variant="pending" label="OCR Pending" />
                     )}
                   </div>
-                  {previewActions.length > 0 && (
-                    <div className="mt-3 flex flex-wrap gap-2 lg:hidden">
-                      {previewActions.map(action => (
-                        <button key={action.key} onClick={() => onPreview({ title: action.title, src: action.src })} className="btn-soft px-3 py-2 text-[10px]">
-                          {action.label}
-                        </button>
-                      ))}
+                  {(canManageTransport || row.reviewedAt || row.approvalNote) && (
+                    <div className="mt-3 space-y-2 text-xs text-zinc-500 dark:text-zinc-400">
+                      {canManageTransport && (
+                        <div className="flex flex-wrap gap-2">
+                          <button
+                            onClick={() => onReviewFuel(row.id, 'verified')}
+                            className="btn-soft rounded-full px-3 py-2 text-[10px]"
+                            disabled={reviewFuelPending}
+                          >
+                            {reviewFuelPending ? 'Working...' : 'Approve'}
+                          </button>
+                          <button
+                            onClick={() => onReviewFuel(row.id, 'mismatch')}
+                            className="btn-soft rounded-full px-3 py-2 text-[10px]"
+                            disabled={reviewFuelPending}
+                          >
+                            {reviewFuelPending ? 'Working...' : 'Flag'}
+                          </button>
+                        </div>
+                      )}
+                      {row.reviewedAt && (
+                        <p>
+                          Reviewed {formatDate(row.reviewedAt)} {formatTime(row.reviewedAt)}
+                        </p>
+                      )}
+                      {row.approvalNote && <p>{row.approvalNote}</p>}
                     </div>
                   )}
                 </LedgerCell>
-                <LedgerCell label="Action" align="right">
-                  <div className="flex flex-wrap justify-end gap-2">
-                    <div className="hidden flex-wrap justify-end gap-2 lg:flex">
-                      {previewActions.map(action => (
-                        <button key={action.key} onClick={() => onPreview({ title: action.title, src: action.src })} className="btn-soft px-3 py-2 text-[10px]">
-                          {action.label}
-                        </button>
-                      ))}
-                    </div>
-                    {canManageTransport ? (
-                      <>
-                      <button
-                        onClick={() => reviewFuelMutation.mutate({ id: row.id, auditStatus: 'verified' })}
-                        className="btn-soft px-3 py-2 text-[10px]"
-                        disabled={reviewFuelMutation.isPending}
-                      >
-                        Approve
-                      </button>
-                      <button
-                        onClick={() => reviewFuelMutation.mutate({ id: row.id, auditStatus: 'mismatch' })}
-                        className="btn-soft px-3 py-2 text-[10px]"
-                        disabled={reviewFuelMutation.isPending}
-                      >
-                        Flag
-                      </button>
-                      </>
-                    ) : (
-                      <span className="text-xs text-zinc-400">{row.reviewedAt ? 'Reviewed' : '-'}</span>
-                    )}
-                    {row.reviewedAt && (
-                      <span className="w-full text-left text-xs text-zinc-500 dark:text-zinc-400 lg:text-right">
-                        Reviewed {formatDate(row.reviewedAt)} {formatTime(row.reviewedAt)}
-                      </span>
-                    )}
-                  </div>
+                <LedgerCell label="Receipt Image" align="right">
+                  {receiptUrl ? (
+                    <button
+                      onClick={() => onPreview({ title: `${row.vehicleName} Receipt`, src: receiptUrl })}
+                      className="btn-soft rounded-full px-3 py-2 text-[10px]"
+                    >
+                      Preview
+                    </button>
+                  ) : (
+                    <span className="text-xs text-zinc-400">Unavailable</span>
+                  )}
+                </LedgerCell>
+                <LedgerCell label="Odometer Image" align="right">
+                  {odometerUrl ? (
+                    <button
+                      onClick={() => onPreview({ title: `${row.vehicleName} Odometer`, src: odometerUrl })}
+                      className="btn-soft rounded-full px-3 py-2 text-[10px]"
+                    >
+                      Preview
+                    </button>
+                  ) : (
+                    <span className="text-xs text-zinc-400">Unavailable</span>
+                  )}
                 </LedgerCell>
               </div>
             </div>
@@ -1798,15 +1969,22 @@ function ModalActions({
   onClose,
   onSubmit,
   submitLabel,
+  isSubmitting = false,
+  submitDisabled = false,
 }: {
   onClose: () => void
   onSubmit: () => void
   submitLabel: string
+  isSubmitting?: boolean
+  submitDisabled?: boolean
 }) {
   return (
     <div className="mt-8 flex flex-wrap gap-3">
-      <button onClick={onClose} className="clay-ghost-button">Cancel</button>
-      <button onClick={onSubmit} className="clay-primary-button">{submitLabel}</button>
+      <button onClick={onClose} className="clay-ghost-button" disabled={isSubmitting}>Cancel</button>
+      <button onClick={onSubmit} className="clay-primary-button" disabled={submitDisabled || isSubmitting}>
+        {isSubmitting ? <span className="ui-spinner" /> : null}
+        {submitLabel}
+      </button>
     </div>
   )
 }

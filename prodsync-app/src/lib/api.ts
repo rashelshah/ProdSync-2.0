@@ -1,4 +1,14 @@
 import { supabase } from './supabase'
+import { showError } from './toast'
+
+type ApiResponse = Response & {
+  requestMethod?: string
+}
+
+type HandledApiError = Error & {
+  feedbackShown?: boolean
+  status?: number
+}
 
 function normalizeApiBaseUrl(value: string | undefined) {
   const trimmed = value?.trim().replace(/\/+$/, '')
@@ -13,6 +23,17 @@ export function apiOrigin() {
   }
 
   return new URL(apiBaseUrl, window.location.origin).origin
+}
+
+function annotateError(message: string, options?: { feedbackShown?: boolean; status?: number }) {
+  const error = new Error(message) as HandledApiError
+  error.feedbackShown = options?.feedbackShown ?? false
+  error.status = options?.status
+  return error
+}
+
+function getToastKey(prefix: string, value: string) {
+  return `${prefix}:${value.replace(/[^a-z0-9]+/gi, '-').toLowerCase().slice(0, 80)}`
 }
 
 export async function apiFetch(path: string, init: RequestInit = {}) {
@@ -42,10 +63,18 @@ export async function apiFetch(path: string, init: RequestInit = {}) {
     })
   }
 
-  const response = await fetch(`${apiBaseUrl}${path}`, {
-    ...init,
-    headers,
-  })
+  let response: Response
+
+  try {
+    response = await fetch(`${apiBaseUrl}${path}`, {
+      ...init,
+      headers,
+    })
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Unable to reach the server.'
+    showError('Unable to reach the server. Please try again.', { id: 'network-error' })
+    throw annotateError(message, { feedbackShown: true })
+  }
 
   if (shouldLog) {
     console.log('[apiFetch] response', {
@@ -56,13 +85,26 @@ export async function apiFetch(path: string, init: RequestInit = {}) {
     })
   }
 
-  return response
+  return Object.assign(response, { requestMethod: method }) as ApiResponse
 }
 
 export async function readApiJson<T>(response: Response): Promise<T> {
   if (!response.ok) {
-    const errorPayload = await response.json().catch(() => null) as { error?: string } | null
-    throw new Error(errorPayload?.error ?? `Request failed with status ${response.status}`)
+    const errorPayload = await response.json().catch(() => null) as { error?: string; message?: string } | null
+    const message = errorPayload?.error ?? errorPayload?.message ?? `Request failed with status ${response.status}`
+    const requestMethod = (response as ApiResponse).requestMethod?.toUpperCase()
+    const shouldToast = !requestMethod || requestMethod === 'GET' || requestMethod === 'HEAD'
+
+    if (shouldToast) {
+      showError(message, {
+        id: getToastKey('api-error', `${requestMethod ?? 'request'}-${response.url}-${response.status}`),
+      })
+    }
+
+    throw annotateError(message, {
+      feedbackShown: shouldToast,
+      status: response.status,
+    })
   }
 
   return response.json() as Promise<T>

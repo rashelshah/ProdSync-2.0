@@ -9,6 +9,7 @@ import { getProjectRoleTitle, getRoleOptionsForDepartment } from '@/features/aut
 import { useAuthStore } from '@/features/auth/auth.store'
 import { useResolvedProjectContext } from '@/features/projects/useResolvedProjectContext'
 import { useProjectsStore } from '@/features/projects/projects.store'
+import { resolveErrorMessage, showError, showLoading, showSuccess } from '@/lib/toast'
 import { projectsService } from '@/services/projects.service'
 import { cn, formatCurrency, formatDate, timeAgo } from '@/utils'
 import type { ProjectDepartment, ProjectJoinRequest, ProjectRecord, ProjectRequestedRole, ProjectStage } from '@/types'
@@ -62,6 +63,7 @@ export function ProjectsView() {
   const [projectEndDate, setProjectEndDate] = useState('')
   const [projectOtRules, setProjectOtRules] = useState('')
   const [selectedDepartments, setSelectedDepartments] = useState<ProjectDepartment[]>([])
+  const [projectAction, setProjectAction] = useState<string | null>(null)
 
   const currentUser = user ?? {
     id: '',
@@ -149,33 +151,81 @@ export function ProjectsView() {
 
   if (!user) return null
 
+  async function runProjectAction<T>(
+    action: () => Promise<T>,
+    options: {
+      actionKey: string
+      loadingMessage: string
+      successMessage: string
+      errorMessage: string
+    },
+  ) {
+    setProjectAction(options.actionKey)
+    showLoading(options.loadingMessage, { id: options.actionKey })
+
+    try {
+      const result = await action()
+      showSuccess(options.successMessage, { id: options.actionKey })
+      return result
+    } catch (error) {
+      showError(resolveErrorMessage(error, options.errorMessage), { id: options.actionKey })
+      throw error
+    } finally {
+      setProjectAction(null)
+    }
+  }
+
   function openProject(projectId: string) {
     setActiveProject(projectId)
     navigate(getDefaultWorkspacePath(currentUser))
   }
 
   function createProjectSubmit() {
-    createProjectMutation.mutate({
-      name: projectName.trim(),
-      location: projectLocation.trim(),
-      status: projectStatus,
-      budgetUSD: Number(projectBudget) || 0,
-      activeCrew: Number(projectCrew) || 0,
-      startDate: projectStartDate,
-      endDate: projectEndDate,
-      enabledDepartments: selectedDepartments,
-      otRulesLabel: projectOtRules.trim(),
-    })
+    if (!projectName.trim()) {
+      showError('Project name is required.', { id: 'project-create' })
+      return
+    }
+
+    void runProjectAction(
+      () => createProjectMutation.mutateAsync({
+        name: projectName.trim(),
+        location: projectLocation.trim(),
+        status: projectStatus,
+        budgetUSD: Number(projectBudget) || 0,
+        activeCrew: Number(projectCrew) || 0,
+        startDate: projectStartDate,
+        endDate: projectEndDate,
+        enabledDepartments: selectedDepartments,
+        otRulesLabel: projectOtRules.trim(),
+      }),
+      {
+        actionKey: 'project-create',
+        loadingMessage: 'Creating project...',
+        successMessage: 'Project created successfully.',
+        errorMessage: 'Project could not be created.',
+      },
+    )
   }
 
   function submitJoinRequest() {
-    if (!selectedProject) return
+    if (!selectedProject) {
+      showError('Select a project before sending a request.', { id: 'project-join-request' })
+      return
+    }
 
-    requestJoinMutation.mutate({
-      projectId: selectedProject.id,
-      roleRequested: requestedRole,
-      message: requestMessage.trim() || undefined,
-    })
+    void runProjectAction(
+      () => requestJoinMutation.mutateAsync({
+        projectId: selectedProject.id,
+        roleRequested: requestedRole,
+        message: requestMessage.trim() || undefined,
+      }),
+      {
+        actionKey: 'project-join-request',
+        loadingMessage: 'Sending access request...',
+        successMessage: 'Access request sent.',
+        errorMessage: 'Access request could not be sent.',
+      },
+    )
   }
 
   function getRequestForProject(projectId: string) {
@@ -277,8 +327,29 @@ export function ProjectsView() {
                       key={request.id}
                       request={request}
                       projectName={projects.find(project => project.id === request.projectId)?.name ?? 'Project'}
-                      onApprove={() => reviewJoinRequestMutation.mutate({ requestId: request.id, status: 'approved' })}
-                      onReject={() => reviewJoinRequestMutation.mutate({ requestId: request.id, status: 'rejected' })}
+                      onApprove={() => {
+                        void runProjectAction(
+                          () => reviewJoinRequestMutation.mutateAsync({ requestId: request.id, status: 'approved' }),
+                          {
+                            actionKey: `project-review-${request.id}`,
+                            loadingMessage: 'Approving join request...',
+                            successMessage: 'Approved successfully',
+                            errorMessage: 'Join request approval failed.',
+                          },
+                        )
+                      }}
+                      onReject={() => {
+                        void runProjectAction(
+                          () => reviewJoinRequestMutation.mutateAsync({ requestId: request.id, status: 'rejected' }),
+                          {
+                            actionKey: `project-review-${request.id}`,
+                            loadingMessage: 'Flagging join request...',
+                            successMessage: 'Request flagged',
+                            errorMessage: 'Join request could not be flagged.',
+                          },
+                        )
+                      }}
+                      isBusy={projectAction === `project-review-${request.id}`}
                     />
                   ))}
                 </div>
@@ -415,8 +486,11 @@ export function ProjectsView() {
           </div>
 
           <div className="mt-8 flex flex-wrap gap-3">
-            <button onClick={() => setShowCreateModal(false)} className="clay-ghost-button">Cancel</button>
-            <button onClick={createProjectSubmit} className="clay-primary-button">Save Project</button>
+            <button onClick={() => setShowCreateModal(false)} className="clay-ghost-button" disabled={projectAction === 'project-create'}>Cancel</button>
+            <button onClick={createProjectSubmit} className="clay-primary-button" disabled={projectAction === 'project-create'}>
+              {projectAction === 'project-create' ? <span className="ui-spinner" /> : null}
+              {projectAction === 'project-create' ? 'Saving Project...' : 'Save Project'}
+            </button>
           </div>
         </ModalShell>
       )}
@@ -451,8 +525,11 @@ export function ProjectsView() {
           </div>
 
           <div className="mt-8 flex flex-wrap gap-3">
-            <button onClick={() => setSelectedProjectId(null)} className="clay-ghost-button">Cancel</button>
-            <button onClick={submitJoinRequest} className="clay-primary-button">Send Request</button>
+            <button onClick={() => setSelectedProjectId(null)} className="clay-ghost-button" disabled={projectAction === 'project-join-request'}>Cancel</button>
+            <button onClick={submitJoinRequest} className="clay-primary-button" disabled={projectAction === 'project-join-request'}>
+              {projectAction === 'project-join-request' ? <span className="ui-spinner" /> : null}
+              {projectAction === 'project-join-request' ? 'Sending Request...' : 'Send Request'}
+            </button>
           </div>
         </ModalShell>
       )}
@@ -538,11 +615,13 @@ function JoinRequestRow({
   projectName,
   onApprove,
   onReject,
+  isBusy = false,
 }: {
   request: ProjectJoinRequest
   projectName: string
   onApprove: () => void
   onReject: () => void
+  isBusy?: boolean
 }) {
   return (
     <div className="flex flex-col gap-4 rounded-[26px] bg-zinc-50 px-5 py-5 dark:bg-zinc-950 sm:flex-row sm:items-center sm:justify-between">
@@ -552,8 +631,12 @@ function JoinRequestRow({
         {request.message && <p className="mt-3 text-sm leading-6 text-zinc-600 dark:text-zinc-300">{request.message}</p>}
       </div>
       <div className="flex flex-wrap gap-3">
-        <button onClick={onReject} className="btn-soft">Reject</button>
-        <button onClick={onApprove} className="btn-primary">Approve</button>
+        <button onClick={onReject} className="btn-soft" disabled={isBusy}>
+          {isBusy ? 'Working...' : 'Reject'}
+        </button>
+        <button onClick={onApprove} className="btn-primary" disabled={isBusy}>
+          {isBusy ? 'Working...' : 'Approve'}
+        </button>
       </div>
     </div>
   )

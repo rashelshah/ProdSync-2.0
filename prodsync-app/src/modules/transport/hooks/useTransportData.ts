@@ -68,7 +68,7 @@ export function useTransportData(filters: TripFilters = {}) {
     }
 
     let cancelled = false
-    const handleRealtimeUpdate = (payload: { projectId: string }) => {
+    const handleTransportUpdate = (payload: { projectId: string }) => {
       if (payload.projectId !== activeProjectId) {
         return
       }
@@ -89,21 +89,19 @@ export function useTransportData(filters: TripFilters = {}) {
 
       socket.emit('project:subscribe', activeProjectId)
 
-      socket.on('trip_started', handleRealtimeUpdate)
-      socket.on('trip_ended', handleRealtimeUpdate)
-      socket.on('fuel_logged', handleRealtimeUpdate)
-      socket.on('alert_created', handleRealtimeUpdate)
-      socket.on('vehicle_location_update', handleRealtimeUpdate)
+      socket.on('trip_started', handleTransportUpdate)
+      socket.on('trip_ended', handleTransportUpdate)
+      socket.on('fuel_logged', handleTransportUpdate)
+      socket.on('alert_created', handleTransportUpdate)
     })
 
     return () => {
       cancelled = true
       void getTransportSocket().then(socket => {
-        socket?.off('trip_started', handleRealtimeUpdate)
-        socket?.off('trip_ended', handleRealtimeUpdate)
-        socket?.off('fuel_logged', handleRealtimeUpdate)
-        socket?.off('alert_created', handleRealtimeUpdate)
-        socket?.off('vehicle_location_update', handleRealtimeUpdate)
+        socket?.off('trip_started', handleTransportUpdate)
+        socket?.off('trip_ended', handleTransportUpdate)
+        socket?.off('fuel_logged', handleTransportUpdate)
+        socket?.off('alert_created', handleTransportUpdate)
         socket?.emit('project:unsubscribe', activeProjectId)
       })
     }

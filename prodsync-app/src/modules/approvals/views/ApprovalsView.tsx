@@ -1,6 +1,5 @@
 import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { ActionFeedbackToast } from '@/components/shared/ActionFeedbackToast'
 import { approvalsService } from '@/services/approvals.service'
 import { KpiCard } from '@/components/shared/KpiCard'
 import { StatusBadge } from '@/components/shared/StatusBadge'
@@ -8,6 +7,7 @@ import { Surface } from '@/components/shared/Surface'
 import { EmptyState, ErrorState, LoadingState } from '@/components/system/SystemStates'
 import { RoleGuard } from '@/features/auth/RoleGuard'
 import { useResolvedProjectContext } from '@/features/projects/useResolvedProjectContext'
+import { resolveErrorMessage, showError, showLoading, showSuccess } from '@/lib/toast'
 import type { ApprovalRequest } from '@/types'
 import { formatDate, formatTime, timeAgo } from '@/utils'
 
@@ -30,7 +30,6 @@ function approvalStageBadge(item: ApprovalRequest) {
 export function ApprovalsView() {
   const qc = useQueryClient()
   const { activeProjectId, isLoadingProjectContext, isErrorProjectContext } = useResolvedProjectContext()
-  const [feedback, setFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null)
   const [activeAction, setActiveAction] = useState<string | null>(null)
 
   const pendingQ = useQuery({
@@ -65,23 +64,32 @@ export function ApprovalsView() {
       qc.invalidateQueries({ queryKey: ['activity', activeProjectId] }),
       qc.invalidateQueries({ queryKey: ['art-expenses', activeProjectId] }),
       qc.invalidateQueries({ queryKey: ['art-budget', activeProjectId] }),
+      qc.invalidateQueries({ queryKey: ['trips', activeProjectId] }),
+      qc.invalidateQueries({ queryKey: ['fuel-logs', activeProjectId] }),
+      qc.invalidateQueries({ queryKey: ['transport-alerts', activeProjectId] }),
+      qc.invalidateQueries({ queryKey: ['tracking-live', activeProjectId] }),
     ])
   }
 
-  async function runApprovalAction(action: () => Promise<unknown>, successMessage: string, loadingKey: string) {
-    setFeedback(null)
-    setActiveAction(loadingKey)
+  async function runApprovalAction(
+    action: () => Promise<unknown>,
+    options: {
+      successMessage: string
+      loadingKey: string
+      loadingMessage: string
+      errorMessage: string
+    },
+  ) {
+    setActiveAction(options.loadingKey)
+    showLoading(options.loadingMessage, { id: options.loadingKey })
 
     try {
       await action()
       await invalidateApprovalQueries()
-      setFeedback({ type: 'success', message: successMessage })
+      showSuccess(options.successMessage, { id: options.loadingKey })
     } catch (error) {
       await invalidateApprovalQueries()
-      setFeedback({
-        type: 'error',
-        message: error instanceof Error ? error.message : 'Approval action failed.',
-      })
+      showError(resolveErrorMessage(error, options.errorMessage), { id: options.loadingKey })
     } finally {
       setActiveAction(null)
     }
@@ -98,8 +106,6 @@ export function ApprovalsView() {
 
   return (
     <div className="page-shell">
-      <ActionFeedbackToast feedback={feedback} onDismiss={() => setFeedback(null)} />
-
       <header className="page-header">
         <div>
           <span className="page-kicker">Decision Layer</span>
@@ -108,7 +114,12 @@ export function ApprovalsView() {
         </div>
         <RoleGuard permission="canApproveExpense">
           <button
-            onClick={() => runApprovalAction(() => approveAllMutation.mutateAsync(), 'All pending requests approved.', 'approve-all')}
+            onClick={() => runApprovalAction(() => approveAllMutation.mutateAsync(), {
+              successMessage: 'All pending requests approved.',
+              loadingKey: 'approve-all',
+              loadingMessage: 'Approving all pending requests...',
+              errorMessage: 'Bulk approval failed.',
+            })}
             className="btn-primary"
             disabled={!activeProjectId || actionablePending.length === 0 || activeAction !== null}
           >
@@ -167,14 +178,24 @@ export function ApprovalsView() {
                     <RoleGuard permission="canApproveExpense">
                       <div className="mt-4 flex gap-3">
                         <button
-                          onClick={() => runApprovalAction(() => approvalsService.approveItem(activeProjectId!, item.id), `${item.type} approved.`, `approve-${item.id}`)}
+                          onClick={() => runApprovalAction(() => approvalsService.approveItem(activeProjectId!, item.id), {
+                            successMessage: 'Approved successfully',
+                            loadingKey: `approve-${item.id}`,
+                            loadingMessage: 'Approving request...',
+                            errorMessage: 'Approval failed.',
+                          })}
                           className="btn-primary px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.14em]"
                           disabled={!activeProjectId || activeAction !== null || item.canAct === false}
                         >
                           {activeAction === `approve-${item.id}` ? 'Approving...' : 'Approve'}
                         </button>
                         <button
-                          onClick={() => runApprovalAction(() => approvalsService.rejectItem(activeProjectId!, item.id), `${item.type} denied.`, `reject-${item.id}`)}
+                          onClick={() => runApprovalAction(() => approvalsService.rejectItem(activeProjectId!, item.id), {
+                            successMessage: 'Request flagged',
+                            loadingKey: `reject-${item.id}`,
+                            loadingMessage: 'Flagging request...',
+                            errorMessage: 'Request could not be flagged.',
+                          })}
                           className="btn-ghost px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-red-500 dark:text-red-400"
                           disabled={!activeProjectId || activeAction !== null || item.canAct === false}
                         >
@@ -208,7 +229,9 @@ export function ApprovalsView() {
                         label={item.action === 'rejected' ? 'Denied' : 'Approved'}
                       />
                     </div>
-                    <p className="mt-2 text-sm text-zinc-500 dark:text-zinc-400">{item.approvedBy}</p>
+                    <p className="mt-2 text-sm text-zinc-500 dark:text-zinc-400">
+                      {item.approvedBy} | {item.role}
+                    </p>
                     <p className="mt-1 text-xs uppercase tracking-[0.12em] text-zinc-500 dark:text-zinc-400">
                       {formatDate(item.timestamp)} | {formatTime(item.timestamp)}
                     </p>

@@ -5,6 +5,7 @@ import { useProjectAlerts } from '@/features/alerts/useProjectAlerts'
 import { getUserRoleLabel } from '@/features/auth/onboarding'
 import { useAuthStore } from '@/features/auth/auth.store'
 import { useTheme } from '@/components/theme/ThemeProvider'
+import { showSuccess } from '@/lib/toast'
 import { cn, timeAgo } from '@/utils'
 
 interface HeaderProps {
@@ -155,7 +156,7 @@ export function Header({ isSidebarCollapsed, onToggleSidebar, sidebarOffset }: H
                     Projects
                  </button>
                  <div className="h-px bg-zinc-200 dark:bg-zinc-800 my-1 mx-2" />
-                 <button onClick={() => { logout(); navigate('/auth'); setShowProfileMenu(false); }} className="flex items-center gap-3 w-full px-3 py-2.5 rounded-[16px] text-sm font-medium text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-500/10 transition-colors text-left">
+                 <button onClick={async () => { await logout(); showSuccess('Signed out successfully.', { id: 'auth-logout' }); navigate('/auth'); setShowProfileMenu(false); }} className="flex items-center gap-3 w-full px-3 py-2.5 rounded-[16px] text-sm font-medium text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-500/10 transition-colors text-left">
                     <span className="material-symbols-outlined text-[18px]">logout</span>
                     Sign Out
                  </button>
