@@ -661,6 +661,7 @@ export function CameraView() {
   const pendingRequests = requests.filter(request => request.status === 'pending_dop' || request.status === 'pending_producer')
   const checkedInAssets = logs.filter(log => log.status === 'checked_in')
   const checkedOutAssets = logs.filter(log => log.status === 'checked_out')
+  const criticalAlerts = alerts.filter(alert => alert.type === 'critical')
 
   async function refreshCameraQueries() {
     if (!activeProjectId) {
@@ -1337,72 +1338,100 @@ export function CameraView() {
       </div>
       </div>
 
-      <div className="md:hidden space-y-6 pb-32 mt-2 px-1">
+      <div className="md:hidden mt-2 px-1 pb-44">
         <header className="px-3">
-          <span className="page-kicker text-orange-500">Asset Operations</span>
-          <h1 className="page-title page-title-compact mt-1 text-zinc-900 dark:text-white">Camera & Assets</h1>
-          <p className="page-subtitle mt-2 text-zinc-500 dark:text-zinc-400">Manage gear, requests, and movement logs</p>
+          <div className="overflow-hidden rounded-[28px] border border-zinc-200/80 bg-white/88 px-4 py-4 shadow-[0_18px_40px_rgba(15,23,42,0.08)] backdrop-blur-xl dark:border-white/8 dark:bg-zinc-900/82 dark:shadow-[0_20px_44px_rgba(0,0,0,0.32)]">
+            <span className="page-kicker text-orange-500">Asset Operations</span>
+            <h1 className="page-title page-title-compact mt-1 text-zinc-900 dark:text-white">Camera & Assets</h1>
+            <p className="page-subtitle mt-2 text-zinc-500 dark:text-zinc-400">Manage gear, requests, and movement logs</p>
+          </div>
         </header>
 
         {activeMobileTab === 'home' && (
-
-        <div className="animate-in fade-in slide-in-from-bottom-2 duration-300 pb-20">
-          
-          {/** Alerts Area **/}
-          <div className="animate-in fade-in slide-in-from-bottom-2 duration-300 px-3 space-y-8">
-            {alerts.length > 0 && alerts.some((a: any) => a.type === 'critical') && (
+        <div className="animate-in fade-in slide-in-from-bottom-2 duration-300 space-y-8 px-3 pt-6">
+            {criticalAlerts.length > 0 && (
               <section className="space-y-3">
                 <h2 className="text-xs font-bold text-orange-500/80 tracking-widest uppercase mb-2 px-1">Critical Alerts</h2>
-                {alerts.filter((a: any) => a.type === 'critical').map((alert: any, index: number) => (
-                  <div key={index} className="bg-red-500/10 p-4 rounded-xl flex items-start gap-4 border-l-4 border-red-500">
+                {criticalAlerts.map((alert, index) => (
+                  <div key={`${alert.timestamp}-${index}`} className="rounded-[22px] border border-red-500/20 bg-red-500/10 p-4 shadow-[0_14px_32px_rgba(239,68,68,0.12)]">
+                    <div className="flex items-start gap-4">
                     <span className="material-symbols-outlined text-red-500 mt-0.5" style={{ fontVariationSettings: "'FILL' 1" }}>warning</span>
                     <div className="flex-1">
                       <p className="text-sm font-bold text-zinc-900 dark:text-white">{alert.message}</p>
-                      <p className="text-xs text-red-200 mt-1">{formatDateTime(alert.timestamp)}</p>
+                      <p className="mt-1 text-xs text-red-500/80 dark:text-red-300">{formatDateTime(alert.timestamp)}</p>
                     </div>
+                  </div>
                   </div>
                 ))}
               </section>
             )}
 
             <section className="space-y-4">
+              <div className="flex items-center justify-between px-1">
+                <h2 className="text-lg font-bold tracking-tight text-zinc-900 dark:text-white">Statistics</h2>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                {[
+                  { label: 'Wishlist', value: wishlist.length, icon: 'favorite', tone: 'text-orange-500' },
+                  { label: 'Pending', value: pendingRequests.length, icon: 'hourglass_empty', tone: 'text-amber-500' },
+                  { label: 'Checked In', value: checkedInAssets.length, icon: 'task_alt', tone: 'text-emerald-500' },
+                  { label: 'Checked Out', value: checkedOutAssets.length, icon: 'move_item', tone: 'text-sky-500' },
+                  { label: 'Damage/Loss', value: damageReports.length, icon: 'report', tone: 'text-red-500' },
+                ].map(card => (
+                  <div
+                    key={card.label}
+                    className="rounded-[24px] border border-zinc-200/80 bg-gradient-to-br p-4 shadow-[0_16px_34px_rgba(15,23,42,0.08)] dark:border-white/8 dark:shadow-[0_18px_36px_rgba(0,0,0,0.26)]"
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <span className="text-[10px] font-bold uppercase tracking-[0.22em] text-zinc-500 dark:text-zinc-400">{card.label}</span>
+                      <span className={`material-symbols-outlined text-[20px] ${card.tone}`}>{card.icon}</span>
+                    </div>
+                    <div className="mt-5 flex items-end justify-between">
+                      <span className="text-3xl font-black tracking-tight text-zinc-900 dark:text-white">{card.value}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </section>
+
+            <section className="space-y-4">
               <div className="flex justify-between items-center px-1">
                 <h2 className="text-lg font-bold text-zinc-900 dark:text-white tracking-tight">Pending Requests</h2>
               </div>
-              
-              {requests.length === 0 ? (
-                <div className="bg-white dark:bg-zinc-900 p-6 rounded-xl text-center border border-zinc-200 dark:border-zinc-800">
-                   <p className="text-sm font-medium text-zinc-500 dark:text-zinc-400">No requests.</p>
+
+              {pendingRequests.length === 0 ? (
+                <div className="rounded-[24px] border border-zinc-200 bg-white p-6 text-center shadow-[0_16px_34px_rgba(15,23,42,0.06)] dark:border-zinc-800 dark:bg-zinc-900">
+                  <p className="text-sm font-medium text-zinc-500 dark:text-zinc-400">No pending requests.</p>
                 </div>
               ) : (
                 <div className="space-y-3">
-                  {requests.map(request => {
+                  {pendingRequests.map(request => {
                     const approvalStatus = nextApprovalStatus(request)
                     const approvalLabel = request.status === 'pending_dop' ? 'Send to Producer' : 'Approve'
                     const canReview = canApproveRequest(request)
-                    
+
                     return (
-                      <div key={request.id} className="bg-white dark:bg-zinc-900 p-4 rounded-xl border border-zinc-200 dark:border-zinc-800 flex flex-col gap-3 shadow-lg">
-                        <div className="flex justify-between items-start">
+                      <div key={request.id} className="rounded-[24px] border border-zinc-200 bg-white p-4 shadow-[0_16px_34px_rgba(15,23,42,0.07)] dark:border-zinc-800 dark:bg-zinc-900">
+                        <div className="flex justify-between items-start gap-3">
                           <div>
-                            <p className="text-zinc-900 dark:text-white font-bold text-sm">{request.itemName}</p>
-                            <p className="text-zinc-500 text-xs mt-1">Requested by {request.requestedByName ?? 'User'} • Qty: {request.quantity}</p>
+                            <p className="text-sm font-bold text-zinc-900 dark:text-white">{request.itemName}</p>
+                            <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">Requested by {request.requestedByName ?? 'User'} • Qty: {request.quantity}</p>
                           </div>
                           <div className="flex-shrink-0 scale-90 origin-top-right">
                             {requestStatusBadge(request.status)}
                           </div>
                         </div>
                         {canReview && (
-                           <div className="flex gap-2 mt-2 pt-3 border-t border-zinc-200 dark:border-zinc-800/50">
-                              {approvalStatus && (
-                                <button onClick={() => openApprovalModal(request, approvalStatus)} className="flex-1 bg-orange-500 text-black py-2 rounded-lg text-[10px] font-bold uppercase tracking-widest active:scale-95 transition-transform">
-                                  {approvalLabel}
-                                </button>
-                              )}
-                              <button onClick={() => openApprovalModal(request, 'rejected')} className="flex-1 bg-zinc-100 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 text-red-400 py-2 rounded-lg text-[10px] font-bold uppercase tracking-widest active:scale-95 transition-transform">
-                                Reject
+                          <div className="mt-3 flex gap-2 border-t border-zinc-200 pt-3 dark:border-zinc-800/60">
+                            {approvalStatus && (
+                              <button onClick={() => openApprovalModal(request, approvalStatus)} className="flex-1 rounded-xl bg-orange-500 py-2 text-[10px] font-bold uppercase tracking-widest text-black active:scale-95 transition-transform">
+                                {approvalLabel}
                               </button>
-                           </div>
+                            )}
+                            <button onClick={() => openApprovalModal(request, 'rejected')} className="flex-1 rounded-xl border border-zinc-200 bg-zinc-100 py-2 text-[10px] font-bold uppercase tracking-widest text-red-500 active:scale-95 transition-transform dark:border-zinc-700 dark:bg-zinc-800">
+                              Reject
+                            </button>
+                          </div>
                         )}
                       </div>
                     )
@@ -1410,42 +1439,7 @@ export function CameraView() {
                 </div>
               )}
             </section>
-          </div>
 
-          {/** Stats Area **/}
-          <section className="flex overflow-x-auto gap-4 hide-scrollbar -mx-6 px-6 snap-x pb-2 mt-4">
-              <div className="min-w-[140px] snap-center bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 p-4 rounded-xl flex flex-col justify-between shadow-lg">
-                <span className="text-[10px] font-bold text-zinc-500 tracking-widest uppercase">Wishlist</span>
-                <div className="mt-4 flex items-end justify-between">
-                  <span className="text-3xl font-black text-zinc-900 dark:text-white">{wishlist.length}</span>
-                  <span className="material-symbols-outlined text-orange-500">favorite</span>
-                </div>
-              </div>
-              <div className="min-w-[140px] snap-center bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 p-4 rounded-xl flex flex-col justify-between shadow-lg">
-                <span className="text-[10px] font-bold text-zinc-500 tracking-widest uppercase">Pending</span>
-                <div className="mt-4 flex items-end justify-between">
-                  <span className="text-3xl font-black text-zinc-900 dark:text-white">{pendingRequests.length}</span>
-                  <span className="material-symbols-outlined text-yellow-500">hourglass_empty</span>
-                </div>
-              </div>
-              <div className="min-w-[140px] snap-center bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 p-4 rounded-xl flex flex-col justify-between shadow-lg">
-                <span className="text-[10px] font-bold text-zinc-500 tracking-widest uppercase">Checked In</span>
-                <div className="mt-4 flex items-end justify-between">
-                  <span className="text-3xl font-black text-zinc-900 dark:text-white">{checkedInAssets.length}</span>
-                  <span className="material-symbols-outlined text-green-500">task_alt</span>
-                </div>
-              </div>
-              <div className="min-w-[140px] snap-center bg-white dark:bg-zinc-900 p-4 rounded-xl flex flex-col justify-between border-l-2 border-red-500/50">
-                <span className="text-[10px] font-bold text-zinc-500 tracking-widest uppercase">Damage/Loss</span>
-                <div className="mt-4 flex items-end justify-between">
-                  <span className="text-3xl font-black text-red-500">{damageReports.length}</span>
-                  <span className="material-symbols-outlined text-red-500">report</span>
-                </div>
-              </div>
-            </section>
-
-          {/** Activity Area **/}
-          
             <section className="space-y-4">
               <div className="flex justify-between items-center px-1">
                 <h2 className="text-lg font-bold text-zinc-900 dark:text-white tracking-tight">Movement Log</h2>
@@ -1455,15 +1449,15 @@ export function CameraView() {
               </div>
               
               {logs.length === 0 ? (
-                <div className="bg-white dark:bg-zinc-900 p-6 rounded-xl text-center border border-zinc-200 dark:border-zinc-800">
+                <div className="rounded-[24px] border border-zinc-200 bg-white p-6 text-center shadow-[0_16px_34px_rgba(15,23,42,0.06)] dark:border-zinc-800 dark:bg-zinc-900">
                    <p className="text-sm font-medium text-zinc-500 dark:text-zinc-400">No movement logs.</p>
                 </div>
               ) : (
                 <div className="relative ml-4 pl-6 border-l-2 border-zinc-200 dark:border-zinc-800 space-y-6 py-2">
                   {logs.map(log => (
                      <div key={log.id} className="relative">
-                        <div className={`absolute -left-[32px] top-1 w-3.5 h-3.5 rounded-full border-4 border-black ${log.status === 'checked_in' ? 'bg-green-500' : 'bg-orange-500'}`}></div>
-                        <div className="bg-white dark:bg-zinc-900 rounded-xl p-4 shadow-lg border border-zinc-200 dark:border-zinc-800/80">
+                        <div className={`absolute -left-[32px] top-1 h-3.5 w-3.5 rounded-full border-4 border-white dark:border-zinc-950 ${log.status === 'checked_in' ? 'bg-green-500' : 'bg-orange-500'}`}></div>
+                        <div className="rounded-[24px] border border-zinc-200 bg-white p-4 shadow-[0_16px_34px_rgba(15,23,42,0.07)] dark:border-zinc-800/80 dark:bg-zinc-900">
                           <div className="flex justify-between items-start">
                              <div>
                                <p className="text-sm font-bold text-zinc-900 dark:text-white">{log.assetName}</p>
@@ -1483,8 +1477,6 @@ export function CameraView() {
               )}
             </section>
 
-          {/** Wishlist Area **/}
-          
             <section className="space-y-4">
               <div className="flex justify-between items-center px-1">
                 <h2 className="text-lg font-bold text-zinc-900 dark:text-white tracking-tight">Wishlist Items</h2>
@@ -1494,13 +1486,13 @@ export function CameraView() {
               </div>
               
               {wishlist.length === 0 ? (
-                <div className="bg-white dark:bg-zinc-900 p-6 rounded-xl text-center border border-zinc-200 dark:border-zinc-800">
+                <div className="rounded-[24px] border border-zinc-200 bg-white p-6 text-center shadow-[0_16px_34px_rgba(15,23,42,0.06)] dark:border-zinc-800 dark:bg-zinc-900">
                    <p className="text-sm font-medium text-zinc-500 dark:text-zinc-400">No wishlist items.</p>
                 </div>
               ) : (
                 <div className="grid grid-cols-1 gap-4">
                   {wishlist.map(item => (
-                    <div key={item.id} className="bg-white dark:bg-zinc-900 rounded-xl overflow-hidden flex flex-col shadow-lg border border-zinc-200 dark:border-zinc-800">
+                    <div key={item.id} className="overflow-hidden rounded-[24px] border border-zinc-200 bg-white shadow-[0_16px_34px_rgba(15,23,42,0.07)] dark:border-zinc-800 dark:bg-zinc-900">
                        <div className="p-4 flex-1 flex flex-col justify-between gap-4">
                           <div>
                             <div className="flex justify-between items-start">
@@ -1524,8 +1516,6 @@ export function CameraView() {
               )}
             </section>
 
-          {/** Reports Area **/}
-          <div className="animate-in fade-in slide-in-from-bottom-2 duration-300 px-3">
             <section className="space-y-4">
               <div className="flex justify-between items-center px-1">
                 <h2 className="text-lg font-bold text-zinc-900 dark:text-white tracking-tight">Damage & Loss Reports</h2>
@@ -1534,13 +1524,13 @@ export function CameraView() {
                 </button>
               </div>
               {damageReports.length === 0 ? (
-                <div className="bg-white dark:bg-zinc-900 p-6 rounded-xl text-center border border-zinc-200 dark:border-zinc-800">
+                <div className="rounded-[24px] border border-zinc-200 bg-white p-6 text-center shadow-[0_16px_34px_rgba(15,23,42,0.06)] dark:border-zinc-800 dark:bg-zinc-900">
                    <p className="text-sm font-medium text-zinc-500 dark:text-zinc-400">No issues reported.</p>
                 </div>
               ) : (
                 <div className="space-y-3">
                   {damageReports.map(report => (
-                     <div key={report.id} className="bg-white dark:bg-zinc-900 p-4 rounded-xl flex flex-col gap-3 border border-zinc-200 dark:border-zinc-800 shadow-lg">
+                     <div key={report.id} className="flex flex-col gap-3 rounded-[24px] border border-zinc-200 bg-white p-4 shadow-[0_16px_34px_rgba(15,23,42,0.07)] dark:border-zinc-800 dark:bg-zinc-900">
                         <div className="flex items-center gap-4">
                           <div className="p-2 bg-red-500/10 rounded-lg flex-shrink-0">
                              <span className="material-symbols-outlined text-red-500 font-bold">{report.issueType === 'damaged' ? 'broken_image' : 'inventory_2'}</span>
@@ -1568,19 +1558,6 @@ export function CameraView() {
                  </div>
                )}
             </section>
-          </div>
-
-          {/** Bottom Actions Area **/}
-          <div className="mt-8 border-t border-zinc-200 dark:border-zinc-800 pt-6 px-2 grid grid-cols-2 gap-3 pb-8">
-               <button onClick={openScanModal} className="bg-gradient-to-r from-orange-500 to-orange-400 active:scale-95 transition-all text-black py-4 rounded-xl flex flex-col items-center justify-center gap-1 shadow-xl shadow-orange-500/20 font-bold min-h-[96px]">
-                  <span className="material-symbols-outlined mb-0.5 text-2xl">qr_code_scanner</span>
-                  <span className="font-label text-[11px] font-black uppercase tracking-wider">Scan QR</span>
-               </button>
-               <button onClick={openRequestModal} className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 active:scale-95 transition-all text-zinc-900 dark:text-white py-4 rounded-xl flex flex-col items-center justify-center gap-1 shadow-xl font-bold min-h-[96px]">
-                  <span className="material-symbols-outlined text-orange-500 mb-0.5 text-2xl">shopping_cart_checkout</span>
-                  <span className="font-label text-[11px] font-bold uppercase tracking-wider text-orange-500">Request</span>
-               </button>
-            </div>
         </div>
         
         )}
@@ -1602,7 +1579,7 @@ export function CameraView() {
                 <div className="relative ml-4 pl-6 border-l-2 border-zinc-200 dark:border-zinc-800 space-y-6 py-2">
                   {logs.map(log => (
                      <div key={log.id} className="relative">
-                        <div className={`absolute -left-[32px] top-1 w-3.5 h-3.5 rounded-full border-4 border-black ${log.status === 'checked_in' ? 'bg-green-500' : 'bg-orange-500'}`}></div>
+                        <div className={`absolute -left-[32px] top-1 h-3.5 w-3.5 rounded-full border-4 border-white dark:border-zinc-950 ${log.status === 'checked_in' ? 'bg-green-500' : 'bg-orange-500'}`}></div>
                         <div className="bg-white dark:bg-zinc-900 rounded-xl p-4 shadow-lg border border-zinc-200 dark:border-zinc-800/80">
                           <div className="flex justify-between items-start">
                              <div>
@@ -1674,15 +1651,17 @@ export function CameraView() {
 
         {activeMobileTab === 'alerts' && (
           <div className="animate-in fade-in slide-in-from-bottom-2 duration-300 px-3 space-y-8">
-            {alerts.length > 0 && alerts.some((a: any) => a.type === 'critical') && (
+            {criticalAlerts.length > 0 && (
               <section className="space-y-3">
                 <h2 className="text-xs font-bold text-orange-500/80 tracking-widest uppercase mb-2 px-1">Critical Alerts</h2>
-                {alerts.filter((a: any) => a.type === 'critical').map((alert: any, index: number) => (
-                  <div key={index} className="bg-red-500/10 p-4 rounded-xl flex items-start gap-4 border-l-4 border-red-500">
-                    <span className="material-symbols-outlined text-red-500 mt-0.5" style={{ fontVariationSettings: "'FILL' 1" }}>warning</span>
-                    <div className="flex-1">
-                      <p className="text-sm font-bold text-zinc-900 dark:text-white">{alert.message}</p>
-                      <p className="text-xs text-red-200 mt-1">{formatDateTime(alert.timestamp)}</p>
+                {criticalAlerts.map((alert, index) => (
+                  <div key={`${alert.timestamp}-${index}`} className="rounded-[22px] border border-red-500/20 bg-red-500/10 p-4 shadow-[0_14px_32px_rgba(239,68,68,0.12)]">
+                    <div className="flex items-start gap-4">
+                      <span className="material-symbols-outlined mt-0.5 text-red-500" style={{ fontVariationSettings: "'FILL' 1" }}>warning</span>
+                      <div className="flex-1">
+                        <p className="text-sm font-bold text-zinc-900 dark:text-white">{alert.message}</p>
+                        <p className="mt-1 text-xs text-red-500/80 dark:text-red-300">{formatDateTime(alert.timestamp)}</p>
+                      </div>
                     </div>
                   </div>
                 ))}
@@ -1779,7 +1758,22 @@ export function CameraView() {
           </div>
         )}
 
-        <nav className="fixed bottom-0 left-0 right-0 h-[84px] bg-white/95 dark:bg-zinc-950/95 backdrop-blur-3xl border-t border-zinc-200 dark:border-zinc-800 flex justify-around items-center px-1 pb-safe shadow-[0_-8px_32px_rgba(0,0,0,0.5)] z-40">
+        {activeMobileTab === 'home' && (
+          <div className="fixed bottom-[96px] left-0 right-0 z-40 mx-auto w-full max-w-md px-4 pointer-events-none">
+            <div className="grid grid-cols-2 gap-3 rounded-[28px] border border-zinc-200/80 bg-white/88 p-3 shadow-[0_22px_48px_rgba(15,23,42,0.14)] backdrop-blur-2xl dark:border-white/8 dark:bg-zinc-900/84 dark:shadow-[0_22px_52px_rgba(0,0,0,0.34)] pointer-events-auto">
+              <button onClick={openScanModal} className="flex min-h-[72px] flex-col items-center justify-center gap-1 rounded-[22px] bg-gradient-to-r from-orange-500 to-orange-400 py-4 text-black shadow-[0_16px_28px_rgba(249,115,22,0.28)] transition-all active:scale-95">
+                <span className="material-symbols-outlined mb-0.5 text-2xl">qr_code_scanner</span>
+                <span className="font-label text-[11px] font-black uppercase tracking-wider">Scan QR</span>
+              </button>
+              <button onClick={openRequestModal} className="flex min-h-[72px] flex-col items-center justify-center gap-1 rounded-[22px] border border-zinc-200 bg-white py-4 text-zinc-900 shadow-[0_14px_24px_rgba(15,23,42,0.08)] transition-all active:scale-95 dark:border-zinc-700 dark:bg-zinc-900 dark:text-white">
+                <span className="material-symbols-outlined mb-0.5 text-2xl text-orange-500">shopping_cart_checkout</span>
+                <span className="font-label text-[11px] font-bold uppercase tracking-wider text-orange-500">Request</span>
+              </button>
+            </div>
+          </div>
+        )}
+
+        <nav className="fixed bottom-3 left-3 right-3 z-40 mx-auto flex h-[80px] max-w-md items-center justify-around rounded-[30px] border border-zinc-200/80 bg-white/88 px-2 pb-safe shadow-[0_18px_40px_rgba(15,23,42,0.12)] backdrop-blur-2xl dark:border-white/8 dark:bg-zinc-950/82 dark:shadow-[0_18px_44px_rgba(0,0,0,0.34)]">
           {[
             { id: 'home', icon: 'home', label: 'Home' },
             { id: 'activity', icon: 'history', label: 'Activity' },
@@ -1790,7 +1784,7 @@ export function CameraView() {
             <button
               key={tab.id}
               onClick={() => setActiveMobileTab(tab.id as any)}
-              className={`flex flex-col items-center justify-center w-16 gap-1 transition-colors duration-200 ${activeMobileTab === tab.id ? 'text-orange-500' : 'text-zinc-500 hover:text-zinc-500 dark:text-zinc-400'}`}
+              className={`flex w-16 flex-col items-center justify-center gap-1 rounded-[20px] py-2 transition-all duration-200 ${activeMobileTab === tab.id ? 'bg-orange-500/12 text-orange-500 dark:bg-orange-500/16' : 'text-zinc-500 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-200'}`}
             >
                <span className={`material-symbols-outlined text-2xl transition-transform duration-300 ${activeMobileTab === tab.id ? 'scale-110' : ''}`} style={activeMobileTab === tab.id ? { fontVariationSettings: "'FILL' 1" } : {}}>{tab.icon}</span>
                <span className="text-[10px] font-bold uppercase tracking-wider">{tab.label}</span>

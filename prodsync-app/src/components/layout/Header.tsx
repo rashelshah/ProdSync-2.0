@@ -27,7 +27,7 @@ export function Header({ isSidebarCollapsed, onToggleSidebar, sidebarOffset }: H
 
   return (
     <header
-      className="fixed right-0 top-0 z-30 border-b border-zinc-200/80 bg-white/85 px-6 py-5 backdrop-blur-xl transition-[left] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] dark:border-zinc-800/80 dark:bg-zinc-950/85 lg:px-8 max-md:bg-transparent max-md:dark:bg-transparent max-md:border-transparent max-md:backdrop-blur-none max-md:pointer-events-none"
+      className="fixed right-0 top-0 z-30 border-b border-zinc-200/80 bg-white/85 px-6 py-5 backdrop-blur-xl transition-[left] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] dark:border-zinc-800/80 dark:bg-zinc-950/85 lg:px-8 max-md:border-b-0 max-md:border-transparent max-md:bg-transparent max-md:px-4 max-md:py-4 max-md:backdrop-blur-none max-md:pointer-events-none max-md:dark:bg-transparent"
       style={{ left: typeof window !== 'undefined' && window.innerWidth < 768 ? 0 : sidebarOffset }}
     >
       <div className="flex items-center justify-between gap-6">
@@ -72,7 +72,7 @@ export function Header({ isSidebarCollapsed, onToggleSidebar, sidebarOffset }: H
           <div className="relative pointer-events-auto">
             <button
               onClick={() => setShowAlerts(value => !value)}
-              className="relative flex h-11 w-11 items-center justify-center rounded-full border border-zinc-200 bg-white text-zinc-500 transition-colors hover:border-orange-200 hover:bg-orange-50 hover:text-orange-600 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-400 dark:hover:border-orange-500/20 dark:hover:bg-orange-500/10 dark:hover:text-orange-400 max-md:bg-transparent max-md:dark:bg-zinc-900/60 max-md:border-zinc-200 max-md:dark:border-white/10 max-md:backdrop-blur-xl"
+              className="relative flex h-11 w-11 items-center justify-center rounded-full border border-zinc-200 bg-white text-zinc-500 transition-colors hover:border-orange-200 hover:bg-orange-50 hover:text-orange-600 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-400 dark:hover:border-orange-500/20 dark:hover:bg-orange-500/10 dark:hover:text-orange-400 max-md:border-white/60 max-md:bg-white/88 max-md:shadow-[0_12px_24px_rgba(15,23,42,0.08)] max-md:backdrop-blur-xl max-md:dark:border-white/10 max-md:dark:bg-zinc-900/78"
             >
               <span className="material-symbols-outlined text-[20px]">notifications</span>
               {unreadCount > 0 && (
@@ -83,7 +83,7 @@ export function Header({ isSidebarCollapsed, onToggleSidebar, sidebarOffset }: H
             </button>
 
             {showAlerts && (
-              <div className="absolute right-0 top-full mt-3 w-[25rem] rounded-[28px] border border-zinc-200 bg-white p-3 shadow-soft dark:border-zinc-800 dark:bg-zinc-900">
+              <div className="absolute right-0 top-full mt-3 w-[25rem] max-w-[calc(100vw-1.5rem)] overflow-hidden rounded-[28px] border border-zinc-200 bg-white/96 p-3 shadow-soft backdrop-blur-xl dark:border-zinc-800 dark:bg-zinc-900/96 max-md:right-0 max-md:w-[min(22rem,calc(100vw-1.5rem))]">
                 <div className="flex items-center justify-between px-3 py-2">
                   <div>
                     <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-zinc-500 dark:text-zinc-400">Alerts</p>
@@ -134,7 +134,7 @@ export function Header({ isSidebarCollapsed, onToggleSidebar, sidebarOffset }: H
           </div>
 
           <div className="relative">
-            <button onClick={() => setShowProfileMenu(prev => !prev)} className="flex items-center gap-3 rounded-full border border-zinc-200 bg-white px-2 py-2 pl-3 pr-2.5 dark:border-zinc-800 dark:bg-zinc-900 transition-colors hover:border-orange-200 hover:bg-orange-50 dark:hover:border-orange-500/20 dark:hover:bg-orange-500/10 max-md:p-0 max-md:border-none max-md:hover:bg-transparent max-md:bg-transparent max-md:dark:bg-transparent pointer-events-auto outline-none">
+            <button onClick={() => setShowProfileMenu(prev => !prev)} className="flex items-center gap-3 rounded-full border border-zinc-200 bg-white px-2 py-2 pl-3 pr-2.5 dark:border-zinc-800 dark:bg-zinc-900 transition-colors hover:border-orange-200 hover:bg-orange-50 dark:hover:border-orange-500/20 dark:hover:bg-orange-500/10 max-md:border-white/60 max-md:bg-white/88 max-md:p-1.5 max-md:pl-1.5 max-md:pr-1.5 max-md:shadow-[0_12px_24px_rgba(15,23,42,0.08)] max-md:dark:border-white/10 max-md:dark:bg-zinc-900/78 pointer-events-auto outline-none">
               <div className="hidden text-right sm:block">
                 <p className="text-sm font-semibold text-zinc-900 dark:text-white">{user?.name}</p>
                 <p className="text-xs text-zinc-500 dark:text-zinc-400">{userRoleLabel}</p>
@@ -145,7 +145,7 @@ export function Header({ isSidebarCollapsed, onToggleSidebar, sidebarOffset }: H
             </button>
 
             {showProfileMenu && (
-              <div className="absolute right-0 top-full mt-3 w-48 rounded-[24px] border border-zinc-200 bg-white p-2 shadow-soft dark:border-zinc-800 dark:bg-zinc-900 pointer-events-auto flex flex-col gap-1 z-50">
+              <div className="absolute right-0 top-full z-50 mt-3 w-48 max-w-[calc(100vw-1.5rem)] rounded-[24px] border border-zinc-200 bg-white/96 p-2 shadow-soft backdrop-blur-xl dark:border-zinc-800 dark:bg-zinc-900/96 pointer-events-auto flex flex-col gap-1">
                  <button onClick={() => { toggleTheme(); setShowProfileMenu(false); }} className="flex items-center gap-3 w-full px-3 py-2.5 rounded-[16px] text-sm font-medium text-zinc-700 hover:bg-zinc-50 dark:text-zinc-300 dark:hover:bg-zinc-800/50 transition-colors text-left">
                     <span className="material-symbols-outlined text-[18px]">{theme === 'light' ? 'dark_mode' : 'light_mode'}</span>
                     {theme === 'light' ? 'Dark Mode' : 'Light Mode'}
