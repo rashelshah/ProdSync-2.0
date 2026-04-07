@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useCrewData } from '../hooks/useCrewData'
 import { KpiCard } from '@/components/shared/KpiCard'
@@ -6,18 +6,26 @@ import { DataTable } from '@/components/shared/DataTable'
 import { StatusBadge } from '@/components/shared/StatusBadge'
 import { Surface } from '@/components/shared/Surface'
 import { EmptyState, LoadingState, ErrorState } from '@/components/system/SystemStates'
+import { useAuthStore } from '@/features/auth/auth.store'
 import { crewService } from '@/services/crew.service'
 import { resolveErrorMessage, showError, showLoading, showSuccess } from '@/lib/toast'
 import { formatCurrency, formatDate, formatTime } from '@/utils'
-import type { CrewAttendanceHistoryItem, CrewLocationPoint, CrewMember, WagePayout } from '@/types'
+import type { CrewAttendanceHistoryItem, CrewDashboardData, CrewLocationPoint, CrewMember, CrewProjectLocation, WagePayout } from '@/types'
 
 const secondaryButtonClass =
   'inline-flex items-center justify-center gap-2 rounded-full border border-zinc-200 px-4 py-2.5 text-[11px] font-semibold uppercase tracking-[0.16em] text-zinc-900 transition-colors hover:border-orange-200 hover:bg-orange-50 hover:text-orange-600 disabled:cursor-not-allowed disabled:opacity-50 dark:border-zinc-800 dark:text-white dark:hover:border-orange-500/20 dark:hover:bg-orange-500/10 dark:hover:text-orange-400'
 
+const editButtonClass =
+  'inline-flex items-center justify-center gap-2 rounded-full border border-orange-300 bg-white px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[0.16em] text-orange-600 shadow-[0_0_0_1px_rgba(249,115,22,0.08)] transition-colors hover:bg-orange-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-orange-500/40 dark:bg-zinc-950 dark:text-orange-300 dark:hover:bg-orange-500/10'
+
 const inputClass =
   'w-full rounded-[18px] border border-zinc-200 bg-white px-4 py-3 text-sm text-zinc-900 outline-none transition-colors focus:border-orange-400 dark:border-zinc-800 dark:bg-zinc-950 dark:text-white'
 
+const suggestionPanelClass =
+  'absolute z-20 mt-2 max-h-64 w-full overflow-y-auto rounded-[20px] border border-zinc-200 bg-white p-2 shadow-lg dark:border-zinc-800 dark:bg-zinc-950'
+
 type PaymentMethod = 'UPI' | 'CASH' | 'BANK'
+type LocationSearchResult = { name: string; lat: number; lng: number }
 
 function formatDuration(seconds: number) {
   const safeSeconds = Math.max(0, Math.floor(seconds))
@@ -83,6 +91,38 @@ function buildMapLink(location: CrewLocationPoint | null | undefined) {
   return `https://www.openstreetmap.org/?mlat=${location.lat}&mlon=${location.lng}#map=18/${location.lat}/${location.lng}`
 }
 
+function normalizeRoleToken(value: string | null | undefined) {
+  return (value ?? '').trim().toUpperCase().replace(/[\s-]+/g, '_')
+}
+
+function sanitizeLocationName(value: string) {
+  return value.trim().slice(0, 255)
+}
+
+function getLocationDraft(
+  projectLocation: CrewProjectLocation | null | undefined,
+  deviceLocation: CrewLocationPoint | null,
+  deviceLocationName: string,
+) {
+  if (projectLocation) {
+    return {
+      locationName: projectLocation.name,
+      latitude: String(projectLocation.latitude),
+      longitude: String(projectLocation.longitude),
+      radiusMeters: projectLocation.radiusMeters,
+      locationSearch: projectLocation.name,
+    }
+  }
+
+  return {
+    locationName: deviceLocationName || 'Project Base',
+    latitude: deviceLocation ? String(deviceLocation.lat) : '',
+    longitude: deviceLocation ? String(deviceLocation.lng) : '',
+    radiusMeters: 200,
+    locationSearch: deviceLocationName,
+  }
+}
+
 function requestBrowserLocation() {
   return new Promise<CrewLocationPoint>((resolve, reject) => {
     if (typeof navigator === 'undefined' || !navigator.geolocation) {
@@ -122,16 +162,49 @@ function requestBrowserLocation() {
 
 export function CrewView() {
   const queryClient = useQueryClient()
-  const { activeProjectId, isLoading, isError, summary, permissions, projectLocation, myShift, myRecords, crew, battaQueue, payouts, refetch } = useCrewData()
+  const user = useAuthStore(state => state.user)
+  const { activeProjectId, isLoading, isError, summary, permissions, projectLocation, hasProjectLocationLoaded, myShift, myRecords, crew, battaQueue, payouts, refetch } = useCrewData()
   const [activeAction, setActiveAction] = useState<string | null>(null)
-  const [gpsError, setGpsError] = useState<string | null>(null)
+  const [shiftGpsError, setShiftGpsError] = useState<string | null>(null)
+  const [locationGpsError, setLocationGpsError] = useState<string | null>(null)
   const [battaAmount, setBattaAmount] = useState('')
-  const [radiusMeters, setRadiusMeters] = useState(projectLocation?.radiusMeters ?? 200)
-  const [locationName, setLocationName] = useState(projectLocation?.name ?? 'Project Base')
-  const [latitude, setLatitude] = useState(projectLocation ? String(projectLocation.latitude) : '')
-  const [longitude, setLongitude] = useState(projectLocation ? String(projectLocation.longitude) : '')
+  const [isEditing, setIsEditing] = useState(false)
+  const [radiusMeters, setRadiusMeters] = useState(200)
+  const [locationName, setLocationName] = useState('Project Base')
+  const [latitude, setLatitude] = useState('')
+  const [longitude, setLongitude] = useState('')
+  const [locationSearch, setLocationSearch] = useState('')
+  const [searchResults, setSearchResults] = useState<LocationSearchResult[]>([])
+  const [searchError, setSearchError] = useState<string | null>(null)
+  const [isSearching, setIsSearching] = useState(false)
+  const [isLocationDraftDirty, setIsLocationDraftDirty] = useState(false)
+  const [selectedLocation, setSelectedLocation] = useState<LocationSearchResult | null>(null)
+  const [deviceLocation, setDeviceLocation] = useState<CrewLocationPoint | null>(null)
+  const [deviceLocationName, setDeviceLocationName] = useState<string>('')
   const [paymentMethods, setPaymentMethods] = useState<Record<string, PaymentMethod>>({})
   const [nowTick, setNowTick] = useState(() => Date.now())
+  const locationFetchedRef = useRef(false)
+
+  const userRoleToken = normalizeRoleToken(user?.role)
+  const userRoleLabelToken = normalizeRoleToken(user?.roleLabel)
+  const userProjectRoleToken = normalizeRoleToken(user?.projectRoleTitle)
+  const canEditGeofence = Boolean(
+    permissions.canManageLocation &&
+    (
+      !user ||
+      userRoleToken === 'ADMIN' ||
+      userRoleToken === 'PRODUCTION_MANAGER' ||
+      userRoleLabelToken === 'ADMIN' ||
+      userRoleLabelToken === 'PRODUCTION_MANAGER' ||
+      userProjectRoleToken === 'PRODUCTION_MANAGER' ||
+      userProjectRoleToken === 'TRANSPORT_CAPTAIN'
+    )
+  )
+  const isSavingLocation = activeAction === 'crew-location-update'
+
+  useEffect(() => {
+    locationFetchedRef.current = false
+  }, [activeProjectId])
 
   const checkInMutation = useMutation({
     mutationFn: (payload: CrewLocationPoint) => crewService.checkIn(activeProjectId!, payload),
@@ -150,22 +223,26 @@ export function CrewView() {
       crewService.markBattaPaid(activeProjectId!, payoutId, paymentMethod),
   })
   const updateLocationMutation = useMutation({
-    mutationFn: () =>
-      crewService.updateProjectLocation({
-        projectId: activeProjectId!,
-        name: locationName,
-        latitude: Number(latitude),
-        longitude: Number(longitude),
-        radiusMeters,
-      }),
+    mutationFn: (payload: { projectId: string; name: string; lat: number; lng: number; radius: number }) =>
+      crewService.updateProjectLocation(payload),
   })
 
   useEffect(() => {
-    setRadiusMeters(projectLocation?.radiusMeters ?? 200)
-    setLocationName(projectLocation?.name ?? 'Project Base')
-    setLatitude(projectLocation ? String(projectLocation.latitude) : '')
-    setLongitude(projectLocation ? String(projectLocation.longitude) : '')
-  }, [projectLocation])
+    if (isEditing) {
+      return
+    }
+
+    const nextDraft = getLocationDraft(projectLocation, deviceLocation, deviceLocationName)
+    setRadiusMeters(nextDraft.radiusMeters)
+    setLocationName(nextDraft.locationName)
+    setLatitude(nextDraft.latitude)
+    setLongitude(nextDraft.longitude)
+    setLocationSearch(nextDraft.locationSearch)
+    setIsLocationDraftDirty(false)
+    setSelectedLocation(null)
+    setSearchResults([])
+    setSearchError(null)
+  }, [deviceLocation, deviceLocationName, isEditing, projectLocation])
 
   useEffect(() => {
     if (myShift.state !== 'checked_in') {
@@ -178,6 +255,103 @@ export function CrewView() {
 
     return () => window.clearInterval(timer)
   }, [myShift.state])
+
+  useEffect(() => {
+    if (!activeProjectId || !hasProjectLocationLoaded || projectLocation || locationFetchedRef.current) {
+      return
+    }
+
+    locationFetchedRef.current = true
+    let cancelled = false
+
+    void (async () => {
+      try {
+        const location = await requestBrowserLocation()
+        if (cancelled) {
+          return
+        }
+
+        setDeviceLocation(location)
+
+        const reverse = await crewService.reverseGeocode(activeProjectId, location)
+        if (cancelled) {
+          return
+        }
+
+        const resolvedName = sanitizeLocationName(reverse.name?.trim() || 'Location unavailable') || 'Location unavailable'
+        setDeviceLocationName(resolvedName)
+      } catch (error) {
+        if (cancelled) {
+          return
+        }
+
+        setLocationGpsError(resolveErrorMessage(error, 'Auto location is unavailable. You can still search or enter a location manually.'))
+      }
+    })()
+
+    return () => {
+      cancelled = true
+    }
+  }, [activeProjectId, hasProjectLocationLoaded, projectLocation])
+
+  useEffect(() => {
+    if (!activeProjectId) {
+      return
+    }
+
+    if (!isEditing) {
+      setSearchResults([])
+      setSearchError(null)
+      setIsSearching(false)
+      return
+    }
+
+    const trimmedQuery = locationSearch.trim()
+    if (trimmedQuery.length < 2) {
+      setSearchResults([])
+      setSearchError(null)
+      return
+    }
+
+    let cancelled = false
+    const timeoutId = window.setTimeout(() => {
+      setIsSearching(true)
+      setSearchError(null)
+
+      void crewService.searchLocations(activeProjectId, trimmedQuery)
+        .then(results => {
+          if (cancelled) {
+            return
+          }
+
+          if (!selectedLocation) {
+            setSearchResults(results)
+          }
+
+          if (!selectedLocation && results.length === 0) {
+            setSearchError('No matching OSM locations found. You can still adjust manually.')
+          }
+        })
+        .catch(error => {
+          if (cancelled) {
+            return
+          }
+
+          setSearchResults([])
+          setSearchError(resolveErrorMessage(error, 'Location search failed.'))
+        })
+        .finally(() => {
+          if (!cancelled) {
+            setIsSearching(false)
+          }
+        })
+    }, 500)
+
+    return () => {
+      cancelled = true
+      window.clearTimeout(timeoutId)
+    }
+  }, [activeProjectId, isEditing, locationSearch, selectedLocation])
 
   const liveWorkingSeconds = myShift.state === 'checked_in' && myShift.checkInTime
     ? Math.max(0, Math.floor((nowTick - new Date(myShift.checkInTime).getTime()) / 1000))
@@ -208,6 +382,7 @@ export function CrewView() {
   async function invalidateCrewQueries() {
     await Promise.allSettled([
       queryClient.invalidateQueries({ queryKey: ['crew-dashboard', activeProjectId] }),
+      queryClient.invalidateQueries({ queryKey: ['crew-location', activeProjectId] }),
       queryClient.invalidateQueries({ queryKey: ['crew', activeProjectId] }),
       queryClient.invalidateQueries({ queryKey: ['ot-groups', activeProjectId] }),
       queryClient.invalidateQueries({ queryKey: ['wage-payouts', activeProjectId] }),
@@ -235,14 +410,14 @@ export function CrewView() {
       return
     }
 
-    setGpsError(null)
+    setShiftGpsError(null)
     await runAction('crew-check-in', 'Capturing GPS and starting shift...', 'Check-in success', async () => {
       try {
         const location = await requestBrowserLocation()
         await checkInMutation.mutateAsync(location)
       } catch (error) {
         const message = resolveErrorMessage(error, 'Unable to capture GPS location.')
-        setGpsError(message)
+        setShiftGpsError(message)
         throw new Error(message)
       }
     })
@@ -253,14 +428,14 @@ export function CrewView() {
       return
     }
 
-    setGpsError(null)
+    setShiftGpsError(null)
     await runAction('crew-check-out', 'Capturing GPS and ending shift...', 'Check-out success', async () => {
       try {
         const location = await requestBrowserLocation()
         await checkOutMutation.mutateAsync(location)
       } catch (error) {
         const message = resolveErrorMessage(error, 'Unable to capture GPS location.')
-        setGpsError(message)
+        setShiftGpsError(message)
         throw new Error(message)
       }
     })
@@ -288,9 +463,80 @@ export function CrewView() {
   }
 
   async function handleProjectLocationSave() {
-    await runAction('crew-location-update', 'Updating project location...', 'Project location updated', async () => {
-      await updateLocationMutation.mutateAsync()
-    })
+    if (!activeProjectId) {
+      return
+    }
+
+    const parsedLatitude = Number(latitude)
+    const parsedLongitude = Number(longitude)
+    const parsedRadius = Number(radiusMeters)
+    const safeName = sanitizeLocationName(locationName) || sanitizeLocationName(selectedLocation?.name ?? '') || deviceLocationName || 'Project Base'
+
+    if (!Number.isFinite(parsedLatitude) || !Number.isFinite(parsedLongitude) || !Number.isFinite(parsedRadius)) {
+      showError('Invalid location data', { id: 'crew-location-update' })
+      return
+    }
+
+    setActiveAction('crew-location-update')
+    showLoading('Updating project location...', { id: 'crew-location-update' })
+
+    try {
+      const response = await updateLocationMutation.mutateAsync({
+        projectId: activeProjectId,
+        name: safeName,
+        lat: Number(parsedLatitude),
+        lng: Number(parsedLongitude),
+        radius: Number(parsedRadius),
+      })
+
+      const savedLocation = response.projectLocation
+      if (savedLocation) {
+        queryClient.setQueryData(['crew-location', activeProjectId], savedLocation)
+        queryClient.setQueryData<CrewDashboardData | undefined>(['crew-dashboard', activeProjectId], current =>
+          current ? { ...current, projectLocation: savedLocation } : current,
+        )
+      }
+
+      await invalidateCrewQueries()
+      setIsEditing(false)
+      setIsLocationDraftDirty(false)
+      setSelectedLocation(null)
+      setSearchResults([])
+      setSearchError(null)
+      showSuccess('Project location updated', { id: 'crew-location-update' })
+    } catch (error) {
+      await invalidateCrewQueries()
+      const status = typeof error === 'object' && error !== null && 'status' in error ? Number(error.status) : null
+      showError(status === 400 ? 'Invalid location data' : resolveErrorMessage(error, 'Unable to save project location.'), { id: 'crew-location-update' })
+    } finally {
+      setActiveAction(null)
+    }
+  }
+
+  function handleLocationSelect(result: LocationSearchResult) {
+    setIsLocationDraftDirty(true)
+    setSelectedLocation(result)
+    setLocationName(result.name)
+    setLocationSearch(result.name)
+    setLatitude(String(result.lat))
+    setLongitude(String(result.lng))
+    setSearchResults([])
+    setSearchError(null)
+  }
+
+  function handleLocationCancel() {
+    const nextDraft = getLocationDraft(projectLocation, deviceLocation, deviceLocationName)
+    setRadiusMeters(nextDraft.radiusMeters)
+    setLocationName(nextDraft.locationName)
+    setLatitude(nextDraft.latitude)
+    setLongitude(nextDraft.longitude)
+    setLocationSearch(nextDraft.locationSearch)
+    setSelectedLocation(null)
+    setSearchResults([])
+    setSearchError(null)
+    setLocationGpsError(null)
+    setIsLocationDraftDirty(false)
+    setIsEditing(false)
   }
 
   if (isLoading) return <LoadingState message="Loading crew control..." />
@@ -329,6 +575,7 @@ export function CrewView() {
               <ShiftInfo label="Location" value={projectLocation?.name ?? 'Not configured'} />
               <ShiftInfo label="Coordinates" value={projectLocation ? `${projectLocation.latitude.toFixed(5)}, ${projectLocation.longitude.toFixed(5)}` : '--'} link={projectLocation?.mapLink} />
               <ShiftInfo label="Radius" value={projectLocation ? `${projectLocation.radiusMeters} m` : '--'} />
+              <ShiftInfo label="Last Updated" value={projectLocation?.createdAt ? `${formatDate(projectLocation.createdAt)} - ${formatTime(projectLocation.createdAt)}` : '--'} />
             </div>
           </Surface>
           <Surface variant="table" padding="lg">
@@ -364,24 +611,24 @@ export function CrewView() {
             <div>
               <p className="section-title">Project Location Missing</p>
               <p className="mt-2 text-sm text-zinc-600 dark:text-zinc-300">
-                Attendance cannot be verified until a PM or Transport Captain sets the active geofence.
+                Attendance cannot be verified until a Production Manager, Admin, or Transport Captain sets the active geofence.
               </p>
             </div>
-            {permissions.canManageLocation && (
-              <button onClick={() => void handleProjectLocationSave()} disabled={activeAction !== null} className="btn-primary">
-                Save Default Location
+            {canEditGeofence && (
+              <button onClick={() => setIsEditing(true)} disabled={activeAction !== null} className="btn-primary">
+                Configure Geofence
               </button>
             )}
           </div>
         </Surface>
       )}
 
-      {gpsError && (
+      {shiftGpsError && (
         <Surface variant="warning" padding="md">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <p className="section-title">GPS Retry Needed</p>
-              <p className="mt-2 text-sm text-zinc-600 dark:text-zinc-300">{gpsError}</p>
+              <p className="mt-2 text-sm text-zinc-600 dark:text-zinc-300">{shiftGpsError}</p>
             </div>
             <button
               onClick={() => {
@@ -450,48 +697,170 @@ export function CrewView() {
         </Surface>
 
         <Surface variant="table" padding="lg">
-          <div className="mb-6">
-            <p className="section-title">Project Geofence</p>
-            <p className="mt-2 text-sm text-zinc-500 dark:text-zinc-400">OSM links only. No Mapbox dependency is used here.</p>
+          <div className="mb-6 flex flex-wrap items-start justify-between gap-4">
+            <div>
+              <p className="section-title">Project Geofence</p>
+              <p className="mt-2 text-sm text-zinc-500 dark:text-zinc-400">OSM links only. No Mapbox dependency is used here.</p>
+            </div>
+            {canEditGeofence && !isEditing && (
+              <button
+                type="button"
+                onClick={() => {
+                  setIsEditing(true)
+                  setLocationGpsError(null)
+                }}
+                className={editButtonClass}
+              >
+                <span className="material-symbols-outlined text-sm">edit</span>
+                Edit
+              </button>
+            )}
           </div>
 
           <div className="space-y-4">
             <ShiftInfo label="Location" value={projectLocation?.name ?? 'Not configured'} />
             <ShiftInfo label="Coordinates" value={projectLocation ? `${projectLocation.latitude.toFixed(5)}, ${projectLocation.longitude.toFixed(5)}` : '--'} link={projectLocation?.mapLink} />
             <ShiftInfo label="Radius" value={projectLocation ? `${projectLocation.radiusMeters} m` : '--'} />
+            <ShiftInfo label="Last Updated" value={projectLocation?.createdAt ? `${formatDate(projectLocation.createdAt)} - ${formatTime(projectLocation.createdAt)}` : '--'} />
           </div>
 
-          {permissions.canManageLocation ? (
+          {canEditGeofence ? (
             <div className="mt-6 space-y-4 rounded-[24px] border border-zinc-200 bg-zinc-50 p-4 dark:border-zinc-800 dark:bg-zinc-950">
+              <div className="flex flex-wrap items-center justify-between gap-3 rounded-[20px] border border-dashed border-orange-200 bg-white/80 px-4 py-3 text-sm text-zinc-600 dark:border-orange-500/30 dark:bg-zinc-900/70 dark:text-zinc-300">
+                <span>
+                  {projectLocation
+                    ? `Saved geofence: ${projectLocation.name}`
+                    : 'No saved geofence yet. GPS will prefill the first draft when available.'}
+                </span>
+                <StatusBadge variant={isEditing ? 'warning' : 'stable'} label={isEditing ? 'Edit Mode' : 'Read Only'} />
+              </div>
+
+              <div className="space-y-2">
+                <span className="text-sm text-zinc-500 dark:text-zinc-400">Search Location</span>
+                <div className="relative">
+                  <input
+                    value={locationSearch}
+                    disabled={!isEditing || isSavingLocation}
+                    onChange={event => {
+                      setIsLocationDraftDirty(true)
+                      setSelectedLocation(null)
+                      setLocationSearch(event.target.value)
+                      setSearchError(null)
+                    }}
+                    placeholder="Search with OpenStreetMap"
+                    className={inputClass}
+                  />
+                  {isEditing && (isSearching || searchResults.length > 0 || searchError) && (
+                    <div className={suggestionPanelClass}>
+                      {isSearching && <p className="px-3 py-2 text-sm text-zinc-500 dark:text-zinc-400">Searching OSM...</p>}
+                      {!isSearching && searchResults.length > 0 && searchResults.map(result => (
+                        <button
+                          key={`${result.name}-${result.lat}-${result.lng}`}
+                          type="button"
+                          onClick={() => handleLocationSelect(result)}
+                          className="flex w-full flex-col rounded-[16px] px-3 py-2 text-left transition-colors hover:bg-orange-50 dark:hover:bg-orange-500/10"
+                        >
+                          <span className="text-sm font-medium text-zinc-900 dark:text-white">{result.name}</span>
+                          <span className="text-[11px] text-zinc-500 dark:text-zinc-400">{result.lat.toFixed(5)}, {result.lng.toFixed(5)}</span>
+                        </button>
+                      ))}
+                      {!isSearching && searchResults.length === 0 && searchError && (
+                        <p className="px-3 py-2 text-sm text-zinc-500 dark:text-zinc-400">{searchError}</p>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </div>
+
               <div className="grid gap-3 md:grid-cols-2">
                 <label className="space-y-2 text-sm">
                   <span className="text-zinc-500 dark:text-zinc-400">Location Name</span>
-                  <input value={locationName} onChange={event => setLocationName(event.target.value)} className={inputClass} />
+                  <input
+                    value={locationName}
+                    readOnly={!isEditing}
+                    disabled={isSavingLocation}
+                    onChange={event => {
+                      setIsLocationDraftDirty(true)
+                      setSelectedLocation(null)
+                      setLocationName(event.target.value)
+                    }}
+                    className={inputClass}
+                  />
                 </label>
                 <label className="space-y-2 text-sm">
-                  <span className="text-zinc-500 dark:text-zinc-400">Radius ({radiusMeters}m)</span>
-                  <input type="range" min={100} max={500} step={10} value={radiusMeters} onChange={event => setRadiusMeters(Number(event.target.value))} />
+                  <span className="text-zinc-500 dark:text-zinc-400">Radius: {radiusMeters}m</span>
+                  <input
+                    type="range"
+                    min={100}
+                    max={500}
+                    step={10}
+                    value={radiusMeters}
+                    disabled={!isEditing || isSavingLocation}
+                    onChange={event => {
+                      setIsLocationDraftDirty(true)
+                      setRadiusMeters(Number(event.target.value))
+                    }}
+                  />
                 </label>
                 <label className="space-y-2 text-sm">
                   <span className="text-zinc-500 dark:text-zinc-400">Latitude</span>
-                  <input value={latitude} onChange={event => setLatitude(event.target.value)} className={inputClass} />
+                  <input
+                    value={latitude}
+                    readOnly={!isEditing}
+                    disabled={isSavingLocation}
+                    onChange={event => {
+                      setIsLocationDraftDirty(true)
+                      setSelectedLocation(null)
+                      setLatitude(event.target.value)
+                    }}
+                    className={inputClass}
+                  />
                 </label>
                 <label className="space-y-2 text-sm">
                   <span className="text-zinc-500 dark:text-zinc-400">Longitude</span>
-                  <input value={longitude} onChange={event => setLongitude(event.target.value)} className={inputClass} />
+                  <input
+                    value={longitude}
+                    readOnly={!isEditing}
+                    disabled={isSavingLocation}
+                    onChange={event => {
+                      setIsLocationDraftDirty(true)
+                      setSelectedLocation(null)
+                      setLongitude(event.target.value)
+                    }}
+                    className={inputClass}
+                  />
                 </label>
               </div>
-              <button
-                onClick={() => void handleProjectLocationSave()}
-                disabled={activeAction !== null || !latitude || !longitude}
-                className="btn-primary"
-              >
-                <span className="material-symbols-outlined text-sm">place</span>
-                {activeAction === 'crew-location-update' ? 'Saving...' : 'Set Project Location'}
-              </button>
+              <div className="flex flex-wrap items-center gap-3 text-sm text-zinc-500 dark:text-zinc-400">
+                <span>{deviceLocationName ? `Auto-detected: ${deviceLocationName}` : 'Auto-detect runs once when no saved geofence exists and GPS is available.'}</span>
+                {deviceLocation && <span>{formatCoordinates(deviceLocation)} {deviceLocation.accuracy ? `(${deviceLocation.accuracy}m)` : ''}</span>}
+              </div>
+              {locationGpsError && <p className="text-sm text-amber-600 dark:text-amber-300">{locationGpsError}</p>}
+              {isEditing ? (
+                <div className="flex flex-wrap items-center gap-3">
+                  <button
+                    onClick={() => void handleProjectLocationSave()}
+                    disabled={isSavingLocation || !latitude || !longitude || !isLocationDraftDirty}
+                    className="btn-primary"
+                  >
+                    <span className="material-symbols-outlined text-sm">place</span>
+                    {isSavingLocation ? 'Saving...' : 'Save'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleLocationCancel}
+                    disabled={isSavingLocation}
+                    className={secondaryButtonClass}
+                  >
+                    Cancel
+                  </button>
+                </div>
+              ) : (
+                <p className="text-sm text-zinc-500 dark:text-zinc-400">Click Edit to update the project geofence. Unsaved changes are blocked outside edit mode.</p>
+              )}
             </div>
           ) : (
-            <p className="mt-6 text-sm text-zinc-500 dark:text-zinc-400">Location updates are limited to PM and Transport Captain roles.</p>
+            <p className="mt-6 text-sm text-zinc-500 dark:text-zinc-400">Location updates are limited to Production Manager, Admin, and Transport Captain roles.</p>
           )}
         </Surface>
       </div>

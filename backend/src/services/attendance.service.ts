@@ -235,7 +235,7 @@ function toNumber(value: number | string | null | undefined, fallback = 0) {
 }
 
 function clampRadius(value: number) {
-  return Math.min(500, Math.max(100, Math.round(value)))
+  return Math.min(1000, Math.max(50, Math.round(value)))
 }
 
 function getLocalDateKey(value: string | Date = new Date()) {
@@ -570,6 +570,15 @@ export function getCrewModulePermissions(access: CrewAccessContext): CrewModuleP
     (department === 'TRANSPORT' && (membershipRole === 'HOD' || membershipRole === 'SUPERVISOR')),
   )
 
+  const canManageLocation = Boolean(
+    authRole === 'ADMIN' ||
+    membershipRole === 'ADMIN' ||
+    authRole === 'PRODUCTION_MANAGER' ||
+    membershipRole === 'PRODUCTION_MANAGER' ||
+    projectRole === 'PRODUCTION_MANAGER' ||
+    projectRole === 'TRANSPORT_CAPTAIN',
+  )
+
   const crewProjectRoles = new Set([
     'CREW_MEMBER',
     'DRIVER',
@@ -598,7 +607,7 @@ export function getCrewModulePermissions(access: CrewAccessContext): CrewModuleP
     canViewAllCrew: isManager,
     canApproveBatta: isManager,
     canMarkBattaPaid: isManager,
-    canManageLocation: isManager,
+    canManageLocation,
     summaryOnly: isSummaryUser,
   }
 }
@@ -647,7 +656,7 @@ function normalizeLocationInput(input: Partial<CrewLocationPayload>) {
 async function assertCheckInReady(projectId: string, userId: string, location: CrewLocationPayload) {
   const projectLocation = await getProjectLocation(projectId)
   if (!projectLocation) {
-    throw new HttpError(409, 'Project location is not configured yet. Ask a PM or Transport Captain to set it first.')
+    throw new HttpError(409, 'Project location is not configured yet. Ask a Production Manager, Admin, or Transport Captain to set it first.')
   }
 
   const openAttendance = await getOpenAttendance(projectId, userId)
@@ -911,14 +920,34 @@ export async function setProjectLocation(
 ) {
   const permissions = getCrewModulePermissions(access)
   if (!permissions.canManageLocation) {
-    throw new HttpError(403, 'Only a PM or Transport Captain can manage the project location.')
+    throw new HttpError(403, 'Only a Production Manager, Admin, or Transport Captain can manage the project location.')
   }
 
   if (!Number.isFinite(input.latitude) || !Number.isFinite(input.longitude)) {
-    throw new HttpError(400, 'Valid location coordinates are required.')
+    throw new HttpError(400, 'Invalid location data.')
   }
 
-  const radiusMeters = clampRadius(toNumber(input.radiusMeters, DEFAULT_RADIUS_METERS))
+  if (input.latitude < -90 || input.latitude > 90 || input.longitude < -180 || input.longitude > 180) {
+    throw new HttpError(400, 'Invalid location data.')
+  }
+
+  const rawRadius = toNumber(input.radiusMeters, DEFAULT_RADIUS_METERS)
+  if (!Number.isFinite(rawRadius) || rawRadius < 50 || rawRadius > 1000) {
+    throw new HttpError(400, 'Invalid location data.')
+  }
+
+  const radiusMeters = clampRadius(rawRadius)
+  const safeName = input.name?.trim().slice(0, 255) || 'Project Base'
+
+  const { data: previousActiveRows, error: previousActiveError } = await adminClient
+    .from('project_locations')
+    .select('location_id')
+    .eq('project_id', projectId)
+    .eq('is_active', true)
+
+  throwIfError(previousActiveError as SupabaseLikeError | null)
+
+  const previousLocationIds = ((previousActiveRows ?? []) as Array<{ location_id: string }>).map(row => row.location_id)
 
   const { error: deactivateError } = await adminClient
     .from('project_locations')
@@ -928,20 +957,50 @@ export async function setProjectLocation(
 
   throwIfError(deactivateError as SupabaseLikeError | null)
 
-  const { error } = await adminClient
-    .from('project_locations')
-    .insert({
-      project_id: projectId,
-      name: input.name?.trim() || 'Project Base',
-      latitude: input.latitude,
-      longitude: input.longitude,
-      radius_meters: radiusMeters,
-      is_active: true,
-      created_by: actorUserId,
+  try {
+    const { error } = await adminClient
+      .from('project_locations')
+      .insert({
+        project_id: projectId,
+        name: safeName,
+        latitude: input.latitude,
+        longitude: input.longitude,
+        radius_meters: radiusMeters,
+        is_active: true,
+        created_by: actorUserId,
+      })
+
+    throwIfError(error as SupabaseLikeError | null)
+    return getProjectLocation(projectId)
+  } catch (error) {
+    if (previousLocationIds.length > 0) {
+      const { error: reactivateError } = await adminClient
+        .from('project_locations')
+        .update({ is_active: true })
+        .in('location_id', previousLocationIds)
+
+      if (reactivateError) {
+        console.error('[crew][project-location] failed to restore previous active location', {
+          projectId,
+          actorUserId,
+          previousLocationIds,
+          error: reactivateError.message,
+        })
+      }
+    }
+
+    if (error instanceof HttpError) {
+      throw error
+    }
+
+    console.error('[crew][project-location] failed to save geofence', {
+      projectId,
+      actorUserId,
+      error: error instanceof Error ? error.message : error,
     })
 
-  throwIfError(error as SupabaseLikeError | null)
-  return getProjectLocation(projectId)
+    throw new HttpError(500, 'Unable to save project location right now.')
+  }
 }
 
 function mapCrewRow(row: DailyAttendanceRow, crewMember: CrewMemberRow | undefined, user: UserRow | undefined, now = new Date()) {

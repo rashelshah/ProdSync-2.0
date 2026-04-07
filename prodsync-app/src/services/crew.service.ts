@@ -1,4 +1,4 @@
-import type { CrewDashboardData, CrewMember, OvertimeGroup, WagePayout } from '@/types'
+import type { CrewDashboardData, CrewMember, CrewProjectLocation, OvertimeGroup, WagePayout } from '@/types'
 import { apiFetch, readApiJson } from '@/lib/api'
 
 function withProjectId(projectId: string) {
@@ -15,9 +15,27 @@ interface GpsPayload {
 interface CrewLocationUpdateInput {
   projectId: string
   name?: string
-  latitude: number
-  longitude: number
-  radiusMeters: number
+  lat: number
+  lng: number
+  radius: number
+}
+
+export interface CrewLocationSearchResult {
+  name: string
+  lat: number
+  lng: number
+}
+
+export interface CrewReverseGeocodeResult {
+  name: string
+  lat: number | null
+  lng: number | null
+  address?: string
+}
+
+interface CrewProjectLocationResponse {
+  message?: string
+  projectLocation: CrewProjectLocation | null
 }
 
 export const crewService = {
@@ -46,6 +64,11 @@ export const crewService = {
     console.log('[crewService] fetching dashboard', { projectId })
     const response = await apiFetch(`/crew/dashboard?${withProjectId(projectId)}`)
     return readApiJson<CrewDashboardData>(response)
+  },
+  async getProjectLocation(projectId: string) {
+    const response = await apiFetch(`/crew/location?${withProjectId(projectId)}`)
+    const payload = await readApiJson<CrewProjectLocationResponse>(response)
+    return payload.projectLocation ?? null
   },
   async checkIn(projectId: string, payload: GpsPayload) {
     const response = await apiFetch(`/crew/attendance/check-in?${withProjectId(projectId)}`, {
@@ -82,15 +105,32 @@ export const crewService = {
     return readApiJson<{ message: string }>(response)
   },
   async updateProjectLocation(input: CrewLocationUpdateInput) {
-    const response = await apiFetch(`/crew/location?${withProjectId(input.projectId)}`, {
-      method: 'PUT',
+    const response = await apiFetch(`/crew/location/set?${withProjectId(input.projectId)}`, {
+      method: 'POST',
       body: JSON.stringify({
         name: input.name,
-        latitude: input.latitude,
-        longitude: input.longitude,
-        radiusMeters: input.radiusMeters,
+        lat: input.lat,
+        lng: input.lng,
+        radius: input.radius,
       }),
     })
-    return readApiJson<{ message: string }>(response)
+    return readApiJson<CrewProjectLocationResponse>(response)
+  },
+  async reverseGeocode(projectId: string, payload: Pick<GpsPayload, 'lat' | 'lng'>) {
+    const params = new URLSearchParams({
+      projectId,
+      lat: String(payload.lat),
+      lng: String(payload.lng),
+    })
+    const response = await apiFetch(`/location/reverse?${params.toString()}`)
+    return readApiJson<CrewReverseGeocodeResult>(response)
+  },
+  async searchLocations(projectId: string, query: string) {
+    const params = new URLSearchParams({
+      projectId,
+      q: query,
+    })
+    const response = await apiFetch(`/location/search?${params.toString()}`)
+    return readApiJson<CrewLocationSearchResult[]>(response)
   },
 }

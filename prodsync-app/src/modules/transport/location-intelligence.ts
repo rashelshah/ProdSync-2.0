@@ -66,8 +66,8 @@ export async function reverseGeocode(projectId: string, location: LocationPoint)
     lng: String(location.longitude),
   })
   const response = await apiFetch(`/location/reverse?${params.toString()}`)
-  const payload = await readApiJson<{ address: string }>(response)
-  const address = (payload.address || '').trim() || `${location.latitude.toFixed(5)}, ${location.longitude.toFixed(5)}`
+  const payload = await readApiJson<{ address?: string; name?: string }>(response)
+  const address = (payload.name || payload.address || '').trim() || `${location.latitude.toFixed(5)}, ${location.longitude.toFixed(5)}`
   reverseGeocodeCache.set(cacheKey, address)
   return address
 }
@@ -89,8 +89,21 @@ export async function searchDestinationSuggestions(projectId: string, query: str
     q: trimmedQuery,
   })
   const response = await apiFetch(`/location/search?${params.toString()}`)
-  const payload = await readApiJson<{ suggestions: LocationSuggestion[] }>(response)
-  const suggestions = payload.suggestions ?? []
+  const payload = await readApiJson<Array<{ name?: string; lat?: number | null; lng?: number | null }> | { suggestions?: LocationSuggestion[] }>(response)
+  const suggestions = Array.isArray(payload)
+    ? payload
+      .filter(item => typeof item.lat === 'number' && typeof item.lng === 'number')
+      .map((item, index) => ({
+        id: `${item.name ?? 'location'}-${item.lat}-${item.lng}-${index}`,
+        label: item.name ?? 'Unnamed location',
+        address: item.name ?? 'Unnamed location',
+        location: {
+          latitude: item.lat ?? undefined,
+          longitude: item.lng ?? undefined,
+          address: item.name ?? undefined,
+        },
+      }))
+    : (payload.suggestions ?? [])
   destinationSearchCache.set(cacheKey, suggestions)
   return suggestions
 }

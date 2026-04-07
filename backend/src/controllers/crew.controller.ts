@@ -26,15 +26,50 @@ const battaRequestSchema = z.object({
 })
 
 const markPaidSchema = z.object({
+  payoutId: z.string().uuid().optional(),
   paymentMethod: z.enum(['UPI', 'CASH', 'BANK']).optional(),
 })
 
 const locationSchema = z.object({
-  name: z.string().trim().min(2).max(100).optional(),
-  latitude: z.number().finite(),
-  longitude: z.number().finite(),
-  radiusMeters: z.number().int().min(100).max(500).optional(),
+  name: z.string().trim().min(2).max(255).optional(),
+  latitude: z.coerce.number().finite().optional(),
+  longitude: z.coerce.number().finite().optional(),
+  lat: z.coerce.number().finite().optional(),
+  lng: z.coerce.number().finite().optional(),
+  radiusMeters: z.coerce.number().int().min(50).max(1000).optional(),
+  radius: z.coerce.number().int().min(50).max(1000).optional(),
 })
+  .superRefine((value, ctx) => {
+    if (value.latitude == null && value.lat == null) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Latitude is required.',
+        path: ['lat'],
+      })
+    }
+
+    if (value.longitude == null && value.lng == null) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Longitude is required.',
+        path: ['lng'],
+      })
+    }
+
+    if (value.radiusMeters == null && value.radius == null) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Radius is required.',
+        path: ['radius'],
+      })
+    }
+  })
+  .transform(value => ({
+    name: value.name?.trim().slice(0, 255),
+    latitude: value.latitude ?? value.lat ?? NaN,
+    longitude: value.longitude ?? value.lng ?? NaN,
+    radiusMeters: value.radiusMeters ?? value.radius,
+  }))
 
 function requireProjectId(req: Request) {
   const projectId = req.projectAccess?.projectId
@@ -123,6 +158,50 @@ export async function getCrewDashboard(req: Request, res: Response) {
   })
 }
 
+export async function getMyAttendance(req: Request, res: Response) {
+  const projectId = requireProjectId(req)
+  const userId = requireUserId(req)
+  const [attendanceData, payouts] = await Promise.all([
+    getAttendanceDashboard(projectId, userId),
+    getProjectPayouts(projectId),
+  ])
+
+  res.json({
+    myShift: attendanceData.myShift,
+    myRecords: attendanceData.myRecords,
+    payouts: payouts.filter(item =>
+      Boolean(
+        item.attendanceId &&
+        (
+          attendanceData.myRecords.some(record => record.id === item.attendanceId) ||
+          item.attendanceId === attendanceData.myShift.attendanceId
+        ),
+      ),
+    ),
+    projectLocation: attendanceData.projectLocation,
+  })
+}
+
+export async function getProjectAttendance(req: Request, res: Response) {
+  const projectId = requireProjectId(req)
+  const userId = requireUserId(req)
+  const [attendanceData, permissions] = await Promise.all([
+    getAttendanceDashboard(projectId, userId),
+    Promise.resolve(getCrewModulePermissions(accessContext(req))),
+  ])
+
+  if (!permissions.canViewAllCrew && !permissions.summaryOnly) {
+    throw new HttpError(403, 'Your role can only view personal attendance records.')
+  }
+
+  res.json({
+    crew: attendanceData.crew,
+    otGroups: attendanceData.otGroups,
+    summary: attendanceData.summary,
+    projectLocation: attendanceData.projectLocation,
+  })
+}
+
 export async function getCrewLocation(req: Request, res: Response) {
   const projectId = requireProjectId(req)
   const projectLocation = await getProjectLocation(projectId)
@@ -165,7 +244,7 @@ export async function handleBattaRequest(req: Request, res: Response) {
 export async function handleBattaApprove(req: Request, res: Response) {
   const projectId = requireProjectId(req)
   const userId = requireUserId(req)
-  const payoutId = String(req.params.payoutId ?? '')
+  const payoutId = String(req.params.payoutId ?? req.body?.payoutId ?? '')
   if (!payoutId) {
     throw new HttpError(400, 'Payout id is required.')
   }
@@ -180,7 +259,7 @@ export async function handleBattaApprove(req: Request, res: Response) {
 export async function handleBattaMarkPaid(req: Request, res: Response) {
   const projectId = requireProjectId(req)
   const userId = requireUserId(req)
-  const payoutId = String(req.params.payoutId ?? '')
+  const payoutId = String(req.params.payoutId ?? req.body?.payoutId ?? '')
   if (!payoutId) {
     throw new HttpError(400, 'Payout id is required.')
   }

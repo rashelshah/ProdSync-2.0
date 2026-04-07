@@ -1,7 +1,9 @@
+import { useEffect } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import type { CrewDashboardData } from '@/types'
 import { useResolvedProjectContext } from '@/features/projects/useResolvedProjectContext'
 import { crewService } from '@/services/crew.service'
+import { readCachedProjectLocation, seedDashboardWithCachedLocation, writeCachedProjectLocation } from '../location-cache'
 
 const emptyDashboardData: CrewDashboardData = {
   summary: {
@@ -46,19 +48,40 @@ const emptyDashboardData: CrewDashboardData = {
 
 export function useCrewData() {
   const { activeProjectId, isLoadingProjectContext, isErrorProjectContext } = useResolvedProjectContext()
+  const cachedProjectLocation = activeProjectId ? readCachedProjectLocation(activeProjectId) : null
 
   const dashboardQ = useQuery({
     queryKey: ['crew-dashboard', activeProjectId],
     queryFn: () => crewService.getDashboard(activeProjectId!),
     enabled: Boolean(activeProjectId),
     staleTime: 10_000,
+    refetchOnMount: 'always',
+    initialData: activeProjectId ? seedDashboardWithCachedLocation(activeProjectId, emptyDashboardData) : undefined,
     refetchInterval: query => {
       const data = query.state.data as CrewDashboardData | undefined
       return data?.myShift?.state === 'checked_in' ? 30_000 : false
     },
   })
 
+  const projectLocationQ = useQuery({
+    queryKey: ['crew-location', activeProjectId],
+    queryFn: () => crewService.getProjectLocation(activeProjectId!),
+    enabled: Boolean(activeProjectId),
+    staleTime: 10_000,
+    refetchOnMount: 'always',
+    initialData: cachedProjectLocation ?? undefined,
+  })
+
   const data = dashboardQ.data ?? emptyDashboardData
+  const projectLocation = projectLocationQ.data ?? data.projectLocation
+
+  useEffect(() => {
+    if (!activeProjectId) {
+      return
+    }
+
+    writeCachedProjectLocation(activeProjectId, projectLocation)
+  }, [activeProjectId, projectLocation])
 
   return {
     activeProjectId,
@@ -67,7 +90,8 @@ export function useCrewData() {
     data,
     summary: data.summary,
     permissions: data.permissions,
-    projectLocation: data.projectLocation,
+    projectLocation,
+    hasProjectLocationLoaded: !activeProjectId || projectLocationQ.isFetched,
     myShift: data.myShift,
     myRecords: data.myRecords,
     crew: data.crew,

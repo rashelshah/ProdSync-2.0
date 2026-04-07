@@ -61,5 +61,5 @@ export async function reverseGeocodeLocation(query: LocationReverseGeocodeQuery,
 }
 
 export async function searchLocationSuggestions(query: LocationSearchQuery, userRole: MapProviderRole) {
-  return forwardGeocode(query.query, userRole)
+  return forwardGeocode(query.query, userRole === 'ADMIN' || userRole === 'PRODUCER' ? 'MEMBER' : userRole)
 }
