@@ -1374,30 +1374,103 @@ function FuelLedger({
   onPreview: (preview: { title: string; src: string }) => void
 }) {
   return (
-    <div className="overflow-hidden rounded-[24px] border border-zinc-200 dark:border-zinc-800">
-      <div className="hidden grid-cols-[0.9fr,1fr,1fr,0.7fr,0.8fr,0.8fr,0.8fr,0.9fr,0.9fr,0.9fr,1fr] gap-4 bg-zinc-50 px-5 py-4 text-[10px] font-semibold uppercase tracking-[0.18em] text-zinc-500 dark:bg-zinc-950 dark:text-zinc-400 xl:grid">
-        <span>Date</span>
-        <span>Vehicle</span>
-        <span>Driver</span>
-        <span className="text-right">Litres</span>
-        <span className="text-right">Cost</span>
-        <span className="text-right">Expected km/L</span>
-        <span className="text-right">Actual km/L</span>
-        <span>Status</span>
-        <span>Receipt Image</span>
-        <span>Odometer Image</span>
-        <span className="text-right">Action</span>
+    <div className="overflow-hidden rounded-[28px] border border-zinc-200/80 bg-white/20 dark:border-zinc-800 dark:bg-zinc-950/20">
+      <div className="hidden overflow-x-auto lg:block">
+        <table className="w-full min-w-[1120px] table-fixed border-collapse">
+          <thead>
+            <tr className="border-b border-zinc-200/80 dark:border-zinc-800">
+              <th className="px-6 py-4 text-left text-[10px] font-semibold uppercase tracking-[0.22em] text-zinc-500 dark:text-zinc-400">Entry Date</th>
+              <th className="px-4 py-4 text-left text-[10px] font-semibold uppercase tracking-[0.22em] text-zinc-500 dark:text-zinc-400">Vehicle</th>
+              <th className="px-4 py-4 text-left text-[10px] font-semibold uppercase tracking-[0.22em] text-zinc-500 dark:text-zinc-400">Driver</th>
+              <th className="px-4 py-4 text-right text-[10px] font-semibold uppercase tracking-[0.22em] text-zinc-500 dark:text-zinc-400">Litres</th>
+              <th className="px-4 py-4 text-right text-[10px] font-semibold uppercase tracking-[0.22em] text-zinc-500 dark:text-zinc-400">Cost</th>
+              <th className="px-4 py-4 text-right text-[10px] font-semibold uppercase tracking-[0.22em] text-zinc-500 dark:text-zinc-400">Expected</th>
+              <th className="px-4 py-4 text-right text-[10px] font-semibold uppercase tracking-[0.22em] text-zinc-500 dark:text-zinc-400">Actual</th>
+              <th className="px-4 py-4 text-left text-[10px] font-semibold uppercase tracking-[0.22em] text-zinc-500 dark:text-zinc-400">Status</th>
+              <th className="px-6 py-4 text-right text-[10px] font-semibold uppercase tracking-[0.22em] text-zinc-500 dark:text-zinc-400">Action</th>
+            </tr>
+          </thead>
+          <tbody>
+            {fuelLogs.map(row => {
+              const receiptUrl = resolveUploadUrl(row.receiptFilePath)
+              const odometerUrl = resolveUploadUrl(row.odometerImagePath)
+              const previewActions = [
+                receiptUrl ? { key: 'receipt', label: 'Receipt', title: `${row.vehicleName} Receipt`, src: receiptUrl } : null,
+                odometerUrl ? { key: 'odometer', label: 'Odometer', title: `${row.vehicleName} Odometer`, src: odometerUrl } : null,
+              ].filter(Boolean) as Array<{ key: string; label: string; title: string; src: string }>
+
+              return (
+                <tr key={row.id} className="border-b border-zinc-200/70 last:border-b-0 dark:border-zinc-800">
+                  <td className="px-6 py-5 text-sm font-medium text-zinc-900 dark:text-white">{formatDate(row.logDate)}</td>
+                  <td className="px-4 py-5 text-sm font-medium text-zinc-900 dark:text-white">{row.vehicleName}</td>
+                  <td className="px-4 py-5 text-sm text-zinc-600 dark:text-zinc-300">{row.loggedByName ?? row.loggedBy}</td>
+                  <td className="px-4 py-5 text-right text-sm text-zinc-600 dark:text-zinc-300">{row.liters.toFixed(1)}L</td>
+                  <td className="px-4 py-5 text-right text-sm text-zinc-600 dark:text-zinc-300">{formatCurrency(row.cost ?? 0)}</td>
+                  <td className="px-4 py-5 text-right text-sm text-zinc-600 dark:text-zinc-300">{row.expectedMileage.toFixed(1)} km/L</td>
+                  <td className="px-4 py-5 text-right text-sm text-zinc-600 dark:text-zinc-300">{row.actualMileage.toFixed(1)} km/L</td>
+                  <td className="px-4 py-5">
+                    <div className="flex flex-wrap gap-2">
+                      <StatusBadge variant={row.efficiencyRating === 'good' ? 'verified' : 'mismatch'} label={row.auditStatus} />
+                      {row.fraudStatus !== 'NORMAL' && (
+                        <StatusBadge variant={row.fraudStatus === 'FRAUD' ? 'flagged' : 'warning'} label={row.fraudStatus} />
+                      )}
+                      {row.metadata?.ocrStatus === 'processing' && <StatusBadge variant="pending" label="OCR Pending" />}
+                    </div>
+                  </td>
+                  <td className="px-6 py-5">
+                    <div className="flex flex-wrap justify-end gap-2">
+                      {previewActions.map(action => (
+                        <button key={action.key} onClick={() => onPreview({ title: action.title, src: action.src })} className="btn-soft px-3 py-2 text-[10px]">
+                          {action.label}
+                        </button>
+                      ))}
+                      {canManageTransport ? (
+                        <>
+                          <button
+                            onClick={() => reviewFuelMutation.mutate({ id: row.id, auditStatus: 'verified' })}
+                            className="btn-soft px-3 py-2 text-[10px]"
+                            disabled={reviewFuelMutation.isPending}
+                          >
+                            Approve
+                          </button>
+                          <button
+                            onClick={() => reviewFuelMutation.mutate({ id: row.id, auditStatus: 'mismatch' })}
+                            className="btn-soft px-3 py-2 text-[10px]"
+                            disabled={reviewFuelMutation.isPending}
+                          >
+                            Flag
+                          </button>
+                        </>
+                      ) : (
+                        <span className="text-xs text-zinc-400">{row.reviewedAt ? 'Reviewed' : '-'}</span>
+                      )}
+                      {row.reviewedAt && (
+                        <span className="w-full text-right text-xs text-zinc-500 dark:text-zinc-400">
+                          Reviewed {formatDate(row.reviewedAt)} {formatTime(row.reviewedAt)}
+                        </span>
+                      )}
+                    </div>
+                  </td>
+                </tr>
+              )
+            })}
+          </tbody>
+        </table>
       </div>
 
-      <div className="divide-y divide-zinc-200 dark:divide-zinc-800">
+      <div className="divide-y divide-zinc-200/80 lg:hidden dark:divide-zinc-800">
         {fuelLogs.map(row => {
           const receiptUrl = resolveUploadUrl(row.receiptFilePath)
           const odometerUrl = resolveUploadUrl(row.odometerImagePath)
+          const previewActions = [
+            receiptUrl ? { key: 'receipt', label: 'Receipt', title: `${row.vehicleName} Receipt`, src: receiptUrl } : null,
+            odometerUrl ? { key: 'odometer', label: 'Odometer', title: `${row.vehicleName} Odometer`, src: odometerUrl } : null,
+          ].filter(Boolean) as Array<{ key: string; label: string; title: string; src: string }>
 
           return (
-            <div key={row.id} className="px-5 py-4">
-              <div className="grid gap-4 xl:grid-cols-[0.9fr,1fr,1fr,0.7fr,0.8fr,0.8fr,0.8fr,0.9fr,0.9fr,0.9fr,1fr] xl:items-start">
-                <LedgerCell label="Date">
+            <div key={row.id} className="px-6 py-5">
+              <div className="grid gap-5 lg:grid-cols-[1.05fr,1fr,0.75fr,0.6fr,0.72fr,0.78fr,0.78fr,1.18fr,1.08fr] lg:items-center">
+                <LedgerCell label="Entry Date">
                   <p className="font-medium text-zinc-900 dark:text-white">{formatDate(row.logDate)}</p>
                 </LedgerCell>
                 <LedgerCell label="Vehicle">
@@ -1413,10 +1486,10 @@ function FuelLedger({
                   <p>{formatCurrency(row.cost ?? 0)}</p>
                 </LedgerCell>
                 <LedgerCell label="Expected km/L" align="right">
-                  <p>{row.expectedMileage.toFixed(1)}</p>
+                  <p>{row.expectedMileage.toFixed(1)} km/L</p>
                 </LedgerCell>
                 <LedgerCell label="Actual km/L" align="right">
-                  <p>{row.actualMileage.toFixed(1)}</p>
+                  <p>{row.actualMileage.toFixed(1)} km/L</p>
                 </LedgerCell>
                 <LedgerCell label="Status">
                   <div className="flex flex-wrap gap-2">
@@ -1428,28 +1501,27 @@ function FuelLedger({
                       <StatusBadge variant="pending" label="OCR Pending" />
                     )}
                   </div>
-                </LedgerCell>
-                <LedgerCell label="Receipt Image">
-                  {receiptUrl ? (
-                    <button onClick={() => onPreview({ title: `${row.vehicleName} Receipt`, src: receiptUrl })} className="btn-soft px-3 py-2 text-[10px]">
-                      Preview
-                    </button>
-                  ) : (
-                    <span className="text-xs text-zinc-400">Unavailable</span>
-                  )}
-                </LedgerCell>
-                <LedgerCell label="Odometer Image">
-                  {odometerUrl ? (
-                    <button onClick={() => onPreview({ title: `${row.vehicleName} Odometer`, src: odometerUrl })} className="btn-soft px-3 py-2 text-[10px]">
-                      Preview
-                    </button>
-                  ) : (
-                    <span className="text-xs text-zinc-400">Unavailable</span>
+                  {previewActions.length > 0 && (
+                    <div className="mt-3 flex flex-wrap gap-2 lg:hidden">
+                      {previewActions.map(action => (
+                        <button key={action.key} onClick={() => onPreview({ title: action.title, src: action.src })} className="btn-soft px-3 py-2 text-[10px]">
+                          {action.label}
+                        </button>
+                      ))}
+                    </div>
                   )}
                 </LedgerCell>
                 <LedgerCell label="Action" align="right">
-                  {canManageTransport ? (
-                    <div className="flex flex-wrap justify-end gap-2">
+                  <div className="flex flex-wrap justify-end gap-2">
+                    <div className="hidden flex-wrap justify-end gap-2 lg:flex">
+                      {previewActions.map(action => (
+                        <button key={action.key} onClick={() => onPreview({ title: action.title, src: action.src })} className="btn-soft px-3 py-2 text-[10px]">
+                          {action.label}
+                        </button>
+                      ))}
+                    </div>
+                    {canManageTransport ? (
+                      <>
                       <button
                         onClick={() => reviewFuelMutation.mutate({ id: row.id, auditStatus: 'verified' })}
                         className="btn-soft px-3 py-2 text-[10px]"
@@ -1464,15 +1536,16 @@ function FuelLedger({
                       >
                         Flag
                       </button>
-                      {row.reviewedAt && (
-                        <span className="w-full text-right text-xs text-zinc-500 dark:text-zinc-400">
-                          Reviewed {formatDate(row.reviewedAt)} {formatTime(row.reviewedAt)}
-                        </span>
-                      )}
-                    </div>
-                  ) : (
-                    <span className="text-xs text-zinc-400">{row.reviewedAt ? 'Reviewed' : '-'}</span>
-                  )}
+                      </>
+                    ) : (
+                      <span className="text-xs text-zinc-400">{row.reviewedAt ? 'Reviewed' : '-'}</span>
+                    )}
+                    {row.reviewedAt && (
+                      <span className="w-full text-left text-xs text-zinc-500 dark:text-zinc-400 lg:text-right">
+                        Reviewed {formatDate(row.reviewedAt)} {formatTime(row.reviewedAt)}
+                      </span>
+                    )}
+                  </div>
                 </LedgerCell>
               </div>
             </div>
@@ -1501,43 +1574,79 @@ function AlertRows({
   trips: TripUI[]
 }) {
   return (
-    <div className="overflow-hidden rounded-[24px] border border-zinc-200 dark:border-zinc-800">
-      <div className="hidden grid-cols-[1.05fr,2.2fr,0.9fr,1fr,1.1fr] gap-4 bg-zinc-50 px-5 py-4 text-[10px] font-semibold uppercase tracking-[0.18em] text-zinc-500 dark:bg-zinc-950 dark:text-zinc-400 lg:grid">
-        <span>Type</span>
-        <span>Message</span>
-        <span>Severity</span>
-        <span>Vehicle</span>
-        <span>Time</span>
-      </div>
-
-      <div className="divide-y divide-zinc-200 dark:divide-zinc-800">
-        {alerts.map(alert => (
-          <div key={alert.id} className="px-5 py-4">
-            <div className="grid gap-4 lg:grid-cols-[1.05fr,2.2fr,0.9fr,1fr,1.1fr]">
-              <LedgerCell label="Type">
-                <p className="font-medium text-zinc-900 dark:text-white">{prettifyAlertType(alert.alertType)}</p>
-              </LedgerCell>
-              <LedgerCell label="Message">
-                <p className="text-zinc-700 dark:text-zinc-200">{alert.message}</p>
-              </LedgerCell>
-              <LedgerCell label="Severity">
-                <span className={alertSeverityBadgeTone(alert.severity)}>
-                  {alert.severity}
+    <div className="space-y-3">
+      {alerts.map(alert => (
+        <div
+          key={alert.id}
+          className={`rounded-[22px] border px-4 py-3 ${alertSeveritySurfaceTone(alert.severity)}`}
+        >
+          <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+            <div className="min-w-0 flex-1">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-[10px] font-semibold uppercase tracking-[0.22em] text-zinc-500 dark:text-zinc-400">
+                  {alert.alertType.toUpperCase()}
                 </span>
-              </LedgerCell>
-              <LedgerCell label="Vehicle">
-                <p>{resolveAlertVehicle(alert, vehicles, trips)}</p>
-              </LedgerCell>
-              <LedgerCell label="Time">
-                <p className="font-medium text-zinc-900 dark:text-white">{formatDate(alert.triggeredAt)}</p>
-                <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">{formatTime(alert.triggeredAt)}</p>
-              </LedgerCell>
+                <span className={alertSeverityBadgeTone(alert.severity)}>{alert.severity}</span>
+              </div>
+              <p className="mt-2 text-sm font-semibold text-zinc-900 dark:text-white">{transportAlertTitle(alert)}</p>
+              <p className="mt-1 line-clamp-2 max-w-2xl text-sm text-zinc-700 dark:text-zinc-200">{alert.message}</p>
+              <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-zinc-600 dark:text-zinc-300">
+                <div>
+                  <span className="text-[10px] font-semibold uppercase tracking-[0.18em] text-zinc-500 dark:text-zinc-400">Vehicle</span>
+                  <p className="mt-1 font-medium text-zinc-900 dark:text-white">{resolveAlertVehicle(alert, vehicles, trips)}</p>
+                </div>
+                <div className="md:hidden">
+                  <span className="text-[10px] font-semibold uppercase tracking-[0.18em] text-zinc-500 dark:text-zinc-400">Time</span>
+                  <p className="mt-1 font-medium text-zinc-900 dark:text-white">{formatDate(alert.triggeredAt)}</p>
+                  <p className="text-xs text-zinc-500 dark:text-zinc-400">{formatTime(alert.triggeredAt)}</p>
+                </div>
+              </div>
+            </div>
+
+            <div className="hidden shrink-0 text-right md:block">
+              <p className="text-sm font-medium text-zinc-900 dark:text-white">{formatDate(alert.triggeredAt)}</p>
+              <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">{formatTime(alert.triggeredAt)}</p>
             </div>
           </div>
-        ))}
-      </div>
+        </div>
+      ))}
     </div>
   )
+}
+
+function transportAlertTitle(alert: {
+  alertType: string
+  severity: 'critical' | 'warning' | 'info'
+}) {
+  if (alert.severity === 'critical' || alert.alertType === 'fuel_mismatch' || alert.alertType === 'low_mileage') {
+    return 'Potential fuel fraud detected'
+  }
+
+  if (alert.alertType === 'odometer_mismatch') {
+    return 'Odometer mismatch detected'
+  }
+
+  if (alert.alertType === 'outstation_trip') {
+    return 'Outstation movement detected'
+  }
+
+  if (alert.alertType === 'abnormal_trip') {
+    return 'Suspicious trip pattern detected'
+  }
+
+  return prettifyAlertType(alert.alertType)
+}
+
+function alertSeveritySurfaceTone(severity: 'critical' | 'warning' | 'info') {
+  if (severity === 'critical') {
+    return 'border-red-500/25 bg-red-500/10'
+  }
+
+  if (severity === 'warning') {
+    return 'border-amber-500/25 bg-amber-500/10'
+  }
+
+  return 'border-sky-500/25 bg-sky-500/10'
 }
 
 function deriveVehicleOperationalStatus(vehicle: Vehicle, activeTrips: TripUI[]): VehicleStatus | 'in_transit' {

@@ -1,0 +1,319 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;700;800&amp;family=Inter:wght@400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "surface-container-low": "#131313",
+                        "on-error-container": "#ffd2c8",
+                        "outline": "#767575",
+                        "error-container": "#b92902",
+                        "primary-dim": "#ff7524",
+                        "on-secondary-container": "#fff6f2",
+                        "on-error": "#450900",
+                        "primary-fixed": "#ff7a2f",
+                        "primary-container": "#ff7a2f",
+                        "on-tertiary-container": "#523700",
+                        "tertiary-fixed-dim": "#eba60f",
+                        "surface-container-high": "#20201f",
+                        "error": "#ff7351",
+                        "outline-variant": "#484847",
+                        "surface-container-lowest": "#000000",
+                        "on-secondary-fixed": "#552800",
+                        "error-dim": "#d53d18",
+                        "background": "#0e0e0e",
+                        "surface-container-highest": "#262626",
+                        "primary": "#ff9159",
+                        "on-secondary": "#462000",
+                        "surface-tint": "#ff9159",
+                        "surface-container": "#1a1a1a",
+                        "on-background": "#ffffff",
+                        "inverse-surface": "#fcf9f8",
+                        "on-secondary-fixed-variant": "#803f00",
+                        "inverse-on-surface": "#565555",
+                        "on-surface": "#ffffff",
+                        "surface-variant": "#262626",
+                        "on-primary-fixed-variant": "#4f1c00",
+                        "tertiary-container": "#fbb423",
+                        "surface": "#0e0e0e",
+                        "primary-fixed-dim": "#f66700",
+                        "on-tertiary-fixed-variant": "#5e4000",
+                        "secondary": "#f88d36",
+                        "on-primary": "#531e00",
+                        "surface-dim": "#0e0e0e",
+                        "on-primary-container": "#401500",
+                        "inverse-primary": "#a14100",
+                        "on-primary-fixed": "#000000",
+                        "secondary-container": "#944a00",
+                        "secondary-fixed-dim": "#ffb37d",
+                        "secondary-dim": "#eb832c",
+                        "tertiary-dim": "#eba60f",
+                        "on-tertiary": "#5e4000",
+                        "tertiary-fixed": "#fbb423",
+                        "surface-bright": "#2c2c2c",
+                        "on-surface-variant": "#adaaaa",
+                        "on-tertiary-fixed": "#372400",
+                        "tertiary": "#ffc562",
+                        "secondary-fixed": "#ffc69f"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.25rem",
+                        "lg": "0.5rem",
+                        "xl": "1.5rem",
+                        "full": "9999px"
+                    },
+                    "fontFamily": {
+                        "headline": ["Manrope"],
+                        "body": ["Inter"],
+                        "label": ["Inter"]
+                    }
+                }
+            }
+        }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        body {
+            background-color: #0e0e0e;
+            color: #ffffff;
+            font-family: 'Inter', sans-serif;
+        }
+        .hide-scrollbar::-webkit-scrollbar {
+            display: none;
+        }
+        .hide-scrollbar {
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+        }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-background selection:bg-primary selection:text-black">
+<!-- Top Navigation Bar -->
+<header class="fixed top-0 w-full z-50 bg-[#0e0e0e]/60 backdrop-blur-md flex justify-between items-center px-6 h-16 w-full">
+<div class="flex items-center gap-4">
+<span class="material-symbols-outlined text-[#ff9159]">menu</span>
+<span class="font-['Manrope'] font-black tracking-tighter text-[#ff9159] text-xl">PRODSYNC</span>
+</div>
+<div class="flex items-center gap-4">
+<span class="material-symbols-outlined text-[#adaaaa] hover:bg-[#262626] transition-colors p-2 rounded-full">search</span>
+<span class="material-symbols-outlined text-[#adaaaa] hover:bg-[#262626] transition-colors p-2 rounded-full">add</span>
+</div>
+</header>
+<main class="pt-20 pb-44 px-4 space-y-8">
+<!-- Title & Subtitle Section -->
+<section class="mt-4">
+<h1 class="font-headline text-3xl font-extrabold tracking-tight text-on-surface">Camera &amp; Assets</h1>
+<p class="text-on-surface-variant font-body text-sm mt-1">Manage gear, requests, and movement logs</p>
+</section>
+<!-- Operational Alerts -->
+<section class="space-y-3">
+<div class="bg-error-container/20 rounded-xl p-4 border-l-4 border-error flex items-start gap-3">
+<span class="material-symbols-outlined text-error" style="font-variation-settings: 'FILL' 1;">warning</span>
+<div>
+<p class="text-white font-bold text-sm">Critical Alert</p>
+<p class="text-on-error-container text-xs mt-0.5">Camera still open in movement log (Unit A-12)</p>
+</div>
+</div>
+</section>
+<!-- Summary Horizontal Scroll -->
+<section class="overflow-x-auto hide-scrollbar -mx-4 px-4 flex gap-4">
+<!-- Wishlist Card -->
+<div class="flex-shrink-0 w-40 bg-surface-container rounded-xl p-4 space-y-4 shadow-[0px_4px_8px_rgba(255,145,89,0.04)]">
+<p class="text-on-surface-variant text-[10px] uppercase font-bold tracking-widest">Wishlist</p>
+<div class="flex items-end justify-between">
+<span class="text-3xl font-headline font-bold">12</span>
+<span class="material-symbols-outlined text-primary">favorite</span>
+</div>
+</div>
+<!-- Pending Requests -->
+<div class="flex-shrink-0 w-40 bg-surface-container rounded-xl p-4 space-y-4">
+<p class="text-on-surface-variant text-[10px] uppercase font-bold tracking-widest">Pending</p>
+<div class="flex items-end justify-between">
+<span class="text-3xl font-headline font-bold">04</span>
+<span class="material-symbols-outlined text-tertiary">hourglass_empty</span>
+</div>
+</div>
+<!-- Checked In -->
+<div class="flex-shrink-0 w-40 bg-surface-container rounded-xl p-4 space-y-4">
+<p class="text-on-surface-variant text-[10px] uppercase font-bold tracking-widest">Checked In</p>
+<div class="flex items-end justify-between">
+<span class="text-3xl font-headline font-bold">88</span>
+<span class="material-symbols-outlined text-green-400">task_alt</span>
+</div>
+</div>
+<!-- Damage & Loss -->
+<div class="flex-shrink-0 w-40 bg-surface-container-highest rounded-xl p-4 space-y-4">
+<p class="text-on-surface-variant text-[10px] uppercase font-bold tracking-widest">Reports</p>
+<div class="flex items-end justify-between">
+<span class="text-3xl font-headline font-bold text-error">02</span>
+<span class="material-symbols-outlined text-error">report</span>
+</div>
+</div>
+</section>
+<!-- Requests & Approval Flow -->
+<section class="space-y-4">
+<div class="flex justify-between items-center">
+<h2 class="font-headline text-lg font-bold">Pending Requests</h2>
+<span class="text-primary text-xs font-bold uppercase tracking-widest">View All</span>
+</div>
+<div class="space-y-4">
+<div class="bg-surface-container-low p-5 rounded-xl flex justify-between items-center border border-outline-variant/10">
+<div class="flex gap-4">
+<div class="w-12 h-12 rounded-lg bg-surface-container-highest flex items-center justify-center">
+<span class="material-symbols-outlined text-primary">videocam</span>
+</div>
+<div>
+<p class="text-white font-bold text-sm">Arri Alexa Mini LF</p>
+<p class="text-on-surface-variant text-xs mt-0.5">Requested by Marcus V.</p>
+</div>
+</div>
+<span class="bg-primary/20 text-primary text-[10px] font-black px-3 py-1 rounded-full uppercase">Approved</span>
+</div>
+<div class="bg-surface-container-low p-5 rounded-xl flex justify-between items-center border border-outline-variant/10">
+<div class="flex gap-4">
+<div class="w-12 h-12 rounded-lg bg-surface-container-highest flex items-center justify-center">
+<span class="material-symbols-outlined text-primary">lens</span>
+</div>
+<div>
+<p class="text-white font-bold text-sm">Cooke S7/i Prime Set</p>
+<p class="text-on-surface-variant text-xs mt-0.5">Requested by Sarah K.</p>
+</div>
+</div>
+<span class="bg-tertiary/20 text-tertiary text-[10px] font-black px-3 py-1 rounded-full uppercase">Pending</span>
+</div>
+</div>
+</section>
+<!-- QR Activity Log (Timeline) -->
+<section class="space-y-4">
+<h2 class="font-headline text-lg font-bold">Movement Log</h2>
+<div class="relative ml-4 pl-8 border-l border-outline-variant/30 space-y-8">
+<!-- Log Item 1 -->
+<div class="relative">
+<div class="absolute -left-[41px] top-0 w-4 h-4 bg-green-500 rounded-full border-4 border-background"></div>
+<div class="bg-surface-container rounded-xl p-4">
+<div class="flex justify-between items-start">
+<p class="text-sm font-bold">Sony A7S III</p>
+<span class="text-[10px] text-on-surface-variant font-mono">14:22</span>
+</div>
+<p class="text-xs text-on-surface-variant mt-1">Checked In • Stage 4</p>
+</div>
+</div>
+<!-- Log Item 2 -->
+<div class="relative">
+<div class="absolute -left-[41px] top-0 w-4 h-4 bg-primary rounded-full border-4 border-background"></div>
+<div class="bg-surface-container rounded-xl p-4">
+<div class="flex justify-between items-start">
+<p class="text-sm font-bold">Heavy Duty Tripod</p>
+<span class="text-[10px] text-on-surface-variant font-mono">11:05</span>
+</div>
+<p class="text-xs text-on-surface-variant mt-1">Checked Out • Outdoor Unit</p>
+</div>
+</div>
+</div>
+</section>
+<!-- Wishlist Section -->
+<section class="space-y-4">
+<h2 class="font-headline text-lg font-bold">Wishlist Items</h2>
+<div class="grid grid-cols-1 gap-4">
+<div class="bg-surface-container rounded-xl overflow-hidden flex h-32">
+<img class="w-32 h-full object-cover grayscale brightness-75" data-alt="Close up of a professional high-end cinema camera lens with orange accents and fine glass reflections" src="https://lh3.googleusercontent.com/aida-public/AB6AXuB7_bLb9HEIFBbtZKC1KL3_1GNbwfoD9Yc7ANaRVT4gtDdrws6wLZd5DVVbp1gMK8oaCBhM1P_9poefs6gEtW4vZlwjOKgfcXJka6MNJe9dyFUzqM9DWrI62B7I7gIdYZUBgWzU2MlEE7zXywzb-iFoszWY4p50IAZDRCrF2MO-kUegiE24Greg8lTC7haKj21fD-ZQx8aEFMMJDW1IEUetdwfGKz1HUADOXyd3JIBXh3vOtBPEKNvJ-hWzg97qvPhxHp7A5XaEq_Qt"/>
+<div class="p-4 flex-1 flex flex-col justify-between">
+<div>
+<div class="flex justify-between items-start">
+<p class="font-bold text-sm">Lens 5.5mm Ultra-Wide</p>
+<span class="text-primary text-xs font-bold italic">Qty: 02</span>
+</div>
+<p class="text-xs text-on-surface-variant mt-1">Category: Camera</p>
+</div>
+<div class="flex justify-between items-end">
+<p class="text-[10px] text-on-surface-variant">Added by: Leo G. • 22 Oct</p>
+<span class="material-symbols-outlined text-xs text-primary" style="font-variation-settings: 'FILL' 1;">favorite</span>
+</div>
+</div>
+</div>
+</div>
+</section>
+<!-- Damage & Loss Reports -->
+<section class="space-y-4">
+<h2 class="font-headline text-lg font-bold">Asset Incidents</h2>
+<div class="space-y-3">
+<div class="bg-surface-container-high p-4 rounded-xl flex items-center gap-4">
+<div class="p-2 bg-error-container/20 rounded-lg">
+<span class="material-symbols-outlined text-error">broken_image</span>
+</div>
+<div class="flex-1">
+<div class="flex justify-between">
+<p class="text-sm font-bold">X-Type Gimbal</p>
+<span class="text-error font-black text-[10px] uppercase">Damaged</span>
+</div>
+<p class="text-xs text-on-surface-variant">Reported by: Alex Cheng • 2h ago</p>
+</div>
+</div>
+<div class="bg-surface-container-high p-4 rounded-xl flex items-center gap-4">
+<div class="p-2 bg-error-container/20 rounded-lg">
+<span class="material-symbols-outlined text-error">inventory_2</span>
+</div>
+<div class="flex-1">
+<div class="flex justify-between">
+<p class="text-sm font-bold">Sennheiser MKH 416</p>
+<span class="text-error-dim font-black text-[10px] uppercase">Lost</span>
+</div>
+<p class="text-xs text-on-surface-variant">Reported by: Sound Dept • Today</p>
+</div>
+</div>
+</div>
+</section>
+</main>
+<!-- Bottom Primary Actions Shell -->
+<div class="fixed bottom-24 w-full px-4 z-50">
+<div class="grid grid-cols-2 gap-3">
+<button class="bg-primary hover:bg-primary-container active:scale-95 transition-all text-on-primary-fixed py-4 rounded-xl flex flex-col items-center justify-center gap-1 shadow-lg shadow-black/40">
+<span class="material-symbols-outlined">qr_code_scanner</span>
+<span class="font-label text-[11px] font-bold uppercase tracking-wider">Scan QR</span>
+</button>
+<button class="bg-surface-container-highest border border-outline-variant/30 active:scale-95 transition-all text-white py-4 rounded-xl flex flex-col items-center justify-center gap-1 shadow-lg">
+<span class="material-symbols-outlined text-primary">shopping_cart_checkout</span>
+<span class="font-label text-[11px] font-bold uppercase tracking-wider">Request Gear</span>
+</button>
+</div>
+</div>
+<!-- Bottom Navigation Bar -->
+<nav class="fixed bottom-0 w-full z-50 rounded-t-2xl bg-[#131313]/80 backdrop-blur-xl shadow-[0px_-12px_32px_rgba(0,0,0,0.5)] flex justify-around items-center h-20 pb-4 px-2">
+<a class="flex flex-col items-center justify-center bg-[#ff9159] text-black rounded-xl px-3 py-1.5 active:scale-90 duration-150" href="#">
+<span class="material-symbols-outlined">camera_roll</span>
+<span class="font-['Inter'] text-[10px] font-bold uppercase tracking-widest mt-1">Assets</span>
+</a>
+<a class="flex flex-col items-center justify-center text-[#adaaaa] px-3 py-1.5 hover:text-white transition-all active:scale-90 duration-150" href="#">
+<span class="material-symbols-outlined">qr_code_scanner</span>
+<span class="font-['Inter'] text-[10px] font-bold uppercase tracking-widest mt-1">Activity</span>
+</a>
+<a class="flex flex-col items-center justify-center text-[#adaaaa] px-3 py-1.5 hover:text-white transition-all active:scale-90 duration-150" href="#">
+<span class="material-symbols-outlined">description</span>
+<span class="font-['Inter'] text-[10px] font-bold uppercase tracking-widest mt-1">Reports</span>
+</a>
+<a class="flex flex-col items-center justify-center text-[#adaaaa] px-3 py-1.5 hover:text-white transition-all active:scale-90 duration-150" href="#">
+<span class="material-symbols-outlined">warning</span>
+<span class="font-['Inter'] text-[10px] font-bold uppercase tracking-widest mt-1">Alerts</span>
+</a>
+<a class="flex flex-col items-center justify-center text-[#adaaaa] px-3 py-1.5 hover:text-white transition-all active:scale-90 duration-150" href="#">
+<span class="material-symbols-outlined">favorite</span>
+<span class="font-['Inter'] text-[10px] font-bold uppercase tracking-widest mt-1">Wishlist</span>
+</a>
+</nav>
+</body></html>

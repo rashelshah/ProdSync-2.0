@@ -1,0 +1,295 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" name="viewport"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;700;800&amp;family=Inter:wght@400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            "colors": {
+                    "surface-container": "#1a1a1a",
+                    "primary-fixed": "#ff7a2f",
+                    "surface-dim": "#0e0e0e",
+                    "on-surface": "#ffffff",
+                    "surface-variant": "#262626",
+                    "tertiary": "#ffc562",
+                    "on-primary-fixed": "#000000",
+                    "on-tertiary-fixed-variant": "#5e4000",
+                    "error-dim": "#d53d18",
+                    "secondary": "#f88d36",
+                    "on-secondary": "#462000",
+                    "tertiary-dim": "#eba60f",
+                    "secondary-dim": "#eb832c",
+                    "error-container": "#b92902",
+                    "surface-tint": "#ff9159",
+                    "inverse-primary": "#a14100",
+                    "error": "#ff7351",
+                    "outline": "#767575",
+                    "on-tertiary": "#5e4000",
+                    "outline-variant": "#484847",
+                    "inverse-on-surface": "#565555",
+                    "background": "#0e0e0e",
+                    "on-background": "#ffffff",
+                    "surface-container-highest": "#262626",
+                    "surface-container-low": "#131313",
+                    "on-tertiary-fixed": "#372400",
+                    "on-secondary-fixed-variant": "#803f00",
+                    "tertiary-fixed-dim": "#eba60f",
+                    "tertiary-fixed": "#fbb423",
+                    "primary": "#ff9159",
+                    "surface-container-lowest": "#000000",
+                    "on-primary": "#531e00",
+                    "on-error": "#450900",
+                    "primary-dim": "#ff7524",
+                    "on-primary-fixed-variant": "#4f1c00",
+                    "surface": "#0e0e0e",
+                    "surface-bright": "#2c2c2c",
+                    "surface-container-high": "#20201f",
+                    "on-error-container": "#ffd2c8",
+                    "inverse-surface": "#fcf9f8",
+                    "secondary-fixed": "#ffc69f",
+                    "tertiary-container": "#fbb423",
+                    "secondary-fixed-dim": "#ffb37d",
+                    "primary-fixed-dim": "#f66700",
+                    "on-surface-variant": "#adaaaa",
+                    "on-secondary-fixed": "#552800",
+                    "on-primary-container": "#401500",
+                    "on-tertiary-container": "#523700",
+                    "secondary-container": "#944a00",
+                    "on-secondary-container": "#fff6f2",
+                    "primary-container": "#ff7a2f"
+            },
+            "borderRadius": {
+                    "DEFAULT": "0.25rem",
+                    "lg": "0.5rem",
+                    "xl": "1.5rem",
+                    "full": "9999px"
+            },
+            "fontFamily": {
+                    "headline": ["Manrope"],
+                    "body": ["Inter"],
+                    "label": ["Inter"]
+            }
+          },
+        },
+      }
+    </script>
+<style>
+        body { font-family: 'Inter', sans-serif; -webkit-tap-highlight-color: transparent; }
+        .font-headline { font-family: 'Manrope', sans-serif; }
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .hide-scrollbar::-webkit-scrollbar { display: none; }
+        .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-background text-on-background min-h-screen pb-40">
+<!-- TopAppBar -->
+<header class="fixed top-0 w-full z-50 bg-neutral-950/60 backdrop-blur-xl transition-all duration-200">
+<div class="flex items-center justify-between px-6 pt-4 pb-2 w-full">
+<div class="flex flex-col">
+<h1 class="text-neutral-50 font-black tracking-tighter font-headline text-2xl">Art &amp; Expenses</h1>
+<p class="text-[10px] text-neutral-400 font-medium tracking-wide uppercase">Track expenses, props, and set builds</p>
+</div>
+<div class="flex items-center gap-4">
+<div class="p-2 hover:bg-white/5 rounded-full transition-transform active:scale-95 duration-200">
+<span class="material-symbols-outlined text-orange-500">search</span>
+</div>
+<div class="p-2 bg-orange-500/10 rounded-full transition-transform active:scale-95 duration-200">
+<span class="material-symbols-outlined text-orange-500">add</span>
+</div>
+</div>
+</div>
+</header>
+<main class="pt-24 px-6 space-y-8">
+<!-- Summary Cards (Horizontal Scroll) -->
+<section class="flex overflow-x-auto gap-4 hide-scrollbar -mx-6 px-6">
+<!-- Spend -->
+<div class="min-w-[160px] bg-surface-container p-5 rounded-xl flex flex-col justify-between shadow-[0px_4px_8px_rgba(255,145,89,0.04)]">
+<span class="text-[10px] font-bold text-on-surface-variant tracking-widest uppercase">Art Spend</span>
+<div class="mt-4">
+<div class="text-2xl font-black font-headline text-on-surface">₹5,000</div>
+<div class="text-[11px] text-primary mt-1">2 logged</div>
+</div>
+</div>
+<!-- Budget -->
+<div class="min-w-[160px] bg-surface-container p-5 rounded-xl flex flex-col justify-between">
+<span class="text-[10px] font-bold text-on-surface-variant tracking-widest uppercase">Remaining</span>
+<div class="mt-4">
+<div class="text-2xl font-black font-headline text-on-surface">₹64,000</div>
+<div class="text-[11px] text-tertiary mt-1">Current Buffer</div>
+</div>
+</div>
+<!-- Props -->
+<div class="min-w-[160px] bg-surface-container p-5 rounded-xl flex flex-col justify-between border-l-2 border-primary/20">
+<span class="text-[10px] font-bold text-on-surface-variant tracking-widest uppercase">Props</span>
+<div class="mt-4">
+<div class="text-2xl font-black font-headline text-on-surface">1</div>
+<div class="text-[11px] text-error mt-1">1 flagged</div>
+</div>
+</div>
+<!-- Sets -->
+<div class="min-w-[160px] bg-surface-container p-5 rounded-xl flex flex-col justify-between">
+<span class="text-[10px] font-bold text-on-surface-variant tracking-widest uppercase">Set Builds</span>
+<div class="mt-4">
+<div class="text-2xl font-black font-headline text-on-surface">0</div>
+<div class="text-[11px] text-on-surface-variant mt-1">Idle</div>
+</div>
+</div>
+</section>
+<!-- Operational Alerts -->
+<section class="space-y-3">
+<h2 class="text-xs font-bold text-orange-500/80 tracking-widest uppercase mb-4 px-1">Critical Alerts</h2>
+<div class="bg-error-container/20 p-4 rounded-xl flex items-start gap-4 border-l-4 border-error">
+<span class="material-symbols-outlined text-error mt-0.5">report</span>
+<div class="flex-1">
+<div class="flex justify-between items-center">
+<h3 class="text-sm font-bold text-on-background">Curtains: amount not matching</h3>
+<span class="text-[10px] text-on-surface-variant">Just now</span>
+</div>
+<p class="text-xs text-on-surface-variant mt-1">OCR detected mismatch between manual entry and receipt scan.</p>
+</div>
+</div>
+</section>
+<!-- Petty Cash & Receipts -->
+<section class="space-y-4">
+<div class="flex justify-between items-end px-1">
+<h2 class="text-xs font-bold text-on-surface-variant tracking-widest uppercase">Petty Cash &amp; Receipts</h2>
+<span class="text-[10px] text-primary font-bold">View All</span>
+</div>
+<div class="bg-surface-container p-4 rounded-xl space-y-4 group">
+<div class="flex justify-between items-start">
+<div class="flex gap-4">
+<div class="w-12 h-12 bg-surface-container-highest rounded-lg flex items-center justify-center">
+<span class="material-symbols-outlined text-on-surface-variant">receipt_long</span>
+</div>
+<div>
+<h3 class="font-headline font-bold text-on-surface">Curtains</h3>
+<div class="flex items-center gap-2 mt-1">
+<span class="bg-green-900/30 text-green-400 text-[9px] font-bold px-1.5 py-0.5 rounded uppercase tracking-tighter">Verified</span>
+<span class="text-[11px] text-on-surface-variant">Materials • Qty: 2</span>
+</div>
+</div>
+</div>
+<div class="text-right">
+<div class="text-lg font-black font-headline text-on-surface">₹2,000</div>
+<div class="text-[10px] text-on-surface-variant mt-0.5">Apr 6, 2026</div>
+</div>
+</div>
+<div class="bg-surface-container-lowest p-3 rounded-lg flex items-center justify-between">
+<div class="flex items-center gap-3">
+<div class="w-10 h-10 rounded bg-neutral-800 overflow-hidden">
+<img class="w-full h-full object-cover opacity-60" data-alt="close-up of a crumpled paper receipt on a black textured surface with macro detail and sharp focus" src="https://lh3.googleusercontent.com/aida-public/AB6AXuC-Ki4NUOpM0S9RpZdJFFP-ylmrKuz2ZqnUh4pS5hgPGluKLfURGwCIx28Xi8dbFLs-x6Eamey562cVQqvBcJmSyWfLAWCb-nH2abMKJhFHOrJ-p9IBhEiI_0ZxdQdhpVYnE8MVHl-QdRRg_DYhEi86RRlmiUjA0BNuCubUlRrDTeLyeDoDAP6-7r0-lS4LAyJuc9qB00faaY0peAOufY3xmq5yRcZIlFzZ7vhgywuqut4tDV3ljzJ2PrVVvrhhi2LaZJvE-75WEdmX"/>
+</div>
+<div class="text-[10px] text-on-surface-variant leading-tight">
+                            Logged by <span class="text-on-surface">tester2</span><br/>
+                            OCR Verification Check Passed
+                        </div>
+</div>
+<span class="material-symbols-outlined text-on-surface-variant text-sm">expand_more</span>
+</div>
+</div>
+</section>
+<!-- Props Lifecycle -->
+<section class="space-y-4">
+<div class="flex justify-between items-end px-1">
+<h2 class="text-xs font-bold text-on-surface-variant tracking-widest uppercase">Props Lifecycle</h2>
+<span class="text-[10px] text-primary font-bold">Manage</span>
+</div>
+<div class="bg-surface-container p-4 rounded-xl">
+<div class="flex justify-between items-start">
+<div class="flex gap-4">
+<div class="w-12 h-12 bg-orange-500/10 rounded-lg flex items-center justify-center">
+<span class="material-symbols-outlined text-orange-500">inventory_2</span>
+</div>
+<div>
+<h3 class="font-headline font-bold text-on-surface">Plastic Trees</h3>
+<div class="flex items-center gap-2 mt-1">
+<span class="bg-orange-500/10 text-orange-400 text-[9px] font-bold px-1.5 py-0.5 rounded uppercase tracking-tighter">Overdue Return</span>
+</div>
+<div class="text-[11px] text-on-surface-variant mt-2">Scenery • Due Jan 16, 2026</div>
+</div>
+</div>
+<span class="text-[10px] text-on-surface-variant">2h ago</span>
+</div>
+</div>
+</section>
+<!-- Budget vs Actual (Bento Stack) -->
+<section class="space-y-4">
+<h2 class="text-xs font-bold text-on-surface-variant tracking-widest uppercase px-1">Budget Analytics</h2>
+<div class="grid grid-cols-2 gap-4">
+<div class="col-span-2 bg-surface-container p-5 rounded-xl border-l-4 border-primary">
+<div class="text-[10px] font-bold text-on-surface-variant tracking-widest uppercase">Allocated</div>
+<div class="text-4xl font-black font-headline text-on-surface mt-2">₹69,000</div>
+</div>
+<div class="bg-surface-container-low p-5 rounded-xl">
+<div class="text-[10px] font-bold text-on-surface-variant tracking-widest uppercase">Used</div>
+<div class="text-xl font-bold font-headline text-on-surface mt-2">₹5,000</div>
+</div>
+<div class="bg-surface-container-low p-5 rounded-xl">
+<div class="text-[10px] font-bold text-on-surface-variant tracking-widest uppercase">Remaining</div>
+<div class="text-xl font-bold font-headline text-primary mt-2">₹64,000</div>
+</div>
+</div>
+</section>
+<!-- Set Builds -->
+<section class="space-y-4">
+<h2 class="text-xs font-bold text-on-surface-variant tracking-widest uppercase px-1">Set Construction</h2>
+<div class="bg-surface-container-lowest border-2 border-dashed border-neutral-800 rounded-xl p-10 flex flex-col items-center text-center">
+<span class="material-symbols-outlined text-neutral-700 text-4xl mb-4">architecture</span>
+<p class="text-sm font-medium text-on-surface-variant">No set construction entries</p>
+<button class="mt-4 text-[10px] font-black text-orange-500 uppercase tracking-[0.2em]">Create a line +</button>
+</div>
+</section>
+</main>
+<!-- Navigation Drawer / Quick Actions -->
+<div class="fixed bottom-0 left-0 w-full z-50 px-6 pb-24 pointer-events-none">
+<div class="flex flex-col gap-3 pointer-events-auto">
+<button class="w-full h-14 bg-gradient-to-r from-primary to-primary-container text-black font-black font-headline rounded-xl shadow-2xl flex items-center justify-center gap-2 active:scale-95 duration-200">
+<span class="material-symbols-outlined font-bold">payments</span>
+                Add Expense
+            </button>
+<div class="grid grid-cols-2 gap-3">
+<button class="h-12 bg-surface-container-highest border border-outline-variant/15 text-on-surface font-bold text-xs rounded-xl flex items-center justify-center gap-2 active:scale-95 duration-200">
+<span class="material-symbols-outlined text-sm">category</span>
+                    Add Prop
+                </button>
+<button class="h-12 bg-surface-container-highest border border-outline-variant/15 text-on-surface font-bold text-xs rounded-xl flex items-center justify-center gap-2 active:scale-95 duration-200">
+<span class="material-symbols-outlined text-sm">foundation</span>
+                    Add Set
+                </button>
+</div>
+</div>
+</div>
+<!-- BottomNavBar -->
+<nav class="fixed bottom-0 left-0 w-full h-20 bg-neutral-950/80 backdrop-blur-2xl flex justify-around items-center px-4 pb-safe z-50 rounded-t-3xl shadow-[0px_-12px_32px_rgba(0,0,0,0.5)]">
+<div class="flex flex-col items-center justify-center bg-orange-500/10 text-orange-500 rounded-xl px-4 py-2 tap-highlight-transparent active:scale-90 transition-transform">
+<span class="material-symbols-outlined">dashboard</span>
+<span class="font-['Inter'] font-semibold text-[10px] tracking-widest uppercase mt-1">Dashboard</span>
+</div>
+<div class="flex flex-col items-center justify-center text-neutral-500 px-4 py-2 hover:text-orange-400 active:scale-90 transition-transform">
+<span class="material-symbols-outlined">receipt_long</span>
+<span class="font-['Inter'] font-semibold text-[10px] tracking-widest uppercase mt-1">Expenses</span>
+</div>
+<div class="flex flex-col items-center justify-center text-neutral-500 px-4 py-2 hover:text-orange-400 active:scale-90 transition-transform">
+<span class="material-symbols-outlined">inventory_2</span>
+<span class="font-['Inter'] font-semibold text-[10px] tracking-widest uppercase mt-1">Props</span>
+</div>
+<div class="flex flex-col items-center justify-center text-neutral-500 px-4 py-2 hover:text-orange-400 active:scale-90 transition-transform">
+<span class="material-symbols-outlined">architecture</span>
+<span class="font-['Inter'] font-semibold text-[10px] tracking-widest uppercase mt-1">Sets</span>
+</div>
+</nav>
+</body></html>
