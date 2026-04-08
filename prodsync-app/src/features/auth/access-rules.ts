@@ -1,5 +1,6 @@
 import type { User, UserRole } from '@/types'
 import { canAccessArtWorkspace, canAccessCameraWorkspace, canAccessReportsWorkspace, isProducerUser } from './role-capabilities'
+import { canAccessCrewModule } from '@/utils/permissionGuard'
 
 export type AppRouteId =
   | 'dashboard'
@@ -33,10 +34,6 @@ function hasDepartmentAccess(user: User, departments: string[]) {
   return Boolean(user.departmentId && departments.includes(user.departmentId))
 }
 
-function hasProjectRoleTitle(user: User, titles: string[]) {
-  return Boolean(user.projectRoleTitle && titles.includes(user.projectRoleTitle))
-}
-
 export function isProducerRole(role: UserRole) {
   return COMMAND_ROLES.includes(role)
 }
@@ -56,12 +53,7 @@ export function canAccessRoute(user: User, routeId: AppRouteId) {
     case 'camera':
       return canAccessCameraWorkspace(user) || user.role === 'DataWrangler' || hasDepartmentAccess(user, ['camera', 'post'])
     case 'crew':
-      return (
-        isProducerRole(user.role) ||
-        ['HOD', 'Supervisor', 'Crew'].includes(user.role) ||
-        hasDepartmentAccess(user, ['production', 'transport']) ||
-        hasProjectRoleTitle(user, ['Production Manager', 'Transport Captain'])
-      )
+      return canAccessCrewModule(user)
     case 'expenses':
       return canAccessArtWorkspace(user) || hasDepartmentAccess(user, ['production'])
     case 'wardrobe':

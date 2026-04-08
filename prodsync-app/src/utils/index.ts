@@ -1,17 +1,25 @@
 import { type ClassValue, clsx } from 'clsx'
 import { twMerge } from 'tailwind-merge'
+import { useProjectsStore } from '@/features/projects/projects.store'
+import type { ProjectCurrency } from '@/types'
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
 }
 
-export function formatCurrency(amount: number, currency: 'USD' | 'INR' = 'USD') {
-  if (currency === 'INR') {
-    return new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(amount)
-  }
-  if (amount >= 1_000_000) return `$${(amount / 1_000_000).toFixed(1)}M`
-  if (amount >= 1_000) return `$${(amount / 1_000).toFixed(1)}K`
-  return `$${amount.toLocaleString()}`
+const currencyLocaleMap: Record<ProjectCurrency, string> = {
+  INR: 'en-IN',
+  USD: 'en-US',
+  EUR: 'de-DE',
+}
+
+export function formatCurrency(amount: number, currency = useProjectsStore.getState().activeProjectCurrency) {
+  const resolvedCurrency = currencyLocaleMap[currency as ProjectCurrency] ? (currency as ProjectCurrency) : 'INR'
+  return new Intl.NumberFormat(currencyLocaleMap[resolvedCurrency], {
+    style: 'currency',
+    currency: resolvedCurrency,
+    maximumFractionDigits: 0,
+  }).format(Number.isFinite(amount) ? amount : 0)
 }
 
 export function formatTime(iso: string) {

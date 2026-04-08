@@ -99,32 +99,96 @@ function accessContext(req: Request): CrewAccessContext {
   }
 }
 
+function normalizeToken(value?: string | null) {
+  return (value ?? '').trim().toUpperCase().replace(/[\s-]+/g, '_')
+}
+
+function filterCrewByScope<T extends { userId?: string; department?: string }>(
+  rows: T[],
+  scope: 'none' | 'self' | 'department' | 'project',
+  userId: string,
+  department?: string | null,
+) {
+  if (scope === 'project') {
+    return rows
+  }
+
+  if (scope === 'department') {
+    const departmentToken = normalizeToken(department)
+    return rows.filter(row => normalizeToken(row.department) === departmentToken)
+  }
+
+  if (scope === 'self') {
+    return rows.filter(row => row.userId === userId)
+  }
+
+  return []
+}
+
+function buildScopedSummary(
+  permissions: ReturnType<typeof getCrewModulePermissions>,
+  scopedCrew: Array<{ status: string }>,
+  myShift: { attendanceId: string | null; otActive: boolean },
+) {
+  return {
+    totalCrew: permissions.canViewCrewTable ? scopedCrew.length : (myShift.attendanceId ? 1 : 0),
+    activeOTCrew: permissions.canViewCrewTable ? scopedCrew.filter(row => row.status === 'ot').length : (myShift.otActive ? 1 : 0),
+    totalOTCost: permissions.canViewFinancials ? undefined : 0,
+  }
+}
+
 export async function getCrew(req: Request, res: Response) {
   const projectId = requireProjectId(req)
-  const crew = await getCrewList(projectId)
+  const userId = requireUserId(req)
+  const permissions = getCrewModulePermissions(accessContext(req))
+  if (!permissions.canAccessModule) {
+    throw new HttpError(403, 'Your role does not have access to the Crew & Wages module.')
+  }
+
+  const crew = filterCrewByScope(await getCrewList(projectId), permissions.crewScope, userId, req.projectAccess?.department)
   res.json({ crew })
 }
 
 export async function getCrewOvertimeGroups(req: Request, res: Response) {
   const projectId = requireProjectId(req)
+  const permissions = getCrewModulePermissions(accessContext(req))
+  if (!permissions.canAccessModule) {
+    throw new HttpError(403, 'Your role does not have access to the Crew & Wages module.')
+  }
   const groups = await getOvertimeGroups(projectId)
   res.json({ groups })
 }
 
 export async function getCrewPayouts(req: Request, res: Response) {
   const projectId = requireProjectId(req)
+  const permissions = getCrewModulePermissions(accessContext(req))
+  if (!permissions.canAccessModule) {
+    throw new HttpError(403, 'Your role does not have access to the Crew & Wages module.')
+  }
   const payouts = await getProjectPayouts(projectId)
-  res.json({ payouts })
+  res.json({ payouts: permissions.canViewFinancials ? payouts : [] })
 }
 
 export async function getCrewDashboard(req: Request, res: Response) {
   const projectId = requireProjectId(req)
   const userId = requireUserId(req)
-  const permissions = getCrewModulePermissions(accessContext(req))
+  const access = accessContext(req)
+  const permissions = getCrewModulePermissions(access)
+  if (!permissions.canAccessModule) {
+    throw new HttpError(403, 'Your role does not have access to the Crew & Wages module.')
+  }
+
   const [attendanceData, payouts] = await Promise.all([
     getAttendanceDashboard(projectId, userId),
     getProjectPayouts(projectId),
   ])
+
+  const scopedCrew = filterCrewByScope(attendanceData.crew, permissions.crewScope, userId, access.department)
+  const attendanceIds = new Set(
+    [attendanceData.myShift.attendanceId, ...attendanceData.myRecords.map(record => record.id)].filter(Boolean) as string[],
+  )
+  const myPayouts = payouts.filter(item => Boolean(item.attendanceId && attendanceIds.has(item.attendanceId)))
+  const scopedSummary = buildScopedSummary(permissions, scopedCrew, attendanceData.myShift)
 
   const battaRequested = payouts
     .filter(item => item.status === 'requested')
@@ -136,20 +200,20 @@ export async function getCrewDashboard(req: Request, res: Response) {
 
   res.json({
     summary: {
-      totalCrew: attendanceData.summary.totalCrew,
-      activeOTCrew: attendanceData.summary.activeOTCrew,
-      totalOTCost: attendanceData.summary.totalOTCost,
-      battaRequested,
-      battaPaid,
+      totalCrew: scopedSummary.totalCrew,
+      activeOTCrew: scopedSummary.activeOTCrew,
+      totalOTCost: permissions.canViewFinancials ? attendanceData.summary.totalOTCost : 0,
+      battaRequested: permissions.canViewFinancials ? battaRequested : 0,
+      battaPaid: permissions.canViewFinancials ? battaPaid : 0,
     },
     permissions,
     projectLocation: attendanceData.projectLocation,
     myShift: attendanceData.myShift,
     myRecords: attendanceData.myRecords,
-    crew: attendanceData.crew,
+    crew: permissions.canViewCrewTable ? scopedCrew : [],
     otGroups: attendanceData.otGroups,
-    payouts,
-    battaQueue: payouts.filter(item => item.status !== 'paid'),
+    payouts: permissions.canViewFinancials ? payouts : myPayouts,
+    battaQueue: permissions.canApproveBatta ? payouts.filter(item => item.status !== 'paid') : [],
     serverNow: new Date().toISOString(),
     guards: {
       usesOsmOnly: true,
@@ -161,6 +225,10 @@ export async function getCrewDashboard(req: Request, res: Response) {
 export async function getMyAttendance(req: Request, res: Response) {
   const projectId = requireProjectId(req)
   const userId = requireUserId(req)
+  const permissions = getCrewModulePermissions(accessContext(req))
+  if (!permissions.canAccessModule) {
+    throw new HttpError(403, 'Your role does not have access to the Crew & Wages module.')
+  }
   const [attendanceData, payouts] = await Promise.all([
     getAttendanceDashboard(projectId, userId),
     getProjectPayouts(projectId),
@@ -185,25 +253,36 @@ export async function getMyAttendance(req: Request, res: Response) {
 export async function getProjectAttendance(req: Request, res: Response) {
   const projectId = requireProjectId(req)
   const userId = requireUserId(req)
+  const access = accessContext(req)
   const [attendanceData, permissions] = await Promise.all([
     getAttendanceDashboard(projectId, userId),
-    Promise.resolve(getCrewModulePermissions(accessContext(req))),
+    Promise.resolve(getCrewModulePermissions(access)),
   ])
 
-  if (!permissions.canViewAllCrew && !permissions.summaryOnly) {
+  if (!permissions.canAccessModule || !permissions.canViewCrewTable) {
     throw new HttpError(403, 'Your role can only view personal attendance records.')
   }
 
+  const scopedCrew = filterCrewByScope(attendanceData.crew, permissions.crewScope, userId, access.department)
+
   res.json({
-    crew: attendanceData.crew,
+    crew: scopedCrew,
     otGroups: attendanceData.otGroups,
-    summary: attendanceData.summary,
+    summary: {
+      totalCrew: scopedCrew.length,
+      activeOTCrew: scopedCrew.filter(row => row.status === 'ot').length,
+      totalOTCost: permissions.canViewFinancials ? attendanceData.summary.totalOTCost : 0,
+    },
     projectLocation: attendanceData.projectLocation,
   })
 }
 
 export async function getCrewLocation(req: Request, res: Response) {
   const projectId = requireProjectId(req)
+  const permissions = getCrewModulePermissions(accessContext(req))
+  if (!permissions.canAccessModule) {
+    throw new HttpError(403, 'Your role does not have access to the Crew & Wages module.')
+  }
   const projectLocation = await getProjectLocation(projectId)
   res.json({ projectLocation })
 }

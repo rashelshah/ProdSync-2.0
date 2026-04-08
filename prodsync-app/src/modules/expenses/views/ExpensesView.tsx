@@ -745,13 +745,13 @@ export function ExpensesView() {
     ? [
         {
           label: 'Art Spend',
-          value: formatCurrency(budget.usedBudget, 'INR'),
+          value: formatCurrency(budget.usedBudget),
           subLabel: `${expenses.length} logged expenses`,
           subType: missingReceipts > 0 ? 'warning' : 'default',
         },
         {
           label: 'Remaining Budget',
-          value: formatCurrency(budget.remainingBudget, 'INR'),
+          value: formatCurrency(budget.remainingBudget),
           subLabel: budget.isExceeded ? 'Budget exceeded' : 'Current buffer',
           subType: budget.isExceeded ? 'critical' : 'success',
         },
@@ -782,10 +782,10 @@ export function ExpensesView() {
   const mobileStats = [
     ...(canViewBudgetAccess && budget
       ? [
-          { label: 'Art Spend', value: formatCurrency(budget.usedBudget, 'INR'), icon: 'payments', tone: 'text-orange-500' },
+          { label: 'Art Spend', value: formatCurrency(budget.usedBudget), icon: 'payments', tone: 'text-orange-500' },
           {
             label: 'Remaining',
-            value: formatCurrency(budget.remainingBudget, 'INR'),
+            value: formatCurrency(budget.remainingBudget),
             icon: 'account_balance_wallet',
             tone: budget.isExceeded ? 'text-red-500' : 'text-emerald-500',
           },
@@ -1431,7 +1431,7 @@ export function ExpensesView() {
                             </button>
                           </div>
                         )}
-                        <p className="mt-3 text-lg font-semibold text-zinc-900 dark:text-white">{formatCurrency(expense.manualAmount, 'INR')}</p>
+                        <p className="mt-3 text-lg font-semibold text-zinc-900 dark:text-white">{formatCurrency(expense.manualAmount)}</p>
                         {expense.receiptUrl && (
                           <button onClick={() => openUploadedReceiptPreview(expense)} className="mt-3 inline-flex text-xs font-semibold uppercase tracking-[0.12em] text-orange-600 hover:text-orange-500 dark:text-orange-400">
                             Preview Receipt
@@ -1442,10 +1442,10 @@ export function ExpensesView() {
                       <div className="w-full max-w-sm rounded-3xl border border-zinc-200 bg-zinc-50 px-4 py-4 dark:border-zinc-800 dark:bg-zinc-950">
                         <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-zinc-500 dark:text-zinc-400">OCR Snapshot</p>
                         <p className="mt-3 text-sm text-zinc-900 dark:text-white">
-                          Entered amount: {formatCurrency(expense.manualAmount, 'INR')}
+                          Entered amount: {formatCurrency(expense.manualAmount)}
                         </p>
                         <p className="mt-2 text-sm text-zinc-500 dark:text-zinc-400">
-                          Receipt amount: {formatCurrency(expense.extractedAmount, 'INR')}
+                          Receipt amount: {formatCurrency(expense.extractedAmount)}
                         </p>
                         <p className="mt-2 text-sm text-zinc-500 dark:text-zinc-400">
                           Entered quantity: {expense.quantity}
@@ -1499,7 +1499,7 @@ export function ExpensesView() {
                         {set.isOverBudget && <StatusBadge variant="over" label="Over Budget" />}
                       </div>
                       <p className="mt-2 text-sm text-zinc-500 dark:text-zinc-400">
-                        Progress {set.progressPercentage}% | Estimated {formatCurrency(set.estimatedCost, 'INR')} | Actual {formatCurrency(set.actualCost, 'INR')}
+                        Progress {set.progressPercentage}% | Estimated {formatCurrency(set.estimatedCost)} | Actual {formatCurrency(set.actualCost)}
                       </p>
                       <p className="mt-2 text-xs uppercase tracking-[0.12em] text-zinc-500 dark:text-zinc-400">
                         Updated {timeAgo(set.updatedAt)}
@@ -1575,19 +1575,19 @@ export function ExpensesView() {
                 <div className="rounded-3xl border border-zinc-200 bg-zinc-50 px-4 py-4 dark:border-zinc-800 dark:bg-zinc-950">
                   <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-zinc-500 dark:text-zinc-400">Allocated</p>
                   <p className="mt-3 text-2xl font-bold tracking-[-0.05em] text-zinc-900 dark:text-white">
-                    {formatCurrency(budget.allocatedBudget, 'INR')}
+                    {formatCurrency(budget.allocatedBudget)}
                   </p>
                 </div>
                 <div className="rounded-3xl border border-zinc-200 bg-zinc-50 px-4 py-4 dark:border-zinc-800 dark:bg-zinc-950">
                   <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-zinc-500 dark:text-zinc-400">Used</p>
                   <p className="mt-3 text-2xl font-bold tracking-[-0.05em] text-zinc-900 dark:text-white">
-                    {formatCurrency(budget.usedBudget, 'INR')}
+                    {formatCurrency(budget.usedBudget)}
                   </p>
                 </div>
                 <div className={`rounded-3xl border px-4 py-4 ${budget.isExceeded ? 'border-red-200 bg-red-50/70 dark:border-red-500/20 dark:bg-red-500/10' : 'border-zinc-200 bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-950'}`}>
                   <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-zinc-500 dark:text-zinc-400">Remaining</p>
                   <p className="mt-3 text-2xl font-bold tracking-[-0.05em] text-zinc-900 dark:text-white">
-                    {formatCurrency(budget.remainingBudget, 'INR')}
+                    {formatCurrency(budget.remainingBudget)}
                   </p>
                 </div>
               </div>
@@ -1677,15 +1677,15 @@ export function ExpensesView() {
                 <div className="grid grid-cols-2 gap-3">
                   <div className="col-span-2 rounded-[24px] border border-zinc-200 bg-white p-5 shadow-[0_16px_34px_rgba(15,23,42,0.08)] dark:border-zinc-800 dark:bg-zinc-900">
                     <div className="text-[10px] font-bold uppercase tracking-[0.22em] text-zinc-500 dark:text-zinc-400">Allocated</div>
-                    <div className="mt-2 text-3xl font-black tracking-tight text-zinc-900 dark:text-white">{formatCurrency(budget.allocatedBudget, 'INR')}</div>
+                    <div className="mt-2 text-3xl font-black tracking-tight text-zinc-900 dark:text-white">{formatCurrency(budget.allocatedBudget)}</div>
                   </div>
                   <div className="rounded-[24px] border border-zinc-200 bg-white p-4 shadow-[0_16px_34px_rgba(15,23,42,0.07)] dark:border-zinc-800 dark:bg-zinc-900">
                     <div className="text-[10px] font-bold uppercase tracking-[0.22em] text-zinc-500 dark:text-zinc-400">Used</div>
-                    <div className="mt-2 text-2xl font-black tracking-tight text-zinc-900 dark:text-white">{formatCurrency(budget.usedBudget, 'INR')}</div>
+                    <div className="mt-2 text-2xl font-black tracking-tight text-zinc-900 dark:text-white">{formatCurrency(budget.usedBudget)}</div>
                   </div>
                   <div className={`rounded-[24px] border p-4 shadow-[0_16px_34px_rgba(15,23,42,0.07)] ${budget.isExceeded ? 'border-red-200 bg-red-50/70 dark:border-red-500/20 dark:bg-red-500/10' : 'border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900'}`}>
                     <div className="text-[10px] font-bold uppercase tracking-[0.22em] text-zinc-500 dark:text-zinc-400">Remaining</div>
-                    <div className="mt-2 text-2xl font-black tracking-tight text-zinc-900 dark:text-white">{formatCurrency(budget.remainingBudget, 'INR')}</div>
+                    <div className="mt-2 text-2xl font-black tracking-tight text-zinc-900 dark:text-white">{formatCurrency(budget.remainingBudget)}</div>
                   </div>
                 </div>
               </section>
@@ -1776,7 +1776,7 @@ export function ExpensesView() {
                           </div>
                         </div>
                         <div className="text-right">
-                           <div className="text-lg font-black text-zinc-900 dark:text-white">{formatCurrency(expense.manualAmount, 'INR')}</div>
+                           <div className="text-lg font-black text-zinc-900 dark:text-white">{formatCurrency(expense.manualAmount)}</div>
                            <div className="text-[10px] text-zinc-500 mt-1">{formatDate(expense.createdAt)}</div>
                         </div>
                       </div>
@@ -1784,7 +1784,7 @@ export function ExpensesView() {
                          <div className="mt-2 pt-3 border-t border-zinc-200 dark:border-zinc-800/50 flex flex-col gap-2">
                            {expense.status === 'anomaly' && (
                              <div className="bg-red-500/10 p-2 text-xs text-red-400 rounded border border-red-500/20 leading-relaxed font-medium">
-                               <span className="font-bold">OCR Mismatch:</span> Receipt shows {formatCurrency(expense.extractedAmount, 'INR')} with quantity {typeof expense.ocrData.extractedQuantity === 'number' ? Number(expense.ocrData.extractedQuantity) : 'unknown'}
+                               <span className="font-bold">OCR Mismatch:</span> Receipt shows {formatCurrency(expense.extractedAmount)} with quantity {typeof expense.ocrData.extractedQuantity === 'number' ? Number(expense.ocrData.extractedQuantity) : 'unknown'}
                              </div>
                            )}
                            <div className="flex justify-between items-center mt-1">
@@ -1899,7 +1899,7 @@ export function ExpensesView() {
                        <div className="flex justify-between items-start">
                          <div>
                            <h3 className="font-bold text-sm text-zinc-900 dark:text-white">{set.setName}</h3>
-                           <p className="text-[10px] text-zinc-500 mt-1">Est: {formatCurrency(set.estimatedCost, 'INR')} • Act: <span className={set.isOverBudget ? 'text-red-400 font-bold' : ''}>{formatCurrency(set.actualCost, 'INR')}</span></p>
+                           <p className="text-[10px] text-zinc-500 mt-1">Est: {formatCurrency(set.estimatedCost)} • Act: <span className={set.isOverBudget ? 'text-red-400 font-bold' : ''}>{formatCurrency(set.actualCost)}</span></p>
                          </div>
                          <div className="scale-90 origin-top-right flex flex-col items-end gap-1">
                            {setStatusBadge(set.status)}

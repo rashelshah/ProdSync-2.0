@@ -12,6 +12,7 @@ export const projectsRouter = Router()
 
 const departmentSchema = z.enum(['camera', 'art', 'transport', 'production', 'wardrobe', 'post'])
 const frontendProjectStatusSchema = z.enum(['pre-production', 'shooting', 'post'])
+const currencySchema = z.enum(['INR', 'USD', 'EUR'])
 const frontendProjectRoleSchema = z.enum([
   'Executive Producer',
   'Line Producer',
@@ -37,11 +38,16 @@ const createProjectSchema = z.object({
   location: z.string().trim().min(2).max(150),
   status: frontendProjectStatusSchema,
   budgetUSD: z.coerce.number().min(0).max(1_000_000_000),
+  currency: currencySchema.default('INR'),
   activeCrew: z.coerce.number().int().min(0).max(100_000).optional(),
   startDate: z.string().date().optional().or(z.literal('')),
   endDate: z.string().date().optional().or(z.literal('')),
   enabledDepartments: z.array(departmentSchema).max(6).default([]),
   otRulesLabel: z.string().trim().max(200).optional(),
+})
+
+const updateProjectSchema = createProjectSchema.extend({
+  activeCrew: z.coerce.number().int().min(0).max(100_000).optional(),
 })
 
 const createJoinRequestSchema = z.object({
@@ -146,6 +152,7 @@ interface ProjectSummaryRow {
   location: string | null
   progress_percent: number | string | null
   budget: number | string | null
+  currency_code: string | null
   active_crew_count: number | string | null
   start_date: string | null
   end_date: string | null
@@ -177,6 +184,23 @@ interface UserRow {
   full_name: string | null
 }
 
+type ProjectPayload = {
+  id: string
+  ownerId: string
+  ownerName: string
+  name: string
+  location: string
+  status: 'pre-production' | 'shooting' | 'post'
+  progressPercent: number
+  budgetUSD: number
+  currency: z.infer<typeof currencySchema>
+  activeCrew: number
+  startDate: string
+  endDate: string
+  enabledDepartments: z.infer<typeof departmentSchema>[]
+  otRulesLabel: string
+}
+
 function formatProjectRole(role?: string | null) {
   if (!role) {
     return 'Crew Member'
@@ -193,13 +217,13 @@ function formatProjectRole(role?: string | null) {
 
 async function buildProjectPayloads(projectIds: string[]) {
   if (projectIds.length === 0) {
-    return new Map<string, { id: string; ownerId: string; ownerName: string; name: string; location: string; status: 'pre-production' | 'shooting' | 'post'; progressPercent: number; budgetUSD: number; activeCrew: number; startDate: string; endDate: string; enabledDepartments: z.infer<typeof departmentSchema>[]; otRulesLabel: string }>()
+    return new Map<string, ProjectPayload>()
   }
 
   const [{ data: summaryRows, error: summaryError }, { data: departmentRows, error: departmentError }, { data: settingsRows, error: settingsError }] = await Promise.all([
     adminClient
       .from('project_summary')
-      .select('project_id, name, owner_id, owner_name, status, location, progress_percent, budget, active_crew_count, start_date, end_date')
+      .select('project_id, name, owner_id, owner_name, status, location, progress_percent, budget, currency_code, active_crew_count, start_date, end_date')
       .in('project_id', projectIds),
     adminClient
       .from('project_departments')
@@ -234,7 +258,7 @@ async function buildProjectPayloads(projectIds: string[]) {
     settingsByProject.set(row.project_id, row)
   }
 
-  const projects = new Map<string, { id: string; ownerId: string; ownerName: string; name: string; location: string; status: 'pre-production' | 'shooting' | 'post'; progressPercent: number; budgetUSD: number; activeCrew: number; startDate: string; endDate: string; enabledDepartments: z.infer<typeof departmentSchema>[]; otRulesLabel: string }>()
+  const projects = new Map<string, ProjectPayload>()
   for (const row of (summaryRows ?? []) as ProjectSummaryRow[]) {
     projects.set(row.project_id, {
       id: row.project_id,
@@ -245,6 +269,7 @@ async function buildProjectPayloads(projectIds: string[]) {
       status: dbProjectStatusToFrontend[row.status] ?? 'pre-production',
       progressPercent: Number(row.progress_percent ?? 0),
       budgetUSD: Number(row.budget ?? 0),
+      currency: currencySchema.catch('INR').parse(row.currency_code ?? 'INR'),
       activeCrew: Number(row.active_crew_count ?? 0),
       startDate: row.start_date ?? '',
       endDate: row.end_date ?? '',
@@ -425,6 +450,7 @@ projectsRouter.post(
         location: payload.location,
         status: frontendProjectStatusToDb[payload.status],
         budget: payload.budgetUSD,
+        currency_code: payload.currency,
         progress_percent: payload.status === 'pre-production' ? 12 : payload.status === 'shooting' ? 48 : 84,
         start_date: payload.startDate || null,
         end_date: payload.endDate || null,
@@ -481,6 +507,72 @@ projectsRouter.post(
 
     console.log('[projects][create] db result', { projectId, ownerId })
     res.status(201).json({ project: createdProject, projectId })
+  }),
+)
+
+projectsRouter.put(
+  '/:projectId',
+  authMiddleware,
+  projectAccessMiddleware,
+  asyncHandler(async (req, res) => {
+    const payload = updateProjectSchema.parse(req.body)
+    const projectId = String(req.params.projectId ?? '')
+    const userId = req.authUser?.id
+
+    if (!userId) {
+      throw new HttpError(401, 'Authenticated user context is missing.')
+    }
+
+    const access = await getProjectAccess(projectId, userId)
+    const canEditProject = access.isOwner || access.membershipRole === 'EP'
+    if (!canEditProject) {
+      throw new HttpError(403, 'Only an Executive Producer can edit project settings.')
+    }
+
+    const enabledDepartments = new Set(['production', ...payload.enabledDepartments])
+    const departmentRows = ['camera', 'art', 'transport', 'production', 'wardrobe', 'post'].map(department => ({
+      project_id: projectId,
+      department,
+      enabled: enabledDepartments.has(department as z.infer<typeof departmentSchema>),
+    }))
+
+    const [{ error: projectError }, { error: settingsError }, { error: departmentError }] = await Promise.all([
+      adminClient
+        .from('projects')
+        .update({
+          name: payload.name,
+          location: payload.location,
+          status: frontendProjectStatusToDb[payload.status],
+          budget: payload.budgetUSD,
+          currency_code: payload.currency,
+          start_date: payload.startDate || null,
+          end_date: payload.endDate || null,
+        })
+        .eq('id', projectId),
+      adminClient
+        .from('project_settings')
+        .upsert({
+          project_id: projectId,
+          base_location: payload.location,
+          ot_rules_label: payload.otRulesLabel?.trim() || 'Standard OT with producer approval',
+        }),
+      adminClient
+        .from('project_departments')
+        .upsert(departmentRows, { onConflict: 'project_id,department' }),
+    ])
+
+    if (projectError) {
+      throw projectError
+    }
+    if (settingsError) {
+      throw settingsError
+    }
+    if (departmentError) {
+      throw departmentError
+    }
+
+    const project = (await buildProjectPayloads([projectId])).get(projectId) ?? null
+    res.json({ project })
   }),
 )
 

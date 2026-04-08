@@ -82,14 +82,18 @@ export interface CrewLocationPayload {
 }
 
 export interface CrewModulePermissions {
+  canAccessModule: boolean
   canCheckIn: boolean
   canCheckOut: boolean
   canRequestBatta: boolean
   canViewOwnRecords: boolean
   canViewAllCrew: boolean
+  canViewCrewTable: boolean
   canApproveBatta: boolean
   canMarkBattaPaid: boolean
   canManageLocation: boolean
+  canViewFinancials: boolean
+  crewScope: 'none' | 'self' | 'department' | 'project'
   summaryOnly: boolean
 }
 
@@ -113,8 +117,11 @@ export interface CrewMemberListItem {
   role: string
   department: string
   checkInTime: string
+  checkOutTime: string
   checkInAt: string | null
   checkOutAt: string | null
+  computedDuration: string
+  computedDurationSeconds: number
   verification: 'gps' | 'manual' | 'biometric'
   status: 'active' | 'ot' | 'offduty'
   shiftHours: number
@@ -274,6 +281,22 @@ function formatClock(value: string | null | undefined) {
     minute: '2-digit',
     hour12: true,
   })
+}
+
+function formatDurationLabel(totalSeconds: number) {
+  const safeSeconds = Math.max(0, Math.floor(totalSeconds))
+  const hours = Math.floor(safeSeconds / 3600)
+  const minutes = Math.floor((safeSeconds % 3600) / 60)
+
+  if (hours <= 0) {
+    return `${minutes} min`
+  }
+
+  if (minutes === 0) {
+    return `${hours}h`
+  }
+
+  return `${hours}h ${minutes}m`
 }
 
 function buildMapLink(location: CrewLocationPayload | null) {
@@ -556,7 +579,7 @@ export function getCrewModulePermissions(access: CrewAccessContext): CrewModuleP
   const projectRole = normalizeRole(access.projectRole)
   const department = normalizeRole(access.department)
 
-  const isSummaryUser = Boolean(
+  const isProducer = Boolean(
     access.isOwner ||
     authRole === 'EP' ||
     authRole === 'LINE_PRODUCER' ||
@@ -564,19 +587,28 @@ export function getCrewModulePermissions(access: CrewAccessContext): CrewModuleP
     membershipRole === 'LINE_PRODUCER',
   )
 
-  const isManager = Boolean(
-    projectRole === 'PRODUCTION_MANAGER' ||
+  const isTransportCaptain = Boolean(
     projectRole === 'TRANSPORT_CAPTAIN' ||
-    (department === 'TRANSPORT' && (membershipRole === 'HOD' || membershipRole === 'SUPERVISOR')),
+    (department === 'TRANSPORT' && membershipRole === 'HOD'),
+  )
+
+  const isProductionManager = Boolean(
+    projectRole === 'PRODUCTION_MANAGER' ||
+    authRole === 'PRODUCTION_MANAGER',
+  )
+
+  const isDepartmentHead = Boolean(
+    !isTransportCaptain &&
+    membershipRole === 'HOD' &&
+    department &&
+    department !== 'PRODUCTION',
   )
 
   const canManageLocation = Boolean(
     authRole === 'ADMIN' ||
     membershipRole === 'ADMIN' ||
-    authRole === 'PRODUCTION_MANAGER' ||
-    membershipRole === 'PRODUCTION_MANAGER' ||
-    projectRole === 'PRODUCTION_MANAGER' ||
-    projectRole === 'TRANSPORT_CAPTAIN',
+    isProducer ||
+    isProductionManager,
   )
 
   const crewProjectRoles = new Set([
@@ -591,24 +623,39 @@ export function getCrewModulePermissions(access: CrewAccessContext): CrewModuleP
     'COLORIST',
   ])
 
-  const isCrewActor = !isSummaryUser && !isManager && Boolean(
+  const isCrewActor = !isProducer && !isProductionManager && !isDepartmentHead && !isTransportCaptain && Boolean(
     membershipRole === 'CREW' ||
+    membershipRole === 'DRIVER' ||
+    membershipRole === 'DATA_WRANGLER' ||
     authRole === 'CREW' ||
     authRole === 'DRIVER' ||
     authRole === 'DATA_WRANGLER' ||
     (projectRole && crewProjectRoles.has(projectRole)),
   )
 
+  const canAccessModule = Boolean(isProducer || isProductionManager || isDepartmentHead || isCrewActor)
+  const crewScope: CrewModulePermissions['crewScope'] = isProducer || isProductionManager
+    ? 'project'
+    : isDepartmentHead
+      ? 'department'
+      : isCrewActor
+        ? 'self'
+        : 'none'
+
   return {
+    canAccessModule,
     canCheckIn: isCrewActor,
     canCheckOut: isCrewActor,
     canRequestBatta: isCrewActor,
-    canViewOwnRecords: isCrewActor,
-    canViewAllCrew: isManager,
-    canApproveBatta: isManager,
-    canMarkBattaPaid: isManager,
+    canViewOwnRecords: canAccessModule,
+    canViewAllCrew: crewScope === 'project',
+    canViewCrewTable: crewScope === 'project' || crewScope === 'department',
+    canApproveBatta: isProducer || isProductionManager,
+    canMarkBattaPaid: isProducer || isProductionManager,
     canManageLocation,
-    summaryOnly: isSummaryUser,
+    canViewFinancials: isProducer || isProductionManager,
+    crewScope,
+    summaryOnly: false,
   }
 }
 
@@ -920,7 +967,7 @@ export async function setProjectLocation(
 ) {
   const permissions = getCrewModulePermissions(access)
   if (!permissions.canManageLocation) {
-    throw new HttpError(403, 'Only a Production Manager, Admin, or Transport Captain can manage the project location.')
+    throw new HttpError(403, 'Only producers, admins, and the Production Manager can manage the project location.')
   }
 
   if (!Number.isFinite(input.latitude) || !Number.isFinite(input.longitude)) {
@@ -1007,6 +1054,9 @@ function mapCrewRow(row: DailyAttendanceRow, crewMember: CrewMemberRow | undefin
   const checkInLocation = parseLocation(row.check_in_location)
   const workingSeconds = getWorkingSeconds(row.check_in_time, row.check_out_time, now)
   const otMinutes = row.check_out_time ? toNumber(row.ot_minutes) : getOtMinutes(row.check_in_time, row.check_out_time, now)
+  const computedDuration = row.check_out_time
+    ? formatDurationLabel(workingSeconds)
+    : `In Progress (${formatDurationLabel(workingSeconds)})`
 
   return {
     id: crewMember?.id ?? row.attendance_id,
@@ -1016,8 +1066,11 @@ function mapCrewRow(row: DailyAttendanceRow, crewMember: CrewMemberRow | undefin
     role: crewMember?.role_title ?? 'Crew Member',
     department: formatDepartment(crewMember?.department),
     checkInTime: formatClock(row.check_in_time),
+    checkOutTime: row.check_out_time ? formatClock(row.check_out_time) : 'Working',
     checkInAt: row.check_in_time,
     checkOutAt: row.check_out_time,
+    computedDuration,
+    computedDurationSeconds: workingSeconds,
     verification: row.geo_verified ? 'gps' : 'manual',
     status: getCrewStatus(row, now),
     shiftHours: Number((workingSeconds / 3600).toFixed(2)),

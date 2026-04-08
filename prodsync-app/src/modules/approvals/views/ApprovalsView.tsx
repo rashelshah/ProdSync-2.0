@@ -9,7 +9,7 @@ import { RoleGuard } from '@/features/auth/RoleGuard'
 import { useResolvedProjectContext } from '@/features/projects/useResolvedProjectContext'
 import { resolveErrorMessage, showError, showLoading, showSuccess } from '@/lib/toast'
 import type { ApprovalRequest } from '@/types'
-import { formatDate, formatTime, timeAgo } from '@/utils'
+import { formatCurrency, formatDate, formatTime, timeAgo } from '@/utils'
 
 function approvalStageBadge(item: ApprovalRequest) {
   if (item.workflowStatus === 'pending_art_director') {
@@ -134,7 +134,7 @@ export function ApprovalsView() {
         <KpiCard label="High-Value" value={String(kpis?.highValue ?? 0)} subLabel="Awaiting real thresholds" />
         <KpiCard label="Approved Today" value={String(kpis?.approvedToday ?? 0)} subLabel="Today only" />
         <KpiCard label="Rejected Today" value={String(kpis?.rejectedToday ?? 0)} subLabel="Today only" />
-        <KpiCard label="Pending Value" value={`Rs ${(kpis?.pendingValueINR ?? 0).toLocaleString()}`} subLabel="Live financial exposure" />
+        <KpiCard label="Pending Value" value={formatCurrency(kpis?.pendingValueINR ?? 0)} subLabel="Live financial exposure" />
         <KpiCard label="Avg Action Time" value={`${kpis?.avgActionTimeMinutes ?? 0}m`} subLabel="Computed from audits" />
       </section>
 
@@ -165,7 +165,7 @@ export function ApprovalsView() {
                       <p className="text-sm font-medium text-zinc-900 dark:text-white">{item.type}</p>
                       {approvalStageBadge(item)}
                     </div>
-                    <p className="mt-2 text-sm text-zinc-500 dark:text-zinc-400">{item.department} | Rs {item.amountINR.toLocaleString()}</p>
+                    <p className="mt-2 text-sm text-zinc-500 dark:text-zinc-400">{item.department} | {formatCurrency(item.amountINR)}</p>
                     <p className="mt-1 text-xs uppercase tracking-[0.12em] text-zinc-500 dark:text-zinc-400">
                       {item.requestedBy} | {timeAgo(item.timestamp)}
                     </p>

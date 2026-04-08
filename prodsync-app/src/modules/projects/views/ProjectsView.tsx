@@ -12,7 +12,7 @@ import { useProjectsStore } from '@/features/projects/projects.store'
 import { resolveErrorMessage, showError, showLoading, showSuccess } from '@/lib/toast'
 import { projectsService } from '@/services/projects.service'
 import { cn, formatCurrency, formatDate, timeAgo } from '@/utils'
-import type { ProjectDepartment, ProjectJoinRequest, ProjectRecord, ProjectRequestedRole, ProjectStage } from '@/types'
+import type { ProjectCurrency, ProjectDepartment, ProjectJoinRequest, ProjectRecord, ProjectRequestedRole, ProjectStage } from '@/types'
 
 const PROJECT_STATUSES: ProjectStage[] = ['pre-production', 'shooting', 'post']
 const DEPARTMENTS: { id: ProjectDepartment; label: string }[] = [
@@ -23,6 +23,7 @@ const DEPARTMENTS: { id: ProjectDepartment; label: string }[] = [
   { id: 'wardrobe', label: 'Wardrobe' },
   { id: 'post', label: 'Post' },
 ]
+const PROJECT_CURRENCIES: ProjectCurrency[] = ['INR', 'USD', 'EUR']
 
 const statusTone: Record<ProjectStage, string> = {
   'pre-production': 'bg-zinc-100 text-zinc-700 dark:bg-white/8 dark:text-zinc-300',
@@ -58,6 +59,7 @@ export function ProjectsView() {
   const [projectLocation, setProjectLocation] = useState('')
   const [projectStatus, setProjectStatus] = useState<ProjectStage>('pre-production')
   const [projectBudget, setProjectBudget] = useState('')
+  const [projectCurrency, setProjectCurrency] = useState<ProjectCurrency>('INR')
   const [projectCrew, setProjectCrew] = useState('')
   const [projectStartDate, setProjectStartDate] = useState('')
   const [projectEndDate, setProjectEndDate] = useState('')
@@ -91,13 +93,14 @@ export function ProjectsView() {
     mutationFn: projectsService.createProject,
     onSuccess: async (project) => {
       if (project) {
-        setActiveProject(project.id)
+        setActiveProject(project.id, project.currency)
       }
 
       setShowCreateModal(false)
       setProjectName('')
       setProjectLocation('')
       setProjectBudget('')
+      setProjectCurrency('INR')
       setProjectCrew('')
       setProjectStartDate('')
       setProjectEndDate('')
@@ -146,8 +149,9 @@ export function ProjectsView() {
   useEffect(() => {
     if (!user) return
     if (activeProjectId && accessibleProjectIds.includes(activeProjectId)) return
-    setActiveProject(accessibleProjectIds[0] ?? null)
-  }, [accessibleProjectIds, activeProjectId, setActiveProject, user])
+    const nextProject = projects.find(project => project.id === accessibleProjectIds[0]) ?? null
+    setActiveProject(accessibleProjectIds[0] ?? null, nextProject?.currency ?? 'INR')
+  }, [accessibleProjectIds, activeProjectId, projects, setActiveProject, user])
 
   if (!user) return null
 
@@ -176,7 +180,8 @@ export function ProjectsView() {
   }
 
   function openProject(projectId: string) {
-    setActiveProject(projectId)
+    const project = projects.find(item => item.id === projectId) ?? visibleProjects.find(item => item.id === projectId) ?? null
+    setActiveProject(projectId, project?.currency ?? 'INR')
     navigate(getDefaultWorkspacePath(currentUser))
   }
 
@@ -192,6 +197,7 @@ export function ProjectsView() {
         location: projectLocation.trim(),
         status: projectStatus,
         budgetUSD: Number(projectBudget) || 0,
+        currency: projectCurrency,
         activeCrew: Number(projectCrew) || 0,
         startDate: projectStartDate,
         endDate: projectEndDate,
@@ -443,6 +449,17 @@ export function ProjectsView() {
                 </div>
               </label>
               <label className="auth-field">
+                <span className="auth-field-label">Currency</span>
+                <select value={projectCurrency} onChange={event => setProjectCurrency(event.target.value as ProjectCurrency)} className="project-modal-select">
+                  {PROJECT_CURRENCIES.map(currency => (
+                    <option key={currency} value={currency}>{currency}</option>
+                  ))}
+                </select>
+              </label>
+            </div>
+
+            <div className="grid gap-4 md:grid-cols-2">
+              <label className="auth-field">
                 <span className="auth-field-label">Active Crew</span>
                 <div className="project-modal-input-shell">
                   <input value={projectCrew} onChange={event => setProjectCrew(event.target.value)} className="project-modal-input" />
@@ -568,14 +585,19 @@ function ProjectCard({
         </div>
 
         {membershipLabel && (
-          <div className="rounded-full bg-zinc-100 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-zinc-600 dark:bg-white/6 dark:text-zinc-300 max-md:text-[9px] max-md:px-2 max-md:py-0.5">
-            {membershipLabel}
+          <div className="flex flex-wrap gap-2">
+            <div className="rounded-full bg-zinc-100 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-zinc-600 dark:bg-white/6 dark:text-zinc-300 max-md:text-[9px] max-md:px-2 max-md:py-0.5">
+              {membershipLabel}
+            </div>
+            <div className="rounded-full bg-zinc-900 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-white dark:bg-zinc-100 dark:text-zinc-900 max-md:text-[9px] max-md:px-2 max-md:py-0.5">
+              {project.currency}
+            </div>
           </div>
         )}
       </div>
 
       <div className="mt-6 grid gap-4 sm:grid-cols-3 max-md:mt-5 max-md:gap-2">
-        <MetricTile label="Budget" value={formatCurrency(project.budgetUSD)} icon={<ShieldCheck className="h-4 w-4 max-md:h-3 max-md:w-3" />} />
+        <MetricTile label="Budget" value={formatCurrency(project.budgetUSD, project.currency)} icon={<ShieldCheck className="h-4 w-4 max-md:h-3 max-md:w-3" />} />
         <MetricTile label="Active crew" value={`${project.activeCrew}`} icon={<Users className="h-4 w-4 max-md:h-3 max-md:w-3" />} />
         <MetricTile label="Progress" value={`${project.progressPercent}%`} icon={<CheckCircle2 className="h-4 w-4 max-md:h-3 max-md:w-3" />} />
       </div>

@@ -29,12 +29,15 @@ export function BurnChart({ data }: BurnChartProps) {
                 borderRadius: '18px',
                 border: '1px solid var(--app-border)',
                 background: 'var(--app-surface-strong)',
-                boxShadow: '0 18px 36px rgba(15, 23, 42, 0.12)',
+                color: 'var(--app-text)',
+                boxShadow: 'var(--chart-tooltip-shadow)',
               }}
+              labelStyle={{ color: 'var(--app-text)' }}
+              itemStyle={{ color: 'var(--app-text)' }}
               formatter={(value, name) => [formatCurrency(Number(value ?? 0)), name === 'actual' ? 'Actual' : 'Planned']}
             />
-            <Line type="monotone" dataKey="planned" stroke="rgba(24,24,27,0.35)" strokeWidth={2} dot={false} strokeDasharray="6 6" />
-            <Line type="monotone" dataKey="actual" stroke="var(--chart-accent)" strokeWidth={3} dot={false} activeDot={{ r: 5 }} />
+            <Line type="monotone" dataKey="planned" stroke="var(--chart-muted-line)" strokeWidth={2} dot={false} strokeDasharray="6 6" />
+            <Line type="monotone" dataKey="actual" stroke="var(--chart-accent)" strokeWidth={3} dot={false} activeDot={{ r: 5, fill: 'var(--chart-accent)' }} />
           </LineChart>
         </ResponsiveContainer>
       </div>

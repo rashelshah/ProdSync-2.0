@@ -15,6 +15,7 @@ export interface User {
 
 export type ProjectStage = 'pre-production' | 'shooting' | 'post'
 export type ProjectDepartment = 'camera' | 'art' | 'transport' | 'production' | 'wardrobe' | 'post'
+export type ProjectCurrency = 'INR' | 'USD' | 'EUR'
 export type ProjectRequestedRole =
   | 'Executive Producer'
   | 'Line Producer'
@@ -43,6 +44,7 @@ export interface ProjectRecord {
   status: ProjectStage
   progressPercent: number
   budgetUSD: number
+  currency: ProjectCurrency
   activeCrew: number
   startDate: string
   endDate: string
@@ -165,8 +167,11 @@ export interface CrewMember {
   role: string
   department: string
   checkInTime: string
+  checkOutTime?: string
   checkInAt?: string | null
   checkOutAt?: string | null
+  computedDuration?: string
+  computedDurationSeconds?: number
   verification: AttendanceVerification
   status: CrewStatus
   shiftHours: number
@@ -241,14 +246,18 @@ export interface CrewAttendanceHistoryItem {
 }
 
 export interface CrewPermissions {
+  canAccessModule: boolean
   canCheckIn: boolean
   canCheckOut: boolean
   canRequestBatta: boolean
   canViewOwnRecords: boolean
   canViewAllCrew: boolean
+  canViewCrewTable: boolean
   canApproveBatta: boolean
   canMarkBattaPaid: boolean
   canManageLocation: boolean
+  canViewFinancials: boolean
+  crewScope: 'none' | 'self' | 'department' | 'project'
   summaryOnly: boolean
 }
 

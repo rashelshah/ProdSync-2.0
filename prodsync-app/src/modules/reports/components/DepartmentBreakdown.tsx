@@ -31,8 +31,11 @@ export function DepartmentBreakdown({ departments }: DepartmentBreakdownProps) {
                 borderRadius: '18px',
                 border: '1px solid var(--app-border)',
                 background: 'var(--app-surface-strong)',
-                boxShadow: '0 18px 36px rgba(15, 23, 42, 0.12)',
+                color: 'var(--app-text)',
+                boxShadow: 'var(--chart-tooltip-shadow)',
               }}
+              labelStyle={{ color: 'var(--app-text)' }}
+              itemStyle={{ color: 'var(--app-text)' }}
               formatter={value => [formatCurrency(Number(value ?? 0)), 'Spend']}
             />
             <Bar dataKey="spent" radius={[12, 12, 0, 0]}>

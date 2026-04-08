@@ -1,16 +1,23 @@
 import { create } from 'zustand'
 import { createJSONStorage, persist } from 'zustand/middleware'
 
+import type { ProjectCurrency } from '@/types'
+
 interface ProjectsStore {
   activeProjectId: string | null
-  setActiveProject: (projectId: string | null) => void
+  activeProjectCurrency: ProjectCurrency
+  setActiveProject: (projectId: string | null, currency?: ProjectCurrency | null) => void
 }
 
 export const useProjectsStore = create<ProjectsStore>()(
   persist(
     (set) => ({
       activeProjectId: null,
-      setActiveProject: (projectId) => set({ activeProjectId: projectId }),
+      activeProjectCurrency: 'INR',
+      setActiveProject: (projectId, currency) => set({
+        activeProjectId: projectId,
+        activeProjectCurrency: currency ?? 'INR',
+      }),
     }),
     {
       name: 'prodsync-projects',
@@ -18,6 +25,7 @@ export const useProjectsStore = create<ProjectsStore>()(
       storage: createJSONStorage(() => localStorage),
       partialize: state => ({
         activeProjectId: state.activeProjectId,
+        activeProjectCurrency: state.activeProjectCurrency,
       }),
       migrate: (persistedState) => ({
         activeProjectId:
@@ -27,6 +35,13 @@ export const useProjectsStore = create<ProjectsStore>()(
           typeof persistedState.activeProjectId === 'string'
             ? persistedState.activeProjectId
             : null,
+        activeProjectCurrency:
+          typeof persistedState === 'object' &&
+          persistedState !== null &&
+          'activeProjectCurrency' in persistedState &&
+          (persistedState.activeProjectCurrency === 'INR' || persistedState.activeProjectCurrency === 'USD' || persistedState.activeProjectCurrency === 'EUR')
+            ? persistedState.activeProjectCurrency
+            : 'INR',
       }),
     },
   ),

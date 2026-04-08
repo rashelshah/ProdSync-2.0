@@ -7,6 +7,7 @@ import { projectsService } from '@/services/projects.service'
 export function useResolvedProjectContext() {
   const user = useAuthStore(state => state.user)
   const activeProjectId = useProjectsStore(state => state.activeProjectId)
+  const activeProjectCurrency = useProjectsStore(state => state.activeProjectCurrency)
   const setActiveProject = useProjectsStore(state => state.setActiveProject)
 
   const accessibleProjectsQ = useQuery({
@@ -23,12 +24,14 @@ export function useResolvedProjectContext() {
     : accessibleProjects[0]?.id ?? null
 
   useEffect(() => {
-    if (resolvedActiveProjectId === activeProjectId) {
+    const resolvedProject = accessibleProjects.find(project => project.id === resolvedActiveProjectId) ?? null
+
+    if (resolvedActiveProjectId === activeProjectId && (!resolvedProject || activeProjectCurrency === resolvedProject.currency)) {
       return
     }
 
-    setActiveProject(resolvedActiveProjectId)
-  }, [activeProjectId, resolvedActiveProjectId, setActiveProject])
+    setActiveProject(resolvedActiveProjectId, resolvedProject?.currency ?? 'INR')
+  }, [accessibleProjects, activeProjectCurrency, activeProjectId, resolvedActiveProjectId, setActiveProject])
 
   const activeProject = accessibleProjects.find(project => project.id === resolvedActiveProjectId) ?? null
 

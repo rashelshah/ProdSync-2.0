@@ -1,5 +1,5 @@
 import { apiFetch, readApiJson } from '@/lib/api'
-import type { ProjectDepartment, ProjectJoinRequest, ProjectMember, ProjectRecord, ProjectRequestedRole } from '@/types'
+import type { ProjectCurrency, ProjectDepartment, ProjectJoinRequest, ProjectMember, ProjectRecord, ProjectRequestedRole } from '@/types'
 
 interface BackendProject {
   id: string
@@ -10,6 +10,7 @@ interface BackendProject {
   status: ProjectRecord['status']
   progressPercent: number
   budgetUSD: number
+  currency: ProjectCurrency
   activeCrew: number
   startDate: string
   endDate: string
@@ -44,6 +45,7 @@ interface CreateProjectInput {
   location: string
   status: ProjectRecord['status']
   budgetUSD: number
+  currency: ProjectCurrency
   activeCrew: number
   startDate: string
   endDate: string
@@ -57,6 +59,10 @@ interface JoinRequestCreateInput {
   message?: string
 }
 
+interface UpdateProjectInput extends CreateProjectInput {
+  projectId: string
+}
+
 function toProjectRecord(project: BackendProject): ProjectRecord {
   return {
     id: project.id,
@@ -67,6 +73,7 @@ function toProjectRecord(project: BackendProject): ProjectRecord {
     status: project.status,
     progressPercent: Number(project.progressPercent ?? 0),
     budgetUSD: Number(project.budgetUSD ?? 0),
+    currency: project.currency ?? 'INR',
     activeCrew: Number(project.activeCrew ?? 0),
     startDate: project.startDate ?? '',
     endDate: project.endDate ?? '',
@@ -127,6 +134,17 @@ export const projectsService = {
     })
     const payload = await readApiJson<{ project: BackendProject | null; projectId: string }>(response)
     console.log('[projectsService] project create response', { projectId: payload.projectId })
+    return payload.project ? toProjectRecord(payload.project) : null
+  },
+
+  async updateProject(input: UpdateProjectInput) {
+    console.log('[projectsService] updating project', { projectId: input.projectId, name: input.name })
+    const response = await apiFetch(`/projects/${encodeURIComponent(input.projectId)}`, {
+      method: 'PUT',
+      body: JSON.stringify(input),
+    })
+    const payload = await readApiJson<{ project: BackendProject | null }>(response)
+    console.log('[projectsService] update project response', { projectId: input.projectId })
     return payload.project ? toProjectRecord(payload.project) : null
   },
 
