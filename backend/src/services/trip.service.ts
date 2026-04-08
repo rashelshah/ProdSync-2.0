@@ -6,12 +6,13 @@ import { HttpError } from '../utils/httpError'
 import { calculateDistanceVariancePercent, calculateTrackDistanceKm, haversineDistanceKm, roundDistance } from '../utils/location'
 import { rangeFromPagination, toPaginatedResult } from '../utils/pagination'
 import type { TransportAccessRole } from '../utils/role'
+import { runtimeProcess } from '../utils/runtime'
 import { createTransportAlert } from './alert.service'
 import { buildHybridTrackingPolicy } from './trackingPolicy.service'
 
 const tripSelectClause = '*, vehicle:vehicles!trips_vehicle_id_fkey(name), driver:users!trips_driver_user_id_fkey(full_name)'
-const DISTANCE_TOLERANCE_PERCENT = Math.min(25, Math.max(5, Number(process.env.TRANSPORT_DISTANCE_TOLERANCE_PERCENT ?? 8)))
-const DISTANCE_TOLERANCE_MIN_KM = Math.max(1, Number(process.env.TRANSPORT_DISTANCE_TOLERANCE_MIN_KM ?? 3))
+const DISTANCE_TOLERANCE_PERCENT = Math.min(25, Math.max(5, Number(runtimeProcess.env.TRANSPORT_DISTANCE_TOLERANCE_PERCENT ?? 8)))
+const DISTANCE_TOLERANCE_MIN_KM = Math.max(1, Number(runtimeProcess.env.TRANSPORT_DISTANCE_TOLERANCE_MIN_KM ?? 3))
 
 function toOptionalCoordinate(value: unknown) {
   if (typeof value === 'number') {

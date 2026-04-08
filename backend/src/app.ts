@@ -1,6 +1,6 @@
 import path from 'node:path'
 import cors from 'cors'
-import express from 'express'
+import express, { type NextFunction, type Request, type Response } from 'express'
 import { authRouter } from './modules/auth/auth.routes'
 import { usersRouter } from './modules/users/users.routes'
 import { projectsRouter } from './modules/projects/projects.routes'
@@ -16,6 +16,7 @@ import { wardrobeRouter } from './modules/wardrobe/wardrobe.routes'
 import { reportsRouter } from './modules/reports/reports.routes'
 import { HttpError } from './utils/httpError'
 import { transportRouter } from './routes/transport.routes'
+import { runtimeProcess } from './utils/runtime'
 import { ZodError } from 'zod'
 
 export function createApp() {
@@ -24,7 +25,7 @@ export function createApp() {
   app.use(cors())
   app.use(express.json({ limit: '1mb' }))
   app.use(express.urlencoded({ extended: true }))
-  app.use('/uploads', express.static(path.resolve(process.cwd(), 'uploads')))
+  app.use('/uploads', express.static(path.resolve(runtimeProcess.cwd(), 'uploads')))
 
   app.get('/api/health', (_req, res) => {
     res.json({
@@ -52,7 +53,7 @@ export function createApp() {
     next(new HttpError(404, 'Route not found.'))
   })
 
-  app.use((error: unknown, req: express.Request, res: express.Response, _next: express.NextFunction) => {
+  app.use((error: unknown, req: Request, res: Response, _next: NextFunction) => {
     console.error('[backend][error]', {
       method: req.method,
       path: req.path,
@@ -79,7 +80,7 @@ export function createApp() {
     if (error instanceof Error) {
       return res.status(500).json({
         error: error.message,
-        stack: process.env.NODE_ENV === 'development' ? error.stack : undefined,
+        stack: runtimeProcess.env.NODE_ENV === 'development' ? error.stack : undefined,
       })
     }
 

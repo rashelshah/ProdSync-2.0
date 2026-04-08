@@ -1,6 +1,7 @@
 import { adminClient } from '../config/supabaseClient'
 import { deleteCacheKey, getCacheJson, setCacheJson } from './cache.service'
 import { HttpError } from '../utils/httpError'
+import { runtimeBuffer } from '../utils/runtime'
 
 const REPORT_CACHE_TTL_SECONDS = 120
 const SNAPSHOT_STALE_AFTER_MS = 15 * 60 * 1000
@@ -1111,20 +1112,20 @@ ET`
     '2 0 obj << /Type /Pages /Count 1 /Kids [3 0 R] >> endobj',
     '3 0 obj << /Type /Page /Parent 2 0 R /MediaBox [0 0 612 842] /Resources << /Font << /F1 4 0 R >> >> /Contents 5 0 R >> endobj',
     '4 0 obj << /Type /Font /Subtype /Type1 /BaseFont /Helvetica >> endobj',
-    `5 0 obj << /Length ${Buffer.byteLength(content, 'utf8')} >> stream
+    `5 0 obj << /Length ${runtimeBuffer.byteLength(content, 'utf8')} >> stream
 ${content}
 endstream endobj`,
   ]
 
   const header = '%PDF-1.4\n'
   const offsets: number[] = []
-  let currentOffset = Buffer.byteLength(header, 'utf8')
+  let currentOffset = runtimeBuffer.byteLength(header, 'utf8')
   let body = ''
 
   for (const object of objects) {
     offsets.push(currentOffset)
     body += `${object}\n`
-    currentOffset += Buffer.byteLength(`${object}\n`, 'utf8')
+    currentOffset += runtimeBuffer.byteLength(`${object}\n`, 'utf8')
   }
 
   const xrefOffset = currentOffset
@@ -1140,7 +1141,7 @@ endstream endobj`,
     '%%EOF',
   ].join('\n')
 
-  return Buffer.from(header + body + xref, 'utf8')
+  return runtimeBuffer.from(header + body + xref, 'utf8')
 }
 
 function buildExportLines(bundle: ReportsBundle) {

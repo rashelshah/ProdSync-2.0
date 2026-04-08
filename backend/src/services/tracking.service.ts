@@ -7,6 +7,7 @@ import { emitTransportEvent } from '../realtime/socket'
 import { env } from '../utils/env'
 import { HttpError } from '../utils/httpError'
 import type { TransportAccessRole } from '../utils/role'
+import { runtimeBuffer } from '../utils/runtime'
 import { getCacheJson, getCacheStrings, setCacheJson } from './cache.service'
 import { getMapboxBudgetState, getMapProvider, hasMapboxToken } from './location.service'
 import { haversineDistanceKm, roundDistance } from '../utils/location'
@@ -486,7 +487,7 @@ function renderTrackingSvg(locations: LiveVehicleLocationRecord[], width: number
       </svg>
     `
 
-    return Buffer.from(empty)
+    return runtimeBuffer.from(empty)
   }
 
   const latitudes = locations.map(location => location.latitude)
@@ -540,7 +541,7 @@ function renderTrackingSvg(locations: LiveVehicleLocationRecord[], width: number
     </svg>
   `
 
-  return Buffer.from(svg)
+  return runtimeBuffer.from(svg)
 }
 
 async function fetchMapboxStaticMap(locations: LiveVehicleLocationRecord[], width: number, height: number) {
@@ -563,7 +564,7 @@ async function fetchMapboxStaticMap(locations: LiveVehicleLocationRecord[], widt
   }
 
   await incrementMapboxUsage()
-  return Buffer.from(await response.arrayBuffer())
+  return runtimeBuffer.from(await response.arrayBuffer())
 }
 
 async function getCachedLiveLocations(projectId: string, vehicleIds: string[]) {
@@ -840,7 +841,7 @@ export async function buildTrackingMapImageForActor(
   if (cached?.bodyBase64) {
     return {
       contentType: cached.contentType,
-      body: Buffer.from(cached.bodyBase64, 'base64'),
+      body: runtimeBuffer.from(cached.bodyBase64, 'base64'),
       provider: cached.provider,
     }
   }

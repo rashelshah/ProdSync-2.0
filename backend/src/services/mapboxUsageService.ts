@@ -1,4 +1,5 @@
 import { env } from '../utils/env'
+import { runtimeProcess } from '../utils/runtime'
 import { getCacheString, incrementCacheCounter } from './cache.service'
 
 export type MapboxMode = 'normal' | 'restricted' | 'disabled'
@@ -44,12 +45,12 @@ function secondsUntilEndOfMonth() {
 }
 
 export function getMapboxToken() {
-  const token = process.env.MAPBOX_TOKEN ?? process.env.MAPBOX_ACCESS_TOKEN ?? env.mapboxAccessToken
+  const token = runtimeProcess.env.MAPBOX_TOKEN ?? runtimeProcess.env.MAPBOX_ACCESS_TOKEN ?? env.mapboxAccessToken
   return typeof token === 'string' ? token : ''
 }
 
 export function hasMapboxToken() {
-  const token = process.env.MAPBOX_TOKEN ?? process.env.MAPBOX_ACCESS_TOKEN ?? env.mapboxAccessToken
+  const token = runtimeProcess.env.MAPBOX_TOKEN ?? runtimeProcess.env.MAPBOX_ACCESS_TOKEN ?? env.mapboxAccessToken
   return typeof token === 'string' && token.trim().length > 0
 }
 

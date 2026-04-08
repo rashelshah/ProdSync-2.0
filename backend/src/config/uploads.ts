@@ -2,8 +2,9 @@ import fs from 'node:fs'
 import path from 'node:path'
 import multer from 'multer'
 import { HttpError } from '../utils/httpError'
+import { runtimeProcess } from '../utils/runtime'
 
-const uploadsRoot = path.resolve(process.cwd(), 'uploads', 'transport')
+const uploadsRoot = path.resolve(runtimeProcess.cwd(), 'uploads', 'transport')
 
 fs.mkdirSync(uploadsRoot, { recursive: true })
 

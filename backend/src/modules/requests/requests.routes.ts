@@ -291,7 +291,7 @@ function makeInitials(name: string) {
     .join('')
 }
 
-async function getUserMap(userIds: string[]) {
+async function getUserMap(userIds: string[]): Promise<Map<string, UserRow>> {
   if (userIds.length === 0) {
     return new Map<string, UserRow>()
   }
@@ -305,7 +305,7 @@ async function getUserMap(userIds: string[]) {
     throw error
   }
 
-  return new Map((data ?? []).map(row => [String(row.id), row as UserRow]))
+  return new Map<string, UserRow>((data ?? []).map(row => [String(row.id), row as UserRow]))
 }
 
 async function getApprovalsForProject(projectId: string) {

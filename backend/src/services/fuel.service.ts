@@ -10,10 +10,11 @@ import { createTransportAlert } from './alert.service'
 import { assessFuelFraud } from './fraud.service'
 import { validateOdometerImage } from './transportOcr.service'
 import { runReceiptOcr, extractAmount, extractQuantity } from '../modules/art/services/ocrService'
+import { runtimeProcess } from '../utils/runtime'
 
 type UploadedFiles = Partial<Record<'receiptImage' | 'odometerImage', Express.Multer.File[]>>
-const ODOMETER_OCR_MARGIN_KM = Math.min(10, Math.max(5, Number(process.env.TRANSPORT_ODOMETER_OCR_MARGIN_KM ?? 7)))
-const RECEIPT_OCR_TOLERANCE_RATIO = Math.min(0.1, Math.max(0.05, Number(process.env.TRANSPORT_RECEIPT_OCR_TOLERANCE_RATIO ?? 0.08)))
+const ODOMETER_OCR_MARGIN_KM = Math.min(10, Math.max(5, Number(runtimeProcess.env.TRANSPORT_ODOMETER_OCR_MARGIN_KM ?? 7)))
+const RECEIPT_OCR_TOLERANCE_RATIO = Math.min(0.1, Math.max(0.05, Number(runtimeProcess.env.TRANSPORT_RECEIPT_OCR_TOLERANCE_RATIO ?? 0.08)))
 
 function isObject(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === 'object' && !Array.isArray(value)
