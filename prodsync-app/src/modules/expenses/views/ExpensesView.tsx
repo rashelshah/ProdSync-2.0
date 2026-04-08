@@ -1661,8 +1661,8 @@ export function ExpensesView() {
                       <span className="text-[10px] font-bold uppercase tracking-[0.22em] text-zinc-500 dark:text-zinc-400">{card.label}</span>
                       <span className={`material-symbols-outlined text-[20px] ${card.tone}`}>{card.icon}</span>
                     </div>
-                    <div className="mt-5 flex items-end justify-between">
-                      <span className="text-3xl font-black tracking-tight text-zinc-900 dark:text-white">{card.value}</span>
+                    <div className="mt-4 flex items-end justify-between">
+                      <span className="text-2xl font-black tracking-tight text-zinc-900 dark:text-white break-all block w-full">{card.value}</span>
                     </div>
                   </div>
                 ))}
@@ -1675,17 +1675,17 @@ export function ExpensesView() {
                   <h2 className="text-lg font-bold text-zinc-900 dark:text-white tracking-tight">Budget Analytics</h2>
                 </div>
                 <div className="grid grid-cols-2 gap-3">
-                  <div className="col-span-2 rounded-[24px] border border-zinc-200 bg-white p-5 shadow-[0_16px_34px_rgba(15,23,42,0.08)] dark:border-zinc-800 dark:bg-zinc-900">
+                  <div className="col-span-2 rounded-[24px] border border-zinc-200 bg-white p-5 shadow-[0_16px_34px_rgba(15,23,42,0.08)] min-w-0 dark:border-zinc-800 dark:bg-zinc-900">
                     <div className="text-[10px] font-bold uppercase tracking-[0.22em] text-zinc-500 dark:text-zinc-400">Allocated</div>
-                    <div className="mt-2 text-3xl font-black tracking-tight text-zinc-900 dark:text-white">{formatCurrency(budget.allocatedBudget)}</div>
+                    <div className="mt-2 text-2xl font-black tracking-tight text-zinc-900 dark:text-white break-all w-full">{formatCurrency(budget.allocatedBudget)}</div>
                   </div>
-                  <div className="rounded-[24px] border border-zinc-200 bg-white p-4 shadow-[0_16px_34px_rgba(15,23,42,0.07)] dark:border-zinc-800 dark:bg-zinc-900">
+                  <div className="rounded-[24px] border border-zinc-200 bg-white p-4 shadow-[0_16px_34px_rgba(15,23,42,0.07)] min-w-0 dark:border-zinc-800 dark:bg-zinc-900">
                     <div className="text-[10px] font-bold uppercase tracking-[0.22em] text-zinc-500 dark:text-zinc-400">Used</div>
-                    <div className="mt-2 text-2xl font-black tracking-tight text-zinc-900 dark:text-white">{formatCurrency(budget.usedBudget)}</div>
+                    <div className="mt-2 text-xl font-black tracking-tight text-zinc-900 dark:text-white break-all w-full">{formatCurrency(budget.usedBudget)}</div>
                   </div>
-                  <div className={`rounded-[24px] border p-4 shadow-[0_16px_34px_rgba(15,23,42,0.07)] ${budget.isExceeded ? 'border-red-200 bg-red-50/70 dark:border-red-500/20 dark:bg-red-500/10' : 'border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900'}`}>
+                  <div className={`rounded-[24px] border p-4 min-w-0 shadow-[0_16px_34px_rgba(15,23,42,0.07)] ${budget.isExceeded ? 'border-red-200 bg-red-50/70 dark:border-red-500/20 dark:bg-red-500/10' : 'border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900'}`}>
                     <div className="text-[10px] font-bold uppercase tracking-[0.22em] text-zinc-500 dark:text-zinc-400">Remaining</div>
-                    <div className="mt-2 text-2xl font-black tracking-tight text-zinc-900 dark:text-white">{formatCurrency(budget.remainingBudget)}</div>
+                    <div className="mt-2 text-xl font-black tracking-tight text-zinc-900 dark:text-white break-all w-full">{formatCurrency(budget.remainingBudget)}</div>
                   </div>
                 </div>
               </section>

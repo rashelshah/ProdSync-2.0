@@ -12,9 +12,10 @@ interface HeaderProps {
   isSidebarCollapsed: boolean
   onToggleSidebar: () => void
   sidebarOffset: number
+  onToggleMobileSidebar?: () => void
 }
 
-export function Header({ isSidebarCollapsed, onToggleSidebar, sidebarOffset }: HeaderProps) {
+export function Header({ isSidebarCollapsed, onToggleSidebar, sidebarOffset, onToggleMobileSidebar }: HeaderProps) {
   const navigate = useNavigate()
   const { alerts, unreadCount, acknowledgeAll, isAcknowledgingAll } = useProjectAlerts()
   const user = useAuthStore(s => s.user)
@@ -33,6 +34,15 @@ export function Header({ isSidebarCollapsed, onToggleSidebar, sidebarOffset }: H
     >
       <div className="flex items-center justify-between gap-6">
         <div className="flex min-w-0 flex-1 items-center gap-3">
+          {/* Mobile Hamburger Menu */}
+          <button
+            onClick={onToggleMobileSidebar}
+            className="md:hidden flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-zinc-500 transition-colors pointer-events-auto active:scale-95 duration-200"
+            aria-label="Toggle mobile menu"
+          >
+            <span className="material-symbols-outlined text-[24px]">menu</span>
+          </button>
+          
           <button
             onClick={onToggleSidebar}
             className="max-md:hidden flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-zinc-200 bg-white text-zinc-500 transition-colors hover:border-orange-200 hover:bg-orange-50 hover:text-orange-600 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-400 dark:hover:border-orange-500/20 dark:hover:bg-orange-500/10 dark:hover:text-orange-400 pointer-events-auto"

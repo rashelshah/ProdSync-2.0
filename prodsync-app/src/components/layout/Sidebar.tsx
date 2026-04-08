@@ -9,9 +9,11 @@ interface SidebarProps {
   isCollapsed: boolean
   onToggle: () => void
   width: number
+  isMobileOpen?: boolean
+  onMobileClose?: () => void
 }
 
-export function Sidebar({ isCollapsed, onToggle, width }: SidebarProps) {
+export function Sidebar({ isCollapsed, onToggle, width, isMobileOpen, onMobileClose }: SidebarProps) {
   const user = useAuthStore(s => s.user)
   const logout = useAuthStore(s => s.logout)
   const { alerts } = useProjectAlerts()
@@ -22,10 +24,22 @@ export function Sidebar({ isCollapsed, onToggle, width }: SidebarProps) {
   const userRoleLabel = user ? getUserRoleLabel(user) : 'Crew Member'
 
   return (
-    <aside
-      className="max-md:hidden fixed inset-y-0 left-0 z-40 border-r border-zinc-200 bg-white/90 backdrop-blur-md transition-[width,background-color,border-color] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] dark:border-zinc-800 dark:bg-zinc-950/90"
-      style={{ width }}
-    >
+    <>
+      {/* Mobile backdrop */}
+      {isMobileOpen && (
+        <div 
+          className="fixed inset-0 z-40 bg-black/60 backdrop-blur-sm md:hidden" 
+          onClick={onMobileClose}
+          aria-hidden="true"
+        />
+      )}
+      <aside
+        className={cn(
+          "fixed inset-y-0 left-0 border-r border-zinc-200 bg-white/90 backdrop-blur-md transition-[transform,width,background-color,border-color] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] dark:border-zinc-800 dark:bg-zinc-950/90",
+          isMobileOpen ? "z-50 translate-x-0" : "max-md:-translate-x-full z-40"
+        )}
+        style={{ width: typeof window !== 'undefined' && window.innerWidth < 768 ? 280 : width }}
+      >
       <div
         className={cn(
           'flex h-full flex-col py-6 transition-[padding] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)]',
@@ -81,11 +95,16 @@ export function Sidebar({ isCollapsed, onToggle, width }: SidebarProps) {
                 <NavLink
                   key={item.path}
                   to={item.path}
+                  onClick={() => {
+                    if (isMobileOpen && onMobileClose) {
+                      onMobileClose()
+                    }
+                  }}
                   title={isCollapsed ? item.label : undefined}
                   className={() =>
                     cn(
                       'group relative flex items-center rounded-2xl text-sm font-medium transition-all',
-                      isCollapsed ? 'justify-center px-0 py-3.5' : 'gap-3 px-3 py-3',
+                      isCollapsed && !isMobileOpen ? 'justify-center px-0 py-3.5' : 'gap-3 px-3 py-3',
                       isActive
                         ? 'bg-orange-50 text-orange-600 dark:bg-orange-500/12 dark:text-orange-400'
                         : 'text-zinc-500 hover:bg-zinc-100 hover:text-zinc-900 dark:text-zinc-400 dark:hover:bg-zinc-900 dark:hover:text-white',
@@ -98,7 +117,7 @@ export function Sidebar({ isCollapsed, onToggle, width }: SidebarProps) {
                   <span
                     className={cn(
                       'min-w-0 flex-1 truncate transition-[opacity,transform,max-width] duration-200 ease-[cubic-bezier(0.22,1,0.36,1)]',
-                      isCollapsed ? 'pointer-events-none max-w-0 -translate-x-2 opacity-0' : 'max-w-[220px] translate-x-0 opacity-100',
+                      isCollapsed && !isMobileOpen ? 'pointer-events-none max-w-0 -translate-x-2 opacity-0' : 'max-w-[220px] translate-x-0 opacity-100',
                     )}
                   >
                     {item.label}
@@ -147,5 +166,6 @@ export function Sidebar({ isCollapsed, onToggle, width }: SidebarProps) {
         </div>
       </div>
     </aside>
+    </>
   )
 }

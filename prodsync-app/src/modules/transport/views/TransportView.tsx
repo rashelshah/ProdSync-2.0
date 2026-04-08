@@ -124,6 +124,7 @@ export function TransportView() {
   const user = useAuthStore(state => state.user)
   const { activeProjectId, activeProject, isLoadingProjectContext } = useResolvedProjectContext()
 
+  const [activeMobileTab, setActiveMobileTab] = useState<'home' | 'fleet' | 'history' | 'ledger'>('home')
   const [tripFilters, setTripFilters] = useState<TripFilters>(initialTripFilters)
   const [vehicleSearch, setVehicleSearch] = useState('')
   const {
@@ -873,7 +874,8 @@ export function TransportView() {
 
   return (
     <div className="page-shell">
-      <header className="page-header">
+      <div className="max-md:hidden space-y-6">
+        <header className="page-header">
         <div>
           <span className="page-kicker">Logistics Control</span>
           <h1 className="page-title page-title-compact">Transport & Logistics</h1>
@@ -1240,6 +1242,219 @@ export function TransportView() {
           )}
         </div>
       )}
+      </div>
+
+      <div className="md:hidden mt-2 px-1 pb-[140px]">
+        <header className="px-3">
+          <div className="overflow-hidden rounded-[28px] border border-zinc-200/80 bg-white/88 px-4 py-4 shadow-[0_18px_40px_rgba(15,23,42,0.08)] backdrop-blur-xl dark:border-white/8 dark:bg-zinc-900/82 dark:shadow-[0_20px_44px_rgba(0,0,0,0.32)]">
+            <span className="page-kicker text-orange-500">Logistics Control</span>
+            <div className="flex items-center justify-between gap-2 mt-1">
+               <h1 className="page-title page-title-compact text-zinc-900 dark:text-white">Transport & Logistics</h1>
+               {isDriver && <StatusBadge variant="active" label="Driver Mode" />}
+            </div>
+            <p className="page-subtitle mt-2 text-zinc-500 dark:text-zinc-400">
+               Live trips, fleet, and transport alerts.
+            </p>
+          </div>
+        </header>
+
+        {activeMobileTab === 'home' && (
+          <div className="animate-in fade-in slide-in-from-bottom-2 duration-300 space-y-8 px-3">
+             <section className="grid grid-cols-2 gap-3 px-1 pb-2">
+                <div className="bg-surface-container border border-outline-variant/10 p-4 rounded-xl shadow-md min-w-0">
+                  <span className="text-zinc-500 text-[10px] font-bold uppercase tracking-widest">In Transit</span>
+                  <div className="text-4xl font-headline font-extrabold text-white mt-1 break-all w-full">{kpis.inTransit}</div>
+                </div>
+                <div className="bg-surface-container border border-amber-500/20 bg-amber-500/5 p-4 rounded-xl shadow-md min-w-0">
+                  <span className="text-amber-500 text-[10px] font-bold uppercase tracking-widest">Idle</span>
+                  <div className="text-4xl font-headline font-extrabold text-amber-500 mt-1 break-all w-full">{kpis.idleVehicles}</div>
+                </div>
+                <div className="col-span-2 bg-surface-container border border-red-500/20 bg-red-500/5 p-4 rounded-xl relative overflow-hidden shadow-md min-w-0">
+                   <div className="absolute top-0 right-0 p-2 opacity-20">
+                     <span className="material-symbols-outlined text-red-500 text-3xl">warning</span>
+                   </div>
+                   <span className="text-red-500 text-[10px] font-bold uppercase tracking-widest">Alerts</span>
+                   <div className="text-4xl font-headline font-extrabold text-red-500 mt-1 break-all w-full">{alerts.length.toString().padStart(2, '0')}</div>
+                </div>
+             </section>
+
+             {alerts.filter(a => a.severity === 'critical').length > 0 && (
+               <section className="space-y-3">
+                 {alerts.filter(a => a.severity === 'critical').map((alert, index) => (
+                   <div key={`${alert.triggeredAt}-${index}`} className="bg-red-500/10 border border-red-500/20 p-4 rounded-xl flex gap-4 items-start">
+                     <span className="material-symbols-outlined text-red-500 shrink-0" style={{ fontVariationSettings: "'FILL' 1" }}>warning</span>
+                     <div className="space-y-1">
+                       <p className="text-white font-bold text-sm leading-tight">{transportAlertTitle(alert)}</p>
+                       <p className="text-zinc-400 text-xs">{formatTime(alert.triggeredAt)}</p>
+                     </div>
+                   </div>
+                 ))}
+               </section>
+             )}
+
+             <section>
+               <h2 className="text-zinc-500 text-[11px] font-bold uppercase tracking-[0.2em] mb-4">Live Map</h2>
+               <div className="bg-surface-container rounded-xl overflow-hidden shadow-2xl border border-outline-variant/10 h-64 relative">
+                 <div className="absolute inset-0 z-0">
+                    <TransportTrackingMap
+                       liveLocations={liveLocations}
+                       liveMeta={liveMeta}
+                       loading={trackingLoading}
+                    />
+                 </div>
+               </div>
+             </section>
+
+           </div>
+        )}
+
+        {activeMobileTab === 'fleet' && (
+          <div className="animate-in fade-in slide-in-from-bottom-2 duration-300 space-y-6 px-3 pt-4">
+             <h2 className="text-zinc-500 text-[11px] font-bold uppercase tracking-[0.2em] mb-4">Fleet Assignment</h2>
+             <div className="flex flex-col gap-3 pb-32">
+               {visibleVehicles.length === 0 ? (
+                 <p className="text-sm text-zinc-500 dark:text-zinc-400">No vehicles assigned.</p>
+               ) : (
+                 visibleVehicles.map(vehicle => (
+                   <div key={vehicle.id} onClick={() => setVehicleDetailId(vehicle.id)} className="bg-zinc-900 border border-zinc-800 p-4 rounded-xl flex items-center justify-between active:bg-zinc-800 transition-colors">
+                     <div className="flex items-center gap-4">
+                       <div className="w-12 h-12 flex-shrink-0 bg-zinc-950 border border-zinc-800 rounded-lg flex items-center justify-center">
+                         <span className="material-symbols-outlined text-zinc-400">directions_car</span>
+                       </div>
+                       <div className="min-w-0">
+                         <p className="font-bold text-white truncate max-w-[200px]">{vehicle.name}</p>
+                         <p className="text-[10px] text-zinc-500 uppercase font-medium">{vehicle.registrationNumber}</p>
+                       </div>
+                     </div>
+                     <StatusBadge variant={vehicle.status === 'active' ? 'active' : vehicle.status === 'exception' ? 'flagged' : 'pending'} label={vehicleStatusLabel(vehicle.status)} />
+                   </div>
+                 ))
+               )}
+             </div>
+          </div>
+        )}
+
+        {activeMobileTab === 'history' && (
+          <div className="animate-in fade-in slide-in-from-bottom-2 duration-300 space-y-6 px-3 pt-4">
+             <h2 className="text-zinc-500 text-[11px] font-bold uppercase tracking-[0.2em] mb-4">Trip History</h2>
+             {trips.length === 0 ? (
+               <p className="text-sm text-zinc-500 dark:text-zinc-400">No trips recorded yet.</p>
+             ) : (
+               <div className="space-y-4 pb-32">
+                 {trips.slice(0, 20).map(trip => (
+                   <div key={trip.id} className="bg-zinc-900 border border-zinc-800 p-4 rounded-xl flex flex-col gap-3">
+                     <div className="flex justify-between items-start">
+                        <div>
+                          <p className="font-bold text-white text-sm">{trip.vehicleName}</p>
+                          <p className="text-xs text-zinc-400">{trip.driverName ?? 'Unassigned'}</p>
+                        </div>
+                        <StatusBadge variant={trip.status === 'active' ? 'active' : trip.status === 'flagged' ? 'flagged' : trip.status === 'completed' ? 'verified' : 'pending'} label={trip.status} />
+                     </div>
+                     <div className="flex flex-col gap-1 text-xs text-zinc-300">
+                        <div className="flex gap-2 items-center"><span className="material-symbols-outlined text-[14px] text-zinc-500">my_location</span> <span className="truncate">{tripOriginLabel(trip)}</span></div>
+                        <div className="flex gap-2 items-center ml-[5px] border-l border-dashed border-zinc-700 pl-[13px] py-1"><span className="material-symbols-outlined text-[14px] text-zinc-500">location_on</span> <span className="truncate">{tripDestinationLabel(trip)}</span></div>
+                     </div>
+                     <div className="flex justify-between items-center text-xs text-zinc-400 mt-2 border-t border-zinc-800/50 pt-3">
+                        <span>{formatDate(trip.startTime)} {formatTime(trip.startTime)}</span>
+                        <span className="font-medium text-white">{trip.distanceKm.toFixed(1)} km</span>
+                     </div>
+                   </div>
+                 ))}
+               </div>
+             )}
+          </div>
+        )}
+
+        {activeMobileTab === 'ledger' && (
+          <div className="animate-in fade-in slide-in-from-bottom-2 duration-300 space-y-6 px-3 pt-4">
+             <h2 className="text-zinc-500 text-[11px] font-bold uppercase tracking-[0.2em] mb-4">Fuel Audit Ledger</h2>
+             {fuelLogs.length === 0 ? (
+               <p className="text-sm text-zinc-500 dark:text-zinc-400">No fuel records yet.</p>
+             ) : (
+               <div className="space-y-4 pb-32">
+                 {fuelLogs.map(log => (
+                   <div key={log.id} onClick={() => log.receiptFilePath ? setFuelPreview({ title: 'Receipt Preview', src: resolveUploadUrl(log.receiptFilePath)! }) : undefined} className="bg-zinc-900 border border-zinc-800 p-4 rounded-xl flex flex-col gap-3">
+                     <div className="flex justify-between items-start">
+                        <div>
+                          <p className="font-bold text-white text-sm">{log.vehicleName}</p>
+                          <p className="text-xs text-zinc-400">{log.loggedByName ?? log.loggedBy}</p>
+                        </div>
+                        <div className="text-right">
+                          <p className="font-bold text-white text-sm">{formatCurrency(log.cost ?? 0)}</p>
+                          <p className="text-xs text-orange-400">{log.liters.toFixed(1)} L</p>
+                        </div>
+                     </div>
+                     <div className="flex gap-2 mt-1">
+                        <StatusBadge variant={log.efficiencyRating === 'good' ? 'verified' : 'mismatch'} label={log.auditStatus} />
+                        {log.fraudStatus !== 'NORMAL' && (
+                          <StatusBadge variant={log.fraudStatus === 'FRAUD' ? 'flagged' : 'warning'} label={log.fraudStatus} />
+                        )}
+                     </div>
+                   </div>
+                 ))}
+               </div>
+             )}
+          </div>
+        )}
+
+        {/* Floating Action Container */}
+        {['home', 'fleet'].includes(activeMobileTab) && (
+        <div className="fixed bottom-24 left-0 w-full z-40 px-5 pointer-events-none">
+          <div className="flex flex-col gap-3 pointer-events-auto">
+            {canManageTransport && (
+              <button 
+                onClick={() => {
+                  setVehicleAssignId(visibleVehicles.find(v => v.status === 'idle')?.id || visibleVehicles[0]?.id)
+                }} 
+                className="w-full h-12 bg-white text-zinc-900 border border-zinc-200 font-bold text-[11px] rounded-[14px] flex items-center justify-center gap-2 active:scale-95 duration-200 uppercase tracking-wider shadow-lg"
+              >
+                <span className="material-symbols-outlined text-zinc-900 text-[18px]">person_add</span>
+                Assign Driver
+              </button>
+            )}
+            <div className="flex gap-3">
+              {canLogFuel && (
+                <button onClick={() => setFuelModalOpen(true)} className="flex-1 h-12 bg-zinc-900 border border-zinc-800 text-white font-bold text-[10px] rounded-[14px] flex items-center justify-center gap-2 active:scale-95 duration-200 uppercase tracking-tighter shadow-lg">
+                  <span className="material-symbols-outlined text-orange-500 text-[18px]">local_gas_station</span>
+                  Log Fuel
+                </button>
+              )}
+              {canOperateTrips && (
+                <button 
+                  onClick={() => {
+                    const availableVehicle = visibleVehicles.find(v => v.status === 'idle') || visibleVehicles[0]
+                    openStartTripModal(availableVehicle)
+                  }} 
+                  className="flex-1 h-12 bg-gradient-to-r from-orange-500 to-orange-600 text-black font-black font-headline rounded-[14px] shadow-2xl flex items-center justify-center gap-2 active:scale-95 duration-200"
+                >
+                  <span className="material-symbols-outlined font-bold text-[20px]">play_arrow</span>
+                  START TRIP
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+        )}
+
+        {/* Bottom Navigation */}
+        <nav className="fixed bottom-3 left-3 right-3 z-40 mx-auto flex h-[80px] max-w-md items-center justify-around rounded-[30px] border border-zinc-200/80 bg-white/88 px-2 pb-safe shadow-[0_18px_40px_rgba(15,23,42,0.12)] backdrop-blur-2xl dark:border-white/8 dark:bg-zinc-950/82 dark:shadow-[0_18px_44px_rgba(0,0,0,0.34)]">
+          {[
+            { id: 'home', icon: 'dashboard', label: 'Home' },
+            { id: 'fleet', icon: 'local_shipping', label: 'Fleet' },
+            { id: 'history', icon: 'history', label: 'History' },
+            { id: 'ledger', icon: 'receipt_long', label: 'Ledger' },
+          ].map(tab => (
+            <button
+              key={tab.id}
+              onClick={() => setActiveMobileTab(tab.id as any)}
+              className={`flex w-16 flex-col items-center justify-center gap-1 rounded-[20px] py-2 transition-all duration-200 ${activeMobileTab === tab.id ? 'bg-orange-500/12 text-orange-500 dark:bg-orange-500/16' : 'text-zinc-500 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-200'}`}
+            >
+               <span className={`material-symbols-outlined text-[20px] transition-transform duration-300 ${activeMobileTab === tab.id ? 'scale-110' : ''}`} style={activeMobileTab === tab.id ? { fontVariationSettings: "'FILL' 1" } : {}}>{tab.icon}</span>
+               <span className="text-[10px] font-bold uppercase tracking-wider mt-0.5">{tab.label}</span>
+            </button>
+          ))}
+        </nav>
+      </div>
 
       {vehicleModalOpen && (
         <ModalShell title="Add Vehicle" onClose={() => setVehicleModalOpen(false)}>
@@ -1951,15 +2166,15 @@ function ModalShell({
   size?: 'lg' | 'xl'
 }) {
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-zinc-950/35 px-4 py-8 backdrop-blur-sm">
-      <div className={`clay-panel w-full ${size === 'xl' ? 'max-w-5xl' : 'max-w-4xl'} p-6 sm:p-7`}>
-        <div className="flex items-center justify-between gap-4">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-zinc-950/35 px-4 py-8 backdrop-blur-sm pt-safe">
+      <div className={`clay-panel w-full ${size === 'xl' ? 'max-w-5xl' : 'max-w-4xl'} p-6 sm:p-7 flex flex-col max-h-[85vh]`}>
+        <div className="flex items-center justify-between gap-4 shrink-0">
           <h2 className="text-2xl font-semibold tracking-[-0.04em] text-zinc-900 dark:text-white">{title}</h2>
           <button onClick={onClose} className="clay-icon-button">
             <span className="material-symbols-outlined text-[18px]">close</span>
           </button>
         </div>
-        <div className="mt-6">{children}</div>
+        <div className="mt-6 flex-1 overflow-y-auto custom-scrollbar pr-2">{children}</div>
       </div>
     </div>
   )

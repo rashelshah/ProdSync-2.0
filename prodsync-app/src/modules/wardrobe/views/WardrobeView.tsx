@@ -279,6 +279,7 @@ export function WardrobeView() {
   const canManage = canManageWardrobeOperations(user)
   const canDeleteLogs = canDeleteWardrobeContinuity(user)
 
+  const [activeMobileTab, setActiveMobileTab] = useState<'dashboard' | 'inventory' | 'continuity' | 'laundry' | 'accessories'>('dashboard')
   const [feedback, setFeedback] = useState<ActionFeedbackState | null>(null)
   const [sceneFilter, setSceneFilter] = useState('')
   const [characterFilter, setCharacterFilter] = useState('')
@@ -542,10 +543,11 @@ export function WardrobeView() {
   }
 
   return (
-    <div className="page-shell space-y-6">
+    <div className="page-shell">
       <ActionFeedbackToast feedback={feedback} onDismiss={() => setFeedback(null)} />
 
-      <header className="page-header">
+      <div className="max-md:hidden space-y-6">
+        <header className="page-header">
         <div>
           <span className="page-kicker">Continuity Control</span>
           <h1 className="page-title page-title-compact">Wardrobe & Makeup</h1>
@@ -809,6 +811,370 @@ export function WardrobeView() {
             ))}
           </div>
         </Surface>
+      </div>
+      </div>
+
+      <div className="md:hidden mt-2 px-1 pb-[100px]">
+        <header className="px-3 mb-6">
+          <div className="overflow-hidden rounded-[28px] border border-zinc-200/80 bg-white/88 px-4 py-4 shadow-[0_18px_40px_rgba(15,23,42,0.08)] backdrop-blur-xl dark:border-white/8 dark:bg-zinc-900/82 dark:shadow-[0_20px_44px_rgba(0,0,0,0.32)]">
+            <span className="page-kicker text-orange-500">Costume Department</span>
+            <h1 className="page-title page-title-compact mt-2 mb-1 text-zinc-900 dark:text-white leading-tight">Wardrobe & Makeup</h1>
+            <p className="page-subtitle mt-2 text-zinc-500 dark:text-zinc-400">
+              Manage inventory, continuity, and laundry
+            </p>
+          </div>
+        </header>
+
+        {activeMobileTab === 'dashboard' && (
+          <div className="animate-in fade-in slide-in-from-bottom-2 duration-300 space-y-8 px-3 pb-[240px]">
+             <section className="grid grid-cols-2 gap-3 px-1 pb-2">
+                <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 p-4 rounded-xl shadow-md min-w-0">
+                  <span className="text-zinc-500 text-[10px] font-bold uppercase tracking-widest">In Use</span>
+                  <div className="text-4xl font-headline font-extrabold text-zinc-900 dark:text-white mt-1 break-all w-full">{inUseCount}</div>
+                </div>
+                <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 p-4 rounded-xl shadow-md min-w-0">
+                  <span className="text-zinc-500 text-[10px] font-bold uppercase tracking-widest">Ready</span>
+                  <div className="text-4xl font-headline font-extrabold text-emerald-400 mt-1 break-all w-full">{readyCount}</div>
+                </div>
+                <div className="col-span-2 bg-surface-container border border-red-500/20 bg-red-500/5 p-4 rounded-xl relative overflow-hidden shadow-md min-w-0">
+                   <div className="absolute top-0 right-0 p-2 opacity-20">
+                     <span className="material-symbols-outlined text-red-500 text-3xl">warning</span>
+                   </div>
+                   <span className="text-red-500 text-[10px] font-bold uppercase tracking-widest">Alerts</span>
+                   <div className="text-4xl font-headline font-extrabold text-red-500 mt-1 break-all w-full">{alerts.length.toString().padStart(2, '0')}</div>
+                </div>
+             </section>
+
+             {alerts.length > 0 && (
+               <section className="space-y-3 pt-6 pb-2">
+                 <h2 className="text-orange-500 text-[11px] font-bold uppercase tracking-[0.2em] mb-4 mt-2 px-1">Critical Alerts</h2>
+                 {alerts.map((alert, index) => {
+                   const splitMsg = alert.message.split('. ')
+                   const title = splitMsg[0]
+                   
+                   return (
+                     <div key={`${alert.timestamp}-${index}`} className="bg-red-500/5 dark:bg-red-950/20 border border-red-500/20 dark:border-red-900/50 p-5 rounded-[24px] flex gap-4 items-start shadow-sm">
+                       <span className="material-symbols-outlined text-red-500 shrink-0 mt-0.5" style={{ fontVariationSettings: "'FILL' 1" }}>warning</span>
+                       <div className="space-y-1.5">
+                         <p className="text-zinc-900 dark:text-white font-bold text-[15px] leading-tight pr-2">{title}</p>
+                         <p className="text-zinc-500 dark:text-zinc-400 text-xs leading-relaxed">{splitMsg.slice(1).join('. ') || 'Action required.'}</p>
+                       </div>
+                     </div>
+                   )
+                 })}
+               </section>
+             )}
+
+             {continuityLogs.length > 0 && (
+               <section>
+                 <h2 className="text-zinc-500 text-[11px] font-bold uppercase tracking-[0.2em] mb-4">Active Continuity</h2>
+                 <div className="bg-white dark:bg-zinc-900 rounded-xl overflow-hidden shadow-2xl border border-zinc-200 dark:border-zinc-800">
+                   <div className="relative h-64 bg-zinc-100 dark:bg-zinc-900">
+                     {continuityLogs[0].imageUrl ? (
+                       <img src={continuityLogs[0].imageUrl} alt="Continuity" className="w-full h-full object-cover" />
+                     ) : (
+                       <div className="flex h-full items-center justify-center text-zinc-600"><span className="material-symbols-outlined text-5xl">image</span></div>
+                     )}
+                     <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/90 via-black/40 to-transparent p-5">
+                       <div className="flex justify-between items-end">
+                         <div>
+                           <span className="bg-orange-500 text-black px-2 py-1 rounded text-[10px] font-bold uppercase mb-2 inline-block shadow-sm">Scene {continuityLogs[0].sceneNumber}</span>
+                           <h3 className="text-2xl font-headline font-extrabold text-zinc-900 dark:text-white truncate max-w-[200px]">{continuityLogs[0].characterName}</h3>
+                         </div>
+                         <span className="material-symbols-outlined text-white p-2.5 bg-zinc-800/80 backdrop-blur-md rounded-full shadow-lg">photo_camera</span>
+                       </div>
+                     </div>
+                   </div>
+                 </div>
+               </section>
+             )}
+
+             <section className="space-y-4">
+               <div className="flex justify-between items-center px-1">
+                 <h2 className="text-zinc-500 text-[11px] font-bold uppercase tracking-[0.2em]">Inventory Tracker</h2>
+                 <button onClick={() => setActiveMobileTab('inventory')} className="text-orange-500 text-[10px] font-bold uppercase tracking-wider">View All</button>
+               </div>
+               <div className="space-y-2">
+                 {inventory.slice(0, 3).map(item => (
+                   <div key={item.id} onClick={() => setInventoryEditTarget(item)} className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 shadow-sm dark:shadow-none p-4 rounded-[16px] flex items-center justify-between active:bg-zinc-800 transition-colors overflow-hidden">
+                     <div className="flex items-center gap-4 flex-1 min-w-0 pr-4">
+                       <div className="w-12 h-12 shrink-0 bg-zinc-100 dark:bg-black/40 border border-zinc-200 dark:border-zinc-800 rounded-[12px] flex items-center justify-center">
+                         <span className="material-symbols-outlined text-zinc-600 dark:text-zinc-400">checkroom</span>
+                       </div>
+                       <div className="min-w-0 flex-1">
+                         <p className="font-bold text-zinc-900 dark:text-white truncate text-sm">{item.costumeName}</p>
+                         <p className="text-[10px] text-zinc-500 uppercase font-medium tracking-wide truncate">{item.characterName ?? 'Unassigned'}</p>
+                       </div>
+                     </div>
+                     <div className="shrink-0">{inventoryBadge(item.status)}</div>
+                   </div>
+                 ))}
+               </div>
+             </section>
+
+             {laundry.length > 0 && (
+               <section className="space-y-4">
+                 <div className="flex justify-between items-center px-1">
+                   <h2 className="text-zinc-500 text-[11px] font-bold uppercase tracking-[0.2em]">Laundry Log</h2>
+                   <button onClick={() => setActiveMobileTab('laundry')} className="text-orange-500 text-[10px] font-bold uppercase tracking-wider">View All</button>
+                 </div>
+                 <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 shadow-sm dark:shadow-none p-5 rounded-[16px]">
+                   <div className="flex justify-between items-start mb-4">
+                     <div className="space-y-1">
+                       <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Batch ID</span>
+                       <p className="text-sm font-mono tracking-tight text-zinc-900 dark:text-white">{laundry[0].batchId}</p>
+                     </div>
+                     <div>{laundryBadge(laundry[0].status)}</div>
+                   </div>
+                   <div className="flex items-center gap-2 pt-2 mb-4">
+                     <div className="h-1 flex-1 bg-orange-500 rounded-full"></div>
+                     <div className="h-1 flex-1 bg-orange-500 rounded-full"></div>
+                     <div className="h-1 flex-1 bg-orange-500 rounded-full"></div>
+                     <div className="h-1 flex-1 bg-orange-500 rounded-full"></div>
+                   </div>
+                   <div className="flex justify-between text-[10px] font-bold text-zinc-500 uppercase tracking-widest mt-2">
+                     <span>Sent: {laundry[0].sentDate ? formatTime(laundry[0].sentDate) : ''}</span>
+                     <span>Expected: {laundry[0].expectedReturnDate ? formatTime(laundry[0].expectedReturnDate) : 'TBD'}</span>
+                   </div>
+                 </div>
+               </section>
+             )}
+
+             <section className="space-y-4">
+               <div className="flex justify-between items-center px-1">
+                 <h2 className="text-zinc-500 text-[11px] font-bold uppercase tracking-[0.2em]">Accessories Tracker</h2>
+                 <button onClick={() => setActiveMobileTab('accessories')} className="text-orange-500 text-[10px] font-bold uppercase tracking-wider">View All</button>
+               </div>
+               <div className="space-y-2">
+                 {accessories.slice(0, 3).map(item => (
+                   <div key={item.id} onClick={() => setAccessoryEditTarget(item)} className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 shadow-sm dark:shadow-none p-4 rounded-[16px] flex items-center justify-between active:bg-zinc-800 transition-colors overflow-hidden">
+                     <div className="flex items-center gap-4 flex-1 min-w-0 pr-4">
+                       <div className="w-12 h-12 shrink-0 bg-zinc-100 dark:bg-black/40 border border-zinc-200 dark:border-zinc-800 rounded-[12px] flex items-center justify-center">
+                         <span className="material-symbols-outlined text-orange-500" style={{ fontVariationSettings: "'FILL' 1" }}>diamond</span>
+                       </div>
+                       <div className="min-w-0 flex-1">
+                         <p className="font-bold text-zinc-900 dark:text-white truncate text-sm">{item.itemName}</p>
+                         <p className="text-[10px] text-zinc-500 uppercase font-medium tracking-wide truncate">{item.category}</p>
+                       </div>
+                     </div>
+                     <div className="shrink-0">{accessoryBadge(item.status)}</div>
+                   </div>
+                 ))}
+               </div>
+             </section>
+
+             <section className="pb-8">
+               <h2 className="text-zinc-500 text-[11px] font-bold uppercase tracking-[0.2em] mb-4">Recent Activity</h2>
+               <div className="space-y-6 pl-4 border-l-2 border-zinc-800">
+                 {recentActivity.slice(0, 3).map((item, index) => (
+                   <div key={item.id} className="relative">
+                     <div className={`absolute -left-[22px] top-0 w-3 h-3 rounded-full ${index === 0 ? 'bg-orange-500' : 'bg-zinc-700'} ring-4 ring-zinc-950`}></div>
+                     <p className="text-xs text-zinc-500">{timeAgo(item.timestamp)}</p>
+                     <p className="text-sm font-medium mt-1 text-zinc-900 dark:text-white opacity-90">{item.title} <span className="text-orange-400 font-bold ml-1">{item.subtitle}</span></p>
+                   </div>
+                 ))}
+               </div>
+             </section>
+
+             {canManage && (
+               <div className="fixed bottom-[96px] left-3 right-3 z-30">
+                 <div className="flex flex-col gap-3 bg-white/90 dark:bg-[#0e0e0e]/85 p-4 rounded-[32px] border border-zinc-200/80 dark:border-white/5 shadow-2xl backdrop-blur-2xl">
+                   <button onClick={() => setContinuityModalOpen(true)} className="w-full h-[56px] rounded-[16px] bg-orange-500 text-black font-bold flex items-center justify-center gap-2 active:scale-95 duration-200 shadow-lg" style={{ fontFamily: 'Manrope, sans-serif' }}>
+                     <span className="material-symbols-outlined font-bold">upload_file</span>
+                     Upload Continuity
+                   </button>
+                   <div className="grid grid-cols-3 gap-3">
+                     <button onClick={() => setLaundryModalOpen(true)} className="h-[64px] bg-zinc-50 dark:bg-[#1c1c1e]/90 border border-zinc-200 dark:border-white/5 text-zinc-900 dark:text-white font-bold text-[10px] rounded-[16px] flex flex-col items-center justify-center gap-1.5 active:scale-95 duration-200 uppercase shadow-sm">
+                       <span className="material-symbols-outlined text-orange-500 text-[22px]">local_laundry_service</span>
+                       Laundry
+                     </button>
+                     <button onClick={() => setAccessoryModalOpen(true)} className="h-[64px] bg-zinc-50 dark:bg-[#1c1c1e]/90 border border-zinc-200 dark:border-white/5 text-zinc-900 dark:text-white font-bold text-[10px] rounded-[16px] flex flex-col items-center justify-center gap-1.5 active:scale-95 duration-200 uppercase shadow-sm">
+                       <span className="material-symbols-outlined text-orange-500 text-[22px]">diamond</span>
+                       Accessory
+                     </button>
+                     <button onClick={() => setInventoryModalOpen(true)} className="h-[64px] bg-zinc-50 dark:bg-[#1c1c1e]/90 border border-zinc-200 dark:border-white/5 text-zinc-900 dark:text-white font-bold text-[10px] rounded-[16px] flex flex-col items-center justify-center gap-1.5 active:scale-95 duration-200 uppercase shadow-sm">
+                       <span className="material-symbols-outlined text-orange-500 text-[22px]">checkroom</span>
+                       Costume
+                     </button>
+                   </div>
+                 </div>
+               </div>
+             )}
+           </div>
+        )}
+
+        {/* Inventory Page */}
+        {activeMobileTab === 'inventory' && (
+          <div className="animate-in fade-in slide-in-from-right-2 duration-300 space-y-6 px-3">
+             <div className="space-y-3">
+               {inventory.length === 0 ? (
+                 <div className="pt-8 text-center"><p className="text-sm text-zinc-400">No inventory tracked yet.</p></div>
+               ) : inventory.map(item => (
+                 <div key={item.id} onClick={() => setInventoryEditTarget(item)} className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 shadow-sm dark:shadow-none p-4 rounded-[16px] flex items-center justify-between active:bg-zinc-800 transition-colors overflow-hidden">
+                   <div className="flex items-center gap-4 flex-1 min-w-0 pr-4">
+                     <div className="w-12 h-12 shrink-0 bg-zinc-100 dark:bg-black/40 border border-zinc-200 dark:border-zinc-800 rounded-[12px] flex items-center justify-center">
+                       <span className="material-symbols-outlined text-zinc-600 dark:text-zinc-400">checkroom</span>
+                     </div>
+                     <div className="min-w-0 flex-1">
+                       <p className="font-bold text-zinc-900 dark:text-white truncate text-sm">{item.costumeName}</p>
+                       <p className="text-[10px] text-zinc-500 uppercase font-medium tracking-wide truncate">{item.characterName ?? 'Unassigned'}</p>
+                     </div>
+                   </div>
+                   <div className="shrink-0">{inventoryBadge(item.status)}</div>
+                 </div>
+               ))}
+             </div>
+             {canManage && (
+               <div className="pb-8">
+                 <button onClick={() => setInventoryModalOpen(true)} className="w-full h-[56px] bg-zinc-100 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 text-orange-500 font-bold text-sm rounded-[16px] flex items-center justify-center gap-2 active:scale-95 duration-200 uppercase tracking-wide shadow-sm">
+                   <span className="material-symbols-outlined text-orange-500">add</span>
+                   Add Costume
+                 </button>
+               </div>
+             )}
+          </div>
+        )}
+
+        {/* Continuity Page */}
+        {activeMobileTab === 'continuity' && (
+          <div className="animate-in fade-in slide-in-from-right-2 duration-300 space-y-6 px-3">
+             <div className="flex gap-2">
+               <div className="flex-1 project-modal-input-shell"><input value={sceneFilter} onChange={event => setSceneFilter(event.target.value)} placeholder="Filter by scene..." className="project-modal-input h-[48px] bg-zinc-100 dark:bg-zinc-900/50" /></div>
+               <button className="h-[48px] w-[48px] flex shrink-0 items-center justify-center rounded-[12px] bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 shadow-sm dark:shadow-none active:bg-zinc-100 dark:active:bg-zinc-800 transition-colors text-zinc-800 dark:text-zinc-300"><span className="material-symbols-outlined">filter_list</span></button>
+             </div>
+             <div className="space-y-4">
+               {continuityLogs.length === 0 ? (
+                 <div className="pt-8 text-center"><p className="text-sm text-zinc-400">No continuity logs yet.</p></div>
+               ) : continuityLogs.map(log => (
+                  <div key={log.id} className="bg-white dark:bg-zinc-900 rounded-[16px] overflow-hidden shadow-sm border border-zinc-200 dark:border-zinc-800">
+                    <div className="relative h-[320px] bg-zinc-100 dark:bg-zinc-900">
+                      {log.imageUrl ? (
+                        <img src={log.imageUrl} alt="Continuity" className="w-full h-full object-cover" />
+                      ) : (
+                        <div className="flex h-full items-center justify-center text-zinc-600"><span className="material-symbols-outlined text-5xl">image</span></div>
+                      )}
+                      <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/90 via-black/40 to-transparent p-5">
+                        <div className="flex justify-between items-end">
+                          <div>
+                            <span className="bg-orange-500 text-black px-2 py-1 rounded text-[10px] font-bold uppercase mb-2 inline-block shadow-sm">Scene {log.sceneNumber}</span>
+                            <h3 className="text-2xl font-headline font-extrabold text-zinc-900 dark:text-white truncate max-w-[200px]">{log.characterName}</h3>
+                          </div>
+                          {canDeleteLogs && (
+                            <button onClick={() => {
+                              if (window.confirm('Remove this continuity log?')) {
+                                void deleteContinuityMutation.mutateAsync({ projectId: activeProjectId, id: log.id })
+                              }
+                            }} className="material-symbols-outlined text-white p-2.5 bg-red-500/80 backdrop-blur-md rounded-full shadow-lg active:scale-90 transition-transform">delete</button>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+               ))}
+             </div>
+             {canManage && (
+               <div className="pb-8">
+                 <button onClick={() => setContinuityModalOpen(true)} className="w-full h-[56px] rounded-[16px] bg-orange-500 text-black font-bold text-sm flex items-center justify-center gap-2 active:scale-95 duration-200 uppercase tracking-wide shadow-lg">
+                   <span className="material-symbols-outlined font-bold">upload_file</span>
+                   Upload Continuity
+                 </button>
+               </div>
+             )}
+          </div>
+        )}
+
+        {/* Laundry Page */}
+        {activeMobileTab === 'laundry' && (
+          <div className="animate-in fade-in slide-in-from-right-2 duration-300 space-y-6 px-3">
+             <div className="space-y-4">
+               {laundry.length === 0 ? (
+                 <div className="pt-8 text-center"><p className="text-sm text-zinc-400">No laundry batches tracked yet.</p></div>
+               ) : laundry.map(batch => (
+                 <div key={batch.id} onClick={() => setLaundryEditTarget(batch)} className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 shadow-sm dark:shadow-none p-5 rounded-[16px] active:bg-zinc-800 transition-colors">
+                   <div className="flex justify-between items-start mb-4">
+                     <div className="space-y-1 pr-4">
+                       <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Batch ID</span>
+                       <p className="text-sm font-mono tracking-tight text-zinc-900 dark:text-white truncate max-w-full">{batch.batchId}</p>
+                     </div>
+                     <div className="shrink-0">{laundryBadge(batch.status)}</div>
+                   </div>
+                   <p className="text-zinc-400 text-xs mb-4 line-clamp-2">{batch.items.join(', ')}</p>
+                   <div className="flex flex-col gap-2">
+                     <div className="w-full h-1.5 flex gap-1 rounded-full">
+                        <div className={`h-full flex-1 rounded-full ${batch.status === 'sent' || batch.status === 'in_cleaning' || batch.status === 'returned' || batch.status === 'delayed' ? 'bg-orange-500' : 'bg-zinc-800'}`}></div>
+                        <div className={`h-full flex-1 rounded-full ${batch.status === 'in_cleaning' || batch.status === 'returned' ? 'bg-orange-500' : 'bg-zinc-800'}`}></div>
+                        <div className={`h-full flex-1 rounded-full ${batch.status === 'returned' ? 'bg-orange-500' : 'bg-zinc-800'}`}></div>
+                     </div>
+                   </div>
+                   <div className="flex justify-between text-[10px] font-bold text-zinc-500 uppercase tracking-widest mt-4">
+                     <span>Sent: {batch.sentDate ? formatTime(batch.sentDate) : ''}</span>
+                     <span>Expected: {batch.expectedReturnDate ? formatTime(batch.expectedReturnDate) : 'TBD'}</span>
+                   </div>
+                 </div>
+               ))}
+             </div>
+             {canManage && (
+               <div className="pb-8">
+                 <button onClick={() => setLaundryModalOpen(true)} className="w-full h-[56px] bg-zinc-100 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 text-orange-500 font-bold text-sm rounded-[16px] flex items-center justify-center gap-2 active:scale-95 duration-200 uppercase tracking-wide shadow-sm">
+                   <span className="material-symbols-outlined text-orange-500">add</span>
+                   New Laundry Batch
+                 </button>
+               </div>
+             )}
+          </div>
+        )}
+
+        {/* Accessories Page */}
+        {activeMobileTab === 'accessories' && (
+          <div className="animate-in fade-in slide-in-from-right-2 duration-300 space-y-6 px-3">
+             <div className="space-y-3">
+               {accessories.length === 0 ? (
+                 <div className="pt-8 text-center"><p className="text-sm text-zinc-400">No accessories tracked yet.</p></div>
+               ) : accessories.map(item => (
+                 <div key={item.id} onClick={() => setAccessoryEditTarget(item)} className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 shadow-sm dark:shadow-none p-4 rounded-[16px] flex items-center justify-between active:bg-zinc-800 transition-colors overflow-hidden">
+                   <div className="flex items-center gap-4 flex-1 min-w-0 pr-4">
+                     <div className="w-12 h-12 shrink-0 bg-zinc-100 dark:bg-black/40 border border-zinc-200 dark:border-zinc-800 rounded-[12px] flex items-center justify-center">
+                       <span className="material-symbols-outlined text-orange-500" style={{ fontVariationSettings: "'FILL' 1" }}>diamond</span>
+                     </div>
+                     <div className="min-w-0 flex-1">
+                       <p className="font-bold text-zinc-900 dark:text-white truncate text-sm">{item.itemName}</p>
+                       <p className="text-[10px] text-zinc-500 uppercase font-medium tracking-wide truncate">{item.category}</p>
+                     </div>
+                   </div>
+                   <div className="shrink-0">{accessoryBadge(item.status)}</div>
+                 </div>
+               ))}
+             </div>
+             {canManage && (
+               <div className="pb-8">
+                 <button onClick={() => setAccessoryModalOpen(true)} className="w-full h-[56px] bg-zinc-100 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 text-orange-500 font-bold text-sm rounded-[16px] flex items-center justify-center gap-2 active:scale-95 duration-200 uppercase tracking-wide shadow-sm">
+                   <span className="material-symbols-outlined text-orange-500">add</span>
+                   Add Accessory
+                 </button>
+               </div>
+             )}
+          </div>
+        )}
+
+        {/* Bottom Navigation */}
+        <nav className="fixed bottom-3 left-3 right-3 z-40 mx-auto flex h-[80px] max-w-md items-center justify-around rounded-[30px] border border-zinc-200/80 bg-white/88 px-2 pb-safe shadow-[0_18px_40px_rgba(15,23,42,0.12)] backdrop-blur-2xl dark:border-white/8 dark:bg-zinc-950/82 dark:shadow-[0_18px_44px_rgba(0,0,0,0.34)]">
+          {[
+            { id: 'dashboard', icon: 'dashboard', label: 'Home' },
+            { id: 'inventory', icon: 'inventory_2', label: 'Inventory' },
+            { id: 'continuity', icon: 'camera_roll', label: 'Continuity' },
+            { id: 'laundry', icon: 'local_laundry_service', label: 'Laundry' },
+            { id: 'accessories', icon: 'diamond', label: 'Accessories' },
+          ].map(tab => (
+            <button
+              key={tab.id}
+              onClick={() => setActiveMobileTab(tab.id as any)}
+              className={`flex flex-1 flex-col items-center justify-center gap-1 rounded-[20px] py-1.5 transition-all duration-200 ${activeMobileTab === tab.id ? 'bg-orange-500/12 text-orange-500 dark:bg-orange-500/16' : 'text-zinc-500 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-200'}`}
+            >
+               <span className={`material-symbols-outlined text-[20px] transition-transform duration-300 ${activeMobileTab === tab.id ? 'scale-110' : ''}`} style={activeMobileTab === tab.id ? { fontVariationSettings: "'FILL' 1" } : {}}>{tab.icon}</span>
+               <span className="text-[9px] font-bold uppercase tracking-tight mt-0.5">{tab.label}</span>
+            </button>
+          ))}
+        </nav>
       </div>
 
       <ModalShell

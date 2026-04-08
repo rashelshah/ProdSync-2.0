@@ -11,6 +11,7 @@ export function AppLayout({ children }: { children?: ReactNode }) {
     if (typeof window === 'undefined') return false
     return window.localStorage.getItem('prodsync.sidebar.collapsed') === 'true'
   })
+  const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false)
 
   useEffect(() => {
     window.localStorage.setItem('prodsync.sidebar.collapsed', String(isSidebarCollapsed))
@@ -24,6 +25,8 @@ export function AppLayout({ children }: { children?: ReactNode }) {
         isCollapsed={isSidebarCollapsed}
         onToggle={() => setIsSidebarCollapsed(current => !current)}
         width={sidebarWidth}
+        isMobileOpen={isMobileSidebarOpen}
+        onMobileClose={() => setIsMobileSidebarOpen(false)}
       />
 
       <div
@@ -34,6 +37,7 @@ export function AppLayout({ children }: { children?: ReactNode }) {
           isSidebarCollapsed={isSidebarCollapsed}
           onToggleSidebar={() => setIsSidebarCollapsed(current => !current)}
           sidebarOffset={sidebarWidth}
+          onToggleMobileSidebar={() => setIsMobileSidebarOpen(current => !current)}
         />
 
         <main className="relative pt-24 max-md:pt-4">
