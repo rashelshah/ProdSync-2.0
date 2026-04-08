@@ -1,0 +1,15 @@
+{
+  "name": "ProdSync-2.0",
+  "private": true,
+  "workspaces": [
+    "backend"
+  ],
+  "scripts": {
+    "build": "npm run build --workspace backend",
+    "start": "npm run start --workspace backend",
+    "dev": "npm run dev --workspace backend"
+  },
+  "engines": {
+    "node": ">=20.11.0"
+  }
+}
