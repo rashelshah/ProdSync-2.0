@@ -13,6 +13,7 @@ import { activityRouter } from './modules/activity/activity.routes'
 import { artRouter } from './modules/art/art.routes'
 import { cameraRouter } from './modules/camera/camera.routes'
 import { wardrobeRouter } from './modules/wardrobe/wardrobe.routes'
+import { reportsRouter } from './modules/reports/reports.routes'
 import { HttpError } from './utils/httpError'
 import { transportRouter } from './routes/transport.routes'
 import { ZodError } from 'zod'
@@ -44,6 +45,7 @@ export function createApp() {
   app.use('/api/art', artRouter)
   app.use('/api/camera', cameraRouter)
   app.use('/api/wardrobe', wardrobeRouter)
+  app.use('/api/reports', reportsRouter)
   app.use('/api', transportRouter)
 
   app.use((_req, _res, next) => {

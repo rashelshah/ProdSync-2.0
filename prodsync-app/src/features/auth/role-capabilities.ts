@@ -109,6 +109,14 @@ export function canApproveArtExpense(user: UserLike) {
   return isProducerUser(user)
 }
 
+export function canAccessReportsWorkspace(user: UserLike) {
+  return Boolean(
+    isProducerUser(user)
+      || user?.role === 'HOD'
+      || hasProjectRole(user, ['DOP', 'Art Director', 'Transport Captain', 'Costume Supervisor', 'Editor', 'Production Manager']),
+  )
+}
+
 export function isCostumeSupervisor(user: UserLike) {
   return Boolean(
     hasProjectRole(user, ['Costume Supervisor'])

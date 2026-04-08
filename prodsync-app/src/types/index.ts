@@ -377,3 +377,65 @@ export interface AlertItem {
   timestamp: Date | string
   acknowledged: boolean
 }
+
+// Reports
+
+export type ReportSeverity = 'GREEN' | 'YELLOW' | 'RED'
+export type ReportHealth = 'green' | 'yellow' | 'red'
+
+export interface ReportBurnChartPoint {
+  date: string
+  actual: number
+  planned: number
+  transport: number
+  crew: number
+  camera: number
+  art: number
+  wardrobe: number
+  post: number
+  production: number
+}
+
+export interface ReportDepartmentRow {
+  department: string
+  label: string
+  spent: number
+  budget: number
+  variance: number
+  pendingApprovals: number
+  overtimeLiability: number
+  share: number
+  status: ReportHealth
+}
+
+export interface ReportAlert {
+  id: string
+  type: string
+  severity: ReportSeverity
+  message: string
+  department: string | null
+  createdAt: string
+  resolved: boolean
+}
+
+export interface ReportScope {
+  type: 'full' | 'department'
+  departments: string[]
+  label: string
+}
+
+export interface ReportSummary {
+  totalSpend: number
+  budget: number
+  variance: number
+  cashFlow: number
+  predictedTotal: number
+  pendingApprovals: number
+  overtimeLiability: number
+  activeCrewCount: number
+  burnRate: ReportBurnChartPoint[]
+  alerts: ReportAlert[]
+  health: ReportHealth
+  scope: ReportScope
+  lastUpdated: string
+}

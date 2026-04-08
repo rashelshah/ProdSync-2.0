@@ -1,5 +1,5 @@
 import type { User, UserRole } from '@/types'
-import { canAccessArtWorkspace, canAccessCameraWorkspace, isProducerUser } from './role-capabilities'
+import { canAccessArtWorkspace, canAccessCameraWorkspace, canAccessReportsWorkspace, isProducerUser } from './role-capabilities'
 
 export type AppRouteId =
   | 'dashboard'
@@ -69,7 +69,7 @@ export function canAccessRoute(user: User, routeId: AppRouteId) {
     case 'approvals':
       return isProducerUser(user)
     case 'reports':
-      return isProducerUser(user)
+      return canAccessReportsWorkspace(user)
     case 'settings':
       return isProducerUser(user)
     default:
