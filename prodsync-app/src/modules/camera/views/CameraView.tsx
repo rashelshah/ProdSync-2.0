@@ -1431,23 +1431,18 @@ export function CameraView() {
               </div>
               <div className="grid grid-cols-2 gap-3">
                 {[
-                  { label: 'Wishlist', value: wishlist.length, icon: 'favorite', tone: 'text-orange-500' },
-                  { label: 'Pending', value: pendingRequests.length, icon: 'hourglass_empty', tone: 'text-amber-500' },
-                  { label: 'Checked In', value: checkedInAssets.length, icon: 'task_alt', tone: 'text-emerald-500' },
-                  { label: 'Checked Out', value: checkedOutAssets.length, icon: 'move_item', tone: 'text-sky-500' },
-                  { label: 'Damage/Loss', value: damageReports.length, icon: 'report', tone: 'text-red-500' },
+                  { label: 'Wishlist', value: wishlist.length },
+                  { label: 'Pending', value: pendingRequests.length },
+                  { label: 'Checked In', value: checkedInAssets.length },
+                  { label: 'Checked Out', value: checkedOutAssets.length },
+                  { label: 'Damage/Loss', value: damageReports.length },
                 ].map(card => (
                   <div
                     key={card.label}
-                    className="rounded-[24px] border border-zinc-200/80 bg-gradient-to-br p-4 shadow-[0_16px_34px_rgba(15,23,42,0.08)] dark:border-white/8 dark:shadow-[0_18px_36px_rgba(0,0,0,0.26)]"
+                    className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 p-4 rounded-xl shadow-md min-w-0 flex flex-col justify-between"
                   >
-                    <div className="flex items-start justify-between gap-3">
-                      <span className="text-[10px] font-bold uppercase tracking-[0.22em] text-zinc-500 dark:text-zinc-400">{card.label}</span>
-                      <span className={`material-symbols-outlined text-[20px] ${card.tone}`}>{card.icon}</span>
-                    </div>
-                    <div className="mt-5 flex items-end justify-between">
-                      <span className="text-3xl font-black tracking-tight text-zinc-900 dark:text-white">{card.value}</span>
-                    </div>
+                    <span className="text-zinc-500 text-[10px] font-bold uppercase tracking-widest">{card.label}</span>
+                    <div className="font-headline font-extrabold text-zinc-900 dark:text-white mt-1 break-words w-full tracking-tighter" style={{ fontSize: String(card.value).length > 10 ? '1.35rem' : String(card.value).length > 6 ? '1.7rem' : '2rem' }}>{card.value}</div>
                   </div>
                 ))}
               </div>

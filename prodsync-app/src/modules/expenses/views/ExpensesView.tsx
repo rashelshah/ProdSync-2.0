@@ -1655,15 +1655,10 @@ export function ExpensesView() {
                 {mobileStats.map(card => (
                   <div
                     key={card.label}
-                    className="rounded-[24px] border border-zinc-200/80 bg-gradient-to-br p-4 shadow-[0_16px_34px_rgba(15,23,42,0.08)] dark:border-white/8 dark:shadow-[0_18px_36px_rgba(0,0,0,0.26)]"
+                    className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 p-4 rounded-xl shadow-md min-w-0 flex flex-col justify-between"
                   >
-                    <div className="flex items-start justify-between gap-3">
-                      <span className="text-[10px] font-bold uppercase tracking-[0.22em] text-zinc-500 dark:text-zinc-400">{card.label}</span>
-                      <span className={`material-symbols-outlined text-[20px] ${card.tone}`}>{card.icon}</span>
-                    </div>
-                    <div className="mt-4 flex items-end justify-between">
-                      <span className="text-2xl font-black tracking-tight text-zinc-900 dark:text-white break-all block w-full">{card.value}</span>
-                    </div>
+                    <span className="text-zinc-500 text-[10px] font-bold uppercase tracking-widest">{card.label}</span>
+                    <div className="font-headline font-extrabold text-zinc-900 dark:text-white mt-1 break-words w-full tracking-tighter" style={{ fontSize: String(card.value).length > 10 ? '1.35rem' : String(card.value).length > 6 ? '1.7rem' : '2rem' }}>{card.value}</div>
                   </div>
                 ))}
               </div>
@@ -1691,26 +1686,34 @@ export function ExpensesView() {
               </section>
             )}
 
-            <div className="grid grid-cols-2 gap-3 pt-2">
-              {canCreateExpenses && (
-                <button onClick={openExpenseModal} className="col-span-2 flex min-h-[72px] flex-col items-center justify-center gap-1 rounded-[22px] bg-gradient-to-r from-orange-500 to-orange-400 py-4 text-black shadow-[0_16px_28px_rgba(249,115,22,0.28)] transition-all active:scale-95">
-                  <span className="material-symbols-outlined mb-0.5 text-2xl">payments</span>
-                  <span className="font-label text-[11px] font-black uppercase tracking-wider">Add Expense</span>
-                </button>
-              )}
-              {canManagePropsAccess && (
-                <button onClick={openCreatePropModal} className="flex min-h-[72px] flex-col items-center justify-center gap-1 rounded-[22px] border border-zinc-200 bg-white py-4 text-zinc-900 shadow-[0_14px_24px_rgba(15,23,42,0.08)] transition-all active:scale-95 dark:border-zinc-700 dark:bg-zinc-900 dark:text-white">
-                  <span className="material-symbols-outlined mb-0.5 text-2xl text-orange-500">category</span>
-                  <span className="font-label text-[11px] font-bold uppercase tracking-wider text-orange-500">Add Prop</span>
-                </button>
-              )}
-              {canManageSetsAccess && (
-                <button onClick={openCreateSetModal} className="flex min-h-[72px] flex-col items-center justify-center gap-1 rounded-[22px] border border-zinc-200 bg-white py-4 text-zinc-900 shadow-[0_14px_24px_rgba(15,23,42,0.08)] transition-all active:scale-95 dark:border-zinc-700 dark:bg-zinc-900 dark:text-white">
-                  <span className="material-symbols-outlined mb-0.5 text-2xl text-orange-500">foundation</span>
-                  <span className="font-label text-[11px] font-bold uppercase tracking-wider text-orange-500">Add Set</span>
-                </button>
-              )}
-            </div>
+            {(canCreateExpenses || canManagePropsAccess || canManageSetsAccess) && (
+              <div className="fixed bottom-[96px] left-3 right-3 z-30">
+                <div className="flex flex-col gap-3 bg-white/90 dark:bg-[#0e0e0e]/85 p-4 rounded-[32px] border border-zinc-200/80 dark:border-white/5 shadow-2xl backdrop-blur-2xl">
+                  {canCreateExpenses && (
+                    <button onClick={openExpenseModal} className="w-full h-[56px] rounded-[16px] bg-orange-500 text-black font-bold flex items-center justify-center gap-2 active:scale-95 duration-200 shadow-lg" style={{ fontFamily: 'Manrope, sans-serif' }}>
+                      <span className="material-symbols-outlined font-bold text-[22px]">receipt_long</span>
+                      Add Expense
+                    </button>
+                  )}
+                  {(canManagePropsAccess || canManageSetsAccess) && (
+                    <div className="grid grid-cols-2 gap-3">
+                      {canManagePropsAccess && (
+                        <button onClick={openCreatePropModal} className="h-[64px] bg-zinc-50 dark:bg-[#1c1c1e]/90 border border-zinc-200 dark:border-white/5 text-zinc-900 dark:text-white font-bold text-[10px] rounded-[16px] flex flex-col items-center justify-center gap-1.5 active:scale-95 duration-200 uppercase shadow-sm">
+                          <span className="material-symbols-outlined text-orange-500 text-[22px]">category</span>
+                          Props
+                        </button>
+                      )}
+                      {canManageSetsAccess && (
+                        <button onClick={openCreateSetModal} className="h-[64px] bg-zinc-50 dark:bg-[#1c1c1e]/90 border border-zinc-200 dark:border-white/5 text-zinc-900 dark:text-white font-bold text-[10px] rounded-[16px] flex flex-col items-center justify-center gap-1.5 active:scale-95 duration-200 uppercase shadow-sm">
+                          <span className="material-symbols-outlined text-orange-500 text-[22px]">foundation</span>
+                          Sets
+                        </button>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
         </div>
         )}
 
@@ -1733,13 +1736,13 @@ export function ExpensesView() {
                 <div className="space-y-3">
                   {expenses.map(expense => (
                     <div key={expense.id} className="bg-white dark:bg-zinc-900 p-4 rounded-xl flex flex-col gap-3 shadow-lg border border-zinc-200 dark:border-zinc-800">
-                      <div className="flex justify-between items-start">
-                        <div className="flex items-start gap-4">
+                      <div className="flex justify-between items-start gap-4">
+                        <div className="flex items-start gap-4 flex-1 min-w-0">
                           <div className="w-10 h-10 bg-zinc-100 dark:bg-zinc-800 rounded-lg flex items-center justify-center flex-shrink-0">
                              <span className="material-symbols-outlined text-zinc-500 dark:text-zinc-400">receipt_long</span>
                           </div>
-                          <div>
-                             <h3 className="font-bold text-sm text-zinc-900 dark:text-white">{expense.description}</h3>
+                          <div className="flex-1 min-w-0">
+                             <h3 className="font-bold text-sm text-zinc-900 dark:text-white truncate">{expense.description}</h3>
                              <div className="flex items-center gap-2 mt-1">
                                <div className="scale-90 origin-left">
                                  {expenseValidationBadge(expense)}
@@ -1775,7 +1778,7 @@ export function ExpensesView() {
                              <p className="text-[10px] text-zinc-500 mt-1 capitalize">{expenseCategoryLabel(expense.category)} • Qty: {expense.quantity}</p>
                           </div>
                         </div>
-                        <div className="text-right">
+                        <div className="text-right shrink-0">
                            <div className="text-lg font-black text-zinc-900 dark:text-white">{formatCurrency(expense.manualAmount)}</div>
                            <div className="text-[10px] text-zinc-500 mt-1">{formatDate(expense.createdAt)}</div>
                         </div>
