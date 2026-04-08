@@ -1056,34 +1056,6 @@ export function TransportView() {
                 loading={trackingLoading}
               />
 
-              <div className="mt-5 rounded-[24px] border border-zinc-200 bg-zinc-50 px-5 py-5 dark:border-zinc-800 dark:bg-zinc-950">
-                <div className="flex flex-wrap items-center justify-between gap-3">
-                  <div>
-                    <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-zinc-500 dark:text-zinc-400">Active Fleet</p>
-                    <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-300">
-                      Vehicles animate between checkpoints, and trips pause intermediate updates automatically once they enter the final 5-8 km band without depending on Mapbox.
-                    </p>
-                  </div>
-                  <StatusBadge variant={liveLocations.length > 0 ? 'live' : 'pending'} label={`${liveLocations.length} live`} />
-                </div>
-
-                <div className="mt-4 flex flex-wrap gap-2">
-                  {liveLocations.length === 0 ? (
-                    <span className="text-sm text-zinc-500 dark:text-zinc-400">
-                      No active vehicles are streaming right now. The map wakes up as soon as the next trip checkpoint arrives.
-                    </span>
-                  ) : (
-                    liveLocations.map(location => (
-                      <span
-                        key={location.vehicleId}
-                        className="inline-flex items-center rounded-full border border-zinc-200 bg-white px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-zinc-700 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-200"
-                      >
-                        {location.vehicleName} | {location.driverName ?? 'Driver'} | {location.registrationNumber ?? 'No number'}
-                      </span>
-                    ))
-                  )}
-                </div>
-              </div>
             </Surface>
           )}
 
@@ -1259,14 +1231,14 @@ export function TransportView() {
         </header>
 
         {activeMobileTab === 'home' && (
-          <div className="animate-in fade-in slide-in-from-bottom-2 duration-300 space-y-8 px-3">
+          <div className="animate-in fade-in slide-in-from-bottom-2 duration-300 space-y-8 px-3 pt-6 pb-[240px]">
              <section className="grid grid-cols-2 gap-3 px-1 pb-2">
-                <div className="bg-surface-container border border-outline-variant/10 p-4 rounded-xl shadow-md min-w-0">
+                <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 p-4 rounded-xl shadow-md min-w-0">
                   <span className="text-zinc-500 text-[10px] font-bold uppercase tracking-widest">In Transit</span>
-                  <div className="text-4xl font-headline font-extrabold text-white mt-1 break-all w-full">{kpis.inTransit}</div>
+                  <div className="text-4xl font-headline font-extrabold text-zinc-900 dark:text-white mt-1 break-all w-full">{kpis.inTransit}</div>
                 </div>
-                <div className="bg-surface-container border border-amber-500/20 bg-amber-500/5 p-4 rounded-xl shadow-md min-w-0">
-                  <span className="text-amber-500 text-[10px] font-bold uppercase tracking-widest">Idle</span>
+                <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 p-4 rounded-xl shadow-md min-w-0">
+                  <span className="text-zinc-500 text-[10px] font-bold uppercase tracking-widest">Idle</span>
                   <div className="text-4xl font-headline font-extrabold text-amber-500 mt-1 break-all w-full">{kpis.idleVehicles}</div>
                 </div>
                 <div className="col-span-2 bg-surface-container border border-red-500/20 bg-red-500/5 p-4 rounded-xl relative overflow-hidden shadow-md min-w-0">
@@ -1278,55 +1250,213 @@ export function TransportView() {
                 </div>
              </section>
 
-             {alerts.filter(a => a.severity === 'critical').length > 0 && (
-               <section className="space-y-3">
-                 {alerts.filter(a => a.severity === 'critical').map((alert, index) => (
-                   <div key={`${alert.triggeredAt}-${index}`} className="bg-red-500/10 border border-red-500/20 p-4 rounded-xl flex gap-4 items-start">
-                     <span className="material-symbols-outlined text-red-500 shrink-0" style={{ fontVariationSettings: "'FILL' 1" }}>warning</span>
-                     <div className="space-y-1">
-                       <p className="text-white font-bold text-sm leading-tight">{transportAlertTitle(alert)}</p>
-                       <p className="text-zinc-400 text-xs">{formatTime(alert.triggeredAt)}</p>
+             {alerts.length > 0 && (
+               <section className="space-y-3 pt-6 pb-2">
+                 <h2 className="text-orange-500 text-[11px] font-bold uppercase tracking-[0.2em] mb-4 mt-2 px-1">Critical Alerts</h2>
+                 {alerts.map((alert, index) => {
+                   const splitMsg = transportAlertTitle(alert).split('. ')
+                   const title = splitMsg[0]
+                   
+                   return (
+                     <div key={`${alert.triggeredAt}-${index}`} className="bg-red-500/5 dark:bg-red-950/20 border border-red-500/20 dark:border-red-900/50 p-5 rounded-[24px] flex gap-4 items-start shadow-sm">
+                       <span className="material-symbols-outlined text-red-500 shrink-0 mt-0.5" style={{ fontVariationSettings: "'FILL' 1" }}>warning</span>
+                       <div className="space-y-1.5">
+                         <p className="text-zinc-900 dark:text-white font-bold text-[15px] leading-tight pr-2">{title}</p>
+                         <p className="text-zinc-500 dark:text-zinc-400 text-xs leading-relaxed">{splitMsg.slice(1).join('. ') || 'Action required.'}</p>
+                       </div>
                      </div>
-                   </div>
-                 ))}
+                   )
+                 })}
                </section>
              )}
 
-             <section>
-               <h2 className="text-zinc-500 text-[11px] font-bold uppercase tracking-[0.2em] mb-4">Live Map</h2>
-               <div className="bg-surface-container rounded-xl overflow-hidden shadow-2xl border border-outline-variant/10 h-64 relative">
-                 <div className="absolute inset-0 z-0">
-                    <TransportTrackingMap
-                       liveLocations={liveLocations}
-                       liveMeta={liveMeta}
-                       loading={trackingLoading}
-                    />
+             {canManageTransport && (
+               <section className="space-y-4">
+                 <div className="flex justify-between items-center px-1">
+                   <h2 className="text-zinc-500 text-[11px] font-bold uppercase tracking-[0.2em]">Live Map</h2>
                  </div>
+                 <div className="bg-white dark:bg-zinc-900 rounded-xl overflow-hidden shadow-2xl border border-zinc-200 dark:border-zinc-800 h-[280px] relative">
+                   <div className="absolute inset-0 z-0">
+                      <TransportTrackingMap
+                         liveLocations={liveLocations}
+                         liveMeta={liveMeta}
+                         loading={trackingLoading}
+                      />
+                   </div>
+                 </div>
+               </section>
+             )}
+
+
+             {(canManageTransport || isDriver) && (
+                <section className="space-y-4 pt-2">
+                  <div className="flex justify-between items-center px-1">
+                    <h2 className="text-zinc-500 text-[11px] font-bold uppercase tracking-[0.2em]">{canManageTransport ? 'Fleet Management' : 'My Vehicles'}</h2>
+                  </div>
+                  <div className="flex flex-col gap-4 px-1">
+                    {visibleVehicles.length === 0 ? (
+                      <span className="text-sm text-zinc-500 dark:text-zinc-400">
+                        No vehicles found.
+                      </span>
+                    ) : (
+                      visibleVehicles.map(vehicle => (
+                        <div
+                          key={vehicle.id}
+                          className="flex flex-col bg-zinc-50 dark:bg-[#1c1c1e] border border-zinc-200 dark:border-zinc-800 text-zinc-900 dark:text-white rounded-[24px] overflow-hidden shadow-sm"
+                        >
+                          <div className="flex items-center justify-between p-5">
+                            <div className="flex gap-4 items-center">
+                              <div className="w-[50px] h-[50px] bg-zinc-100 dark:bg-[#2c2c2e] rounded-full flex items-center justify-center shrink-0">
+                                <span className="material-symbols-outlined text-orange-400 text-[26px]">local_shipping</span>
+                              </div>
+                              <div className="min-w-0 pr-2 flex-1">
+                                <button onClick={() => setVehicleDetailId(vehicle.id)} className="text-left w-full">
+                                  <p className="font-bold text-[18px] text-zinc-900 dark:text-white truncate">{vehicle.name}</p>
+                                </button>
+                                <p className="text-zinc-500 dark:text-[#a1a1aa] text-[13px] mt-0.5 truncate">{vehicle.registrationNumber ?? 'No Reg'} • {vehicle.assignedDriverName ?? 'No Driver'}</p>
+                              </div>
+                            </div>
+                            <span className={`px-2.5 py-1 rounded-[6px] text-[10px] font-bold uppercase tracking-widest shrink-0 ${vehicle.status === 'active' ? 'bg-orange-500/10 text-orange-500' : 'bg-zinc-200 dark:bg-zinc-800 text-zinc-500 dark:text-zinc-400'}`}>{vehicle.status}</span>
+                          </div>
+                          
+                          <div className="grid grid-cols-3 border-t border-zinc-200 dark:border-[#2c2c2e]">
+                             <button onClick={() => canManageTransport ? setVehicleAssignId(vehicle.id) : undefined} className={`flex flex-col items-center justify-center gap-1.5 py-[18px] border-r border-zinc-200 dark:border-[#2c2c2e] ${canManageTransport ? 'active:bg-zinc-100 dark:active:bg-[#2c2c2e]/50' : 'opacity-40 pointer-events-none'}`}>
+                               <span className="material-symbols-outlined text-[#a1a1aa] text-[22px]" style={{ fontVariationSettings: "'FILL' 1" }}>person_add</span>
+                               <span className="text-[10px] font-bold text-[#a1a1aa] uppercase tracking-wider">Assign</span>
+                             </button>
+                             <button onClick={() => canOperateTrips ? openStartTripModal(vehicle) : undefined} className={`flex flex-col items-center justify-center gap-1.5 py-[18px] border-r border-zinc-200 dark:border-[#2c2c2e] ${canOperateTrips ? 'active:bg-zinc-100 dark:active:bg-[#2c2c2e]/50' : 'opacity-40 pointer-events-none'}`}>
+                               <span className="material-symbols-outlined text-orange-500 text-[22px]" style={{ fontVariationSettings: "'FILL' 1" }}>play_arrow</span>
+                               <span className="text-[10px] font-bold text-orange-500 uppercase tracking-wider">Start Trip</span>
+                             </button>
+                             <button onClick={() => canLogFuel ? setFuelModalOpen(true) : undefined} className={`flex flex-col items-center justify-center gap-1.5 py-[18px] ${canLogFuel ? 'active:bg-zinc-100 dark:active:bg-[#2c2c2e]/50' : 'opacity-40 pointer-events-none'}`}>
+                               <span className="material-symbols-outlined text-[#a1a1aa] text-[22px]" style={{ fontVariationSettings: "'FILL' 1" }}>local_gas_station</span>
+                               <span className="text-[10px] font-bold text-[#a1a1aa] uppercase tracking-wider">Log Fuel</span>
+                             </button>
+                          </div>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </section>
+             )}
+
+             <section className="space-y-4 pt-4">
+               <div className="flex justify-between items-center px-1">
+                 <h2 className="text-zinc-500 text-[11px] font-bold uppercase tracking-[0.2em]">Recent Trips</h2>
+                 <button onClick={() => setActiveMobileTab('history')} className="text-orange-500 text-[10px] font-bold uppercase tracking-wider">View All</button>
+               </div>
+               <div className="space-y-3">
+                 {trips.length === 0 ? (
+                   <p className="text-sm text-zinc-500 px-1">No recent trips.</p>
+                 ) : trips.slice(0, 3).map(trip => (
+                   <div key={trip.id} className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 shadow-sm p-4 rounded-[16px] flex flex-col gap-3">
+                     <div className="flex justify-between items-start">
+                        <div>
+                          <p className="font-bold text-zinc-900 dark:text-white text-sm">{trip.vehicleName}</p>
+                          <p className="text-xs text-zinc-500 dark:text-zinc-400">{trip.driverName ?? 'Unassigned'}</p>
+                        </div>
+                        <StatusBadge variant={trip.status === 'active' ? 'active' : trip.status === 'flagged' ? 'flagged' : trip.status === 'completed' ? 'verified' : 'pending'} label={trip.status} />
+                     </div>
+                     <div className="flex flex-col gap-1 text-[11px] text-zinc-600 dark:text-zinc-400 mt-2">
+                        <div className="flex gap-2 items-center"><span className="material-symbols-outlined text-[14px] text-zinc-400">my_location</span> <span className="truncate">{tripOriginLabel(trip)}</span></div>
+                        <div className="flex gap-2 items-center ml-[6px] border-l border-zinc-200 dark:border-zinc-800 pl-[16px] py-1"><span className="material-symbols-outlined text-[14px] text-zinc-400">location_on</span> <span className="truncate">{tripDestinationLabel(trip)}</span></div>
+                     </div>
+                   </div>
+                 ))}
                </div>
              </section>
 
+             <section className="space-y-4 pt-4">
+               <div className="flex justify-between items-center px-1">
+                 <h2 className="text-zinc-500 text-[11px] font-bold uppercase tracking-[0.2em]">Fuel Ledger</h2>
+                 <button onClick={() => setActiveMobileTab('ledger')} className="text-orange-500 text-[10px] font-bold uppercase tracking-wider">View All</button>
+               </div>
+               <div className="space-y-4">
+                 {fuelLogs.length === 0 ? (
+                   <p className="text-sm text-zinc-500 px-1">No fuel logs.</p>
+                 ) : fuelLogs.slice(0, 2).map(log => (
+                   <div key={log.id} className="bg-[#1c1c1e] text-white rounded-[24px] overflow-hidden border border-zinc-800 shadow-sm p-4">
+                     <div className="flex justify-between items-start mb-4">
+                       <div className="flex flex-col min-w-0 flex-1 pr-3">
+                         <span className="text-[#a1a1aa] text-sm font-medium mb-1">{formatDate(log.logDate)}</span>
+                         <p className="font-bold text-[18px] truncate">{log.vehicleName}</p>
+                       </div>
+                       <span className={`px-2.5 py-1 rounded-[6px] text-[10px] font-bold uppercase tracking-widest shrink-0 ${log.auditStatus === 'verified' ? 'bg-[#102b1d] text-[#22c55e]' : 'bg-orange-500/10 text-orange-500'}`}>{log.auditStatus}</span>
+                     </div>
+                     
+                     <div className="grid grid-cols-3 gap-3 mb-4 border-t border-b border-[#2c2c2e] py-4">
+                        <div className="flex flex-col items-center">
+                          <span className="text-[10px] text-[#a1a1aa] uppercase tracking-wider mb-2 font-medium">LITRES</span>
+                          <span className="text-[18px] font-bold">{log.liters.toFixed(1)} L</span>
+                        </div>
+                        <div className="flex flex-col items-center border-l border-r border-[#2c2c2e]">
+                          <span className="text-[10px] text-[#a1a1aa] uppercase tracking-wider mb-2 font-medium">COST</span>
+                          <span className="text-[18px] font-bold text-[#FF8A3D]">{formatCurrency(log.cost ?? 0)}</span>
+                        </div>
+                        <div className="flex flex-col items-center">
+                          <span className="text-[10px] text-[#a1a1aa] uppercase tracking-wider mb-2 font-medium">MILEAGE</span>
+                          <span className="text-[18px] font-bold">{log.odometerKm?.toLocaleString() ?? '-'}</span>
+                        </div>
+                     </div>
+
+                     <div className="flex gap-3">
+                       <button onClick={() => log.receiptFilePath ? setFuelPreview({ title: 'Receipt Preview', src: resolveUploadUrl(log.receiptFilePath)! }) : undefined} className={`flex-1 flex items-center justify-center gap-2 py-3 bg-[#242426] rounded-xl ${log.receiptFilePath ? 'active:bg-[#2c2c2e]' : 'opacity-40 pointer-events-none'}`}>
+                         <span className="material-symbols-outlined text-[16px] text-white">receipt</span>
+                         <span className="text-[11px] font-bold uppercase tracking-wider text-white">Receipt</span>
+                       </button>
+                       <button onClick={() => log.odometerImagePath ? setFuelPreview({ title: 'Odometer', src: resolveUploadUrl(log.odometerImagePath)! }) : undefined} className={`flex-1 flex items-center justify-center gap-2 py-3 bg-[#242426] rounded-xl ${log.odometerImagePath ? 'active:bg-[#2c2c2e]' : 'opacity-40 pointer-events-none'}`}>
+                         <span className="material-symbols-outlined text-[16px] text-white">photo_camera</span>
+                         <span className="text-[11px] font-bold uppercase tracking-wider text-white">Odometer</span>
+                       </button>
+                     </div>
+                   </div>
+                 ))}
+               </div>
+             </section>
            </div>
         )}
 
         {activeMobileTab === 'fleet' && (
-          <div className="animate-in fade-in slide-in-from-bottom-2 duration-300 space-y-6 px-3 pt-4">
-             <h2 className="text-zinc-500 text-[11px] font-bold uppercase tracking-[0.2em] mb-4">Fleet Assignment</h2>
-             <div className="flex flex-col gap-3 pb-32">
+          <div className="animate-in fade-in slide-in-from-bottom-2 duration-300 space-y-4 px-3 pt-4 pb-32">
+             <h2 className="text-zinc-500 text-[11px] font-bold uppercase tracking-[0.2em] mb-2">{canManageTransport ? 'Fleet Management' : 'My Vehicles'}</h2>
+             <div className="flex flex-col gap-4">
                {visibleVehicles.length === 0 ? (
                  <p className="text-sm text-zinc-500 dark:text-zinc-400">No vehicles assigned.</p>
                ) : (
                  visibleVehicles.map(vehicle => (
-                   <div key={vehicle.id} onClick={() => setVehicleDetailId(vehicle.id)} className="bg-zinc-900 border border-zinc-800 p-4 rounded-xl flex items-center justify-between active:bg-zinc-800 transition-colors">
-                     <div className="flex items-center gap-4">
-                       <div className="w-12 h-12 flex-shrink-0 bg-zinc-950 border border-zinc-800 rounded-lg flex items-center justify-center">
-                         <span className="material-symbols-outlined text-zinc-400">directions_car</span>
+                   <div
+                     key={vehicle.id}
+                     className="flex flex-col bg-zinc-900 dark:bg-[#1c1c1e] border border-zinc-200 dark:border-zinc-800 text-zinc-900 dark:text-white rounded-[24px] overflow-hidden shadow-sm"
+                   >
+                     <div className="flex items-center justify-between p-5">
+                       <div className="flex gap-4 items-center min-w-0 flex-1">
+                         <div className="w-[50px] h-[50px] bg-zinc-100 dark:bg-[#2c2c2e] rounded-full flex items-center justify-center shrink-0">
+                           <span className="material-symbols-outlined text-orange-400 text-[26px]">local_shipping</span>
+                         </div>
+                         <div className="min-w-0 pr-2 flex-1">
+                           <button onClick={() => setVehicleDetailId(vehicle.id)} className="text-left w-full">
+                             <p className="font-bold text-[18px] text-zinc-900 dark:text-white truncate">{vehicle.name}</p>
+                           </button>
+                           <p className="text-zinc-500 dark:text-[#a1a1aa] text-[13px] mt-0.5 truncate">{vehicle.registrationNumber ?? 'No Reg'} • {vehicle.assignedDriverName ?? 'No Driver'}</p>
+                         </div>
                        </div>
-                       <div className="min-w-0">
-                         <p className="font-bold text-white truncate max-w-[200px]">{vehicle.name}</p>
-                         <p className="text-[10px] text-zinc-500 uppercase font-medium">{vehicle.registrationNumber}</p>
-                       </div>
+                       <span className={`px-2.5 py-1 rounded-[6px] text-[10px] font-bold uppercase tracking-widest shrink-0 ${vehicle.status === 'active' ? 'bg-orange-500/10 text-orange-500' : 'bg-zinc-200 dark:bg-zinc-800 text-zinc-500 dark:text-zinc-400'}`}>{vehicle.status}</span>
                      </div>
-                     <StatusBadge variant={vehicle.status === 'active' ? 'active' : vehicle.status === 'exception' ? 'flagged' : 'pending'} label={vehicleStatusLabel(vehicle.status)} />
+                     
+                     <div className="grid grid-cols-3 border-t border-zinc-200 dark:border-[#2c2c2e]">
+                       <button onClick={() => canManageTransport ? setVehicleAssignId(vehicle.id) : undefined} className={`flex flex-col items-center justify-center gap-1.5 py-[18px] border-r border-zinc-200 dark:border-[#2c2c2e] ${canManageTransport ? 'active:bg-zinc-100 dark:active:bg-[#2c2c2e]/50' : 'opacity-40 pointer-events-none'}`}>
+                         <span className="material-symbols-outlined text-zinc-400 dark:text-[#a1a1aa] text-[22px]" style={{ fontVariationSettings: "'FILL' 1" }}>person_add</span>
+                         <span className="text-[10px] font-bold text-zinc-500 dark:text-[#a1a1aa] uppercase tracking-wider">Assign</span>
+                       </button>
+                       <button onClick={() => canOperateTrips ? openStartTripModal(vehicle) : undefined} className={`flex flex-col items-center justify-center gap-1.5 py-[18px] border-r border-zinc-200 dark:border-[#2c2c2e] ${canOperateTrips ? 'active:bg-zinc-100 dark:active:bg-[#2c2c2e]/50' : 'opacity-40 pointer-events-none'}`}>
+                         <span className="material-symbols-outlined text-orange-500 text-[22px]" style={{ fontVariationSettings: "'FILL' 1" }}>play_arrow</span>
+                         <span className="text-[10px] font-bold text-orange-500 uppercase tracking-wider">Start Trip</span>
+                       </button>
+                       <button onClick={() => canLogFuel ? setFuelModalOpen(true) : undefined} className={`flex flex-col items-center justify-center gap-1.5 py-[18px] ${canLogFuel ? 'active:bg-zinc-100 dark:active:bg-[#2c2c2e]/50' : 'opacity-40 pointer-events-none'}`}>
+                         <span className="material-symbols-outlined text-zinc-400 dark:text-[#a1a1aa] text-[22px]" style={{ fontVariationSettings: "'FILL' 1" }}>local_gas_station</span>
+                         <span className="text-[10px] font-bold text-zinc-500 dark:text-[#a1a1aa] uppercase tracking-wider">Log Fuel</span>
+                       </button>
+                     </div>
                    </div>
                  ))
                )}
@@ -1366,29 +1496,46 @@ export function TransportView() {
         )}
 
         {activeMobileTab === 'ledger' && (
-          <div className="animate-in fade-in slide-in-from-bottom-2 duration-300 space-y-6 px-3 pt-4">
-             <h2 className="text-zinc-500 text-[11px] font-bold uppercase tracking-[0.2em] mb-4">Fuel Audit Ledger</h2>
+          <div className="animate-in fade-in slide-in-from-bottom-2 duration-300 space-y-4 px-3 pt-4 pb-32">
+             <h2 className="text-zinc-500 text-[11px] font-bold uppercase tracking-[0.2em] mb-2">Fuel Audit Ledger</h2>
              {fuelLogs.length === 0 ? (
                <p className="text-sm text-zinc-500 dark:text-zinc-400">No fuel records yet.</p>
              ) : (
-               <div className="space-y-4 pb-32">
+               <div className="space-y-4">
                  {fuelLogs.map(log => (
-                   <div key={log.id} onClick={() => log.receiptFilePath ? setFuelPreview({ title: 'Receipt Preview', src: resolveUploadUrl(log.receiptFilePath)! }) : undefined} className="bg-zinc-900 border border-zinc-800 p-4 rounded-xl flex flex-col gap-3">
-                     <div className="flex justify-between items-start">
-                        <div>
-                          <p className="font-bold text-white text-sm">{log.vehicleName}</p>
-                          <p className="text-xs text-zinc-400">{log.loggedByName ?? log.loggedBy}</p>
+                   <div key={log.id} className="bg-[#1c1c1e] text-white rounded-[24px] overflow-hidden border border-zinc-800 shadow-sm p-4">
+                     <div className="flex justify-between items-start mb-4">
+                       <div className="flex flex-col min-w-0 flex-1 pr-3">
+                         <span className="text-[#a1a1aa] text-sm font-medium mb-1">{formatDate(log.logDate)}</span>
+                         <p className="font-bold text-[18px] truncate">{log.vehicleName}</p>
+                       </div>
+                       <span className={`px-2.5 py-1 rounded-[6px] text-[10px] font-bold uppercase tracking-widest shrink-0 ${log.auditStatus === 'verified' ? 'bg-[#102b1d] text-[#22c55e]' : 'bg-orange-500/10 text-orange-500'}`}>{log.auditStatus}</span>
+                     </div>
+                     
+                     <div className="grid grid-cols-3 gap-3 mb-4 border-t border-b border-[#2c2c2e] py-4">
+                        <div className="flex flex-col items-center">
+                          <span className="text-[10px] text-[#a1a1aa] uppercase tracking-wider mb-2 font-medium">LITRES</span>
+                          <span className="text-[18px] font-bold">{log.liters.toFixed(1)} L</span>
                         </div>
-                        <div className="text-right">
-                          <p className="font-bold text-white text-sm">{formatCurrency(log.cost ?? 0)}</p>
-                          <p className="text-xs text-orange-400">{log.liters.toFixed(1)} L</p>
+                        <div className="flex flex-col items-center border-l border-r border-[#2c2c2e]">
+                          <span className="text-[10px] text-[#a1a1aa] uppercase tracking-wider mb-2 font-medium">COST</span>
+                          <span className="text-[18px] font-bold text-[#FF8A3D]">{formatCurrency(log.cost ?? 0)}</span>
+                        </div>
+                        <div className="flex flex-col items-center">
+                          <span className="text-[10px] text-[#a1a1aa] uppercase tracking-wider mb-2 font-medium">MILEAGE</span>
+                          <span className="text-[18px] font-bold">{log.odometerKm?.toLocaleString() ?? '-'}</span>
                         </div>
                      </div>
-                     <div className="flex gap-2 mt-1">
-                        <StatusBadge variant={log.efficiencyRating === 'good' ? 'verified' : 'mismatch'} label={log.auditStatus} />
-                        {log.fraudStatus !== 'NORMAL' && (
-                          <StatusBadge variant={log.fraudStatus === 'FRAUD' ? 'flagged' : 'warning'} label={log.fraudStatus} />
-                        )}
+
+                     <div className="flex gap-3">
+                       <button onClick={() => log.receiptFilePath ? setFuelPreview({ title: 'Receipt Preview', src: resolveUploadUrl(log.receiptFilePath)! }) : undefined} className={`flex-1 flex items-center justify-center gap-2 py-3 bg-[#242426] rounded-xl ${log.receiptFilePath ? 'active:bg-[#2c2c2e]' : 'opacity-40 pointer-events-none'}`}>
+                         <span className="material-symbols-outlined text-[16px] text-white">receipt</span>
+                         <span className="text-[11px] font-bold uppercase tracking-wider text-white">Receipt</span>
+                       </button>
+                       <button onClick={() => log.odometerImagePath ? setFuelPreview({ title: 'Odometer', src: resolveUploadUrl(log.odometerImagePath)! }) : undefined} className={`flex-1 flex items-center justify-center gap-2 py-3 bg-[#242426] rounded-xl ${log.odometerImagePath ? 'active:bg-[#2c2c2e]' : 'opacity-40 pointer-events-none'}`}>
+                         <span className="material-symbols-outlined text-[16px] text-white">photo_camera</span>
+                         <span className="text-[11px] font-bold uppercase tracking-wider text-white">Odometer</span>
+                       </button>
                      </div>
                    </div>
                  ))}
@@ -1398,43 +1545,34 @@ export function TransportView() {
         )}
 
         {/* Floating Action Container */}
-        {['home', 'fleet'].includes(activeMobileTab) && (
-        <div className="fixed bottom-24 left-0 w-full z-40 px-5 pointer-events-none">
-          <div className="flex flex-col gap-3 pointer-events-auto">
-            {canManageTransport && (
-              <button 
-                onClick={() => {
-                  setVehicleAssignId(visibleVehicles.find(v => v.status === 'idle')?.id || visibleVehicles[0]?.id)
-                }} 
-                className="w-full h-12 bg-white text-zinc-900 border border-zinc-200 font-bold text-[11px] rounded-[14px] flex items-center justify-center gap-2 active:scale-95 duration-200 uppercase tracking-wider shadow-lg"
-              >
-                <span className="material-symbols-outlined text-zinc-900 text-[18px]">person_add</span>
-                Assign Driver
-              </button>
-            )}
-            <div className="flex gap-3">
-              {canLogFuel && (
-                <button onClick={() => setFuelModalOpen(true)} className="flex-1 h-12 bg-zinc-900 border border-zinc-800 text-white font-bold text-[10px] rounded-[14px] flex items-center justify-center gap-2 active:scale-95 duration-200 uppercase tracking-tighter shadow-lg">
-                  <span className="material-symbols-outlined text-orange-500 text-[18px]">local_gas_station</span>
-                  Log Fuel
+        {activeMobileTab === 'home' && (
+          <div className="fixed bottom-[96px] left-0 right-0 z-30 mx-auto w-full max-w-md px-4 pointer-events-none">
+            <div className="flex gap-3 rounded-[28px] border border-zinc-200/80 bg-white/88 p-3 shadow-[0_22px_48px_rgba(15,23,42,0.14)] backdrop-blur-2xl dark:border-white/8 dark:bg-zinc-900/84 dark:shadow-[0_22px_52px_rgba(0,0,0,0.34)] pointer-events-auto">
+              {canManageTransport && (
+                <button
+                  onClick={() => {
+                    setVehicleForm(emptyVehicleForm)
+                    setVehicleModalOpen(true)
+                  }}
+                  className="flex-1 min-h-[72px] flex flex-col items-center justify-center gap-1 rounded-[22px] bg-gradient-to-r from-orange-500 to-orange-400 py-4 text-black shadow-[0_16px_28px_rgba(249,115,22,0.28)] transition-all active:scale-95"
+                >
+                  <span className="material-symbols-outlined mb-0.5 text-2xl">add</span>
+                  <span className="font-label text-[11px] font-black uppercase tracking-wider">Add Vehicle</span>
                 </button>
               )}
-              {canOperateTrips && (
-                <button 
-                  onClick={() => {
-                    const availableVehicle = visibleVehicles.find(v => v.status === 'idle') || visibleVehicles[0]
-                    openStartTripModal(availableVehicle)
-                  }} 
-                  className="flex-1 h-12 bg-gradient-to-r from-orange-500 to-orange-600 text-black font-black font-headline rounded-[14px] shadow-2xl flex items-center justify-center gap-2 active:scale-95 duration-200"
+              {canLogFuel && (
+                <button
+                  onClick={() => setFuelModalOpen(true)}
+                  className="flex-1 min-h-[72px] flex flex-col items-center justify-center gap-1 rounded-[22px] border border-zinc-200 bg-white py-4 text-zinc-900 shadow-[0_14px_24px_rgba(15,23,42,0.08)] transition-all active:scale-95 dark:border-zinc-700 dark:bg-zinc-900 dark:text-white"
                 >
-                  <span className="material-symbols-outlined font-bold text-[20px]">play_arrow</span>
-                  START TRIP
+                  <span className="material-symbols-outlined mb-0.5 text-2xl text-orange-500">local_gas_station</span>
+                  <span className="font-label text-[11px] font-bold uppercase tracking-wider text-orange-500">Log Fuel</span>
                 </button>
               )}
             </div>
           </div>
-        </div>
         )}
+
 
         {/* Bottom Navigation */}
         <nav className="fixed bottom-3 left-3 right-3 z-40 mx-auto flex h-[80px] max-w-md items-center justify-around rounded-[30px] border border-zinc-200/80 bg-white/88 px-2 pb-safe shadow-[0_18px_40px_rgba(15,23,42,0.12)] backdrop-blur-2xl dark:border-white/8 dark:bg-zinc-950/82 dark:shadow-[0_18px_44px_rgba(0,0,0,0.34)]">

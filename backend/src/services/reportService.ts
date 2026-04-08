@@ -11,6 +11,7 @@ const REPORT_DEPARTMENTS = ['transport', 'crew', 'camera', 'art', 'wardrobe', 'p
 
 type ReportDepartmentKey = typeof REPORT_DEPARTMENTS[number]
 type ReportSeverity = 'GREEN' | 'YELLOW' | 'RED'
+type FinancialMetricDepartment = Exclude<ReportDepartmentKey, 'crew'>
 
 interface ProjectMetaRow {
   id: string
@@ -230,6 +231,10 @@ function departmentLabel(department: ReportDepartmentKey) {
     case 'production':
       return 'Production'
   }
+}
+
+function toFinancialMetricDepartment(department: ReportDepartmentKey): FinancialMetricDepartment {
+  return department === 'crew' ? 'production' : department
 }
 
 function buildBundleCacheKey(projectId: string) {
@@ -855,12 +860,51 @@ async function upsertFinancialMetrics(projectId: string, metricDate: string, dep
     return
   }
 
+  const rowsByDepartment = new Map<FinancialMetricDepartment, {
+    budget: number
+    spent: number
+    pendingApprovals: number
+    overtimeLiability: number
+    variance: number
+    share: number
+    statuses: Set<DepartmentReportRow['status']>
+    reportDepartments: ReportDepartmentKey[]
+  }>()
+
+  for (const row of departments) {
+    const department = toFinancialMetricDepartment(row.department)
+    const existing = rowsByDepartment.get(department)
+
+    if (existing) {
+      existing.budget = toMoney(existing.budget + row.budget)
+      existing.spent = toMoney(existing.spent + row.spent)
+      existing.pendingApprovals = toMoney(existing.pendingApprovals + row.pendingApprovals)
+      existing.overtimeLiability = toMoney(existing.overtimeLiability + row.overtimeLiability)
+      existing.variance = toMoney(existing.variance + row.variance)
+      existing.share = Number((existing.share + row.share).toFixed(1))
+      existing.statuses.add(row.status)
+      existing.reportDepartments.push(row.department)
+      continue
+    }
+
+    rowsByDepartment.set(department, {
+      budget: row.budget,
+      spent: row.spent,
+      pendingApprovals: row.pendingApprovals,
+      overtimeLiability: row.overtimeLiability,
+      variance: row.variance,
+      share: row.share,
+      statuses: new Set([row.status]),
+      reportDepartments: [row.department],
+    })
+  }
+
   const { error } = await adminClient
     .from('financial_metrics')
     .upsert(
-      departments.map(row => ({
+      Array.from(rowsByDepartment.entries()).map(([department, row]) => ({
         project_id: projectId,
-        department: row.department,
+        department,
         metric_date: metricDate,
         period: 'daily',
         budget_amount: row.budget,
@@ -870,9 +914,14 @@ async function upsertFinancialMetrics(projectId: string, metricDate: string, dep
         overtime_cost_amount: row.overtimeLiability,
         variance_amount: row.variance,
         metadata: {
-          reportDepartment: row.department,
+          reportDepartment: row.reportDepartments.length === 1 ? row.reportDepartments[0] : department,
+          reportDepartments: row.reportDepartments,
           share: row.share,
-          status: row.status,
+          status: row.statuses.has('red')
+            ? 'red'
+            : row.statuses.has('yellow')
+              ? 'yellow'
+              : 'green',
         },
       })),
       { onConflict: 'project_id,department,metric_date,period' },
