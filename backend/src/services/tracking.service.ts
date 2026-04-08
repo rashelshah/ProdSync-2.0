@@ -51,7 +51,7 @@ type GpsRow = {
 
 export interface TrackingMapImagePayload {
   contentType: string
-  body: Buffer
+  body: any
   provider: 'mapbox' | 'internal'
 }
 

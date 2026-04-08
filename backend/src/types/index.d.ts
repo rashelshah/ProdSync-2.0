@@ -1,6 +1,8 @@
 import type { AuthenticatedUserContext } from '../services/auth.service'
 
 declare global {
+  function require(name: string): any
+
   namespace Express {
     namespace Multer {
       interface File {

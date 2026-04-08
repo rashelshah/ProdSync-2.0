@@ -1034,7 +1034,7 @@ export async function listLaundryBatches(projectId: string) {
 export async function createLaundryBatch(input: WardrobeLaundryCreateInput, userId: string | null) {
   const batchId = input.batchId ?? buildLaundryBatchId()
   const uniqueItems = Array.from(new Set(input.items.map(item => item.trim()).filter(Boolean)))
-  const costumes = await Promise.all(uniqueItems.map(item => findOrCreateCostume(input.projectId, item)))
+  const costumes = await Promise.all(uniqueItems.map(item => findOrCreateCostume(input.projectId, String(item))))
   const costumeIds = costumes.map(costume => String(costume.id ?? ''))
   const sentAt = toDayStartIso(input.sentDate)
   const actualReturnDate = input.status === 'returned'

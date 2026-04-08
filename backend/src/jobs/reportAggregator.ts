@@ -21,7 +21,7 @@ function scheduleCycle(label: 'active' | 'archived', isArchived: boolean, interv
   void run()
   const timer = setInterval(() => {
     void run()
-  }, intervalMs)
+  }, intervalMs) as ReturnType<typeof setInterval> & { unref?: () => void }
   timer.unref?.()
 }
 
