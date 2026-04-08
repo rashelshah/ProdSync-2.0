@@ -1,0 +1,7 @@
+services:
+  - type: web
+    name: prodsync-backend
+    env: node
+    rootDir: backend
+    buildCommand: npm ci --include=dev && npm run build && npm prune --omit=dev
+    startCommand: npm start
