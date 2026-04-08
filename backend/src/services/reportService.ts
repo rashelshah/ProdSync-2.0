@@ -860,7 +860,7 @@ async function upsertFinancialMetrics(projectId: string, metricDate: string, dep
     .upsert(
       departments.map(row => ({
         project_id: projectId,
-        department: row.department === 'crew' ? 'production' : row.department,
+        department: row.department,
         metric_date: metricDate,
         period: 'daily',
         budget_amount: row.budget,
