@@ -1,0 +1,301 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Wardrobe &amp; Makeup Dashboard</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;700;800&amp;family=Inter:wght@400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            "colors": {
+                    "secondary-fixed-dim": "#ffb37d",
+                    "inverse-on-surface": "#565555",
+                    "background": "#0e0e0e",
+                    "tertiary-fixed": "#fbb423",
+                    "on-tertiary-container": "#523700",
+                    "secondary-dim": "#eb832c",
+                    "inverse-primary": "#a14100",
+                    "on-surface": "#ffffff",
+                    "on-primary-fixed-variant": "#4f1c00",
+                    "secondary-container": "#944a00",
+                    "primary-fixed": "#ff7a2f",
+                    "on-tertiary-fixed-variant": "#5e4000",
+                    "surface-container-highest": "#262626",
+                    "on-primary": "#531e00",
+                    "surface-tint": "#ff9159",
+                    "on-error-container": "#ffd2c8",
+                    "tertiary-fixed-dim": "#eba60f",
+                    "on-tertiary-fixed": "#372400",
+                    "surface-bright": "#2c2c2c",
+                    "error": "#ff7351",
+                    "on-surface-variant": "#adaaaa",
+                    "on-primary-container": "#401500",
+                    "surface-variant": "#262626",
+                    "on-secondary-fixed-variant": "#803f00",
+                    "on-secondary": "#462000",
+                    "surface-container-low": "#131313",
+                    "on-background": "#ffffff",
+                    "primary-dim": "#ff7524",
+                    "tertiary-dim": "#eba60f",
+                    "on-secondary-fixed": "#552800",
+                    "surface": "#0e0e0e",
+                    "tertiary": "#ffc562",
+                    "secondary-fixed": "#ffc69f",
+                    "inverse-surface": "#fcf9f8",
+                    "tertiary-container": "#fbb423",
+                    "surface-container-lowest": "#000000",
+                    "surface-container": "#1a1a1a",
+                    "on-secondary-container": "#fff6f2",
+                    "primary-container": "#ff7a2f",
+                    "secondary": "#f88d36",
+                    "outline-variant": "#484847",
+                    "on-primary-fixed": "#000000",
+                    "primary": "#ff9159",
+                    "primary-fixed-dim": "#f66700",
+                    "error-dim": "#d53d18",
+                    "error-container": "#b92902",
+                    "on-tertiary": "#5e4000",
+                    "on-error": "#450900",
+                    "surface-container-high": "#20201f",
+                    "outline": "#767575",
+                    "surface-dim": "#0e0e0e"
+            },
+            "borderRadius": {
+                    "DEFAULT": "0.25rem",
+                    "lg": "0.5rem",
+                    "xl": "1.5rem",
+                    "full": "9999px"
+            },
+            "fontFamily": {
+                    "headline": ["Manrope"],
+                    "body": ["Inter"],
+                    "label": ["Inter"]
+            }
+          },
+        },
+      }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .hide-scrollbar::-webkit-scrollbar { display: none; }
+        .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+        body {
+            min-height: max(884px, 100dvh);
+        }
+    </style>
+</head>
+<body class="bg-background text-on-surface font-body select-none">
+<!-- TopAppBar -->
+<header class="fixed top-0 w-full z-50 bg-[#0e0e0e]/60 backdrop-blur-md flex justify-between items-center px-6 h-16 border-none shadow-[0px_4px_8px_rgba(255,145,89,0.04)]">
+<div class="flex items-center gap-3">
+<span class="material-symbols-outlined text-[#ff9159] active:scale-95 duration-200" data-icon="menu">menu</span>
+<h1 class="font-['Manrope'] font-bold text-xl uppercase tracking-tight text-white">Wardrobe &amp; Makeup</h1>
+</div>
+</header>
+<main class="pt-20 pb-64 px-4 space-y-8">
+<!-- Summary Cards -->
+<section class="flex gap-4 overflow-x-auto hide-scrollbar -mx-4 px-4">
+<div class="flex-none w-32 bg-surface-container p-4 rounded-xl">
+<span class="text-on-surface-variant text-[10px] font-bold uppercase tracking-widest">In Use</span>
+<div class="text-4xl font-headline font-extrabold text-white mt-1">1</div>
+</div>
+<div class="flex-none w-32 bg-surface-container p-4 rounded-xl">
+<span class="text-on-surface-variant text-[10px] font-bold uppercase tracking-widest">Ready</span>
+<div class="text-4xl font-headline font-extrabold text-white mt-1">3</div>
+</div>
+<div class="flex-none w-32 bg-surface-container border-2 border-error/20 p-4 rounded-xl relative overflow-hidden">
+<div class="absolute top-0 right-0 p-2 opacity-20">
+<span class="material-symbols-outlined text-error" data-icon="warning">warning</span>
+</div>
+<span class="text-error text-[10px] font-bold uppercase tracking-widest">Alerts</span>
+<div class="text-4xl font-headline font-extrabold text-error mt-1">03</div>
+</div>
+</section>
+<!-- Critical Alerts -->
+<section class="space-y-3">
+<div class="bg-error-container/20 border border-error/10 p-4 rounded-xl flex gap-4 items-start">
+<span class="material-symbols-outlined text-error shrink-0" data-icon="history_edu">history_edu</span>
+<div class="space-y-1">
+<p class="text-on-surface font-bold text-sm">Continuity logs are missing for Scene 6</p>
+<p class="text-on-surface-variant text-xs">Action required before production wrap.</p>
+</div>
+</div>
+<div class="bg-error-container/20 border border-error/10 p-4 rounded-xl flex gap-4 items-start">
+<span class="material-symbols-outlined text-error shrink-0" data-icon="lock">lock</span>
+<div class="space-y-1">
+<p class="text-on-surface font-bold text-sm">Chain has not been returned to the safe</p>
+<p class="text-on-surface-variant text-xs">High-value item alert. Last seen with Wardrobe Lead.</p>
+</div>
+</div>
+</section>
+<!-- Continuity Photo Log (Bento Style Card) -->
+<section>
+<h2 class="text-on-surface-variant text-[11px] font-bold uppercase tracking-[0.2em] mb-4">Active Continuity</h2>
+<div class="bg-surface-container rounded-xl overflow-hidden shadow-2xl">
+<div class="relative h-64">
+<img alt="Costume Continuity" class="w-full h-full object-cover" data-alt="Cinematic close-up of a detailed costume jacket on a mannequin, textured leather, studio lighting, deep shadows, professional film set atmosphere" src="https://lh3.googleusercontent.com/aida-public/AB6AXuD_1K8K-pVNAiEYAEHZGWBJ85vPbLRzbdvKveMg123h6cAOdY5DtmAq0-IQAoc11HWvUCBUIrs2lSEWLK1I8OfITrRq9rE4aEKseYBJOKPy9pzweKE7qpoPkqSHttBZsn7q9Cetn6vbSfHtjUK2dQqHMrnVmU9CfjydU9B_a7Dp_VnUe5TF6RSlQsztXT52Byrc7ne2x0HUPflzp1h4umay2n7Tb1kMZv20445nEdfWcuvw6LuST8hAnV5Cj__jCgid9NfUuSe6THej"/>
+<div class="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent p-6">
+<div class="flex justify-between items-end">
+<div>
+<span class="bg-primary text-on-primary-fixed px-2 py-1 rounded text-[10px] font-bold uppercase mb-2 inline-block">Scene 6B</span>
+<h3 class="text-2xl font-headline font-extrabold">Character: Hamza</h3>
+</div>
+<span class="material-symbols-outlined text-white p-2 bg-white/10 backdrop-blur-md rounded-full" data-icon="photo_camera">photo_camera</span>
+</div>
+</div>
+</div>
+<div class="p-4 grid grid-cols-2 gap-4">
+<div class="space-y-1">
+<span class="text-on-surface-variant text-[10px] uppercase font-bold">Look ID</span>
+<p class="text-sm font-medium">L-042-EXT</p>
+</div>
+<div class="space-y-1 text-right">
+<span class="text-on-surface-variant text-[10px] uppercase font-bold">Status</span>
+<p class="text-sm font-medium text-primary">Verified</p>
+</div>
+</div>
+</div>
+</section>
+<!-- Inventory - Costume Tracker -->
+<section class="space-y-4">
+<div class="flex justify-between items-center px-1">
+<h2 class="text-on-surface-variant text-[11px] font-bold uppercase tracking-[0.2em]">Inventory Tracker</h2>
+<span class="text-primary text-[10px] font-bold uppercase tracking-wider">View All</span>
+</div>
+<div class="space-y-2">
+<!-- Hero Jacket -->
+<div class="bg-surface-container-low p-4 rounded-xl flex items-center justify-between group active:bg-surface-container transition-colors">
+<div class="flex items-center gap-4">
+<div class="w-12 h-12 bg-surface-container rounded-lg flex items-center justify-center">
+<span class="material-symbols-outlined text-on-surface-variant" data-icon="checkroom">checkroom</span>
+</div>
+<div>
+<p class="font-bold text-on-surface">Hero Jacket</p>
+<p class="text-[10px] text-on-surface-variant uppercase font-medium">Leather / Distressed</p>
+</div>
+</div>
+<div class="bg-emerald-500/10 text-emerald-400 px-3 py-1 rounded-full text-[10px] font-bold border border-emerald-500/20 uppercase tracking-tighter">On Set</div>
+</div>
+<!-- Pants -->
+<div class="bg-surface-container-low p-4 rounded-xl flex items-center justify-between active:bg-surface-container transition-colors">
+<div class="flex items-center gap-4">
+<div class="w-12 h-12 bg-surface-container rounded-lg flex items-center justify-center">
+<span class="material-symbols-outlined text-on-surface-variant" data-icon="straighten">straighten</span>
+</div>
+<div>
+<p class="font-bold text-on-surface">Cargo Pants</p>
+<p class="text-[10px] text-on-surface-variant uppercase font-medium">Cotton / Navy</p>
+</div>
+</div>
+<div class="bg-on-surface-variant/10 text-on-surface-variant px-3 py-1 rounded-full text-[10px] font-bold border border-on-surface-variant/20 uppercase tracking-tighter">In Storage</div>
+</div>
+<!-- Gold Chain -->
+<div class="bg-surface-container-low p-4 rounded-xl flex items-center justify-between active:bg-surface-container transition-colors">
+<div class="flex items-center gap-4">
+<div class="w-12 h-12 bg-surface-container rounded-lg flex items-center justify-center">
+<span class="material-symbols-outlined text-primary" data-icon="diamond" style="font-variation-settings: 'FILL' 1;">diamond</span>
+</div>
+<div>
+<p class="font-bold text-on-surface">Gold Chain</p>
+<p class="text-[10px] text-on-surface-variant uppercase font-medium">High Value / Accessory</p>
+</div>
+</div>
+<div class="bg-primary/10 text-primary px-3 py-1 rounded-full text-[10px] font-bold border border-primary/20 uppercase tracking-tighter">In Use</div>
+</div>
+</div>
+</section>
+<!-- Laundry Batch Tracker -->
+<section>
+<h2 class="text-on-surface-variant text-[11px] font-bold uppercase tracking-[0.2em] mb-4">Laundry Log</h2>
+<div class="bg-surface-container p-5 rounded-xl space-y-4">
+<div class="flex justify-between items-start">
+<div class="space-y-1">
+<span class="text-[10px] font-bold text-on-surface-variant uppercase">Batch ID</span>
+<p class="text-sm font-mono tracking-tight text-white">BATCH-20260407-9ACF67</p>
+</div>
+<div class="bg-primary/10 text-primary px-2 py-1 rounded text-[10px] font-black">RETURNED</div>
+</div>
+<div class="flex items-center gap-3 pt-2">
+<div class="h-1 flex-1 bg-primary rounded-full"></div>
+<div class="h-1 flex-1 bg-primary rounded-full"></div>
+<div class="h-1 flex-1 bg-primary rounded-full"></div>
+<div class="h-1 flex-1 bg-primary rounded-full"></div>
+</div>
+<div class="flex justify-between text-[10px] font-bold text-on-surface-variant uppercase tracking-widest">
+<span>Sent: 08:30 AM</span>
+<span>Expected: 04:00 PM</span>
+</div>
+</div>
+</section>
+<!-- Recent Activity -->
+<section class="pb-8">
+<h2 class="text-on-surface-variant text-[11px] font-bold uppercase tracking-[0.2em] mb-4">Recent Activity</h2>
+<div class="space-y-6 pl-4 border-l-2 border-surface-container-highest">
+<div class="relative">
+<div class="absolute -left-[22px] top-0 w-3 h-3 rounded-full bg-primary ring-4 ring-background"></div>
+<p class="text-xs text-on-surface-variant">10:45 AM</p>
+<p class="text-sm font-medium mt-1">Hamza costume checked out for <span class="text-primary font-bold">Scene 6B</span></p>
+</div>
+<div class="relative">
+<div class="absolute -left-[22px] top-0 w-3 h-3 rounded-full bg-surface-container-highest ring-4 ring-background"></div>
+<p class="text-xs text-on-surface-variant">09:12 AM</p>
+<p class="text-sm font-medium mt-1">Inventory update: 4 items sent to laundry batch <span class="text-on-surface underline">#9ACF</span></p>
+</div>
+<div class="relative">
+<div class="absolute -left-[22px] top-0 w-3 h-3 rounded-full bg-surface-container-highest ring-4 ring-background"></div>
+<p class="text-xs text-on-surface-variant">Yesterday</p>
+<p class="text-sm font-medium mt-1">New continuity photo added for <span class="text-primary font-bold">Hero Jacket</span></p>
+</div>
+</div>
+</section>
+</main>
+<!-- Floating Action Container (Sticky above BottomNavBar) -->
+<div class="fixed bottom-24 left-0 w-full z-50 px-6 pointer-events-none">
+<div class="flex flex-col gap-3 pointer-events-auto">
+<button class="w-full h-14 bg-gradient-to-r from-primary to-primary-container text-on-primary-fixed font-black font-headline rounded-xl shadow-2xl flex items-center justify-center gap-2 active:scale-95 duration-200">
+<span class="material-symbols-outlined font-bold">upload_file</span>
+                Upload Continuity
+            </button>
+<div class="grid grid-cols-3 gap-3">
+<button class="h-14 bg-surface-container-highest border border-outline-variant/15 text-on-surface font-bold text-[10px] rounded-xl flex flex-col items-center justify-center gap-1 active:scale-95 duration-200 uppercase tracking-tighter">
+<span class="material-symbols-outlined text-primary text-sm">local_laundry_service</span>
+                    Laundry
+                </button>
+<button class="h-14 bg-surface-container-highest border border-outline-variant/15 text-on-surface font-bold text-[10px] rounded-xl flex flex-col items-center justify-center gap-1 active:scale-95 duration-200 uppercase tracking-tighter">
+<span class="material-symbols-outlined text-primary text-sm">diamond</span>
+                    Accessory
+                </button>
+<button class="h-14 bg-surface-container-highest border border-outline-variant/15 text-on-surface font-bold text-[10px] rounded-xl flex flex-col items-center justify-center gap-1 active:scale-95 duration-200 uppercase tracking-tighter">
+<span class="material-symbols-outlined text-primary text-sm">checkroom</span>
+                    Costume
+                </button>
+</div>
+</div>
+</div>
+<!-- BottomNavBar -->
+<nav class="fixed bottom-0 left-0 w-full z-50 flex justify-around items-center pt-3 pb-6 px-4 bg-[#0e0e0e]/90 backdrop-blur-md rounded-t-2xl shadow-[0px_-12px_32px_rgba(0,0,0,0.5)] border-none">
+<a class="flex flex-col items-center justify-center text-[#ff9159] font-bold active:scale-90 duration-200" href="#">
+<span class="material-symbols-outlined" data-icon="dashboard" style="font-variation-settings: 'FILL' 1;">dashboard</span>
+<span class="font-['Inter'] font-medium text-[10px] tracking-wider uppercase mt-1">Dashboard</span>
+</a>
+<a class="flex flex-col items-center justify-center text-[#adaaaa] hover:text-white transition-all active:scale-90 duration-200" href="#">
+<span class="material-symbols-outlined" data-icon="inventory_2">inventory_2</span>
+<span class="font-['Inter'] font-medium text-[10px] tracking-wider uppercase mt-1">Inventory</span>
+</a>
+<a class="flex flex-col items-center justify-center text-[#adaaaa] hover:text-white transition-all active:scale-90 duration-200" href="#">
+<span class="material-symbols-outlined" data-icon="camera_roll">camera_roll</span>
+<span class="font-['Inter'] font-medium text-[10px] tracking-wider uppercase mt-1">Continuity</span>
+</a>
+<a class="flex flex-col items-center justify-center text-[#adaaaa] hover:text-white transition-all active:scale-90 duration-200" href="#">
+<span class="material-symbols-outlined" data-icon="local_laundry_service">local_laundry_service</span>
+<span class="font-['Inter'] font-medium text-[10px] tracking-wider uppercase mt-1">Laundry</span>
+</a>
+</nav>
+</body></html>

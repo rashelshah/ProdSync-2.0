@@ -545,58 +545,38 @@ export function WardrobeView() {
     <div className="page-shell space-y-6">
       <ActionFeedbackToast feedback={feedback} onDismiss={() => setFeedback(null)} />
 
-      <header className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+      <header className="page-header">
         <div>
           <span className="page-kicker">Continuity Control</span>
           <h1 className="page-title page-title-compact">Wardrobe & Makeup</h1>
           <p className="page-subtitle">Live continuity, laundry, inventory, and high-value accessory tracking for {activeProject.name}.</p>
         </div>
         {canManage && (
-          <div className="flex flex-wrap gap-3">
-            <button onClick={() => setLaundryModalOpen(true)} className="btn-ghost">Send to Laundry</button>
-            <button onClick={() => setAccessoryModalOpen(true)} className="btn-ghost">Add Accessory</button>
-            <button onClick={() => setInventoryModalOpen(true)} className="btn-ghost">Add Costume</button>
+          <div className="page-toolbar">
+            <button onClick={() => setLaundryModalOpen(true)} className="btn-soft">Send to Laundry</button>
+            <button onClick={() => setAccessoryModalOpen(true)} className="btn-soft">Add Accessory</button>
+            <button onClick={() => setInventoryModalOpen(true)} className="btn-soft">Add Costume</button>
             <button onClick={() => setContinuityModalOpen(true)} className="btn-primary">Upload Continuity</button>
           </div>
         )}
       </header>
 
-      <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_360px]">
-        <div className="grid gap-4 sm:grid-cols-3">
-          <KpiCard label="In Use" value={String(inUseCount)} subLabel="Costumes active on set" accentColor="#f97316" />
-          <KpiCard label="Ready" value={String(readyCount)} subLabel="Shoot-ready wardrobe units" accentColor="#22c55e" />
+      <div className="grid items-start gap-4 sm:grid-cols-3">
+        <div className="grid items-start gap-4 sm:grid-cols-3 sm:col-span-3">
+          <KpiCard label="In Use" value={String(inUseCount)} subLabel="Costumes active on set" accentColor="#f97316" className="min-h-0 self-start" />
+          <KpiCard label="Ready" value={String(readyCount)} subLabel="Shoot-ready wardrobe units" accentColor="#22c55e" className="min-h-0 self-start" />
           <KpiCard
             label="Alerts"
             value={String(alerts.length).padStart(2, '0')}
             subLabel={alerts.length > 0 ? 'Action required' : 'All clear'}
             subType={alerts.length > 0 ? 'critical' : 'success'}
             accentColor={alerts.length > 0 ? '#ef4444' : '#22c55e'}
+            className="min-h-0 self-start"
           />
         </div>
-
-        <Surface variant="table" padding="md">
-          <div className="border-b border-zinc-200 pb-4 dark:border-zinc-800">
-            <p className="section-kicker">Alerts</p>
-            <h2 className="section-title">Critical Signals</h2>
-          </div>
-          <div className="mt-4 space-y-3">
-            {alerts.length === 0 ? (
-              <div className="rounded-[24px] border border-dashed border-zinc-200 px-4 py-8 text-center dark:border-zinc-800">
-                <p className="text-sm font-semibold text-zinc-900 dark:text-white">No wardrobe alerts right now</p>
-                <p className="mt-2 text-sm text-zinc-500 dark:text-zinc-400">Continuity, laundry, and accessory checks are currently on track.</p>
-              </div>
-            ) : alerts.map((alert, index) => (
-              <div
-                key={`${alert.timestamp}-${index}`}
-                className={`rounded-[24px] border px-4 py-4 ${alert.type === 'critical' ? 'border-red-200 bg-red-50/70 dark:border-red-500/20 dark:bg-red-500/10' : 'border-orange-200 bg-orange-50/70 dark:border-orange-500/20 dark:bg-orange-500/10'}`}
-              >
-                <p className="text-sm font-semibold text-zinc-900 dark:text-white">{alert.message}</p>
-                <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">{timeAgo(alert.timestamp)}</p>
-              </div>
-            ))}
-          </div>
-        </Surface>
       </div>
+
+      <WardrobeAlertsPanel alerts={alerts} />
 
       <Surface variant="table" padding="md">
         <div className="flex flex-col gap-4 border-b border-zinc-200 pb-5 dark:border-zinc-800 lg:flex-row lg:items-end lg:justify-between">
@@ -1124,5 +1104,41 @@ export function WardrobeView() {
         )}
       </ModalShell>
     </div>
+  )
+}
+
+function WardrobeAlertsPanel({
+  alerts,
+}: {
+  alerts: Array<{ message: string; timestamp: string; type: 'critical' | 'warning' }>
+}) {
+  return (
+    <Surface variant="table" padding="md">
+      <div className="flex flex-col gap-3 border-b border-zinc-200 pb-4 dark:border-zinc-800 sm:flex-row sm:items-end sm:justify-between">
+        <div>
+          <p className="section-kicker">Alerts</p>
+          <h2 className="section-title">Critical Signals</h2>
+        </div>
+        <p className="text-sm text-zinc-500 dark:text-zinc-400">Continuity, laundry, and accessory exceptions that need attention now.</p>
+      </div>
+      <div className="mt-4 grid gap-3 lg:grid-cols-2">
+        {alerts.length === 0 ? (
+          <div className="flex min-h-[120px] items-center justify-center rounded-[24px] border border-dashed border-zinc-200 px-4 py-8 text-center dark:border-zinc-800 lg:col-span-2">
+            <div>
+              <p className="text-sm font-semibold text-zinc-900 dark:text-white">No wardrobe alerts right now</p>
+              <p className="mt-2 text-sm text-zinc-500 dark:text-zinc-400">Continuity, laundry, and accessory checks are currently on track.</p>
+            </div>
+          </div>
+        ) : alerts.map((alert, index) => (
+          <div
+            key={`${alert.timestamp}-${index}`}
+            className={`rounded-[24px] border px-4 py-4 ${alert.type === 'critical' ? 'border-red-200 bg-red-50/70 dark:border-red-500/20 dark:bg-red-500/10' : 'border-orange-200 bg-orange-50/70 dark:border-orange-500/20 dark:bg-orange-500/10'}`}
+          >
+            <p className="text-sm font-semibold text-zinc-900 dark:text-white">{alert.message}</p>
+            <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">{timeAgo(alert.timestamp)}</p>
+          </div>
+        ))}
+      </div>
+    </Surface>
   )
 }

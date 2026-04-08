@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState, type Dispatch, type SetStateAction } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { DataTable } from '@/components/shared/DataTable'
 import { KpiCard } from '@/components/shared/KpiCard'
@@ -166,6 +166,7 @@ export function CrewView() {
   const canManageBatta = permissions.canApproveBatta
   const canSeeFinancials = permissions.canViewFinancials
   const isSelfServiceOnly = permissions.crewScope === 'self'
+  const showManagerQueueInline = canManageBatta && !isSelfServiceOnly
 
   const currentAttendancePayout = useMemo(
     () => payouts.find(payout => payout.attendanceId === myShift.attendanceId),
@@ -486,8 +487,8 @@ export function CrewView() {
         </Surface>
       )}
 
-      <div className={cn('grid gap-6', isSelfServiceOnly ? 'xl:grid-cols-[1.1fr_1fr]' : 'xl:grid-cols-[1.15fr_0.95fr]')}>
-        {isSelfServiceOnly && (
+      {isSelfServiceOnly && (
+        <div className="grid gap-6 xl:grid-cols-[1.1fr_1fr]">
           <Surface variant="table" padding="lg">
             <div className="mb-6 flex items-start justify-between gap-4">
               <div>
@@ -528,8 +529,10 @@ export function CrewView() {
               <InfoCard label="Map Link" value={myShift.checkInLocation ? 'Open in OpenStreetMap' : '--'} link={buildMapLink(myShift.checkInLocation)} />
             </div>
           </Surface>
-        )}
+        </div>
+      )}
 
+      <div className={cn('grid gap-6 items-start', showManagerQueueInline ? 'xl:grid-cols-[1.15fr_0.95fr]' : 'max-w-[920px]')}>
         <Surface variant="table" padding="lg">
           <div className="mb-6 flex items-start justify-between gap-4">
             <div>
@@ -661,6 +664,17 @@ export function CrewView() {
             </div>
           )}
         </Surface>
+
+        {showManagerQueueInline && (
+          <ManagerQueueSection
+            battaQueue={battaQueue}
+            activeAction={activeAction}
+            paymentMethods={paymentMethods}
+            setPaymentMethods={setPaymentMethods}
+            handleApproveBatta={handleApproveBatta}
+            handleMarkPaid={handleMarkPaid}
+          />
+        )}
       </div>
 
       {!isProductionManager && permissions.canRequestBatta && (
@@ -728,49 +742,15 @@ export function CrewView() {
         </div>
       )}
 
-      {canManageBatta && (
-        <Surface variant="table" padding="lg">
-          <div className="mb-6">
-            <p className="section-title">Manager Queue</p>
-            <p className="mt-2 text-sm text-zinc-500 dark:text-zinc-400">Approve batta requests and record final settlement without exposing this queue to crew-level roles.</p>
-          </div>
-
-          {battaQueue.length === 0 ? (
-            <EmptyState icon="inventory_2" title="No pending batta requests" description="The queue is clear for the active project." />
-          ) : (
-            <div className="grid gap-4 xl:grid-cols-2">
-              {battaQueue.map(payout => (
-                <div key={payout.id} className="rounded-[24px] border border-zinc-200 p-4 dark:border-zinc-800">
-                  <div className="flex flex-wrap items-start justify-between gap-4">
-                    <div>
-                      <p className="text-sm font-medium text-zinc-900 dark:text-white">{payout.crewName}</p>
-                      <p className="mt-1 text-[11px] uppercase tracking-[0.16em] text-zinc-500 dark:text-zinc-400">{payout.department}</p>
-                    </div>
-                    <StatusBadge variant={payoutStatusVariant(payout.status)} label={payout.status} />
-                  </div>
-                  <p className="mt-4 text-sm text-zinc-600 dark:text-zinc-300">{formatCurrency(payout.amount)} | {payout.method}</p>
-                  <div className="mt-4 flex flex-wrap gap-3">
-                    <button onClick={() => void handleApproveBatta(payout.id)} disabled={activeAction !== null || payout.status !== 'requested'} className="btn-primary px-4 py-2 text-[11px]">
-                      {activeAction === `approve-${payout.id}` ? 'Approving...' : 'Approve'}
-                    </button>
-                    <select
-                      value={paymentMethods[payout.id] ?? 'CASH'}
-                      onChange={event => setPaymentMethods(current => ({ ...current, [payout.id]: event.target.value as PaymentMethod }))}
-                      className={cn(inputClass, 'max-w-[180px]')}
-                    >
-                      <option value="CASH">Cash</option>
-                      <option value="UPI">UPI</option>
-                      <option value="BANK">Bank</option>
-                    </select>
-                    <button onClick={() => void handleMarkPaid(payout.id)} disabled={activeAction !== null || payout.status !== 'approved'} className={secondaryButtonClass}>
-                      {activeAction === `pay-${payout.id}` ? 'Paying...' : 'Mark Paid'}
-                    </button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </Surface>
+      {canManageBatta && !showManagerQueueInline && (
+        <ManagerQueueSection
+          battaQueue={battaQueue}
+          activeAction={activeAction}
+          paymentMethods={paymentMethods}
+          setPaymentMethods={setPaymentMethods}
+          handleApproveBatta={handleApproveBatta}
+          handleMarkPaid={handleMarkPaid}
+        />
       )}
 
       {canSeeCrewTable ? (
@@ -857,5 +837,66 @@ function InfoCard({ label, value, link }: { label: string; value: string; link?:
         <p className="mt-2 text-sm font-medium text-zinc-900 dark:text-white">{value}</p>
       )}
     </div>
+  )
+}
+
+function ManagerQueueSection({
+  battaQueue,
+  activeAction,
+  paymentMethods,
+  setPaymentMethods,
+  handleApproveBatta,
+  handleMarkPaid,
+}: {
+  battaQueue: WagePayout[]
+  activeAction: string | null
+  paymentMethods: Record<string, PaymentMethod>
+  setPaymentMethods: Dispatch<SetStateAction<Record<string, PaymentMethod>>>
+  handleApproveBatta: (payoutId: string) => Promise<void>
+  handleMarkPaid: (payoutId: string) => Promise<void>
+}) {
+  return (
+    <Surface variant="table" padding="lg" className="h-full">
+      <div className="mb-6">
+        <p className="section-title">Manager Queue</p>
+        <p className="mt-2 text-sm text-zinc-500 dark:text-zinc-400">Approve batta requests and record final settlement without exposing this queue to crew-level roles.</p>
+      </div>
+
+      {battaQueue.length === 0 ? (
+        <EmptyState icon="inventory_2" title="No pending batta requests" description="The queue is clear for the active project." />
+      ) : (
+        <div className="grid gap-4">
+          {battaQueue.map(payout => (
+            <div key={payout.id} className="rounded-[24px] border border-zinc-200 p-4 dark:border-zinc-800">
+              <div className="flex flex-wrap items-start justify-between gap-4">
+                <div>
+                  <p className="text-sm font-medium text-zinc-900 dark:text-white">{payout.crewName}</p>
+                  <p className="mt-1 text-[11px] uppercase tracking-[0.16em] text-zinc-500 dark:text-zinc-400">{payout.department}</p>
+                </div>
+                <StatusBadge variant={payoutStatusVariant(payout.status)} label={payout.status} />
+              </div>
+              <p className="mt-4 text-sm text-zinc-600 dark:text-zinc-300">{formatCurrency(payout.amount)} | {payout.method}</p>
+              <div className="mt-4 flex flex-wrap gap-3">
+                <button onClick={() => void handleApproveBatta(payout.id)} disabled={activeAction !== null || payout.status !== 'requested'} className="btn-primary px-4 py-2 text-[11px]">
+                  {activeAction === `approve-${payout.id}` ? 'Approving...' : 'Approve'}
+                </button>
+                <select
+                  value={paymentMethods[payout.id] ?? 'CASH'}
+                  onChange={event => setPaymentMethods(current => ({ ...current, [payout.id]: event.target.value as PaymentMethod }))}
+                  className={cn(inputClass, 'max-w-[180px]')}
+                >
+                  <option value="CASH">Cash</option>
+                  <option value="UPI">UPI</option>
+                  <option value="BANK">Bank</option>
+                </select>
+                <button onClick={() => void handleMarkPaid(payout.id)} disabled={activeAction !== null || payout.status !== 'approved'} className={secondaryButtonClass}>
+                  {activeAction === `pay-${payout.id}` ? 'Paying...' : 'Mark Paid'}
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </Surface>
   )
 }
