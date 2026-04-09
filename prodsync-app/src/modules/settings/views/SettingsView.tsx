@@ -45,6 +45,8 @@ function mapAllocationState(row: ProjectBudgetAllocation): AllocationRowState {
 }
 
 export function SettingsView() {
+  const [isEditingBudget, setIsEditingBudget] = useState(false)
+  const [showAllDepartments, setShowAllDepartments] = useState(false)
   const queryClient = useQueryClient()
   const user = useAuthStore(state => state.user)
   const { project: activeProject, activeProjectId, projectProgress } = useProject()
@@ -215,7 +217,9 @@ export function SettingsView() {
   }
 
   return (
-    <div className="page-shell page-shell-narrow space-y-6">
+    <>
+    {/* DESKTOP UI */}
+    <div className="hidden xl:block page-shell page-shell-narrow space-y-6">
       <header>
         <span className="page-kicker">Project Configuration</span>
         <h1 className="page-title page-title-compact">Settings</h1>
@@ -382,6 +386,186 @@ export function SettingsView() {
         </div>
       </div>
     </div>
+
+    {/* MOBILE UI */}
+    <div className="md:hidden mt-2 px-1 pb-[140px] min-h-screen">
+      {/* Header */}
+      <header className="px-3 mb-6">
+        <div className="flex items-center justify-between overflow-hidden rounded-[28px] border border-zinc-200/80 bg-white/88 px-4 py-4 shadow-[0_18px_40px_rgba(15,23,42,0.08)] backdrop-blur-xl dark:border-white/8 dark:bg-zinc-900/82 dark:shadow-[0_20px_44px_rgba(0,0,0,0.32)]">
+          <div>
+            <span className="page-kicker text-orange-500">Project Configuration</span>
+            <h1 className="page-title page-title-compact mt-1 text-zinc-900 dark:text-white tracking-tight leading-none">Settings <span className="ml-2 bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900 text-[10px] font-extrabold px-1.5 py-0.5 rounded uppercase tracking-widest align-middle">EP Control</span></h1>
+          </div>
+
+        </div>
+      </header>
+
+      <div className="animate-in fade-in slide-in-from-bottom-2 duration-300 space-y-8 px-3 pt-6 pb-[240px]">
+        <section className="space-y-4 px-1 pb-2">
+          <h2 className="text-[10px] font-bold tracking-[0.2em] text-zinc-500 dark:text-zinc-300 uppercase">PROJECT FOUNDATIONS</h2>
+          
+          <div className="space-y-4">
+             <div className="space-y-1.5">
+               <label className="text-[8px] text-zinc-500 dark:text-zinc-400 font-bold tracking-widest uppercase ml-1">Project Name</label>
+               <input value={name} onChange={event => setName(event.target.value)} disabled={!canEditProject} className="w-full bg-zinc-100 dark:bg-zinc-900 text-zinc-900 dark:text-white border border-zinc-200 dark:border-white/5 rounded-xl p-3.5 text-sm focus:ring-1 focus:ring-orange-500 shadow-sm" />
+             </div>
+             <div className="grid grid-cols-2 gap-3">
+               <div className="space-y-1.5">
+                 <label className="text-[8px] text-zinc-500 dark:text-zinc-400 font-bold tracking-widest uppercase ml-1">Location</label>
+                 <input value={location} onChange={event => setLocation(event.target.value)} disabled={!canEditProject} className="w-full bg-zinc-100 dark:bg-zinc-900 text-zinc-900 dark:text-white border border-zinc-200 dark:border-white/5 rounded-xl p-3.5 text-sm focus:ring-1 focus:ring-orange-500 shadow-sm" />
+               </div>
+               <div className="space-y-1.5 relative">
+                 <label className="text-[8px] text-zinc-500 dark:text-zinc-400 font-bold tracking-widest uppercase ml-1">Status</label>
+                 <select value={status} onChange={event => setStatus(event.target.value as ProjectStage)} disabled={!canEditProject} className="w-full bg-zinc-100 dark:bg-zinc-900 text-zinc-900 dark:text-white border border-zinc-200 dark:border-white/5 rounded-xl p-3.5 text-sm focus:ring-1 focus:ring-orange-500 appearance-none shadow-sm capitalize">
+                   {PROJECT_STATUSES.map(item => <option key={item} value={item}>{item}</option>)}
+                 </select>
+                 <span className="material-symbols-outlined absolute right-3 bottom-3 text-[18px] text-zinc-500 pointer-events-none">expand_more</span>
+               </div>
+             </div>
+
+             <div className="pt-5 pb-1 space-y-1.5">
+               <div className="flex items-center justify-between">
+                 <label className="text-[8px] text-zinc-500 dark:text-zinc-400 font-bold tracking-widest uppercase ml-1">Total Budget</label>
+                 <button onClick={() => setIsEditingBudget(!isEditingBudget)} className="text-[9px] text-orange-500 font-bold tracking-widest uppercase">{isEditingBudget ? 'DONE' : 'EDIT'}</button>
+               </div>
+               <div className="flex items-center">
+                 {isEditingBudget ? (
+                   <div className="relative w-full">
+                     <span className="absolute left-0 top-1 text-xl font-bold text-zinc-400">₹</span>
+                     <input type="number" value={budget} onChange={e => setBudget(e.target.value)} disabled={!canEditProject} className="text-xl font-bold font-headline tracking-tight text-zinc-900 dark:text-white leading-none bg-transparent border-b border-orange-500 outline-none w-full pl-6 pb-1" autoFocus />
+                   </div>
+                 ) : (
+                   <div className="text-xl font-bold font-headline tracking-tight text-zinc-900 dark:text-white leading-none">{formatCurrency(budgetValue)}</div>
+                 )}
+               </div>
+             </div>
+
+             <div className="grid grid-cols-2 gap-3 py-2">
+               <div className="bg-zinc-100 dark:bg-zinc-900 rounded-[16px] p-4 flex items-center gap-3 border border-zinc-200 dark:border-white/5 shadow-sm">
+                 <span className="material-symbols-outlined text-[18px] text-orange-500">groups</span>
+                 <div>
+                   <div className="text-[8px] text-zinc-500 font-bold uppercase tracking-[0.15em]">Active Crew</div>
+                   <div className="text-[13px] font-bold text-zinc-900 dark:text-white mt-0.5">{crewCount} members</div>
+                 </div>
+               </div>
+               <div className="bg-zinc-100 dark:bg-zinc-900 rounded-[16px] p-4 flex items-center gap-3 border border-zinc-200 dark:border-white/5 shadow-sm overflow-hidden">
+                 <span className="material-symbols-outlined text-[18px] text-orange-500">update</span>
+                 <div className="min-w-0 flex-1">
+                   <div className="text-[8px] text-zinc-500 font-bold uppercase tracking-[0.15em]">OT Rules</div>
+                   <div className="text-[13px] font-bold text-zinc-900 dark:text-white mt-0.5 max-w-full overflow-hidden text-ellipsis whitespace-nowrap" title={otRulesLabel || 'Standard (1.5x)'}>{otRulesLabel || 'Standard (1.5x)'}</div>
+                 </div>
+               </div>
+             </div>
+          </div>
+        </section>
+
+        <section className="space-y-4">
+          <h2 className="text-[10px] font-bold tracking-[0.2em] uppercase text-zinc-500 dark:text-zinc-300">ACTIVE DEPARTMENTS</h2>
+          <div className="flex gap-2 overflow-x-auto pb-2 -mx-4 px-4 hide-scrollbar snap-x">
+             {DEPARTMENTS.map(dept => (
+               <button
+                 key={dept.id}
+                 onClick={() => toggleDepartment(dept.id)}
+                 disabled={!canEditProject}
+                 className={`flex items-center gap-1.5 px-4 py-2.5 rounded-full border text-xs font-bold whitespace-nowrap transition-colors snap-start flex-shrink-0 ${enabledDepartments.includes(dept.id) ? 'bg-[#3B1F0F]/20 dark:bg-[#3B1F0F] text-orange-500 border-orange-500/30' : 'bg-white dark:bg-zinc-900 text-zinc-500 border-zinc-200 dark:border-white/5'} ${!canEditProject && 'opacity-70'}`}
+               >
+                 {dept.label} {enabledDepartments.includes(dept.id) && <span className="material-symbols-outlined text-[14px]">check_circle</span>}
+               </button>
+             ))}
+          </div>
+          
+          <div className="grid grid-cols-2 gap-3 mt-4">
+            <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 p-4 rounded-xl shadow-md min-w-0 flex flex-col justify-between">
+              <span className="text-zinc-500 text-[10px] font-bold uppercase tracking-[0.15em]">Progress</span>
+              <div className="text-4xl font-headline font-extrabold text-zinc-900 dark:text-white mt-1 break-words w-full tracking-tighter" style={{ fontSize: '2rem' }}>{projectProgress?.progress ?? activeProject?.progressPercent ?? 0}%</div>
+            </div>
+            <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 p-4 rounded-xl shadow-md min-w-0 flex flex-col justify-between">
+              <span className="text-zinc-500 text-[10px] font-bold uppercase tracking-[0.15em]">Spent</span>
+              <div className="text-4xl font-headline font-extrabold text-zinc-900 dark:text-white mt-1 break-words w-full tracking-tighter" style={{ fontSize: String(projectProgress?.spent ?? 0).length > 8 ? '1.5rem' : '2rem' }}>{formatCurrency(projectProgress?.spent ?? activeProject?.spentAmount ?? 0, undefined, 0)}</div>
+            </div>
+            <div className="col-span-2 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 p-4 rounded-xl shadow-md min-w-0 flex flex-col justify-between">
+              <span className="text-zinc-500 text-[10px] font-bold uppercase tracking-[0.15em]">Allocated</span>
+              <div className="text-4xl font-headline font-extrabold text-zinc-900 dark:text-white mt-1 break-words w-full tracking-tighter" style={{ fontSize: '2rem' }}>{formatCurrency(allocationTotalAmount, undefined, 0)}</div>
+            </div>
+          </div>
+        </section>
+
+        <section className="space-y-4">
+          <div className="flex items-center justify-between">
+            <h2 className="text-[10px] font-bold tracking-[0.2em] uppercase text-zinc-500 dark:text-zinc-300">DEPARTMENTAL ALLOCATION</h2>
+            <button onClick={() => setShowAllDepartments(!showAllDepartments)} className="text-[8px] text-orange-500 font-bold tracking-widest uppercase">MANAGE</button>
+          </div>
+          <div className="space-y-3">
+               {ALLOCATION_DEPARTMENTS.slice(0, showAllDepartments ? undefined : 3).map(item => {
+                   const row = allocationRows.find(entry => entry.department === item.id) ?? {
+                        department: item.id,
+                        allocatedAmount: '',
+                        allocatedPercentage: '',
+                   }
+                   return (
+                     <div key={item.id} className="bg-zinc-50 dark:bg-zinc-900 rounded-2xl p-4 border border-zinc-200 dark:border-white/5 flex gap-4 items-center shadow-sm">
+                       <div className="w-12 h-12 rounded-full bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-white/5 flex items-center justify-center flex-shrink-0 shadow-sm">
+                          <span className="material-symbols-outlined text-orange-500 text-[20px]">
+                            {item.id === 'transport' ? 'local_shipping' : item.id === 'crew' ? 'groups' : item.id === 'camera' ? 'videocam' : item.id === 'wardrobe' ? 'styler' : item.id === 'post' ? 'movie_edit' : item.id === 'production' ? 'corporate_fare' : 'category'}
+                          </span>
+                       </div>
+                       <div className="flex-1 space-y-2">
+                         <div className="text-sm font-bold text-zinc-900 dark:text-white capitalize">{item.label}</div>
+                         <div className="flex gap-2">
+                           <div className="relative flex-1">
+                             <span className="absolute left-3 top-2.5 text-xs text-zinc-500 font-medium">₹</span>
+                             <input value={row.allocatedAmount} onChange={event => updateAllocationAmount(item.id, event.target.value)} disabled={!canEditProject} className="w-full bg-white dark:bg-zinc-950 text-zinc-900 dark:text-white border border-zinc-200 dark:border-white/5 rounded-lg pl-7 p-2.5 text-xs focus:ring-1 focus:ring-orange-500 shadow-sm" placeholder="Amount" />
+                           </div>
+                           <div className="relative w-[76px]">
+                             <span className="absolute left-3 top-2.5 text-xs text-zinc-500 font-medium">%</span>
+                             <input value={row.allocatedPercentage} onChange={event => updateAllocationPercentage(item.id, event.target.value)} disabled={!canEditProject} className="w-full bg-white dark:bg-zinc-950 text-zinc-900 dark:text-white border border-zinc-200 dark:border-white/5 rounded-lg pl-7 p-2.5 text-xs focus:ring-1 focus:ring-orange-500 shadow-sm" placeholder="" />
+                           </div>
+                         </div>
+                       </div>
+                     </div>
+                   )
+               })}
+               {ALLOCATION_DEPARTMENTS.length > 3 && (
+                 <button onClick={() => setShowAllDepartments(!showAllDepartments)} className="w-full py-3 text-[9px] font-bold tracking-[0.2em] text-zinc-400 uppercase text-center flex items-center justify-center gap-1 active:text-zinc-600 dark:active:text-zinc-300">
+                   {showAllDepartments ? "SHOW LESS" : `SHOW ${ALLOCATION_DEPARTMENTS.length - 3} MORE DEPARTMENTS`}
+                   <span className="material-symbols-outlined text-[14px]">{showAllDepartments ? "expand_less" : "expand_more"}</span>
+                 </button>
+               )}
+          </div>
+
+          <div className="bg-zinc-100 dark:bg-zinc-900 border border-zinc-200 dark:border-white/5 rounded-[16px] p-4 grid grid-cols-2 shadow-sm">
+             <div>
+               <div className="text-[9px] font-bold text-zinc-500 uppercase tracking-widest">Total Allocated</div>
+               <div className="text-[15px] font-bold text-zinc-900 dark:text-white mt-1.5 tracking-tight font-headline">{formatCurrency(allocationTotalAmount)}</div>
+             </div>
+             <div className="text-right">
+               <div className="text-[9px] font-bold text-orange-500 uppercase tracking-widest">Remaining</div>
+               <div className="text-[15px] font-bold text-orange-500 mt-1.5 tracking-tight font-headline">{formatCurrency(allocationRemaining)}</div>
+             </div>
+          </div>
+        </section>
+
+        <div className="bg-[#FFF4ED] dark:bg-zinc-900 border border-orange-500/30 rounded-[20px] p-4 flex gap-4 mt-8 shadow-sm">
+          <span className="material-symbols-outlined text-orange-500 text-[20px] mt-0.5">shield</span>
+          <p className="text-[11px] text-zinc-600 dark:text-zinc-400 leading-relaxed pr-2">
+            <strong className="text-zinc-900 dark:text-white block mb-1">EP Level Access:</strong> These settings control global project defaults. Changes will propagate to all department heads and affect financial calculations immediately.
+          </p>
+        </div>
+
+        <button
+          onClick={saveProjectSettings}
+          className="w-full bg-orange-500 text-white font-bold text-sm tracking-widest uppercase py-3.5 rounded-[16px] disabled:opacity-50 disabled:bg-zinc-200 dark:disabled:bg-zinc-800 disabled:text-zinc-400 dark:disabled:text-zinc-500 active:scale-[0.98] transition-transform shadow-lg shadow-orange-500/20"
+          disabled={!canEditProject || updateProjectMutation.isPending || allocationTotalAmount > budgetValue + 0.01 || allocationTotalPercentage > 100.01}
+        >
+          {updateProjectMutation.isPending ? 'Saving...' : 'Save Project Settings'}
+        </button>
+        {allocationTotalAmount > budgetValue + 0.01 && (
+          <p className="text-center text-xs text-red-500">Allocation exceeds budget.</p>
+        )}
+      </div>
+    </div>
+
+    </>
   )
 }
 

@@ -1,0 +1,335 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0, viewport-fit=cover" name="viewport"/>
+<title>ProdSync | Project Configuration</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;700;800&amp;family=Inter:wght@400;600;700;900&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "secondary-fixed-dim": "#ffb37d",
+                        "on-tertiary": "#5e4000",
+                        "tertiary-fixed-dim": "#eba60f",
+                        "surface-tint": "#ff9159",
+                        "secondary-fixed": "#ffc69f",
+                        "on-surface": "#ffffff",
+                        "surface-dim": "#0e0e0e",
+                        "secondary": "#f88d36",
+                        "on-tertiary-fixed-variant": "#5e4000",
+                        "on-secondary-fixed-variant": "#803f00",
+                        "surface-bright": "#2c2c2c",
+                        "background": "#0e0e0e",
+                        "on-primary": "#531e00",
+                        "surface-container-lowest": "#000000",
+                        "surface-container-highest": "#262626",
+                        "on-secondary-container": "#fff6f2",
+                        "on-primary-fixed": "#000000",
+                        "error-container": "#b92902",
+                        "tertiary": "#ffc562",
+                        "primary-fixed-dim": "#f66700",
+                        "primary-container": "#ff7a2f",
+                        "surface-container-high": "#20201f",
+                        "outline-variant": "#484847",
+                        "error-dim": "#d53d18",
+                        "tertiary-fixed": "#fbb423",
+                        "inverse-surface": "#fcf9f8",
+                        "tertiary-container": "#fbb423",
+                        "on-tertiary-fixed": "#372400",
+                        "on-secondary": "#462000",
+                        "surface": "#0e0e0e",
+                        "on-tertiary-container": "#523700",
+                        "on-secondary-fixed": "#552800",
+                        "on-error-container": "#ffd2c8",
+                        "on-background": "#ffffff",
+                        "tertiary-dim": "#eba60f",
+                        "inverse-primary": "#a14100",
+                        "surface-variant": "#262626",
+                        "outline": "#767575",
+                        "on-primary-container": "#401500",
+                        "surface-container-low": "#131313",
+                        "inverse-on-surface": "#565555",
+                        "surface-container": "#1a1a1a",
+                        "error": "#ff7351",
+                        "primary-fixed": "#ff7a2f",
+                        "on-primary-fixed-variant": "#4f1c00",
+                        "primary-dim": "#ff7524",
+                        "primary": "#ff9159",
+                        "secondary-container": "#944a00",
+                        "on-surface-variant": "#adaaaa",
+                        "on-error": "#450900",
+                        "secondary-dim": "#eb832c"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.25rem",
+                        "lg": "0.5rem",
+                        "xl": "0.75rem",
+                        "full": "9999px"
+                    },
+                    "fontFamily": {
+                        "headline": ["Manrope"],
+                        "body": ["Inter"],
+                        "label": ["Inter"]
+                    }
+                },
+            },
+        }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .hide-scrollbar::-webkit-scrollbar { display: none; }
+        .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-background text-on-surface font-body selection:bg-primary selection:text-on-primary-fixed">
+<!-- TopAppBar Shell Implementation -->
+<nav class="fixed top-0 w-full z-50 bg-[#0e0e0e]/60 backdrop-blur-md flex justify-between items-center px-6 h-16 w-full">
+<div class="flex items-center gap-3">
+<span class="text-xl font-black tracking-tight text-white font-headline">Settings</span>
+<span class="px-2 py-0.5 rounded-full bg-secondary-container text-[10px] font-bold text-on-secondary-container tracking-tighter uppercase">EP Control</span>
+</div>
+<div class="flex items-center gap-4">
+<button class="w-10 h-10 flex items-center justify-center rounded-full hover:bg-[#262626] transition-colors active:scale-95 duration-200">
+<span class="material-symbols-outlined text-[#adaaaa]">search</span>
+</button>
+<div class="w-8 h-8 rounded-full border border-outline-variant/30 overflow-hidden">
+<img class="w-full h-full object-cover" data-alt="Close up portrait of a professional film executive in a dark studio setting with soft rim lighting" src="https://lh3.googleusercontent.com/aida-public/AB6AXuB78Dl74CcqQ7Ct8pzI7XegKBubcV3LtyqehQoUNJ5MKuMJyzwKIXXMxni_IZJxOklJDxajXcAabDvy2nhs_BQRcqoZHBTcZTFnobzhv9KL1J14-IvsC0LdymRV_cUgrlV9DXFFz55_exx400rVwO27prkDtmtsx73fzXBAK4lD0A5jsqK7NjDv2My4sJuQLlTNJrQCsNjocYoyhMjpoZPY8QWEhtMqLq4TfxBmdFKcixcfbHmWSVh0C10pvgxKTcA84ydOkjYv7Q-D"/>
+</div>
+</div>
+</nav>
+<main class="pt-20 pb-40 px-5 space-y-8">
+<!-- Section 1: Project Settings Card -->
+<section class="space-y-4">
+<h2 class="text-xs font-black uppercase tracking-[0.2em] text-on-surface-variant px-1">Project Foundations</h2>
+<div class="bg-surface-container rounded-xl p-6 space-y-6">
+<div class="grid grid-cols-2 gap-6">
+<div class="col-span-2 space-y-1">
+<label class="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest">Project Name</label>
+<input class="w-full bg-surface-container-highest border-none rounded-lg p-3 text-on-surface font-headline font-bold focus:ring-1 focus:ring-primary" type="text" value="Test"/>
+</div>
+<div class="space-y-1">
+<label class="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest">Location</label>
+<input class="w-full bg-surface-container-highest border-none rounded-lg p-3 text-on-surface text-sm focus:ring-1 focus:ring-primary" type="text" value="Chennai"/>
+</div>
+<div class="space-y-1">
+<label class="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest">Status</label>
+<div class="relative">
+<select class="w-full bg-surface-container-highest border-none rounded-lg p-3 text-on-surface text-sm appearance-none focus:ring-1 focus:ring-primary">
+<option>Pre-Production</option>
+<option>Production</option>
+<option>Post-Production</option>
+</select>
+<span class="material-symbols-outlined absolute right-3 top-3 text-on-surface-variant pointer-events-none">unfold_more</span>
+</div>
+</div>
+</div>
+<div class="space-y-4 pt-2">
+<div class="flex justify-between items-end border-b border-outline-variant/10 pb-4">
+<div class="space-y-1">
+<label class="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest">Total Budget (INR)</label>
+<div class="text-2xl font-black font-headline tracking-tight text-white">₹ 1,00,00,000</div>
+</div>
+<button class="text-primary text-[10px] font-black uppercase tracking-widest mb-1">Edit</button>
+</div>
+<div class="grid grid-cols-2 gap-4">
+<div class="bg-surface-container-low p-3 rounded-lg flex items-center gap-3">
+<span class="material-symbols-outlined text-primary text-xl">groups</span>
+<div>
+<div class="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest">Active Crew</div>
+<div class="font-bold text-sm">11 members</div>
+</div>
+</div>
+<div class="bg-surface-container-low p-3 rounded-lg flex items-center gap-3">
+<span class="material-symbols-outlined text-primary text-xl">more_time</span>
+<div>
+<div class="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest">OT Rules</div>
+<div class="font-bold text-sm">Standard (1.5x)</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+</section>
+<!-- Section 2: Enabled Departments -->
+<section class="space-y-4">
+<h2 class="text-xs font-black uppercase tracking-[0.2em] text-on-surface-variant px-1">Active Departments</h2>
+<div class="flex overflow-x-auto gap-3 pb-2 hide-scrollbar">
+<!-- Chips with Toggles -->
+<div class="flex-shrink-0 bg-primary-container/20 border border-primary/20 px-4 py-3 rounded-full flex items-center gap-3">
+<span class="text-xs font-bold text-primary font-label tracking-wide">Camera</span>
+<div class="w-4 h-4 rounded-full bg-primary flex items-center justify-center">
+<span class="material-symbols-outlined text-[10px] text-on-primary-fixed font-black">check</span>
+</div>
+</div>
+<div class="flex-shrink-0 bg-primary-container/20 border border-primary/20 px-4 py-3 rounded-full flex items-center gap-3">
+<span class="text-xs font-bold text-primary font-label tracking-wide">Art</span>
+<div class="w-4 h-4 rounded-full bg-primary flex items-center justify-center">
+<span class="material-symbols-outlined text-[10px] text-on-primary-fixed font-black">check</span>
+</div>
+</div>
+<div class="flex-shrink-0 bg-primary-container/20 border border-primary/20 px-4 py-3 rounded-full flex items-center gap-3">
+<span class="text-xs font-bold text-primary font-label tracking-wide">Transport</span>
+<div class="w-4 h-4 rounded-full bg-primary flex items-center justify-center">
+<span class="material-symbols-outlined text-[10px] text-on-primary-fixed font-black">check</span>
+</div>
+</div>
+<div class="flex-shrink-0 bg-primary-container/20 border border-primary/20 px-4 py-3 rounded-full flex items-center gap-3">
+<span class="text-xs font-bold text-primary font-label tracking-wide">Production</span>
+<div class="w-4 h-4 rounded-full bg-primary flex items-center justify-center">
+<span class="material-symbols-outlined text-[10px] text-on-primary-fixed font-black">check</span>
+</div>
+</div>
+<div class="flex-shrink-0 bg-primary-container/20 border border-primary/20 px-4 py-3 rounded-full flex items-center gap-3">
+<span class="text-xs font-bold text-primary font-label tracking-wide">Wardrobe</span>
+<div class="w-4 h-4 rounded-full bg-primary flex items-center justify-center">
+<span class="material-symbols-outlined text-[10px] text-on-primary-fixed font-black">check</span>
+</div>
+</div>
+</div>
+</section>
+<!-- Section 3: Financial Context Summary -->
+<section class="grid grid-cols-3 gap-3">
+<div class="bg-surface-container rounded-xl p-4 flex flex-col justify-between h-28 border-l-2 border-primary">
+<span class="text-[9px] font-black uppercase tracking-widest text-on-surface-variant">Spent</span>
+<span class="text-lg font-black font-headline text-white">₹41.7K</span>
+</div>
+<div class="bg-surface-container rounded-xl p-4 flex flex-col justify-between h-28 border-l-2 border-tertiary">
+<span class="text-[9px] font-black uppercase tracking-widest text-on-surface-variant">Progress</span>
+<span class="text-lg font-black font-headline text-white">0.42%</span>
+</div>
+<div class="bg-surface-container rounded-xl p-4 flex flex-col justify-between h-28 border-l-2 border-outline-variant">
+<span class="text-[9px] font-black uppercase tracking-widest text-on-surface-variant">Allocated</span>
+<span class="text-lg font-black font-headline text-on-surface-variant">₹0</span>
+</div>
+</section>
+<!-- Section 4: Budget Allocation -->
+<section class="space-y-4">
+<div class="flex justify-between items-center px-1">
+<h2 class="text-xs font-black uppercase tracking-[0.2em] text-on-surface-variant">Departmental Allocation</h2>
+<span class="text-[10px] font-bold text-primary">MANAGE</span>
+</div>
+<div class="space-y-3">
+<!-- Allocation Cards -->
+<div class="bg-surface-container rounded-xl p-5 flex items-center gap-5">
+<div class="w-12 h-12 bg-surface-container-highest rounded-full flex items-center justify-center">
+<span class="material-symbols-outlined text-secondary">local_shipping</span>
+</div>
+<div class="flex-1">
+<div class="text-sm font-bold text-white mb-1">Transport</div>
+<div class="flex gap-4">
+<div class="flex-1">
+<input class="w-full bg-transparent border-b border-outline-variant py-1 text-sm font-mono focus:border-primary focus:ring-0" placeholder="₹ Amount" type="number"/>
+</div>
+<div class="w-16">
+<input class="w-full bg-transparent border-b border-outline-variant py-1 text-sm font-mono focus:border-primary focus:ring-0" placeholder="%" type="number"/>
+</div>
+</div>
+</div>
+</div>
+<div class="bg-surface-container rounded-xl p-5 flex items-center gap-5">
+<div class="w-12 h-12 bg-surface-container-highest rounded-full flex items-center justify-center">
+<span class="material-symbols-outlined text-secondary">groups</span>
+</div>
+<div class="flex-1">
+<div class="text-sm font-bold text-white mb-1">Crew</div>
+<div class="flex gap-4">
+<div class="flex-1">
+<input class="w-full bg-transparent border-b border-outline-variant py-1 text-sm font-mono focus:border-primary focus:ring-0" placeholder="₹ Amount" type="number"/>
+</div>
+<div class="w-16">
+<input class="w-full bg-transparent border-b border-outline-variant py-1 text-sm font-mono focus:border-primary focus:ring-0" placeholder="%" type="number"/>
+</div>
+</div>
+</div>
+</div>
+<div class="bg-surface-container rounded-xl p-5 flex items-center gap-5">
+<div class="w-12 h-12 bg-surface-container-highest rounded-full flex items-center justify-center">
+<span class="material-symbols-outlined text-secondary">videocam</span>
+</div>
+<div class="flex-1">
+<div class="text-sm font-bold text-white mb-1">Camera</div>
+<div class="flex gap-4">
+<div class="flex-1">
+<input class="w-full bg-transparent border-b border-outline-variant py-1 text-sm font-mono focus:border-primary focus:ring-0" placeholder="₹ Amount" type="number"/>
+</div>
+<div class="w-16">
+<input class="w-full bg-transparent border-b border-outline-variant py-1 text-sm font-mono focus:border-primary focus:ring-0" placeholder="%" type="number"/>
+</div>
+</div>
+</div>
+</div>
+<!-- Expanded view hint -->
+<div class="text-center py-2">
+<button class="text-[10px] font-black uppercase tracking-[0.2em] text-on-surface-variant flex items-center justify-center w-full gap-2">
+                        Show 4 more departments
+                        <span class="material-symbols-outlined text-xs">keyboard_arrow_down</span>
+</button>
+</div>
+</div>
+</section>
+<!-- Section 5: Bottom Summary -->
+<section class="bg-surface-container-high rounded-xl p-6 border border-white/5">
+<div class="flex justify-between items-center mb-6">
+<div>
+<div class="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest mb-1">Total Allocated</div>
+<div class="text-xl font-black font-headline text-white">₹ 0.00</div>
+</div>
+<div class="text-right">
+<div class="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest mb-1 text-primary">Remaining</div>
+<div class="text-xl font-black font-headline text-primary">₹ 1,00,00,000</div>
+</div>
+</div>
+<div class="w-full h-1 bg-surface-container-highest rounded-full overflow-hidden">
+<div class="h-full bg-primary w-[0%]"></div>
+</div>
+</section>
+<!-- Section 7: Access Reminder Card -->
+<section class="bg-surface-container-low border border-outline-variant/10 rounded-xl p-5 flex gap-4">
+<span class="material-symbols-outlined text-tertiary-fixed text-2xl">security</span>
+<p class="text-xs text-on-surface-variant leading-relaxed font-body">
+<strong class="text-on-surface">EP Level Access:</strong> These settings control global project defaults. Changes will propagate to all department heads and affect financial calculations immediately.
+            </p>
+</section>
+</main>
+<!-- Bottom Action Bar & Navigation Shell Logic -->
+<div class="fixed bottom-0 w-full z-50">
+<!-- Section 6: Fixed Bottom Action -->
+<div class="px-6 pb-6 pt-2 bg-gradient-to-t from-background via-background to-transparent">
+<button class="w-full h-14 bg-gradient-to-r from-primary to-primary-container rounded-xl flex items-center justify-center text-on-primary-fixed font-black font-headline tracking-tighter text-lg shadow-[0_12px_32px_rgba(255,145,89,0.2)] active:scale-95 transition-all">
+                Save Project Settings
+            </button>
+</div>
+<!-- BottomNavBar Shell -->
+<nav class="bg-[#0e0e0e]/80 backdrop-blur-xl flex justify-around items-center h-20 px-4 w-full pb-safe shadow-[0_-12px_32px_rgba(0,0,0,0.5)]">
+<button class="flex flex-col items-center justify-center text-[#adaaaa] hover:text-white transition-all active:scale-90 duration-150">
+<span class="material-symbols-outlined mb-1">grid_view</span>
+<span class="font-['Inter'] text-[10px] font-bold uppercase tracking-widest">Dashboard</span>
+</button>
+<button class="flex flex-col items-center justify-center text-[#adaaaa] hover:text-white transition-all active:scale-90 duration-150">
+<span class="material-symbols-outlined mb-1">payments</span>
+<span class="font-['Inter'] text-[10px] font-bold uppercase tracking-widest">Expenses</span>
+</button>
+<button class="flex flex-col items-center justify-center text-[#adaaaa] hover:text-white transition-all active:scale-90 duration-150">
+<span class="material-symbols-outlined mb-1">event</span>
+<span class="font-['Inter'] text-[10px] font-bold uppercase tracking-widest">Schedule</span>
+</button>
+<button class="flex flex-col items-center justify-center text-[#ff9159] scale-110">
+<span class="material-symbols-outlined mb-1">account_balance_wallet</span>
+<span class="font-['Inter'] text-[10px] font-bold uppercase tracking-widest">Vault</span>
+</button>
+</nav>
+</div>
+</body></html>

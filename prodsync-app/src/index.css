@@ -22,6 +22,8 @@
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
     scroll-behavior: smooth;
+    overflow-x: hidden;
+    overscroll-behavior-x: none;
   }
 
   :root {
@@ -78,7 +80,15 @@
     color: var(--app-text);
     overflow-y: auto;
     overflow-x: hidden;
+    overscroll-behavior-x: none;
+    max-width: 100vw;
     transition: background-color 300ms ease, color 300ms ease;
+  }
+
+  #root {
+    width: 100%;
+    overflow-x: hidden;
+    overscroll-behavior-x: none;
   }
 
   button,
