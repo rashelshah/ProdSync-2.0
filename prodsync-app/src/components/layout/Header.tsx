@@ -12,10 +12,17 @@ interface HeaderProps {
   isSidebarCollapsed: boolean
   onToggleSidebar: () => void
   sidebarOffset: number
+  isMobileViewport: boolean
   onToggleMobileSidebar?: () => void
 }
 
-export function Header({ isSidebarCollapsed, onToggleSidebar, sidebarOffset, onToggleMobileSidebar }: HeaderProps) {
+export function Header({
+  isSidebarCollapsed,
+  onToggleSidebar,
+  sidebarOffset,
+  isMobileViewport,
+  onToggleMobileSidebar,
+}: HeaderProps) {
   const navigate = useNavigate()
   const { alerts, unreadCount, acknowledgeAll, isAcknowledgingAll } = useProjectAlerts()
   const user = useAuthStore(s => s.user)
@@ -30,7 +37,7 @@ export function Header({ isSidebarCollapsed, onToggleSidebar, sidebarOffset, onT
   return (
     <header
       className="fixed right-0 top-0 z-30 border-b border-zinc-200/80 bg-white/85 px-6 py-5 backdrop-blur-xl transition-[left] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] dark:border-zinc-800/80 dark:bg-zinc-950/85 lg:px-8 max-md:border-b-0 max-md:border-transparent max-md:bg-transparent max-md:px-4 max-md:py-4 max-md:backdrop-blur-none max-md:pointer-events-none max-md:dark:bg-transparent"
-      style={{ left: typeof window !== 'undefined' && window.innerWidth < 768 ? 0 : sidebarOffset }}
+      style={{ left: isMobileViewport ? 0 : sidebarOffset }}
     >
       <div className="flex items-center justify-between gap-6">
         <div className="flex min-w-0 flex-1 items-center gap-3">
