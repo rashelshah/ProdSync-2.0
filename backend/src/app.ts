@@ -27,6 +27,19 @@ export function createApp() {
   app.use(express.urlencoded({ extended: true }))
   app.use('/uploads', express.static(path.resolve(runtimeProcess.cwd(), 'uploads')))
 
+  app.get('/', (_req, res) => {
+    res.json({
+      ok: true,
+      service: 'prodsync-backend',
+      message: 'ProdSync backend is running.',
+      health: '/api/health',
+    })
+  })
+
+  app.head('/', (_req, res) => {
+    res.status(200).end()
+  })
+
   app.get('/api/health', (_req, res) => {
     res.json({
       ok: true,
