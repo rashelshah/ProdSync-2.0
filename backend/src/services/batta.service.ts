@@ -2,6 +2,7 @@ import { adminClient } from '../config/supabaseClient'
 import { getProjectCurrencyCode } from './projectFinance.service'
 import { HttpError } from '../utils/httpError'
 import { getCrewModulePermissions, getLatestEligibleAttendanceForBatta, type CrewAccessContext } from './attendance.service'
+import { bridgeApproval, updateBridgedApprovalStatus } from './approvalBridge.service'
 
 interface SupabaseLikeError {
   message: string
@@ -362,7 +363,28 @@ export async function requestBatta(projectId: string, userId: string, access: Cr
 
   throwIfError(error as SupabaseLikeError | null)
 
-  await syncLegacyBattaRequest(projectId, data as WagePayoutRow)
+  const insertedPayout = data as WagePayoutRow
+  await syncLegacyBattaRequest(projectId, insertedPayout)
+
+  // Bridge into global Approval Center (non-fatal)
+  await bridgeApproval({
+    projectId,
+    type: 'batta',
+    department: 'crew',
+    requestedBy: userId,
+    title: `Batta Request — ₹${amount.toLocaleString('en-IN')}`,
+    description: `Daily batta allowance request for attendance ${attendance.attendance_id}`,
+    amount,
+    sourceModule: 'crew',
+    approvableTable: 'wage_payouts',
+    approvableId: insertedPayout.payout_id,
+    priority: 'normal',
+    metadata: {
+      attendanceId: attendance.attendance_id,
+      wagePayoutId: insertedPayout.payout_id,
+    },
+  })
+
   return data
 }
 
@@ -393,7 +415,18 @@ export async function approveBatta(projectId: string, payoutId: string, actorUse
     .single()
 
   throwIfError(error as SupabaseLikeError | null)
-  await syncLegacyBattaRequest(projectId, data as WagePayoutRow)
+  const approvedPayout = data as WagePayoutRow
+  await syncLegacyBattaRequest(projectId, approvedPayout)
+
+  // Sync approval status to global Approval Center (non-fatal)
+  await updateBridgedApprovalStatus({
+    projectId,
+    approvableTable: 'wage_payouts',
+    approvableId: payoutId,
+    status: 'approved',
+    actorUserId,
+  })
+
   return data
 }
 

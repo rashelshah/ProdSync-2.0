@@ -321,6 +321,14 @@ export function CrewView() {
       return
     }
 
+    // Do not fetch suggestions if the value matches the current selected address
+    if (locationSearch.trim() === locationName.trim()) {
+      setSearchResults([])
+      setSearchError(null)
+      setIsSearching(false)
+      return
+    }
+
     searchDebounceRef.current = window.setTimeout(() => {
       setIsSearching(true)
       crewService.searchLocations(activeProjectId, locationSearch.trim())
@@ -410,7 +418,8 @@ export function CrewView() {
     setIsEditingGeofence(true)
     setSearchResults([])
     setSearchError(null)
-    void fetchCurrentLocationIntoDraft()
+    setLocationSearch(locationName)
+    // DO NOT fetchCurrentLocation automatically here on edit.
   }
 
   function cancelGeofenceEditing() {
@@ -776,9 +785,21 @@ export function CrewView() {
             center={mapCenter}
             radiusMeters={radiusMeters}
             editable={canManageGeofence && isEditingGeofence}
-            onCenterChange={next => {
+            onCenterChange={async next => {
               setMapCenter(next)
               setIsLocationDraftDirty(true)
+              
+              // Reverse geocode via OSM (Nominatim)
+              try {
+                const res = await fetch(`https://nominatim.openstreetmap.org/reverse?lat=${next.lat}&lon=${next.lng}&format=json`)
+                const data = await res.json()
+                if (data && data.display_name) {
+                  setLocationName(data.display_name)
+                  setLocationSearch(data.display_name)
+                }
+              } catch (e) {
+                console.error('OSM Reverse Geocoding failed:', e)
+              }
             }}
           />
 

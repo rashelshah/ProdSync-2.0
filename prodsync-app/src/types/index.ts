@@ -349,6 +349,7 @@ export interface ApprovalRequest {
   stageLabel?: string
   canAct?: boolean
   notes?: string
+  sourceModule?: string | null
 }
 
 export interface ApprovalHistory {

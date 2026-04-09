@@ -27,6 +27,7 @@ interface ApprovalRow {
   rejection_reason: string | null
   approvable_table: string | null
   approvable_id: string | null
+  source_module: string | null
   metadata: Record<string, unknown> | null
 }
 
@@ -311,7 +312,7 @@ async function getUserMap(userIds: string[]): Promise<Map<string, UserRow>> {
 async function getApprovalsForProject(projectId: string) {
   const { data, error } = await adminClient
     .from('approvals')
-    .select('id, project_id, type, department, requested_by, request_title, request_description, amount, priority, status, submitted_at, updated_at, approved_by, approved_at, rejected_at, rejection_reason, approvable_table, approvable_id, metadata')
+    .select('id, project_id, type, department, requested_by, request_title, request_description, amount, priority, status, submitted_at, updated_at, approved_by, approved_at, rejected_at, rejection_reason, approvable_table, approvable_id, source_module, metadata')
     .eq('project_id', projectId)
     .order('submitted_at', { ascending: false })
 
@@ -356,6 +357,7 @@ requestsRouter.get('/:projectId', authMiddleware, projectAccessMiddleware, async
         stageLabel: stageLabelForPendingApproval(row),
         canAct: canActOnPendingApproval(req, row),
         notes: pendingApprovalNote(row, userMap),
+        sourceModule: row.source_module ?? null,
       }
     })
 

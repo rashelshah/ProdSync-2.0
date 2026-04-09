@@ -159,6 +159,11 @@ export function ApprovalsView() {
                     <div className="flex flex-wrap items-center gap-2">
                       <p className="text-sm font-medium text-zinc-900 dark:text-white">{item.type}</p>
                       {approvalStageBadge(item)}
+                      {item.sourceModule && (
+                        <span className="rounded-full bg-zinc-200/50 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-zinc-600 dark:bg-zinc-800/50 dark:text-zinc-400">
+                          {item.sourceModule}
+                        </span>
+                      )}
                     </div>
                     <p className="mt-2 text-sm text-zinc-500 dark:text-zinc-400">{item.department} | {formatCurrency(item.amountINR)}</p>
                     <p className="mt-1 text-xs uppercase tracking-[0.12em] text-zinc-500 dark:text-zinc-400">

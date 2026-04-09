@@ -1500,3 +1500,20 @@
     transform: rotate(360deg);
   }
 }
+
+/* ==============================
+   Leaflet overrides (z-index fixes for overlap)
+   ============================== */
+.leaflet-container {
+  z-index: 1 !important;
+}
+
+.leaflet-pane,
+.leaflet-top,
+.leaflet-bottom {
+  z-index: 1 !important;
+}
+
+.leaflet-control-container {
+  z-index: 1 !important;
+}

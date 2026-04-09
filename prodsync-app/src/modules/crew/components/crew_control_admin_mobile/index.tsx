@@ -92,9 +92,20 @@ export function CrewControlAdminMobile(props: CrewControlAdminMobileProps) {
           center={props.mapCenter}
           radiusMeters={props.radiusMeters}
           editable={props.canManageGeofence && props.isEditingGeofence}
-          onCenterChange={next => {
+          onCenterChange={async next => {
             props.setMapCenter(next)
             props.setIsLocationDraftDirty(true)
+            
+            try {
+               const res = await fetch(`https://nominatim.openstreetmap.org/reverse?lat=${next.lat}&lon=${next.lng}&format=json`)
+               const data = await res.json()
+               if (data && data.display_name) {
+                 props.setLocationName(data.display_name)
+                 props.setLocationSearch(data.display_name)
+               }
+            } catch (e) {
+               console.error('OSM Reverse Geocoding failed:', e)
+            }
           }}
         />
         <div className="absolute inset-x-0 bottom-0 p-5 bg-gradient-to-t from-black/90 via-black/50 to-transparent pointer-events-none">
