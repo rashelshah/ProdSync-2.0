@@ -54,6 +54,12 @@ export function useDashboardData() {
     staleTime: 15_000,
     enabled: Boolean(activeProjectId),
   })
+  const reportQ = useQuery({
+    queryKey: ['report-summary', activeProjectId],
+    queryFn: () => import('@/services/reports.service').then(m => m.reportsService.getSummary(activeProjectId!)),
+    staleTime: 60_000,
+    enabled: Boolean(activeProjectId),
+  })
 
   const trips = tripsQ.data ?? []
   const fuelLogs = fuelQ.data ?? []
@@ -62,8 +68,9 @@ export function useDashboardData() {
   const pendingApprovals = approvalsQ.data ?? []
   const alerts = alertsQ.data ?? []
   const events = activityQ.data ?? []
+  const report = reportQ.data
 
-  const kpis = mapDashboardKpis(otGroups, crew)
+  const kpis = mapDashboardKpis(otGroups, crew, report)
   const transportKpis = mapTransportKpis(trips, fuelLogs)
   const crewKpis = mapCrewKpis(crew, [], otGroups)
   const fuelLogsUI = fuelLogs.map(transformFuelLog)
@@ -72,8 +79,8 @@ export function useDashboardData() {
   const deptSnapshots = buildDeptSnapshots(trips, crew, otGroups)
 
   return {
-    isLoading: isLoadingProjectContext || tripsQ.isLoading || crewQ.isLoading || fuelQ.isLoading || approvalsQ.isLoading || alertsQ.isLoading || activityQ.isLoading,
-    isError: isErrorProjectContext || tripsQ.isError || crewQ.isError || fuelQ.isError || approvalsQ.isError || alertsQ.isError || activityQ.isError,
+    isLoading: isLoadingProjectContext || tripsQ.isLoading || crewQ.isLoading || fuelQ.isLoading || approvalsQ.isLoading || alertsQ.isLoading || activityQ.isLoading || reportQ.isLoading,
+    isError: isErrorProjectContext || tripsQ.isError || crewQ.isError || fuelQ.isError || approvalsQ.isError || alertsQ.isError || activityQ.isError || reportQ.isError,
     kpis,
     transportKpis,
     crewKpis,

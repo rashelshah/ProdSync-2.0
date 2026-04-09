@@ -167,7 +167,7 @@ export function CrewControlMemberMobile(props: CrewControlMemberMobileProps) {
       <div className="overflow-hidden relative h-[180px] rounded-[32px] border border-zinc-200 dark:border-white/5 shadow-sm">
         <div className="absolute inset-0 opacity-40 mix-blend-overlay pointer-events-none bg-emerald-500 z-10" />
         <CrewGeofenceMap 
-          center={props.projectLocation?.lat != null && props.projectLocation?.lng != null ? { lat: Number(props.projectLocation.lat), lng: Number(props.projectLocation.lng) } : null} 
+          center={props.projectLocation?.latitude != null && props.projectLocation?.longitude != null ? { lat: Number(props.projectLocation.latitude), lng: Number(props.projectLocation.longitude), accuracy: null, timestamp: new Date().toISOString() } : null} 
           radiusMeters={props.projectLocation?.radiusMeters ?? 200} 
           editable={false} 
         />

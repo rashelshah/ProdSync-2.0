@@ -6,26 +6,30 @@ import type {
   CrewMember,
   OvertimeGroup,
   ApprovalRequest,
+  ReportSummary,
 } from '@/types'
 import type { Trip, FuelLog } from '@/modules/transport/types'
 
 export function mapDashboardKpis(
   otGroups: OvertimeGroup[],
   crew: CrewMember[],
+  report?: ReportSummary,
 ): DashboardKpis {
   const totalOtCost = otGroups.reduce((sum, group) => sum + group.estimatedCostUSD, 0)
+  const budget = report?.budget ?? 0
+  const spend = report?.totalSpend ?? 0
 
   return {
-    budgetActualUSD: 0,
-    budgetTotalUSD: 0,
-    budgetPercent: 0,
-    todaySpendUSD: 0,
+    budgetActualUSD: spend,
+    budgetTotalUSD: budget,
+    budgetPercent: budget > 0 ? Math.round((spend / budget) * 100) : 0,
+    todaySpendUSD: spend, // Since mocked report returns full snapshot
     todaySpendDelta: 0,
-    cashFlowUSD: 0,
+    cashFlowUSD: report?.cashFlow ?? 0,
     cashFlowReservePercent: 0,
     otCostTodayUSD: totalOtCost,
     otStatus: totalOtCost > 10_000 ? 'critical' : totalOtCost > 5_000 ? 'warning' : 'ok',
-    activeCrew: crew.filter(member => member.status !== 'offduty').length,
+    activeCrew: report ? report.activeCrewCount : crew.filter(member => member.status !== 'offduty').length,
     crewCheckInPercent: crew.length > 0 ? 100 : 0,
     activeFleet: 0,
   }
