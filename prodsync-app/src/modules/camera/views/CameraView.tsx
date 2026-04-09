@@ -1,6 +1,7 @@
 import { useState, type InputHTMLAttributes, type ReactNode } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { ActionFeedbackToast } from '@/components/shared/ActionFeedbackToast'
+import { ModuleBudgetBadge } from '@/components/project/ModuleBudgetBadge'
 import { KpiCard } from '@/components/shared/KpiCard'
 import { StatusBadge } from '@/components/shared/StatusBadge'
 import { Surface } from '@/components/shared/Surface'
@@ -1147,6 +1148,11 @@ export function CameraView() {
         </div>
 
         <div className="page-toolbar">
+          <ModuleBudgetBadge
+            projectId={activeProjectId}
+            department="camera"
+            currency={activeProject.currency}
+          />
           {canManageWishlist && (
             <button onClick={openWishlistModal} className="btn-soft">
               Add Wishlist Item

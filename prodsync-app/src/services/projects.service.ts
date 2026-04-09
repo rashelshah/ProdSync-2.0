@@ -1,5 +1,5 @@
 import { apiFetch, readApiJson } from '@/lib/api'
-import type { ProjectCurrency, ProjectDepartment, ProjectJoinRequest, ProjectMember, ProjectRecord, ProjectRequestedRole } from '@/types'
+import type { BudgetAllocationDepartment, ProjectBudgetAllocation, ProjectCurrency, ProjectDepartment, ProjectJoinRequest, ProjectMember, ProjectProgressSnapshot, ProjectRecord, ProjectRequestedRole } from '@/types'
 
 interface BackendProject {
   id: string
@@ -9,6 +9,8 @@ interface BackendProject {
   location: string
   status: ProjectRecord['status']
   progressPercent: number
+  spentAmount: number
+  isOverBudget: boolean
   budgetUSD: number
   currency: ProjectCurrency
   activeCrew: number
@@ -72,6 +74,8 @@ function toProjectRecord(project: BackendProject): ProjectRecord {
     location: project.location,
     status: project.status,
     progressPercent: Number(project.progressPercent ?? 0),
+    spentAmount: Number(project.spentAmount ?? 0),
+    isOverBudget: Boolean(project.isOverBudget),
     budgetUSD: Number(project.budgetUSD ?? 0),
     currency: project.currency ?? 'INR',
     activeCrew: Number(project.activeCrew ?? 0),
@@ -146,6 +150,47 @@ export const projectsService = {
     const payload = await readApiJson<{ project: BackendProject | null }>(response)
     console.log('[projectsService] update project response', { projectId: input.projectId })
     return payload.project ? toProjectRecord(payload.project) : null
+  },
+
+  async getProject(projectId: string) {
+    console.log('[projectsService] fetching live project', { projectId })
+    const response = await apiFetch(`/projects/${encodeURIComponent(projectId)}`)
+    const payload = await readApiJson<{ project: BackendProject | null }>(response)
+    return payload.project ? toProjectRecord(payload.project) : null
+  },
+
+  async getProjectProgress(projectId: string) {
+    console.log('[projectsService] fetching project progress', { projectId })
+    const response = await apiFetch(`/projects/${encodeURIComponent(projectId)}/progress`)
+    return readApiJson<ProjectProgressSnapshot>(response)
+  },
+
+  async getBudgetAllocations(projectId: string) {
+    console.log('[projectsService] fetching budget allocations', { projectId })
+    const response = await apiFetch(`/projects/${encodeURIComponent(projectId)}/budget-allocation`)
+    const payload = await readApiJson<{ allocations: ProjectBudgetAllocation[] }>(response)
+    return payload.allocations ?? []
+  },
+
+  async saveBudgetAllocations(projectId: string, allocations: Array<{
+    department: BudgetAllocationDepartment
+    allocatedAmount: number
+    allocatedPercentage: number
+  }>) {
+    console.log('[projectsService] saving budget allocations', { projectId, count: allocations.length })
+    const response = await apiFetch(`/projects/${encodeURIComponent(projectId)}/budget-allocation`, {
+      method: 'POST',
+      body: JSON.stringify({ allocations }),
+    })
+    return readApiJson<{
+      allocations: ProjectBudgetAllocation[]
+      totals: {
+        allocatedAmount: number
+        allocatedPercentage: number
+        remainingAmount: number
+        budget: number
+      }
+    }>(response)
   },
 
   async createJoinRequest(input: JoinRequestCreateInput) {

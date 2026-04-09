@@ -1,10 +1,13 @@
 import { useEffect, useMemo, useRef, useState, type Dispatch, type SetStateAction } from 'react'
-import { useMutation, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { DataTable } from '@/components/shared/DataTable'
 import { KpiCard } from '@/components/shared/KpiCard'
+import { ModuleBudgetBadge } from '@/components/project/ModuleBudgetBadge'
 import { StatusBadge } from '@/components/shared/StatusBadge'
 import { Surface } from '@/components/shared/Surface'
 import { EmptyState, ErrorState, LoadingState } from '@/components/system/SystemStates'
+import { useProject } from '@/context/ProjectContext'
+import { invalidateProjectData } from '@/context/project-sync'
 import { useAuthStore } from '@/features/auth/auth.store'
 import { resolveErrorMessage, showError, showLoading, showSuccess } from '@/lib/toast'
 import { crewService } from '@/services/crew.service'
@@ -25,6 +28,7 @@ import { useCrewData } from '../hooks/useCrewData'
 
 type PaymentMethod = 'UPI' | 'CASH' | 'BANK'
 type LocationSearchResult = { name: string; lat: number; lng: number }
+type AttendanceHistoryPreset = 'last_5_days' | 'last_30_days' | 'last_2_months' | 'custom'
 
 const inputClass =
   'w-full rounded-[18px] border border-zinc-200 bg-white px-4 py-3 text-sm text-zinc-900 outline-none transition-colors focus:border-orange-400 dark:border-zinc-800 dark:bg-zinc-950 dark:text-white'
@@ -47,6 +51,60 @@ function formatDurationMinutes(minutes: number) {
   if (hours <= 0) return `${remainingMinutes} min`
   if (remainingMinutes === 0) return `${hours}h`
   return `${hours}h ${remainingMinutes}m`
+}
+
+function toDateInputValue(value: Date) {
+  const year = value.getFullYear()
+  const month = String(value.getMonth() + 1).padStart(2, '0')
+  const day = String(value.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
+}
+
+function shiftDate(value: Date, days: number) {
+  const next = new Date(value)
+  next.setDate(next.getDate() + days)
+  return next
+}
+
+function shiftMonths(value: Date, months: number) {
+  const next = new Date(value)
+  next.setMonth(next.getMonth() + months)
+  return next
+}
+
+function resolveAttendanceRange(
+  preset: AttendanceHistoryPreset,
+  customStartDate: string,
+  customEndDate: string,
+) {
+  const today = new Date()
+  const endDate = toDateInputValue(today)
+
+  if (preset === 'custom') {
+    return {
+      startDate: customStartDate || endDate,
+      endDate: customEndDate || endDate,
+    }
+  }
+
+  if (preset === 'last_5_days') {
+    return {
+      startDate: toDateInputValue(shiftDate(today, -4)),
+      endDate,
+    }
+  }
+
+  if (preset === 'last_30_days') {
+    return {
+      startDate: toDateInputValue(shiftDate(today, -29)),
+      endDate,
+    }
+  }
+
+  return {
+    startDate: toDateInputValue(shiftMonths(today, -2)),
+    endDate,
+  }
 }
 
 function formatCoordinates(location: CrewLocationPoint | null | undefined) {
@@ -125,6 +183,7 @@ function formatRoleLabel(role: ProjectRequestedRole | string | undefined | null)
 export function CrewView() {
   const queryClient = useQueryClient()
   const user = useAuthStore(state => state.user)
+  const { project: activeProject } = useProject()
   const {
     activeProjectId,
     isLoading,
@@ -157,6 +216,10 @@ export function CrewView() {
   const [deviceLocationName, setDeviceLocationName] = useState('')
   const [paymentMethods, setPaymentMethods] = useState<Record<string, PaymentMethod>>({})
   const [nowTick, setNowTick] = useState(() => Date.now())
+  const [historyPreset, setHistoryPreset] = useState<AttendanceHistoryPreset>('last_30_days')
+  const [historyPage, setHistoryPage] = useState(1)
+  const [customStartDate, setCustomStartDate] = useState(() => toDateInputValue(shiftDate(new Date(), -29)))
+  const [customEndDate, setCustomEndDate] = useState(() => toDateInputValue(new Date()))
   const searchDebounceRef = useRef<number | null>(null)
 
   const projectRole = user?.projectRoleTitle
@@ -169,6 +232,22 @@ export function CrewView() {
   const canSeeFinancials = permissions.canViewFinancials
   const isSelfServiceOnly = permissions.crewScope === 'self'
   const showManagerQueueInline = canManageBatta && !isSelfServiceOnly
+  const historyRange = useMemo(
+    () => resolveAttendanceRange(historyPreset, customStartDate, customEndDate),
+    [customEndDate, customStartDate, historyPreset],
+  )
+
+  const attendanceHistoryQ = useQuery({
+    queryKey: ['crew-attendance-history', activeProjectId, historyRange.startDate, historyRange.endDate, historyPage],
+    queryFn: () => crewService.getAttendanceHistory(activeProjectId!, {
+      startDate: historyRange.startDate,
+      endDate: historyRange.endDate,
+      page: historyPage,
+      limit: 10,
+    }),
+    enabled: Boolean(activeProjectId) && canUseCrewModule,
+    staleTime: 15_000,
+  })
 
   const currentAttendancePayout = useMemo(
     () => payouts.find(payout => payout.attendanceId === myShift.attendanceId),
@@ -184,11 +263,40 @@ export function CrewView() {
     ? Math.max(0, Math.floor((nowTick - new Date(myShift.checkInTime).getTime()) / 1000))
     : myShift.workingSeconds
 
+  const attendanceHistory = attendanceHistoryQ.data?.data ?? []
+  const attendancePagination = attendanceHistoryQ.data?.pagination
+  const historyColumns = useMemo(() => (
+    canSeeCrewTable
+      ? [
+          { key: 'name', label: 'Name', render: (row: CrewAttendanceHistoryItem) => <span className="font-medium text-zinc-900 dark:text-white">{row.name ?? 'Crew Member'}</span> },
+          { key: 'department', label: 'Department', render: (row: CrewAttendanceHistoryItem) => row.department ?? '--' },
+          { key: 'role', label: 'Role', render: (row: CrewAttendanceHistoryItem) => row.role ?? '--' },
+          { key: 'date', label: 'Date', render: (row: CrewAttendanceHistoryItem) => row.checkInTime ? formatDate(row.checkInTime) : '--' },
+          { key: 'checkInTime', label: 'Check In', render: (row: CrewAttendanceHistoryItem) => row.checkInTime ? formatTime(row.checkInTime) : '--' },
+          { key: 'checkOutTime', label: 'Check Out', render: (row: CrewAttendanceHistoryItem) => row.checkOutTime ? formatTime(row.checkOutTime) : 'Working' },
+          { key: 'durationMinutes', label: 'Duration', render: (row: CrewAttendanceHistoryItem) => formatDurationMinutes(row.durationMinutes) },
+          { key: 'shiftStatus', label: 'Status', render: (row: CrewAttendanceHistoryItem) => <StatusBadge variant={row.state === 'checked_out' ? 'idle' : row.otMinutes > 0 ? 'ot' : 'active'} label={row.shiftStatus} /> },
+          { key: 'otMinutes', label: 'OT', render: (row: CrewAttendanceHistoryItem) => String(row.otMinutes), align: 'right' as const },
+        ]
+      : [
+          { key: 'date', label: 'Date', render: (row: CrewAttendanceHistoryItem) => row.checkInTime ? formatDate(row.checkInTime) : '--' },
+          { key: 'checkInTime', label: 'Check In', render: (row: CrewAttendanceHistoryItem) => row.checkInTime ? formatTime(row.checkInTime) : '--' },
+          { key: 'checkOutTime', label: 'Check Out', render: (row: CrewAttendanceHistoryItem) => row.checkOutTime ? formatTime(row.checkOutTime) : 'Working' },
+          { key: 'durationMinutes', label: 'Duration', render: (row: CrewAttendanceHistoryItem) => formatDurationMinutes(row.durationMinutes) },
+          { key: 'shiftStatus', label: 'Status', render: (row: CrewAttendanceHistoryItem) => <StatusBadge variant={row.state === 'checked_out' ? 'idle' : row.otMinutes > 0 ? 'ot' : 'active'} label={row.shiftStatus} /> },
+          { key: 'otMinutes', label: 'OT', render: (row: CrewAttendanceHistoryItem) => String(row.otMinutes), align: 'right' as const },
+        ]
+  ), [canSeeCrewTable])
+
   useEffect(() => {
     if (myShift.state !== 'checked_in') return
     const timer = window.setInterval(() => setNowTick(Date.now()), 1000)
     return () => window.clearInterval(timer)
   }, [myShift.state])
+
+  useEffect(() => {
+    setHistoryPage(1)
+  }, [activeProjectId, historyPreset, customEndDate, customStartDate])
 
   useEffect(() => {
     if (isEditingGeofence) return
@@ -343,10 +451,10 @@ export function CrewView() {
         radius: radiusMeters,
       })
 
-      await Promise.all([
-        queryClient.invalidateQueries({ queryKey: ['crew-dashboard', activeProjectId] }),
-        queryClient.invalidateQueries({ queryKey: ['crew-location', activeProjectId] }),
-      ])
+      await invalidateProjectData(queryClient, {
+        projectId: activeProjectId,
+        userId: user?.id,
+      })
       setIsEditingGeofence(false)
     })
   }
@@ -358,7 +466,10 @@ export function CrewView() {
       const payload = await requestBrowserLocation()
       await runAction('crew-check-in', 'Starting shift...', 'Shift started successfully.', async () => {
         await checkInMutation.mutateAsync(payload)
-        await queryClient.invalidateQueries({ queryKey: ['crew-dashboard', activeProjectId] })
+        await invalidateProjectData(queryClient, {
+          projectId: activeProjectId,
+          userId: user?.id,
+        })
       })
     } catch (error) {
       const message = resolveErrorMessage(error, 'Unable to start shift.')
@@ -374,7 +485,10 @@ export function CrewView() {
       const payload = await requestBrowserLocation()
       await runAction('crew-check-out', 'Ending shift...', 'Shift ended successfully.', async () => {
         await checkOutMutation.mutateAsync(payload)
-        await queryClient.invalidateQueries({ queryKey: ['crew-dashboard', activeProjectId] })
+        await invalidateProjectData(queryClient, {
+          projectId: activeProjectId,
+          userId: user?.id,
+        })
       })
     } catch (error) {
       const message = resolveErrorMessage(error, 'Unable to end shift.')
@@ -393,14 +507,20 @@ export function CrewView() {
     await runAction('crew-batta-request', 'Submitting batta request...', 'Batta request submitted.', async () => {
       await requestBattaMutation.mutateAsync(amount)
       setBattaAmount('')
-      await queryClient.invalidateQueries({ queryKey: ['crew-dashboard', activeProjectId] })
+      await invalidateProjectData(queryClient, {
+        projectId: activeProjectId,
+        userId: user?.id,
+      })
     })
   }
 
   async function handleApproveBatta(payoutId: string) {
     await runAction(`approve-${payoutId}`, 'Approving batta request...', 'Batta approved.', async () => {
       await approveBattaMutation.mutateAsync(payoutId)
-      await queryClient.invalidateQueries({ queryKey: ['crew-dashboard', activeProjectId] })
+      await invalidateProjectData(queryClient, {
+        projectId: activeProjectId,
+        userId: user?.id,
+      })
     })
   }
 
@@ -410,8 +530,31 @@ export function CrewView() {
         payoutId,
         paymentMethod: paymentMethods[payoutId] ?? 'CASH',
       })
-      await queryClient.invalidateQueries({ queryKey: ['crew-dashboard', activeProjectId] })
+      await invalidateProjectData(queryClient, {
+        projectId: activeProjectId,
+        userId: user?.id,
+      })
     })
+  }
+
+  async function handleHistoryExport() {
+    if (!activeProjectId) {
+      return
+    }
+
+    showLoading('Preparing attendance PDF...', { id: 'crew-history-export' })
+
+    try {
+      await crewService.exportAttendancePdf(activeProjectId, {
+        startDate: historyRange.startDate,
+        endDate: historyRange.endDate,
+        page: historyPage,
+        limit: 10,
+      })
+      showSuccess('Attendance PDF exported.', { id: 'crew-history-export' })
+    } catch (error) {
+      showError(resolveErrorMessage(error, 'Attendance export failed.'), { id: 'crew-history-export' })
+    }
   }
 
   if (isLoading) return <LoadingState message="Loading crew control..." />
@@ -509,6 +652,13 @@ export function CrewView() {
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-3">
+            {activeProjectId && (
+              <ModuleBudgetBadge
+                projectId={activeProjectId}
+                department="crew"
+                currency={activeProject?.currency}
+              />
+            )}
             <StatusBadge variant="verified" label="OpenStreetMap" />
             <div className="rounded-full bg-zinc-900 px-4 py-2 text-[10px] font-semibold uppercase tracking-[0.18em] text-white dark:bg-zinc-100 dark:text-zinc-900">
               {formatRoleLabel(projectRole)}
@@ -876,6 +1026,119 @@ export function CrewView() {
           )}
         </Surface>
       )}
+
+      <Surface variant="table" padding="lg">
+        <div className="mb-6 flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
+          <div>
+            <p className="section-title">Attendance History</p>
+            <p className="mt-2 text-sm text-zinc-500 dark:text-zinc-400">
+              Filtered attendance history stays available for audit, exports, and payout checks.
+            </p>
+          </div>
+
+          <div className="flex flex-col gap-3 xl:items-end">
+            <div className="flex flex-wrap gap-2">
+              {[
+                { id: 'last_5_days' as const, label: 'Last 5 Days' },
+                { id: 'last_30_days' as const, label: 'Last 30 Days' },
+                { id: 'last_2_months' as const, label: 'Last 2 Months' },
+                { id: 'custom' as const, label: 'Custom Range' },
+              ].map(option => (
+                <button
+                  key={option.id}
+                  type="button"
+                  onClick={() => setHistoryPreset(option.id)}
+                  className={cn(
+                    'rounded-full border px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.16em] transition-colors',
+                    historyPreset === option.id
+                      ? 'border-orange-500 bg-orange-500 text-black shadow-[0_10px_22px_rgba(249,115,22,0.24)]'
+                      : 'border-zinc-200 text-zinc-600 hover:border-orange-200 hover:text-orange-600 dark:border-zinc-800 dark:text-zinc-300 dark:hover:border-orange-500/30 dark:hover:text-orange-200',
+                  )}
+                >
+                  {option.label}
+                </button>
+              ))}
+            </div>
+
+            {historyPreset === 'custom' && (
+              <div className="grid gap-3 sm:grid-cols-2">
+                <label className="auth-field">
+                  <span className="auth-field-label">Start Date</span>
+                  <input
+                    type="date"
+                    value={customStartDate}
+                    onChange={event => setCustomStartDate(event.target.value)}
+                    className="project-modal-select"
+                  />
+                </label>
+                <label className="auth-field">
+                  <span className="auth-field-label">End Date</span>
+                  <input
+                    type="date"
+                    value={customEndDate}
+                    onChange={event => setCustomEndDate(event.target.value)}
+                    className="project-modal-select"
+                  />
+                </label>
+              </div>
+            )}
+
+            <button
+              type="button"
+              onClick={() => void handleHistoryExport()}
+              disabled={attendanceHistoryQ.isFetching || attendanceHistory.length === 0}
+              className="inline-flex items-center justify-center rounded-full bg-orange-500 px-5 py-3 text-[11px] font-semibold uppercase tracking-[0.16em] text-black shadow-[0_14px_28px_rgba(249,115,22,0.24)] transition-transform hover:scale-[1.01] disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              Export PDF
+            </button>
+          </div>
+        </div>
+
+        {attendanceHistoryQ.isLoading ? (
+          <LoadingState message="Loading attendance history..." />
+        ) : attendanceHistoryQ.isError ? (
+          <ErrorState message="Attendance history could not be loaded." retry={() => void attendanceHistoryQ.refetch()} />
+        ) : attendanceHistory.length === 0 ? (
+          <EmptyState icon="history" title="No historical attendance found" description="Try broadening the date range to see older records." />
+        ) : (
+          <>
+            <DataTable<CrewAttendanceHistoryItem>
+              columns={historyColumns}
+              data={attendanceHistory}
+              getKey={row => row.attendanceId ?? row.id}
+              stickyHeader
+              className="max-h-[420px] overflow-y-auto"
+            />
+
+            <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-zinc-200 pt-4 text-sm text-zinc-500 dark:border-zinc-800 dark:text-zinc-400">
+              <p>
+                Showing page {attendancePagination?.page ?? historyPage} of {attendancePagination?.totalPages ?? 1}
+              </p>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setHistoryPage(current => Math.max(current - 1, 1))}
+                  disabled={(attendancePagination?.page ?? historyPage) <= 1}
+                  className="rounded-full border border-zinc-200 px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.16em] text-zinc-700 transition-colors hover:border-orange-200 hover:text-orange-600 disabled:cursor-not-allowed disabled:opacity-50 dark:border-zinc-800 dark:text-zinc-200 dark:hover:border-orange-500/30 dark:hover:text-orange-200"
+                >
+                  Previous
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setHistoryPage(current => {
+                    const totalPages = attendancePagination?.totalPages ?? current
+                    return Math.min(current + 1, totalPages)
+                  })}
+                  disabled={(attendancePagination?.page ?? historyPage) >= (attendancePagination?.totalPages ?? historyPage)}
+                  className="rounded-full border border-zinc-200 px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.16em] text-zinc-700 transition-colors hover:border-orange-200 hover:text-orange-600 disabled:cursor-not-allowed disabled:opacity-50 dark:border-zinc-800 dark:text-zinc-200 dark:hover:border-orange-500/30 dark:hover:text-orange-200"
+                >
+                  Next
+                </button>
+              </div>
+            </div>
+          </>
+        )}
+      </Surface>
       </div>
     </div>
   )

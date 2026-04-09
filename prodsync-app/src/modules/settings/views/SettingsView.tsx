@@ -1,14 +1,14 @@
 import { useEffect, useState, type ReactNode } from 'react'
-import { useMutation, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { EmptyState } from '@/components/system/SystemStates'
 import { Surface } from '@/components/shared/Surface'
+import { useProject } from '@/context/ProjectContext'
+import { invalidateProjectData } from '@/context/project-sync'
 import { useAuthStore } from '@/features/auth/auth.store'
-import { useProjectsStore } from '@/features/projects/projects.store'
-import { useResolvedProjectContext } from '@/features/projects/useResolvedProjectContext'
 import { resolveErrorMessage, showError, showLoading, showSuccess } from '@/lib/toast'
 import { projectsService } from '@/services/projects.service'
 import { cn, formatCurrency } from '@/utils'
-import type { ProjectCurrency, ProjectDepartment, ProjectStage } from '@/types'
+import type { BudgetAllocationDepartment, ProjectBudgetAllocation, ProjectCurrency, ProjectDepartment, ProjectStage } from '@/types'
 
 const PROJECT_STATUSES: ProjectStage[] = ['pre-production', 'shooting', 'post']
 const PROJECT_CURRENCIES: ProjectCurrency[] = ['INR', 'USD', 'EUR']
@@ -20,12 +20,34 @@ const DEPARTMENTS: { id: ProjectDepartment; label: string }[] = [
   { id: 'wardrobe', label: 'Wardrobe' },
   { id: 'post', label: 'Post' },
 ]
+const ALLOCATION_DEPARTMENTS: { id: BudgetAllocationDepartment; label: string }[] = [
+  { id: 'transport', label: 'Transport' },
+  { id: 'crew', label: 'Crew & Wages' },
+  { id: 'camera', label: 'Camera' },
+  { id: 'art', label: 'Art' },
+  { id: 'wardrobe', label: 'Wardrobe' },
+  { id: 'post', label: 'Post' },
+  { id: 'production', label: 'Production' },
+]
+
+interface AllocationRowState {
+  department: BudgetAllocationDepartment
+  allocatedAmount: string
+  allocatedPercentage: string
+}
+
+function mapAllocationState(row: ProjectBudgetAllocation): AllocationRowState {
+  return {
+    department: row.department,
+    allocatedAmount: row.allocatedAmount ? String(row.allocatedAmount) : '',
+    allocatedPercentage: row.allocatedPercentage ? String(row.allocatedPercentage) : '',
+  }
+}
 
 export function SettingsView() {
   const queryClient = useQueryClient()
   const user = useAuthStore(state => state.user)
-  const setActiveProject = useProjectsStore(state => state.setActiveProject)
-  const { activeProject, activeProjectId } = useResolvedProjectContext()
+  const { project: activeProject, activeProjectId, projectProgress } = useProject()
   const [name, setName] = useState('')
   const [location, setLocation] = useState('')
   const [status, setStatus] = useState<ProjectStage>('pre-production')
@@ -36,8 +58,17 @@ export function SettingsView() {
   const [endDate, setEndDate] = useState('')
   const [otRulesLabel, setOtRulesLabel] = useState('')
   const [enabledDepartments, setEnabledDepartments] = useState<ProjectDepartment[]>([])
+  const [allocationRows, setAllocationRows] = useState<AllocationRowState[]>([])
 
   const canEditProject = user?.role === 'EP'
+  const budgetValue = Math.max(Number(budget) || 0, 0)
+
+  const budgetAllocationsQ = useQuery({
+    queryKey: ['budget-allocations', activeProjectId],
+    queryFn: () => projectsService.getBudgetAllocations(activeProjectId!),
+    enabled: Boolean(activeProjectId),
+    staleTime: 30_000,
+  })
 
   useEffect(() => {
     if (!activeProject) {
@@ -56,17 +87,32 @@ export function SettingsView() {
     setEnabledDepartments(activeProject.enabledDepartments ?? [])
   }, [activeProject])
 
+  useEffect(() => {
+    if (!budgetAllocationsQ.data) {
+      return
+    }
+
+    setAllocationRows(ALLOCATION_DEPARTMENTS.map(({ id }) =>
+      mapAllocationState(
+        budgetAllocationsQ.data?.find(row => row.department === id) ?? {
+          id: `${activeProjectId}-${id}`,
+          projectId: activeProjectId ?? '',
+          department: id,
+          allocatedAmount: 0,
+          allocatedPercentage: 0,
+          createdAt: new Date(0).toISOString(),
+        },
+      ),
+    ))
+  }, [activeProjectId, budgetAllocationsQ.data])
+
   const updateProjectMutation = useMutation({
     mutationFn: projectsService.updateProject,
     onSuccess: async (project) => {
-      if (project) {
-        setActiveProject(project.id, project.currency)
-      }
-
-      await Promise.all([
-        queryClient.invalidateQueries({ queryKey: ['accessible-projects', user?.id] }),
-        queryClient.invalidateQueries({ queryKey: ['discoverable-projects'] }),
-      ])
+      await invalidateProjectData(queryClient, {
+        projectId: project?.id ?? activeProjectId,
+        userId: user?.id,
+      })
     },
   })
 
@@ -102,11 +148,61 @@ export function SettingsView() {
         enabledDepartments,
         otRulesLabel: otRulesLabel.trim(),
       })
+      await projectsService.saveBudgetAllocations(
+        activeProjectId,
+        allocationRows.map(row => ({
+          department: row.department,
+          allocatedAmount: Number(row.allocatedAmount) || 0,
+          allocatedPercentage: Number(row.allocatedPercentage) || 0,
+        })),
+      )
+      await invalidateProjectData(queryClient, {
+        projectId: activeProjectId,
+        userId: user?.id,
+      })
       showSuccess('Project settings updated.', { id: 'project-settings-save' })
     } catch (error) {
       showError(resolveErrorMessage(error, 'Unable to save project settings.'), { id: 'project-settings-save' })
     }
   }
+
+  function updateAllocationAmount(department: BudgetAllocationDepartment, value: string) {
+    setAllocationRows(current => current.map(row => {
+      if (row.department !== department) {
+        return row
+      }
+
+      const amount = Math.max(Number(value) || 0, 0)
+      const percentage = budgetValue > 0 ? Number(((amount / budgetValue) * 100).toFixed(2)) : 0
+
+      return {
+        ...row,
+        allocatedAmount: value,
+        allocatedPercentage: amount > 0 || value === '0' ? String(percentage) : '',
+      }
+    }))
+  }
+
+  function updateAllocationPercentage(department: BudgetAllocationDepartment, value: string) {
+    setAllocationRows(current => current.map(row => {
+      if (row.department !== department) {
+        return row
+      }
+
+      const percentage = Math.max(Number(value) || 0, 0)
+      const amount = budgetValue > 0 ? Number(((percentage / 100) * budgetValue).toFixed(2)) : 0
+
+      return {
+        ...row,
+        allocatedPercentage: value,
+        allocatedAmount: percentage > 0 || value === '0' ? String(amount) : '',
+      }
+    }))
+  }
+
+  const allocationTotalAmount = allocationRows.reduce((sum, row) => sum + (Number(row.allocatedAmount) || 0), 0)
+  const allocationTotalPercentage = allocationRows.reduce((sum, row) => sum + (Number(row.allocatedPercentage) || 0), 0)
+  const allocationRemaining = Math.max(budgetValue - allocationTotalAmount, 0)
 
   if (!activeProject) {
     return (
@@ -163,7 +259,7 @@ export function SettingsView() {
               <input value={budget} onChange={event => setBudget(event.target.value)} className="project-modal-input" disabled={!canEditProject} />
             </Field>
             <Field label="Active Crew">
-              <input value={crewCount} onChange={event => setCrewCount(event.target.value)} className="project-modal-input" disabled={!canEditProject} />
+              <input value={crewCount} onChange={event => setCrewCount(event.target.value)} className="project-modal-input" disabled />
             </Field>
             <Field label="Start Date">
               <input type="date" value={startDate} onChange={event => setStartDate(event.target.value)} className="project-modal-select" disabled={!canEditProject} />
@@ -186,7 +282,7 @@ export function SettingsView() {
                   type="button"
                   onClick={() => toggleDepartment(department.id)}
                   disabled={!canEditProject}
-                  className={cn('clay-chip', enabledDepartments.includes(department.id) && 'is-selected', !canEditProject && 'cursor-not-allowed opacity-70')}
+                  className={cn('project-department-chip', enabledDepartments.includes(department.id) && 'is-selected', !canEditProject && 'cursor-not-allowed opacity-70')}
                 >
                   {department.label}
                 </button>
@@ -194,10 +290,68 @@ export function SettingsView() {
             </div>
           </div>
 
+          <div className="mt-8">
+            <div className="mb-4">
+              <p className="section-title">Budget Allocation</p>
+              <p className="mt-2 text-sm text-zinc-500 dark:text-zinc-400">
+                Distribute the project budget across modules. Enter either amount or percentage and the other field auto-calculates.
+              </p>
+            </div>
+
+            <div className="grid gap-3">
+              {ALLOCATION_DEPARTMENTS.map(item => {
+                const row = allocationRows.find(entry => entry.department === item.id) ?? {
+                  department: item.id,
+                  allocatedAmount: '',
+                  allocatedPercentage: '',
+                }
+
+                return (
+                  <div key={item.id} className="grid gap-3 rounded-[18px] border border-zinc-200/80 bg-zinc-50/70 p-4 dark:border-zinc-800 dark:bg-zinc-950/60 md:grid-cols-[1.2fr_1fr_1fr]">
+                    <div className="flex items-center">
+                      <span className="text-sm font-medium text-zinc-900 dark:text-white">{item.label}</span>
+                    </div>
+                    <Field label="Amount" className="gap-2">
+                      <input
+                        value={row.allocatedAmount}
+                        onChange={event => updateAllocationAmount(item.id, event.target.value)}
+                        className="project-modal-input"
+                        disabled={!canEditProject}
+                        placeholder="0"
+                      />
+                    </Field>
+                    <Field label="Percentage" className="gap-2">
+                      <input
+                        value={row.allocatedPercentage}
+                        onChange={event => updateAllocationPercentage(item.id, event.target.value)}
+                        className="project-modal-input"
+                        disabled={!canEditProject}
+                        placeholder="0"
+                      />
+                    </Field>
+                  </div>
+                )
+              })}
+            </div>
+
+            <div className="mt-4 grid gap-3 md:grid-cols-3">
+              <SummaryRow label="Allocated" value={formatCurrency(allocationTotalAmount, currency)} />
+              <SummaryRow label="Remaining" value={formatCurrency(allocationRemaining, currency)} />
+              <SummaryRow label="Percentage" value={`${allocationTotalPercentage.toFixed(2)}%`} />
+            </div>
+          </div>
+
           <div className="mt-6 flex flex-wrap gap-3">
-            <button onClick={saveProjectSettings} className="btn-primary" disabled={!canEditProject || updateProjectMutation.isPending}>
+            <button
+              onClick={saveProjectSettings}
+              className="btn-primary"
+              disabled={!canEditProject || updateProjectMutation.isPending || allocationTotalAmount > budgetValue + 0.01 || allocationTotalPercentage > 100.01}
+            >
               {updateProjectMutation.isPending ? 'Saving...' : 'Save Project Settings'}
             </button>
+            {allocationTotalAmount > budgetValue + 0.01 && (
+              <p className="self-center text-sm text-red-500 dark:text-red-400">Allocation total exceeds the project budget.</p>
+            )}
             {!canEditProject && (
               <p className="self-center text-sm text-zinc-500 dark:text-zinc-400">Line Producers can review settings here, but edits stay locked to the EP.</p>
             )}
@@ -211,6 +365,9 @@ export function SettingsView() {
               <SummaryRow label="Project" value={activeProject.name} />
               <SummaryRow label="Currency" value={currency} />
               <SummaryRow label="Budget" value={formatCurrency(Number(budget) || 0, currency)} />
+              <SummaryRow label="Spent" value={formatCurrency(projectProgress?.spent ?? activeProject.spentAmount ?? 0, currency)} />
+              <SummaryRow label="Progress" value={`${projectProgress?.progress ?? activeProject.progressPercent ?? 0}%`} />
+              <SummaryRow label="Allocated" value={formatCurrency(allocationTotalAmount, currency)} />
               <SummaryRow label="Crew" value={`${Number(crewCount) || 0}`} />
               <SummaryRow label="Departments" value={`${enabledDepartments.length}`} />
             </div>

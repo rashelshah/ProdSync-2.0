@@ -14,6 +14,11 @@ export interface TransportRealtimeEventPayload {
   data: unknown
 }
 
+export interface ProjectRealtimeEventPayload {
+  projectId: string
+  data?: unknown
+}
+
 let io: Server | null = null
 
 function projectRoom(projectId: string) {
@@ -143,5 +148,9 @@ export function initializeRealtimeServer(server: HttpServer) {
 }
 
 export function emitTransportEvent(eventName: 'trip_started' | 'trip_ended' | 'fuel_logged' | 'alert_created' | 'vehicle_location_update', payload: TransportRealtimeEventPayload) {
+  io?.to(projectRoom(payload.projectId)).emit(eventName, payload)
+}
+
+export function emitProjectEvent(eventName: 'project_updated', payload: ProjectRealtimeEventPayload) {
   io?.to(projectRoom(payload.projectId)).emit(eventName, payload)
 }

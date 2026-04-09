@@ -1,6 +1,9 @@
 import { adminClient } from '../config/supabaseClient'
 import { haversineDistanceKm } from '../utils/location'
 import { HttpError } from '../utils/httpError'
+import type { PaginatedResult } from '../models/transport.types'
+import { createPagination, rangeFromPagination, toPaginatedResult } from '../utils/pagination'
+import { createSimplePdf } from '../utils/simplePdf'
 
 const CREW_TIMEZONE = 'Asia/Kolkata'
 const CREW_UTC_OFFSET = '+05:30'
@@ -157,6 +160,28 @@ export interface CrewAttendanceHistoryItem {
   geoVerified: boolean
   location: CrewLocationPayload | null
   mapLink: string | null
+}
+
+export interface CrewAttendanceHistoryRecord extends CrewAttendanceHistoryItem {
+  attendanceId: string
+  userId: string
+  name: string
+  role: string
+  department: string
+}
+
+export interface AttendanceHistoryQuery {
+  startDate?: string | null
+  endDate?: string | null
+  page?: number | null
+  limit?: number | null
+}
+
+export interface AttendanceHistoryResult extends PaginatedResult<CrewAttendanceHistoryRecord> {
+  filters: {
+    startDate: string
+    endDate: string
+  }
 }
 
 export interface OvertimeGroupItem {
@@ -529,6 +554,43 @@ async function getRecentAttendanceForUser(projectId: string, userId: string, lim
 
   throwIfError(error as SupabaseLikeError | null)
   return (data ?? []) as DailyAttendanceRow[]
+}
+
+function normalizeDateKey(value?: string | null) {
+  if (!value) {
+    return null
+  }
+
+  return /^\d{4}-\d{2}-\d{2}$/.test(value.trim()) ? value.trim() : null
+}
+
+function buildAttendanceHistoryDateRange(query: AttendanceHistoryQuery) {
+  const today = getLocalDateKey()
+  const endDate = normalizeDateKey(query.endDate) ?? today
+  const startDate = normalizeDateKey(query.startDate) ?? endDate
+
+  if (startDate > endDate) {
+    throw new HttpError(400, 'Start date cannot be after end date.')
+  }
+
+  return {
+    startDate,
+    endDate,
+    startIso: getDayRange(startDate).startIso,
+    endIso: getDayRange(endDate).endIso,
+  }
+}
+
+function mapHistoryRecord(row: DailyAttendanceRow, crewMember: CrewMemberRow | undefined, user: UserRow | undefined, now = new Date()) {
+  const history = mapHistoryRow(row, now)
+  return {
+    ...history,
+    attendanceId: row.attendance_id,
+    userId: row.user_id,
+    name: user?.full_name?.trim() || 'ProdSync User',
+    role: crewMember?.role_title?.trim() || 'Crew Member',
+    department: formatDepartment(crewMember?.department),
+  } satisfies CrewAttendanceHistoryRecord
 }
 
 export async function getLatestEligibleAttendanceForBatta(projectId: string, userId: string) {
@@ -1241,4 +1303,124 @@ export async function getAttendanceDashboard(projectId: string, actorUserId: str
     projectLocation,
     otGroups,
   } satisfies AttendanceDashboardData
+}
+
+export async function listAttendanceHistory(
+  projectId: string,
+  actorUserId: string,
+  access: CrewAccessContext,
+  query: AttendanceHistoryQuery,
+): Promise<AttendanceHistoryResult> {
+  const permissions = getCrewModulePermissions(access)
+  if (!permissions.canAccessModule) {
+    throw new HttpError(403, 'Your role does not have access to the Crew & Wages module.')
+  }
+
+  const pagination = createPagination({
+    page: query.page ?? 1,
+    pageSize: query.limit ?? 10,
+  })
+  const { from, to } = rangeFromPagination(pagination)
+  const { startDate, endDate, startIso, endIso } = buildAttendanceHistoryDateRange(query)
+  const emptyResult = () => ({
+    ...toPaginatedResult([], 0, pagination),
+    filters: {
+      startDate,
+      endDate,
+    },
+  })
+
+  let scopedUserIds: string[] | null = null
+  if (permissions.crewScope === 'self') {
+    scopedUserIds = [actorUserId]
+  } else if (permissions.crewScope === 'department') {
+    const crewDirectory = await getCrewDirectory(projectId)
+    const departmentToken = normalizeRole(access.department)
+    scopedUserIds = Array.from(crewDirectory.values())
+      .filter(row => normalizeRole(row.department) === departmentToken)
+      .map(row => row.user_id)
+  } else if (permissions.crewScope === 'none') {
+    return emptyResult()
+  }
+
+  if (scopedUserIds && scopedUserIds.length === 0) {
+    return emptyResult()
+  }
+
+  let historyQuery = adminClient
+    .from('daily_attendance')
+    .select('attendance_id, user_id, project_id, check_in_time, check_out_time, check_in_location, check_out_location, geo_verified, shift_status, ot_minutes, created_at, updated_at', { count: 'exact' })
+    .eq('project_id', projectId)
+    .gte('created_at', startIso)
+    .lt('created_at', endIso)
+
+  if (scopedUserIds) {
+    historyQuery = historyQuery.in('user_id', scopedUserIds)
+  }
+
+  const { data, error, count } = await historyQuery
+    .order('check_in_time', { ascending: false, nullsFirst: false })
+    .order('created_at', { ascending: false })
+    .range(from, to)
+
+  throwIfError(error as SupabaseLikeError | null)
+
+  const rows = (data ?? []) as DailyAttendanceRow[]
+  const userIds = Array.from(new Set(rows.map(row => row.user_id)))
+  const [crewDirectory, userMap] = await Promise.all([
+    getCrewDirectory(projectId, userIds),
+    getUserMap(userIds),
+  ])
+
+  const mapped = rows.map(row => mapHistoryRecord(row, crewDirectory.get(row.user_id), userMap.get(row.user_id)))
+  return {
+    ...toPaginatedResult(mapped, count ?? mapped.length, pagination),
+    filters: {
+      startDate,
+      endDate,
+    },
+  }
+}
+
+export async function exportAttendanceHistoryPdf(
+  projectId: string,
+  actorUserId: string,
+  access: CrewAccessContext,
+  query: AttendanceHistoryQuery,
+) {
+  const history = await listAttendanceHistory(projectId, actorUserId, access, query)
+  const { data: project, error: projectError } = await adminClient
+    .from('projects')
+    .select('name')
+    .eq('id', projectId)
+    .maybeSingle()
+
+  throwIfError(projectError as SupabaseLikeError | null)
+
+  const { startDate, endDate } = buildAttendanceHistoryDateRange(query)
+  const projectName = String((project as { name?: string } | null)?.name ?? 'Project')
+  const lines = [
+    'ProdSync Crew Attendance Export',
+    `Project: ${projectName}`,
+    `Range: ${startDate} to ${endDate}`,
+    `Page: ${history.pagination.page} / ${history.pagination.totalPages}`,
+    '',
+    'Name | Department | Check In | Check Out | Duration | OT | Status',
+    ...history.data.map(row => [
+      row.name,
+      row.department,
+      row.checkInTime ? new Date(row.checkInTime).toLocaleString('en-IN') : '--',
+      row.checkOutTime ? new Date(row.checkOutTime).toLocaleString('en-IN') : 'Working',
+      `${row.durationMinutes} min`,
+      `${row.otMinutes} min`,
+      row.shiftStatus,
+    ].join(' | ')),
+  ]
+
+  const safeProjectName = projectName.replace(/[^a-z0-9]+/gi, '-').replace(/^-+|-+$/g, '').toLowerCase() || 'project'
+  return {
+    filename: `${safeProjectName}-crew-attendance.pdf`,
+    contentType: 'application/pdf',
+    body: createSimplePdf(lines),
+  }
 }

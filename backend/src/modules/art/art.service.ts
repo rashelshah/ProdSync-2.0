@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto'
 import { adminClient } from '../../config/supabaseClient'
+import { getProjectCurrencyCode } from '../../services/projectFinance.service'
 import { HttpError } from '../../utils/httpError'
 import type {
   ArtExpenseCreateInput,
@@ -421,6 +422,7 @@ async function createArtExpenseApproval(params: {
   validationStatus: ArtExpenseRecord['status']
   mismatchLabel: string | null
 }) {
+  const currencyCode = await getProjectCurrencyCode(params.projectId)
   const requestDescription = buildArtExpenseApprovalDescription({
     category: params.category,
     quantity: params.quantity,
@@ -439,7 +441,7 @@ async function createArtExpenseApproval(params: {
       request_title: params.description,
       request_description: requestDescription,
       amount: params.amount,
-      currency_code: 'INR',
+      currency_code: currencyCode,
       priority: params.amount >= 100000 ? 'high' : 'normal',
       status: 'pending',
       approvable_table: 'expenses',
@@ -978,6 +980,7 @@ export async function createArtExpense(
   createdBy: string,
   receiptFile?: Express.Multer.File,
 ): Promise<ArtExpenseRecord> {
+  const currencyCode = await getProjectCurrencyCode(input.projectId)
   const { data: insertedExpense, error } = await adminClient
     .from('expenses')
     .insert({
@@ -989,7 +992,7 @@ export async function createArtExpense(
       vendor_name: input.description,
       incurred_on: todayIsoDate(),
       amount: input.manualAmount,
-      currency_code: 'INR',
+      currency_code: currencyCode,
       requested_by: createdBy,
       status: 'submitted',
       receipt_required: true,

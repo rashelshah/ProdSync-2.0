@@ -43,6 +43,8 @@ export interface ProjectRecord {
   location: string
   status: ProjectStage
   progressPercent: number
+  spentAmount: number
+  isOverBudget: boolean
   budgetUSD: number
   currency: ProjectCurrency
   activeCrew: number
@@ -50,6 +52,32 @@ export interface ProjectRecord {
   endDate: string
   enabledDepartments: ProjectDepartment[]
   otRulesLabel: string
+}
+
+export interface ProjectProgressSnapshot {
+  progress: number
+  spent: number
+  budget: number
+  isOverBudget: boolean
+  overBudgetAmount: number
+}
+
+export type BudgetAllocationDepartment = 'transport' | 'crew' | 'camera' | 'art' | 'wardrobe' | 'post' | 'production'
+
+export interface ProjectBudgetAllocation {
+  id: string
+  projectId: string
+  department: BudgetAllocationDepartment
+  allocatedAmount: number
+  allocatedPercentage: number
+  createdAt: string
+}
+
+export interface PaginationMeta {
+  page: number
+  pageSize: number
+  total: number
+  totalPages: number
 }
 
 export interface ProjectMember {
@@ -234,6 +262,11 @@ export interface CrewShiftSnapshot {
 
 export interface CrewAttendanceHistoryItem {
   id: string
+  attendanceId?: string
+  userId?: string
+  name?: string
+  role?: string
+  department?: string
   state: CrewShiftState
   checkInTime: string | null
   checkOutTime: string | null
@@ -243,6 +276,15 @@ export interface CrewAttendanceHistoryItem {
   geoVerified: boolean
   location: CrewLocationPoint | null
   mapLink: string | null
+}
+
+export interface CrewAttendanceHistoryResponse {
+  data: CrewAttendanceHistoryItem[]
+  pagination: PaginationMeta
+  filters: {
+    startDate: string
+    endDate: string
+  }
 }
 
 export interface CrewPermissions {

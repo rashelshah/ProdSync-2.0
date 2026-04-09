@@ -1,5 +1,7 @@
 import { adminClient } from '../config/supabaseClient'
 import { deleteCacheKey, getCacheJson, setCacheJson } from './cache.service'
+import { BUDGET_ALLOCATION_DEPARTMENTS, listBudgetAllocations } from './budgetAllocation.service'
+import { calculateProjectProgress } from './projectFinance.service'
 import { HttpError } from '../utils/httpError'
 import { runtimeBuffer } from '../utils/runtime'
 
@@ -7,7 +9,7 @@ const REPORT_CACHE_TTL_SECONDS = 120
 const SNAPSHOT_STALE_AFTER_MS = 15 * 60 * 1000
 const REPORT_SNAPSHOT_TITLE = 'Reports Dashboard Snapshot'
 
-const REPORT_DEPARTMENTS = ['transport', 'crew', 'camera', 'art', 'wardrobe', 'post', 'production'] as const
+const REPORT_DEPARTMENTS = BUDGET_ALLOCATION_DEPARTMENTS
 
 type ReportDepartmentKey = typeof REPORT_DEPARTMENTS[number]
 type ReportSeverity = 'GREEN' | 'YELLOW' | 'RED'
@@ -456,34 +458,37 @@ async function loadBudgetTrackingRows(projectId: string) {
 }
 
 async function seedBudgetTrackingRows(projectId: string, projectBudget: number, departments: ReportDepartmentKey[]) {
-  const existingRows = await loadBudgetTrackingRows(projectId)
-  const existingByDepartment = new Map(existingRows.map(row => [row.department, row]))
-  const missingDepartments = departments.filter(department => !existingByDepartment.has(department))
+  const budgetAllocations = await listBudgetAllocations(projectId)
+  const hasExplicitAllocations = budgetAllocations.some(row => row.allocatedAmount > 0 || row.allocatedPercentage > 0)
+  const fallbackDepartments = Array.from(new Set<ReportDepartmentKey>([...departments, 'crew']))
+  const fallbackAllocation = fallbackDepartments.length > 0 ? toMoney(projectBudget / fallbackDepartments.length) : 0
+  const allocationByDepartment = new Map(
+    budgetAllocations.map(row => [row.department as ReportDepartmentKey, row.allocatedAmount]),
+  )
 
-  if (missingDepartments.length > 0) {
-    const currentAllocatedBudget = existingRows.reduce((sum, row) => sum + asNumber(row.allocated_budget), 0)
-    const remainingBudget = Math.max(projectBudget - currentAllocatedBudget, 0)
-    const allocation = missingDepartments.length > 0 ? remainingBudget / missingDepartments.length : 0
+  const { error } = await adminClient
+    .from('budget_tracking')
+    .upsert(
+      REPORT_DEPARTMENTS.map(department => ({
+        project_id: projectId,
+        department,
+        allocated_budget: hasExplicitAllocations
+          ? toMoney(allocationByDepartment.get(department) ?? 0)
+          : fallbackDepartments.includes(department)
+            ? fallbackAllocation
+            : 0,
+        actual_spent: 0,
+        committed_spend: 0,
+        pending_approval_amount: 0,
+        metadata: {
+          source: hasExplicitAllocations ? 'budget_allocations' : 'auto_seed',
+        },
+      })),
+      { onConflict: 'project_id,department' },
+    )
 
-    const { error } = await adminClient
-      .from('budget_tracking')
-      .insert(
-        missingDepartments.map(department => ({
-          project_id: projectId,
-          department,
-          allocated_budget: toMoney(allocation),
-          actual_spent: 0,
-          committed_spend: 0,
-          pending_approval_amount: 0,
-          metadata: {
-            autoSeeded: true,
-          },
-        })),
-      )
-
-    if (error) {
-      throw error
-    }
+  if (error) {
+    throw error
   }
 
   return loadBudgetTrackingRows(projectId)
@@ -1401,6 +1406,11 @@ export async function getProjectReportsBundle(projectId: string) {
 
   const { bundle } = await buildProjectBundle(projectId)
   return bundle
+}
+
+export async function getProjectProgressSnapshot(projectId: string) {
+  const { bundle } = await aggregateProjectReports(projectId)
+  return calculateProjectProgress(bundle.summary.totalSpend, bundle.summary.budget)
 }
 
 export async function getScopedReportSummary(projectId: string, scope: ReportsScope) {

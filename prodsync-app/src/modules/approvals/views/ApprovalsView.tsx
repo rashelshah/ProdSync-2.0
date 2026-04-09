@@ -1,11 +1,13 @@
 import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { invalidateProjectData } from '@/context/project-sync'
 import { approvalsService } from '@/services/approvals.service'
 import { KpiCard } from '@/components/shared/KpiCard'
 import { StatusBadge } from '@/components/shared/StatusBadge'
 import { Surface } from '@/components/shared/Surface'
 import { EmptyState, ErrorState, LoadingState } from '@/components/system/SystemStates'
 import { RoleGuard } from '@/features/auth/RoleGuard'
+import { useAuthStore } from '@/features/auth/auth.store'
 import { useResolvedProjectContext } from '@/features/projects/useResolvedProjectContext'
 import { resolveErrorMessage, showError, showLoading, showSuccess } from '@/lib/toast'
 import type { ApprovalRequest } from '@/types'
@@ -29,6 +31,7 @@ function approvalStageBadge(item: ApprovalRequest) {
 
 export function ApprovalsView() {
   const qc = useQueryClient()
+  const user = useAuthStore(state => state.user)
   const { activeProjectId, isLoadingProjectContext, isErrorProjectContext } = useResolvedProjectContext()
   const [activeAction, setActiveAction] = useState<string | null>(null)
 
@@ -57,18 +60,10 @@ export function ApprovalsView() {
   })
 
   async function invalidateApprovalQueries() {
-    await Promise.allSettled([
-      qc.invalidateQueries({ queryKey: ['pending-approvals', activeProjectId] }),
-      qc.invalidateQueries({ queryKey: ['approval-history', activeProjectId] }),
-      qc.invalidateQueries({ queryKey: ['approvals-kpis', activeProjectId] }),
-      qc.invalidateQueries({ queryKey: ['activity', activeProjectId] }),
-      qc.invalidateQueries({ queryKey: ['art-expenses', activeProjectId] }),
-      qc.invalidateQueries({ queryKey: ['art-budget', activeProjectId] }),
-      qc.invalidateQueries({ queryKey: ['trips', activeProjectId] }),
-      qc.invalidateQueries({ queryKey: ['fuel-logs', activeProjectId] }),
-      qc.invalidateQueries({ queryKey: ['transport-alerts', activeProjectId] }),
-      qc.invalidateQueries({ queryKey: ['tracking-live', activeProjectId] }),
-    ])
+    await invalidateProjectData(qc, {
+      projectId: activeProjectId,
+      userId: user?.id,
+    })
   }
 
   async function runApprovalAction(

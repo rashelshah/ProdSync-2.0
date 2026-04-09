@@ -1,4 +1,5 @@
 import { adminClient } from '../config/supabaseClient'
+import { getProjectCurrencyCode } from './projectFinance.service'
 import { HttpError } from '../utils/httpError'
 import { getCrewModulePermissions, getLatestEligibleAttendanceForBatta, type CrewAccessContext } from './attendance.service'
 
@@ -172,6 +173,7 @@ async function syncLegacyBattaRequest(projectId: string, payout: WagePayoutRow) 
       return
     }
 
+    const currencyCode = await getProjectCurrencyCode(projectId)
     const attendanceMap = await getProjectAttendanceMap(projectId)
     const attendance = attendanceMap.get(payout.attendance_id)
     if (!attendance) {
@@ -214,7 +216,7 @@ async function syncLegacyBattaRequest(projectId: string, payout: WagePayoutRow) 
       requested_by: payout.requested_by,
       requested_for_date: requestedForDate,
       amount: toNumber(payout.amount),
-      currency_code: 'INR',
+      currency_code: currencyCode,
       status: mapStatus(payout.status),
       paid_at: mapStatus(payout.status) === 'paid' ? payout.updated_at : null,
       metadata: {

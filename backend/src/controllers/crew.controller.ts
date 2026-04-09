@@ -3,11 +3,13 @@ import { z } from 'zod'
 import {
   checkIn,
   checkOut,
+  exportAttendanceHistoryPdf,
   getAttendanceDashboard,
   getCrewList,
   getCrewModulePermissions,
   getOvertimeGroups,
   getProjectLocation,
+  listAttendanceHistory,
   setProjectLocation,
   type CrewAccessContext,
 } from '../services/attendance.service'
@@ -70,6 +72,13 @@ const locationSchema = z.object({
     longitude: value.longitude ?? value.lng ?? NaN,
     radiusMeters: value.radiusMeters ?? value.radius,
   }))
+
+const attendanceHistoryQuerySchema = z.object({
+  startDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+  endDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+  page: z.coerce.number().int().min(1).optional(),
+  limit: z.coerce.number().int().min(1).max(100).optional(),
+})
 
 function requireProjectId(req: Request) {
   const projectId = req.projectAccess?.projectId
@@ -275,6 +284,34 @@ export async function getProjectAttendance(req: Request, res: Response) {
     },
     projectLocation: attendanceData.projectLocation,
   })
+}
+
+export async function getAttendanceHistory(req: Request, res: Response) {
+  const projectId = requireProjectId(req)
+  const userId = requireUserId(req)
+  const history = await listAttendanceHistory(
+    projectId,
+    userId,
+    accessContext(req),
+    attendanceHistoryQuerySchema.parse(req.query),
+  )
+
+  res.json(history)
+}
+
+export async function exportAttendancePdf(req: Request, res: Response) {
+  const projectId = requireProjectId(req)
+  const userId = requireUserId(req)
+  const result = await exportAttendanceHistoryPdf(
+    projectId,
+    userId,
+    accessContext(req),
+    attendanceHistoryQuerySchema.parse(req.query),
+  )
+
+  res.setHeader('Content-Type', result.contentType)
+  res.setHeader('Content-Disposition', `attachment; filename="${result.filename}"`)
+  res.send(result.body)
 }
 
 export async function getCrewLocation(req: Request, res: Response) {

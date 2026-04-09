@@ -1,5 +1,6 @@
 import { useEffect } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { invalidateProjectData } from '@/context/project-sync'
 import { useAuthStore } from '@/features/auth/auth.store'
 import { transportService } from '@/services/transport.service'
 import { mapTransportKpis, transformFuelLog, transformTripForUI } from '@/services/adapters/transport.adapter'
@@ -73,13 +74,10 @@ export function useTransportData(filters: TripFilters = {}) {
         return
       }
 
-      void queryClient.invalidateQueries({ queryKey: ['trips', activeProjectId] })
-      void queryClient.invalidateQueries({ queryKey: ['fuel-logs', activeProjectId] })
-      void queryClient.invalidateQueries({ queryKey: ['vehicles', activeProjectId] })
-      void queryClient.invalidateQueries({ queryKey: ['gps-logs', activeProjectId] })
-      if (canViewAlerts) {
-        void queryClient.invalidateQueries({ queryKey: ['transport-alerts', activeProjectId] })
-      }
+      void invalidateProjectData(queryClient, {
+        projectId: activeProjectId,
+        userId: user?.id,
+      })
     }
 
     void getTransportSocket().then(socket => {
@@ -105,7 +103,7 @@ export function useTransportData(filters: TripFilters = {}) {
         socket?.emit('project:unsubscribe', activeProjectId)
       })
     }
-  }, [activeProjectId, canViewAlerts, queryClient])
+  }, [activeProjectId, queryClient, user?.id])
 
   const kpis = mapTransportKpis(trips, fuelLogs, vehicles)
   const tripsUI = trips.map(transformTripForUI)

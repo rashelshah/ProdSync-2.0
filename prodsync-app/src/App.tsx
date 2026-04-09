@@ -7,6 +7,7 @@ import { ErrorBoundary } from './components/ErrorBoundary'
 import { RouteTransitionIndicator } from './components/layout/RouteTransitionIndicator'
 import { ThemeProvider } from './components/theme/ThemeProvider'
 import { useTheme } from './components/theme/ThemeProvider'
+import { ProjectProvider } from './context/ProjectContext'
 import { useAuthStore } from './features/auth/auth.store'
 
 const queryClient = new QueryClient({
@@ -71,13 +72,15 @@ function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <ThemeProvider>
-        <AppToaster />
-        <BrowserRouter>
-          <RouteTransitionIndicator />
-          <ErrorBoundary>
-            <AppRouter />
-          </ErrorBoundary>
-        </BrowserRouter>
+        <ProjectProvider>
+          <AppToaster />
+          <BrowserRouter>
+            <RouteTransitionIndicator />
+            <ErrorBoundary>
+              <AppRouter />
+            </ErrorBoundary>
+          </BrowserRouter>
+        </ProjectProvider>
       </ThemeProvider>
     </QueryClientProvider>
   )

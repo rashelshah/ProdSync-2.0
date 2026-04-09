@@ -1,4 +1,11 @@
-import type { CrewDashboardData, CrewMember, CrewProjectLocation, OvertimeGroup, WagePayout } from '@/types'
+import type {
+  CrewAttendanceHistoryResponse,
+  CrewDashboardData,
+  CrewMember,
+  CrewProjectLocation,
+  OvertimeGroup,
+  WagePayout,
+} from '@/types'
 import { apiFetch, readApiJson } from '@/lib/api'
 
 function withProjectId(projectId: string) {
@@ -38,6 +45,59 @@ interface CrewProjectLocationResponse {
   projectLocation: CrewProjectLocation | null
 }
 
+interface AttendanceHistoryFilters {
+  startDate?: string
+  endDate?: string
+  page?: number
+  limit?: number
+}
+
+function extractFilename(disposition: string | null, fallback: string) {
+  const match = disposition?.match(/filename="?([^"]+)"?/)
+  return match?.[1] ?? fallback
+}
+
+async function downloadResponse(response: Response, fallbackFilename: string) {
+  if (!response.ok) {
+    const errorPayload = await response.json().catch(() => null) as { error?: string; message?: string } | null
+    throw new Error(errorPayload?.error ?? errorPayload?.message ?? 'Export failed.')
+  }
+
+  const blob = await response.blob()
+  const url = window.URL.createObjectURL(blob)
+  const anchor = document.createElement('a')
+  anchor.href = url
+  anchor.download = extractFilename(response.headers.get('content-disposition'), fallbackFilename)
+  document.body.appendChild(anchor)
+  anchor.click()
+  anchor.remove()
+  window.URL.revokeObjectURL(url)
+}
+
+function buildAttendanceQuery(projectId: string, filters: AttendanceHistoryFilters = {}) {
+  const params = new URLSearchParams({
+    projectId,
+  })
+
+  if (filters.startDate) {
+    params.set('startDate', filters.startDate)
+  }
+
+  if (filters.endDate) {
+    params.set('endDate', filters.endDate)
+  }
+
+  if (filters.page) {
+    params.set('page', String(filters.page))
+  }
+
+  if (filters.limit) {
+    params.set('limit', String(filters.limit))
+  }
+
+  return params.toString()
+}
+
 export const crewService = {
   async getCrew(projectId: string): Promise<CrewMember[]> {
     console.log('[crewService] fetching crew', { projectId })
@@ -69,6 +129,14 @@ export const crewService = {
     const response = await apiFetch(`/crew/location?${withProjectId(projectId)}`)
     const payload = await readApiJson<CrewProjectLocationResponse>(response)
     return payload.projectLocation ?? null
+  },
+  async getAttendanceHistory(projectId: string, filters: AttendanceHistoryFilters = {}) {
+    const response = await apiFetch(`/crew/attendance?${buildAttendanceQuery(projectId, filters)}`)
+    return readApiJson<CrewAttendanceHistoryResponse>(response)
+  },
+  async exportAttendancePdf(projectId: string, filters: AttendanceHistoryFilters = {}) {
+    const response = await apiFetch(`/crew/export/pdf?${buildAttendanceQuery(projectId, filters)}`)
+    await downloadResponse(response, 'crew-attendance.pdf')
   },
   async checkIn(projectId: string, payload: GpsPayload) {
     const response = await apiFetch(`/crew/attendance/check-in?${withProjectId(projectId)}`, {

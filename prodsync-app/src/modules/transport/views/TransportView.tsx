@@ -1,5 +1,6 @@
 import { useEffect, useEffectEvent, useMemo, useRef, useState, type ReactNode } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
+import { ModuleBudgetBadge } from '@/components/project/ModuleBudgetBadge'
 import { KpiCard } from '@/components/shared/KpiCard'
 import { DataTable } from '@/components/shared/DataTable'
 import { StatusBadge } from '@/components/shared/StatusBadge'
@@ -885,7 +886,12 @@ export function TransportView() {
           </p>
         </div>
 
-        <div className="flex justify-end">
+        <div className="flex flex-wrap items-start justify-end gap-3">
+          <ModuleBudgetBadge
+            projectId={activeProjectId}
+            department="transport"
+            currency={activeProject.currency}
+          />
           {canManageTransport && (
             <button
               onClick={() => {

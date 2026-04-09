@@ -1,10 +1,12 @@
 import { useState, type InputHTMLAttributes, type ReactNode } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { ActionFeedbackToast } from '@/components/shared/ActionFeedbackToast'
+import { ModuleBudgetBadge } from '@/components/project/ModuleBudgetBadge'
 import { KpiCard } from '@/components/shared/KpiCard'
 import { StatusBadge } from '@/components/shared/StatusBadge'
 import { Surface } from '@/components/shared/Surface'
 import { EmptyState, ErrorState, LoadingState } from '@/components/system/SystemStates'
+import { invalidateProjectData } from '@/context/project-sync'
 import { useAuthStore } from '@/features/auth/auth.store'
 import {
   canApproveArtExpense,
@@ -797,22 +799,10 @@ export function ExpensesView() {
   ]
 
   async function refreshArtQueries() {
-    if (!activeProjectId) {
-      return
-    }
-
-    await Promise.allSettled([
-      queryClient.invalidateQueries({ queryKey: ['art-expenses', activeProjectId] }),
-      queryClient.invalidateQueries({ queryKey: ['art-props', activeProjectId] }),
-      queryClient.invalidateQueries({ queryKey: ['art-sets', activeProjectId] }),
-      queryClient.invalidateQueries({ queryKey: ['art-budget', activeProjectId] }),
-      queryClient.invalidateQueries({ queryKey: ['art-alerts', activeProjectId] }),
-      queryClient.invalidateQueries({ queryKey: ['alerts', activeProjectId] }),
-      queryClient.invalidateQueries({ queryKey: ['pending-approvals', activeProjectId] }),
-      queryClient.invalidateQueries({ queryKey: ['approval-history', activeProjectId] }),
-      queryClient.invalidateQueries({ queryKey: ['approvals-kpis', activeProjectId] }),
-      queryClient.invalidateQueries({ queryKey: ['activity', activeProjectId] }),
-    ])
+    await invalidateProjectData(queryClient, {
+      projectId: activeProjectId,
+      userId: user?.id,
+    })
   }
 
   async function runArtAction(action: () => Promise<unknown>, successMessage: string) {
@@ -1344,6 +1334,11 @@ export function ExpensesView() {
         </div>
 
         <div className="page-toolbar">
+          <ModuleBudgetBadge
+            projectId={activeProjectId}
+            department="art"
+            currency={activeProject.currency}
+          />
           {canCreateExpenses && (
             <button onClick={openExpenseModal} className="btn-soft">
               Add Expense

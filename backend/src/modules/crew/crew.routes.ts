@@ -3,10 +3,12 @@ import { authMiddleware } from '../../middleware/auth.middleware'
 import { projectAccessMiddleware } from '../../middleware/projectAccess.middleware'
 import { asyncHandler } from '../../utils/asyncHandler'
 import {
+  exportAttendancePdf,
   getCrew,
   getCrewDashboard,
   getCrewLocation,
   getMyAttendance,
+  getAttendanceHistory,
   getCrewOvertimeGroups,
   getCrewPayouts,
   getProjectAttendance,
@@ -24,6 +26,8 @@ crewRouter.get('/', authMiddleware, projectAccessMiddleware, asyncHandler(getCre
 crewRouter.get('/dashboard', authMiddleware, projectAccessMiddleware, asyncHandler(getCrewDashboard))
 crewRouter.get('/location', authMiddleware, projectAccessMiddleware, asyncHandler(getCrewLocation))
 crewRouter.get('/my-attendance', authMiddleware, projectAccessMiddleware, asyncHandler(getMyAttendance))
+crewRouter.get('/attendance', authMiddleware, projectAccessMiddleware, asyncHandler(getAttendanceHistory))
+crewRouter.get('/export/pdf', authMiddleware, projectAccessMiddleware, asyncHandler(exportAttendancePdf))
 crewRouter.get('/project-attendance', authMiddleware, projectAccessMiddleware, asyncHandler(getProjectAttendance))
 crewRouter.get('/overtime', authMiddleware, projectAccessMiddleware, asyncHandler(getCrewOvertimeGroups))
 crewRouter.get('/payouts', authMiddleware, projectAccessMiddleware, asyncHandler(getCrewPayouts))

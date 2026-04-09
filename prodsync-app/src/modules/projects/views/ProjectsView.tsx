@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom'
 import { BriefcaseBusiness, CheckCircle2, Clock3, MapPin, Plus, ShieldCheck, Users } from 'lucide-react'
 import { Surface } from '@/components/shared/Surface'
 import { EmptyState, LoadingState } from '@/components/system/SystemStates'
+import { invalidateProjectData } from '@/context/project-sync'
 import { getDefaultWorkspacePath, isProducerRole } from '@/features/auth/access-rules'
 import { getProjectRoleTitle, getRoleOptionsForDepartment } from '@/features/auth/onboarding'
 import { useAuthStore } from '@/features/auth/auth.store'
@@ -107,10 +108,10 @@ export function ProjectsView() {
       setProjectOtRules('')
       setSelectedDepartments([])
 
-      await Promise.all([
-        queryClient.invalidateQueries({ queryKey: ['accessible-projects', user?.id] }),
-        queryClient.invalidateQueries({ queryKey: ['discoverable-projects'] }),
-      ])
+      await invalidateProjectData(queryClient, {
+        projectId: project?.id,
+        userId: user?.id,
+      })
     },
   })
 
@@ -119,7 +120,7 @@ export function ProjectsView() {
     onSuccess: async () => {
       setSelectedProjectId(null)
       setRequestMessage('')
-      await queryClient.invalidateQueries({ queryKey: ['project-join-requests'] })
+      await invalidateProjectData(queryClient, { userId: user?.id })
     },
   })
 
@@ -127,10 +128,7 @@ export function ProjectsView() {
     mutationFn: ({ requestId, status }: { requestId: string; status: 'approved' | 'rejected' }) =>
       projectsService.reviewJoinRequest(requestId, status),
     onSuccess: async () => {
-      await Promise.all([
-        queryClient.invalidateQueries({ queryKey: ['project-join-requests'] }),
-        queryClient.invalidateQueries({ queryKey: ['accessible-projects', user?.id] }),
-      ])
+      await invalidateProjectData(queryClient, { userId: user?.id })
     },
   })
 
@@ -493,7 +491,7 @@ export function ProjectsView() {
                   <button
                     key={department.id}
                     onClick={() => toggleDepartment(department.id)}
-                    className={cn('clay-chip', selectedDepartments.includes(department.id) && 'is-selected')}
+                    className={cn('project-department-chip', selectedDepartments.includes(department.id) && 'is-selected')}
                   >
                     {department.label}
                   </button>
@@ -600,6 +598,32 @@ function ProjectCard({
         <MetricTile label="Budget" value={formatCurrency(project.budgetUSD, project.currency)} icon={<ShieldCheck className="h-4 w-4 max-md:h-3 max-md:w-3" />} />
         <MetricTile label="Active crew" value={`${project.activeCrew}`} icon={<Users className="h-4 w-4 max-md:h-3 max-md:w-3" />} />
         <MetricTile label="Progress" value={`${project.progressPercent}%`} icon={<CheckCircle2 className="h-4 w-4 max-md:h-3 max-md:w-3" />} />
+      </div>
+
+      <div className="mt-5 rounded-[24px] bg-zinc-50 px-4 py-4 dark:bg-zinc-900 max-md:rounded-[18px] max-md:px-3 max-md:py-3">
+        <div className="flex items-center justify-between gap-3 text-[11px] font-semibold uppercase tracking-[0.18em] text-zinc-500 dark:text-zinc-400 max-md:text-[9px]">
+          <span>Financial Progress</span>
+          <span>{project.progressPercent}%</span>
+        </div>
+        <div className="mt-3 h-2.5 overflow-hidden rounded-full bg-zinc-200/80 dark:bg-white/10">
+          <div
+            className={cn(
+              'h-full rounded-full transition-[width,background-color,box-shadow] duration-200',
+              project.isOverBudget
+                ? 'bg-red-500 shadow-[0_0_18px_rgba(239,68,68,0.32)]'
+                : 'bg-orange-500 shadow-[0_0_18px_rgba(249,115,22,0.28)]',
+            )}
+            style={{ width: `${Math.max(0, Math.min(project.progressPercent, 100))}%` }}
+          />
+        </div>
+        <p className="mt-3 text-sm text-zinc-500 dark:text-zinc-400 max-md:text-xs">
+          {formatCurrency(project.spentAmount, project.currency)} spent against {formatCurrency(project.budgetUSD, project.currency)} budget.
+        </p>
+        {project.isOverBudget && (
+          <p className="mt-2 text-sm font-medium text-red-600 dark:text-red-400 max-md:text-xs">
+            Spend has crossed the allocated budget for this project.
+          </p>
+        )}
       </div>
 
       <div className="mt-6 flex flex-wrap gap-2 text-sm text-zinc-500 dark:text-zinc-400 max-md:mt-5 max-md:gap-1.5">

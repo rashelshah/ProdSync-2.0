@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { ActionFeedbackToast, type ActionFeedbackState } from '@/components/shared/ActionFeedbackToast'
+import { ModuleBudgetBadge } from '@/components/project/ModuleBudgetBadge'
 import { DataTable } from '@/components/shared/DataTable'
 import { KpiCard } from '@/components/shared/KpiCard'
 import { StatusBadge } from '@/components/shared/StatusBadge'
@@ -553,14 +554,25 @@ export function WardrobeView() {
           <h1 className="page-title page-title-compact">Wardrobe & Makeup</h1>
           <p className="page-subtitle">Live continuity, laundry, inventory, and high-value accessory tracking for {activeProject.name}.</p>
         </div>
-        {canManage && (
-          <div className="page-toolbar">
+        <div className="page-toolbar">
+          <ModuleBudgetBadge
+            projectId={activeProjectId}
+            department="wardrobe"
+            currency={activeProject.currency}
+          />
+          {canManage && (
             <button onClick={() => setLaundryModalOpen(true)} className="btn-soft">Send to Laundry</button>
+          )}
+          {canManage && (
             <button onClick={() => setAccessoryModalOpen(true)} className="btn-soft">Add Accessory</button>
+          )}
+          {canManage && (
             <button onClick={() => setInventoryModalOpen(true)} className="btn-soft">Add Costume</button>
+          )}
+          {canManage && (
             <button onClick={() => setContinuityModalOpen(true)} className="btn-primary">Upload Continuity</button>
-          </div>
-        )}
+          )}
+        </div>
       </header>
 
       <div className="grid items-start gap-4 sm:grid-cols-3">

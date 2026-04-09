@@ -4,7 +4,11 @@ import { adminClient } from '../../config/supabaseClient'
 import { authMiddleware } from '../../middleware/auth.middleware'
 import { projectAccessMiddleware } from '../../middleware/projectAccess.middleware'
 import { roleMiddleware } from '../../middleware/role.middleware'
+import { emitProjectEvent } from '../../realtime/socket'
+import { BUDGET_ALLOCATION_DEPARTMENTS, listBudgetAllocations, saveBudgetAllocations } from '../../services/budgetAllocation.service'
+import { calculateProjectProgress } from '../../services/projectFinance.service'
 import { getProjectAccess } from '../../services/project-access.service'
+import { getProjectProgressSnapshot } from '../../services/reportService'
 import { asyncHandler } from '../../utils/asyncHandler'
 import { HttpError } from '../../utils/httpError'
 
@@ -48,6 +52,26 @@ const createProjectSchema = z.object({
 
 const updateProjectSchema = createProjectSchema.extend({
   activeCrew: z.coerce.number().int().min(0).max(100_000).optional(),
+})
+
+const budgetAllocationDepartmentSchema = z.enum(BUDGET_ALLOCATION_DEPARTMENTS)
+
+const budgetAllocationEntrySchema = z.object({
+  department: budgetAllocationDepartmentSchema,
+  allocatedAmount: z.coerce.number().min(0).optional(),
+  allocatedPercentage: z.coerce.number().min(0).max(100).optional(),
+}).superRefine((value, ctx) => {
+  if (value.allocatedAmount == null && value.allocatedPercentage == null) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: 'Allocation amount or percentage is required.',
+      path: ['allocatedAmount'],
+    })
+  }
+})
+
+const budgetAllocationPayloadSchema = z.object({
+  allocations: z.array(budgetAllocationEntrySchema).max(BUDGET_ALLOCATION_DEPARTMENTS.length),
 })
 
 const createJoinRequestSchema = z.object({
@@ -143,19 +167,26 @@ interface MembershipRow {
   approved_at: string | null
 }
 
-interface ProjectSummaryRow {
-  project_id: string
+interface ProjectRow {
+  id: string
   name: string
   owner_id: string
-  owner_name: string | null
   status: keyof typeof dbProjectStatusToFrontend
   location: string | null
-  progress_percent: number | string | null
   budget: number | string | null
   currency_code: string | null
-  active_crew_count: number | string | null
   start_date: string | null
   end_date: string | null
+}
+
+interface ProjectCrewRow {
+  project_id: string
+  active_crew_count: number | string | null
+}
+
+interface BurnSpendRow {
+  project_id: string
+  grand_total_daily_spend: number | string | null
 }
 
 interface DepartmentRow {
@@ -192,6 +223,8 @@ type ProjectPayload = {
   location: string
   status: 'pre-production' | 'shooting' | 'post'
   progressPercent: number
+  spentAmount: number
+  isOverBudget: boolean
   budgetUSD: number
   currency: z.infer<typeof currencySchema>
   activeCrew: number
@@ -220,11 +253,12 @@ async function buildProjectPayloads(projectIds: string[]) {
     return new Map<string, ProjectPayload>()
   }
 
-  const [{ data: summaryRows, error: summaryError }, { data: departmentRows, error: departmentError }, { data: settingsRows, error: settingsError }] = await Promise.all([
+  const [{ data: projectRows, error: projectError }, { data: departmentRows, error: departmentError }, { data: settingsRows, error: settingsError }, { data: crewRows, error: crewError }, { data: burnRows, error: burnError }] = await Promise.all([
     adminClient
-      .from('project_summary')
-      .select('project_id, name, owner_id, owner_name, status, location, progress_percent, budget, currency_code, active_crew_count, start_date, end_date')
-      .in('project_id', projectIds),
+      .from('projects')
+      .select('id, name, owner_id, status, location, budget, currency_code, start_date, end_date')
+      .in('id', projectIds)
+      .eq('is_archived', false),
     adminClient
       .from('project_departments')
       .select('project_id, department, enabled')
@@ -234,16 +268,42 @@ async function buildProjectPayloads(projectIds: string[]) {
       .from('project_settings')
       .select('project_id, ot_rules_label')
       .in('project_id', projectIds),
+    adminClient
+      .from('project_summary')
+      .select('project_id, active_crew_count')
+      .in('project_id', projectIds),
+    adminClient
+      .from('view_daily_burn_rate')
+      .select('project_id, grand_total_daily_spend')
+      .in('project_id', projectIds),
   ])
 
-  if (summaryError) {
-    throw summaryError
+  if (projectError) {
+    throw projectError
   }
   if (departmentError) {
     throw departmentError
   }
   if (settingsError) {
     throw settingsError
+  }
+  if (crewError) {
+    throw crewError
+  }
+  if (burnError) {
+    throw burnError
+  }
+
+  const ownerIds = Array.from(new Set(((projectRows ?? []) as ProjectRow[]).map(row => row.owner_id)))
+  const { data: ownerRows, error: ownerError } = ownerIds.length > 0
+    ? await adminClient
+        .from('users')
+        .select('id, full_name')
+        .in('id', ownerIds)
+    : { data: [], error: null }
+
+  if (ownerError) {
+    throw ownerError
   }
 
   const enabledDepartmentsByProject = new Map<string, z.infer<typeof departmentSchema>[]>()
@@ -258,23 +318,46 @@ async function buildProjectPayloads(projectIds: string[]) {
     settingsByProject.set(row.project_id, row)
   }
 
+  const ownerNamesById = new Map<string, string>()
+  for (const row of (ownerRows ?? []) as UserRow[]) {
+    ownerNamesById.set(row.id, row.full_name ?? 'Project Owner')
+  }
+
+  const activeCrewByProject = new Map<string, number>()
+  for (const row of (crewRows ?? []) as ProjectCrewRow[]) {
+    activeCrewByProject.set(row.project_id, Number(row.active_crew_count ?? 0))
+  }
+
+  const spendByProject = new Map<string, number>()
+  for (const row of (burnRows ?? []) as BurnSpendRow[]) {
+    spendByProject.set(
+      row.project_id,
+      Number(((spendByProject.get(row.project_id) ?? 0) + Number(row.grand_total_daily_spend ?? 0)).toFixed(2)),
+    )
+  }
+
   const projects = new Map<string, ProjectPayload>()
-  for (const row of (summaryRows ?? []) as ProjectSummaryRow[]) {
-    projects.set(row.project_id, {
-      id: row.project_id,
+  for (const row of (projectRows ?? []) as ProjectRow[]) {
+    const budget = Number(row.budget ?? 0)
+    const progress = calculateProjectProgress(spendByProject.get(row.id) ?? 0, budget)
+
+    projects.set(row.id, {
+      id: row.id,
       ownerId: row.owner_id,
-      ownerName: row.owner_name ?? 'Project Owner',
+      ownerName: ownerNamesById.get(row.owner_id) ?? 'Project Owner',
       name: row.name,
       location: row.location ?? 'Location pending',
       status: dbProjectStatusToFrontend[row.status] ?? 'pre-production',
-      progressPercent: Number(row.progress_percent ?? 0),
-      budgetUSD: Number(row.budget ?? 0),
+      progressPercent: progress.progress,
+      spentAmount: progress.spent,
+      isOverBudget: progress.isOverBudget,
+      budgetUSD: budget,
       currency: currencySchema.catch('INR').parse(row.currency_code ?? 'INR'),
-      activeCrew: Number(row.active_crew_count ?? 0),
+      activeCrew: activeCrewByProject.get(row.id) ?? 0,
       startDate: row.start_date ?? '',
       endDate: row.end_date ?? '',
-      enabledDepartments: enabledDepartmentsByProject.get(row.project_id) ?? [],
-      otRulesLabel: settingsByProject.get(row.project_id)?.ot_rules_label ?? '',
+      enabledDepartments: enabledDepartmentsByProject.get(row.id) ?? [],
+      otRulesLabel: settingsByProject.get(row.id)?.ot_rules_label ?? '',
     })
   }
 
@@ -321,6 +404,10 @@ async function listDiscoverableProjects() {
   const projectIds = (data ?? []).map(row => String((row as { id: string }).id))
   const projectsById = await buildProjectPayloads(projectIds)
   return Array.from(projectsById.values())
+}
+
+async function getProjectPayload(projectId: string) {
+  return (await buildProjectPayloads([projectId])).get(projectId) ?? null
 }
 
 async function listRelevantJoinRequests(userId: string) {
@@ -429,6 +516,92 @@ projectsRouter.get(
   }),
 )
 
+projectsRouter.get(
+  '/:projectId',
+  authMiddleware,
+  projectAccessMiddleware,
+  asyncHandler(async (req, res) => {
+    const projectId = String(req.params.projectId ?? '')
+    const project = await getProjectPayload(projectId)
+
+    if (!project) {
+      throw new HttpError(404, 'Project not found.')
+    }
+
+    const progress = await getProjectProgressSnapshot(projectId)
+    res.json({
+      project: {
+        ...project,
+        progressPercent: progress.progress,
+        spentAmount: progress.spent,
+        isOverBudget: progress.isOverBudget,
+        budgetUSD: progress.budget,
+      },
+    })
+  }),
+)
+
+projectsRouter.get(
+  '/:projectId/progress',
+  authMiddleware,
+  projectAccessMiddleware,
+  asyncHandler(async (req, res) => {
+    const projectId = String(req.params.projectId ?? '')
+    const progress = await getProjectProgressSnapshot(projectId)
+
+    res.json({
+      progress: progress.progress,
+      spent: progress.spent,
+      budget: progress.budget,
+      isOverBudget: progress.isOverBudget,
+      overBudgetAmount: progress.overBudgetAmount,
+    })
+  }),
+)
+
+projectsRouter.get(
+  '/:projectId/budget-allocation',
+  authMiddleware,
+  projectAccessMiddleware,
+  asyncHandler(async (req, res) => {
+    const projectId = String(req.params.projectId ?? '')
+    const allocations = await listBudgetAllocations(projectId)
+    res.json({ allocations })
+  }),
+)
+
+projectsRouter.post(
+  '/:projectId/budget-allocation',
+  authMiddleware,
+  projectAccessMiddleware,
+  asyncHandler(async (req, res) => {
+    const projectId = String(req.params.projectId ?? '')
+    const userId = req.authUser?.id
+
+    if (!userId) {
+      throw new HttpError(401, 'Authenticated user context is missing.')
+    }
+
+    const access = await getProjectAccess(projectId, userId)
+    const canEditProject = access.isOwner || access.membershipRole === 'EP'
+    if (!canEditProject) {
+      throw new HttpError(403, 'Only an Executive Producer can edit budget allocations.')
+    }
+
+    const payload = budgetAllocationPayloadSchema.parse(req.body)
+    const result = await saveBudgetAllocations(projectId, payload.allocations)
+
+    emitProjectEvent('project_updated', {
+      projectId,
+      data: {
+        type: 'budget_allocation_updated',
+      },
+    })
+
+    res.json(result)
+  }),
+)
+
 projectsRouter.post(
   '/',
   authMiddleware,
@@ -451,7 +624,7 @@ projectsRouter.post(
         status: frontendProjectStatusToDb[payload.status],
         budget: payload.budgetUSD,
         currency_code: payload.currency,
-        progress_percent: payload.status === 'pre-production' ? 12 : payload.status === 'shooting' ? 48 : 84,
+        progress_percent: 0,
         start_date: payload.startDate || null,
         end_date: payload.endDate || null,
       })
@@ -500,10 +673,7 @@ projectsRouter.post(
       throw departmentUpsertError
     }
 
-    const [createdMembership] = await listAccessibleProjects(ownerId)
-    const createdProject = createdMembership?.projectId === projectId
-      ? createdMembership.project
-      : (await buildProjectPayloads([projectId])).get(projectId)
+    const createdProject = await getProjectPayload(projectId)
 
     console.log('[projects][create] db result', { projectId, ownerId })
     res.status(201).json({ project: createdProject, projectId })
@@ -571,7 +741,29 @@ projectsRouter.put(
       throw departmentError
     }
 
-    const project = (await buildProjectPayloads([projectId])).get(projectId) ?? null
+    const [projectBase, progress] = await Promise.all([
+      getProjectPayload(projectId),
+      getProjectProgressSnapshot(projectId),
+    ])
+    const project = projectBase
+      ? {
+          ...projectBase,
+          progressPercent: progress.progress,
+          spentAmount: progress.spent,
+          isOverBudget: progress.isOverBudget,
+          budgetUSD: progress.budget,
+        }
+      : null
+
+    emitProjectEvent('project_updated', {
+      projectId,
+      data: {
+        budget: progress.budget,
+        spent: progress.spent,
+        progress: progress.progress,
+      },
+    })
+
     res.json({ project })
   }),
 )
