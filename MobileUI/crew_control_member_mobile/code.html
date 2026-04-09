@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Crew Control - Member View</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;700;800&amp;family=Inter:wght@400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            "colors": {
+                    "on-tertiary-fixed": "#372400",
+                    "tertiary-fixed": "#fbb423",
+                    "tertiary-container": "#fbb423",
+                    "surface-bright": "#2c2c2c",
+                    "surface-container": "#1a1a1a",
+                    "surface-variant": "#262626",
+                    "secondary": "#f88d36",
+                    "outline-variant": "#484847",
+                    "tertiary-dim": "#eba60f",
+                    "on-surface-variant": "#adaaaa",
+                    "primary-container": "#ff7a2f",
+                    "tertiary-fixed-dim": "#eba60f",
+                    "on-background": "#ffffff",
+                    "error-container": "#b92902",
+                    "primary-dim": "#ff7524",
+                    "error-dim": "#d53d18",
+                    "on-secondary-container": "#fff6f2",
+                    "on-error": "#450900",
+                    "surface": "#0e0e0e",
+                    "on-primary-fixed-variant": "#4f1c00",
+                    "secondary-fixed-dim": "#ffb37d",
+                    "on-primary": "#531e00",
+                    "inverse-on-surface": "#565555",
+                    "on-tertiary-fixed-variant": "#5e4000",
+                    "secondary-dim": "#eb832c",
+                    "on-error-container": "#ffd2c8",
+                    "primary-fixed-dim": "#f66700",
+                    "surface-tint": "#ff9159",
+                    "secondary-container": "#944a00",
+                    "inverse-primary": "#a14100",
+                    "background": "#0e0e0e",
+                    "on-tertiary": "#5e4000",
+                    "surface-container-highest": "#262626",
+                    "surface-container-high": "#20201f",
+                    "inverse-surface": "#fcf9f8",
+                    "secondary-fixed": "#ffc69f",
+                    "on-primary-container": "#401500",
+                    "on-secondary": "#462000",
+                    "on-tertiary-container": "#523700",
+                    "on-primary-fixed": "#000000",
+                    "surface-container-low": "#131313",
+                    "on-secondary-fixed-variant": "#803f00",
+                    "on-secondary-fixed": "#552800",
+                    "outline": "#767575",
+                    "surface-container-lowest": "#000000",
+                    "error": "#ff7351",
+                    "primary": "#ff9159",
+                    "surface-dim": "#0e0e0e",
+                    "on-surface": "#ffffff",
+                    "tertiary": "#ffc562",
+                    "primary-fixed": "#ff7a2f"
+            },
+            "borderRadius": {
+                    "DEFAULT": "0.25rem",
+                    "lg": "0.5rem",
+                    "xl": "1.5rem",
+                    "full": "9999px"
+            },
+            "fontFamily": {
+                    "headline": ["Manrope"],
+                    "body": ["Inter"],
+                    "label": ["Inter"]
+            }
+          },
+        },
+      }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        body {
+            background-color: #0e0e0e;
+            color: #ffffff;
+            font-family: 'Inter', sans-serif;
+        }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-background text-on-surface antialiased pb-24">
+<!-- TopAppBar Shell -->
+<header class="fixed top-0 w-full z-50 bg-[#0e0e0e]/60 backdrop-blur-xl flex justify-between items-center px-6 h-16">
+<div class="flex items-center gap-3">
+<span class="material-symbols-outlined text-[#ff9159]">menu</span>
+<h1 class="font-['Manrope'] font-bold tracking-tight uppercase text-lg font-black tracking-widest text-[#ff9159]">CREW CONTROL</h1>
+</div>
+<div class="w-8 h-8 rounded-full bg-surface-container-highest border border-outline-variant/20 overflow-hidden">
+<img alt="Profile" class="w-full h-full object-cover" data-alt="close-up portrait of a professional film crew member wearing a headset in a dark studio setting with orange rim light" src="https://lh3.googleusercontent.com/aida-public/AB6AXuC7xzmvu8VMapKVDppAhPPz1R-wEvTP0eGz52Y-A2SNq5EwUoDmm4P8orOLBC0NxKbfzn5yx-AoqfLbZAWwvNjCB6RBQLjCxVV92bjrmSLzZ-nL37eq2BWZB1MYyHZJNCrVkrCHPa8IEcM75-KORP95Ugq_ttFSmwwfrln6G4EAuuFM-oBnpam9-guueWC92M1HWLhLcvWac0uBKqhH7q2fm9-K7v_yIappE9s66XqhAaOWiYC8xXPhZ7DS8w9Nz9TGoVy8ADuLWAYB"/>
+</div>
+</header>
+<main class="pt-20 px-4 space-y-6">
+<!-- 1. Today's Shift -->
+<section class="space-y-4">
+<div class="bg-surface-container-low rounded-xl p-6 relative overflow-hidden">
+<!-- Background Accent Glow -->
+<div class="absolute -top-12 -right-12 w-32 h-32 bg-primary/5 blur-3xl rounded-full"></div>
+<div class="flex justify-between items-start mb-6">
+<div>
+<p class="font-label text-[10px] font-semibold uppercase tracking-wider text-on-surface-variant mb-1">Current Status</p>
+<div class="flex items-center gap-2">
+<span class="w-2 h-2 rounded-full bg-primary animate-pulse"></span>
+<span class="font-headline font-bold text-xl uppercase tracking-tight">CHECKED IN</span>
+</div>
+</div>
+<div class="bg-surface-container-highest px-3 py-1 rounded-full flex items-center gap-1.5">
+<span class="material-symbols-outlined text-[14px] text-tertiary" style="font-variation-settings: 'FILL' 1;">verified</span>
+<span class="font-label text-[10px] font-bold uppercase tracking-widest text-on-surface">Verified</span>
+</div>
+</div>
+<div class="grid grid-cols-2 gap-4 mb-8">
+<div class="space-y-1">
+<p class="font-label text-[10px] font-semibold uppercase tracking-wider text-on-surface-variant">Working Time</p>
+<p class="font-headline font-extrabold text-3xl tracking-tighter text-on-surface">00:01:26</p>
+</div>
+<div class="space-y-1 border-l border-outline-variant/10 pl-4">
+<p class="font-label text-[10px] font-semibold uppercase tracking-wider text-on-surface-variant">OT Minutes</p>
+<p class="font-headline font-extrabold text-3xl tracking-tighter text-on-surface">0</p>
+</div>
+</div>
+<button class="w-full h-14 bg-gradient-to-tr from-primary to-primary-container text-on-primary-fixed font-headline font-extrabold text-sm uppercase tracking-widest rounded-xl shadow-[0px_4px_12px_rgba(255,145,89,0.2)] active:scale-[0.98] transition-transform">
+                    END SHIFT
+                </button>
+</div>
+</section>
+<!-- 2. Shift Details -->
+<section class="grid grid-cols-2 gap-3">
+<div class="bg-surface-container rounded-xl p-4">
+<p class="font-label text-[10px] font-semibold uppercase tracking-wider text-on-surface-variant mb-2">Check-In</p>
+<p class="font-body font-bold text-sm text-on-surface">Apr 9, 2026</p>
+<p class="font-body text-xs text-on-surface-variant">11:50 AM</p>
+</div>
+<div class="bg-surface-container rounded-xl p-4">
+<p class="font-label text-[10px] font-semibold uppercase tracking-wider text-on-surface-variant mb-2">Check-Out</p>
+<div class="flex items-center gap-2">
+<p class="font-body font-bold text-sm text-primary">Working</p>
+</div>
+<p class="font-body text-xs text-on-surface-variant">--:-- --</p>
+</div>
+</section>
+<!-- 3. Project Geofence -->
+<section class="space-y-3">
+<h2 class="font-headline font-bold text-xs uppercase tracking-[0.2em] text-on-surface-variant px-1">Project Geofence</h2>
+<div class="bg-surface-container rounded-xl overflow-hidden h-44 relative group">
+<img alt="Map" class="w-full h-full object-cover opacity-60" data-alt="dark themed satellite map view of an urban industrial area with orange neon geofence boundaries overlay" data-location="Mumbai" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDigc-evLAGkkumi-tGhMXhZhuOS6msbh44tqQlrEYntq2Otx-LXaUlGxyYuT2Z-_-F3AqwfWVYq1srcDfjtGIO07bsPtFmjLOI90XGRtSrFXGBgLVpgBKlr1Ru1X2f62top6mR9pB2QwbX8nv9R2L6LejxfNN0--JF7Cds0HtH9UqOzfFOi1BZuLwyknx4GHzxjcWvF0YEnYAB640LkQzHB2lZLtt6pcqznc7-iKF9udGWXOhfYddfok_FoGQVbswEsdI_eB9oUeuK"/>
+<div class="absolute inset-0 bg-gradient-to-t from-background via-transparent to-transparent"></div>
+<div class="absolute bottom-4 left-4 right-4 flex justify-between items-center">
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-primary text-sm">location_on</span>
+<span class="font-body font-bold text-xs">Stage 4: Studio District</span>
+</div>
+<span class="bg-surface-container-highest/80 backdrop-blur-md px-2 py-1 rounded text-[9px] font-bold uppercase tracking-wider">Read Only</span>
+</div>
+</div>
+</section>
+<!-- 4. Batta Flow -->
+<section class="bg-surface-container rounded-xl p-6">
+<div class="flex items-center justify-between mb-4">
+<h2 class="font-headline font-bold text-xs uppercase tracking-[0.2em] text-on-surface-variant">Batta Flow</h2>
+<span class="material-symbols-outlined text-on-surface-variant text-sm">info</span>
+</div>
+<div class="flex gap-3">
+<div class="flex-1 relative">
+<div class="absolute left-4 top-1/2 -translate-y-1/2 font-headline font-bold text-on-surface-variant">₹</div>
+<input class="w-full h-12 bg-surface-container-highest border-none rounded-xl pl-10 text-on-surface font-headline font-bold focus:ring-1 focus:ring-primary" placeholder="0.00" type="number"/>
+</div>
+<button class="px-6 h-12 bg-primary/10 border border-primary/20 text-primary font-headline font-bold text-[11px] uppercase tracking-wider rounded-xl active:bg-primary/20">
+                    Request Batta
+                </button>
+</div>
+</section>
+<!-- 5. My Records -->
+<section class="space-y-3 pb-8">
+<div class="flex justify-between items-end px-1">
+<h2 class="font-headline font-bold text-xs uppercase tracking-[0.2em] text-on-surface-variant">My Records</h2>
+<button class="font-label text-[10px] font-bold text-primary uppercase">View All</button>
+</div>
+<div class="space-y-px rounded-xl overflow-hidden">
+<!-- Record Item 1 -->
+<div class="bg-surface-container-low p-4 flex items-center justify-between">
+<div class="flex items-center gap-4">
+<div class="w-10 h-10 rounded-full bg-surface-container flex items-center justify-center">
+<span class="material-symbols-outlined text-on-surface-variant text-lg">calendar_today</span>
+</div>
+<div>
+<p class="font-body font-bold text-sm">Apr 8, 2026</p>
+<p class="font-body text-[10px] text-on-surface-variant">09:00 AM - 07:45 PM</p>
+</div>
+</div>
+<div class="text-right">
+<p class="font-headline font-bold text-sm text-on-surface">10h 45m</p>
+<span class="text-[9px] font-bold text-on-tertiary-fixed bg-tertiary px-1.5 rounded-sm uppercase tracking-tighter">Overtime</span>
+</div>
+</div>
+<!-- Record Item 2 -->
+<div class="bg-surface-container-low p-4 flex items-center justify-between mt-[2px]">
+<div class="flex items-center gap-4">
+<div class="w-10 h-10 rounded-full bg-surface-container flex items-center justify-center">
+<span class="material-symbols-outlined text-on-surface-variant text-lg">calendar_today</span>
+</div>
+<div>
+<p class="font-body font-bold text-sm">Apr 7, 2026</p>
+<p class="font-body text-[10px] text-on-surface-variant">09:15 AM - 05:00 PM</p>
+</div>
+</div>
+<div class="text-right">
+<p class="font-headline font-bold text-sm text-on-surface">07h 45m</p>
+<span class="text-[9px] font-bold text-on-surface-variant bg-surface-variant px-1.5 rounded-sm uppercase tracking-tighter">Normal</span>
+</div>
+</div>
+</div>
+</section>
+</main>
+<!-- BottomNavBar Shell -->
+<nav class="fixed bottom-0 w-full flex justify-around items-center px-4 pb-4 bg-[#0e0e0e]/60 backdrop-blur-xl z-50 h-20 rounded-t-xl shadow-[0px_-4px_16px_rgba(0,0,0,0.4)]">
+<a class="flex flex-col items-center justify-center text-[#ff9159] bg-[#ff9159]/10 rounded-xl px-4 py-1 active:scale-90 transition-transform duration-150" href="#">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">dashboard</span>
+<span class="font-['Inter'] text-[10px] font-semibold uppercase tracking-wider mt-1">Dashboard</span>
+</a>
+<a class="flex flex-col items-center justify-center text-[#adaaaa] hover:text-[#ff9159] transition-colors active:scale-90 duration-150" href="#">
+<span class="material-symbols-outlined">groups</span>
+<span class="font-['Inter'] text-[10px] font-semibold uppercase tracking-wider mt-1">Crew</span>
+</a>
+<a class="flex flex-col items-center justify-center text-[#adaaaa] hover:text-[#ff9159] transition-colors active:scale-90 duration-150" href="#">
+<span class="material-symbols-outlined">payments</span>
+<span class="font-['Inter'] text-[10px] font-semibold uppercase tracking-wider mt-1">Payments</span>
+</a>
+<a class="flex flex-col items-center justify-center text-[#adaaaa] hover:text-[#ff9159] transition-colors active:scale-90 duration-150" href="#">
+<span class="material-symbols-outlined">account_circle</span>
+<span class="font-['Inter'] text-[10px] font-semibold uppercase tracking-wider mt-1">Profile</span>
+</a>
+</nav>
+</body></html>

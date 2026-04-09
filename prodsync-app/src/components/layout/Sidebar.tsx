@@ -26,13 +26,14 @@ export function Sidebar({ isCollapsed, onToggle, width, isMobileOpen, onMobileCl
   return (
     <>
       {/* Mobile backdrop */}
-      {isMobileOpen && (
-        <div 
-          className="fixed inset-0 z-40 bg-black/60 backdrop-blur-sm md:hidden" 
-          onClick={onMobileClose}
-          aria-hidden="true"
-        />
-      )}
+      <div 
+        className={cn(
+          "fixed inset-0 z-40 bg-black/60 backdrop-blur-sm md:hidden transition-opacity duration-300 ease-in-out",
+          isMobileOpen ? "opacity-100 pointer-events-auto" : "opacity-0 pointer-events-none"
+        )}
+        onClick={onMobileClose}
+        aria-hidden="true"
+      />
       <aside
         className={cn(
           "fixed inset-y-0 left-0 border-r border-zinc-200 bg-white/90 backdrop-blur-md transition-[transform,width,background-color,border-color] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] dark:border-zinc-800 dark:bg-zinc-950/90",

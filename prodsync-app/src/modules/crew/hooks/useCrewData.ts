@@ -4,6 +4,7 @@ import type { CrewDashboardData } from '@/types'
 import { useResolvedProjectContext } from '@/features/projects/useResolvedProjectContext'
 import { crewService } from '@/services/crew.service'
 import { readCachedProjectLocation, seedDashboardWithCachedLocation, writeCachedProjectLocation } from '../location-cache'
+import { useAuthStore } from '@/features/auth/auth.store'
 
 const emptyDashboardData: CrewDashboardData = {
   summary: {
@@ -51,11 +52,12 @@ const emptyDashboardData: CrewDashboardData = {
 }
 
 export function useCrewData() {
+  const user = useAuthStore(state => state.user)
   const { activeProjectId, isLoadingProjectContext, isErrorProjectContext } = useResolvedProjectContext()
   const cachedProjectLocation = activeProjectId ? readCachedProjectLocation(activeProjectId) : null
 
   const dashboardQ = useQuery({
-    queryKey: ['crew-dashboard', activeProjectId],
+    queryKey: ['crew-dashboard', activeProjectId, user?.id],
     queryFn: () => crewService.getDashboard(activeProjectId!),
     enabled: Boolean(activeProjectId),
     staleTime: 10_000,

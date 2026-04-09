@@ -19,6 +19,8 @@ import type {
 import { cn, formatCurrency, formatDate, formatTime } from '@/utils'
 import { canEditGeofence, canViewCrewTable, canViewFullCrew, isProductionManagerUser } from '@/utils/permissionGuard'
 import { CrewGeofenceMap } from '../components/CrewGeofenceMap'
+import { CrewControlAdminMobile } from '../components/crew_control_admin_mobile'
+import { CrewControlMemberMobile } from '../components/crew_control_member_mobile'
 import { useCrewData } from '../hooks/useCrewData'
 
 type PaymentMethod = 'UPI' | 'CASH' | 'BANK'
@@ -430,28 +432,91 @@ export function CrewView() {
   }
 
   return (
-    <div className="page-shell space-y-6">
-      <header className="page-header">
-        <div>
-          <span className="page-kicker">Attendance, Geofence, and Crew Visibility</span>
-          <h1 className="page-title page-title-compact">Crew Control Center</h1>
-          <p className="page-subtitle">
-            {isSelfServiceOnly
-              ? 'Your check-in, check-out, and personal attendance history are locked to your own records.'
-              : canSeeFullCrew
-                ? 'Full-project operational visibility with geofence controls and batta oversight.'
-                : 'Department-scoped crew visibility with a cleaner, production-focused layout.'}
-          </p>
-        </div>
-        <div className="flex flex-wrap items-center gap-3">
-          <StatusBadge variant="verified" label="OpenStreetMap" />
-          <div className="rounded-full bg-zinc-900 px-4 py-2 text-[10px] font-semibold uppercase tracking-[0.18em] text-white dark:bg-zinc-100 dark:text-zinc-900">
-            {formatRoleLabel(projectRole)}
-          </div>
-        </div>
-      </header>
+    <div className="page-shell space-y-6 md:space-y-0 pb-safe">
+      <div className="block md:hidden">
+        {isSelfServiceOnly ? (
+          <CrewControlMemberMobile
+            myShift={myShift}
+            permissions={permissions}
+            shiftGpsError={shiftGpsError}
+            activeAction={activeAction}
+            projectLocation={projectLocation}
+            handleShiftStart={handleShiftStart}
+            handleShiftEnd={handleShiftEnd}
+            liveWorkingSeconds={liveWorkingSeconds}
+            battaAmount={battaAmount}
+            setBattaAmount={setBattaAmount}
+            handleBattaRequest={handleBattaRequest}
+            currentAttendancePayout={currentAttendancePayout}
+            myPayouts={myPayouts}
+            myRecords={myRecords}
+          />
+        ) : (
+          <CrewControlAdminMobile
+            summary={summary}
+            canSeeFinancials={canSeeFinancials}
+            canSeeFullCrew={canSeeFullCrew}
+            canManageGeofence={canManageGeofence}
+            projectLocation={projectLocation}
+            mapCenter={mapCenter}
+            radiusMeters={radiusMeters}
+            locationName={locationName}
+            isEditingGeofence={isEditingGeofence}
+            locationSearch={locationSearch}
+            searchResults={searchResults}
+            searchError={searchError}
+            isSearching={isSearching}
+            deviceLocationName={deviceLocationName}
+            locationGpsError={locationGpsError}
+            isFetchingLocation={isFetchingLocation}
+            isLocationDraftDirty={isLocationDraftDirty}
+            activeAction={activeAction}
+            setMapCenter={setMapCenter}
+            setIsLocationDraftDirty={setIsLocationDraftDirty}
+            setLocationSearch={setLocationSearch}
+            setSearchError={setSearchError}
+            setLocationName={setLocationName}
+            setRadiusMeters={setRadiusMeters}
+            beginGeofenceEditing={beginGeofenceEditing}
+            cancelGeofenceEditing={cancelGeofenceEditing}
+            handleSearchSelection={handleSearchSelection}
+            fetchCurrentLocationIntoDraft={fetchCurrentLocationIntoDraft}
+            handleProjectLocationSave={handleProjectLocationSave}
+            showManagerQueueInline={showManagerQueueInline}
+            canManageBatta={canManageBatta}
+            battaQueue={battaQueue}
+            paymentMethods={paymentMethods}
+            setPaymentMethods={setPaymentMethods}
+            handleApproveBatta={handleApproveBatta}
+            handleMarkPaid={handleMarkPaid}
+            canSeeCrewTable={canSeeCrewTable}
+            crew={crew}
+          />
+        )}
+      </div>
 
-      {(canSeeFinancials || canSeeCrewTable) && (
+      <div className="hidden md:block space-y-6">
+        <header className="page-header">
+          <div>
+            <span className="page-kicker">Attendance, Geofence, and Crew Visibility</span>
+            <h1 className="page-title page-title-compact">Crew Control Center</h1>
+            <p className="page-subtitle">
+              {isSelfServiceOnly
+                ? 'Your check-in, check-out, and personal attendance history are locked to your own records.'
+                : canSeeFullCrew
+                  ? 'Full-project operational visibility with geofence controls and batta oversight.'
+                  : 'Department-scoped crew visibility with a cleaner, production-focused layout.'}
+            </p>
+          </div>
+          <div className="flex flex-wrap items-center gap-3">
+            <StatusBadge variant="verified" label="OpenStreetMap" />
+            <div className="rounded-full bg-zinc-900 px-4 py-2 text-[10px] font-semibold uppercase tracking-[0.18em] text-white dark:bg-zinc-100 dark:text-zinc-900">
+              {formatRoleLabel(projectRole)}
+            </div>
+          </div>
+        </header>
+
+        {(canSeeFinancials || canSeeCrewTable) && (
         <section className={cn('grid gap-4', canSeeFinancials ? 'sm:grid-cols-2 xl:grid-cols-5' : 'sm:grid-cols-2 xl:grid-cols-2')}>
           <KpiCard label="Visible Crew" value={String(summary.totalCrew)} subLabel={canSeeFullCrew ? 'Project-wide attendance' : 'Scoped to your department'} />
           <KpiCard label="Active OT Crew" value={String(summary.activeOTCrew)} subLabel="Live check-ins after 6 PM" />
@@ -811,6 +876,7 @@ export function CrewView() {
           )}
         </Surface>
       )}
+      </div>
     </div>
   )
 }
