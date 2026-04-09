@@ -61,10 +61,11 @@ function DraggableMarker({
         eventHandlers={
           editable && onCenterChange
             ? {
-                dragend: e => {
-                  const { lat, lng } = (e.target as L.Marker).getLatLng()
-                  onCenterChange({ lat, lng, accuracy: null, timestamp: new Date().toISOString() })
-                },
+                  dragend: (event: L.LeafletEvent) => {
+                    const marker = event.target as L.Marker;
+                    const { lat, lng } = marker.getLatLng()
+                    onCenterChange({ lat, lng, accuracy: null, timestamp: new Date().toISOString() })
+                  },
               }
             : {}
         }
