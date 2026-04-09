@@ -481,11 +481,11 @@ export function SettingsView() {
             </div>
             <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 p-4 rounded-xl shadow-md min-w-0 flex flex-col justify-between">
               <span className="text-zinc-500 text-[10px] font-bold uppercase tracking-[0.15em]">Spent</span>
-              <div className="text-4xl font-headline font-extrabold text-zinc-900 dark:text-white mt-1 break-words w-full tracking-tighter" style={{ fontSize: String(projectProgress?.spent ?? 0).length > 8 ? '1.5rem' : '2rem' }}>{formatCurrency(projectProgress?.spent ?? activeProject?.spentAmount ?? 0, undefined, 0)}</div>
+              <div className="text-4xl font-headline font-extrabold text-zinc-900 dark:text-white mt-1 break-words w-full tracking-tighter" style={{ fontSize: String(projectProgress?.spent ?? 0).length > 8 ? '1.5rem' : '2rem' }}>{formatCurrency(projectProgress?.spent ?? activeProject?.spentAmount ?? 0)}</div>
             </div>
             <div className="col-span-2 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 p-4 rounded-xl shadow-md min-w-0 flex flex-col justify-between">
               <span className="text-zinc-500 text-[10px] font-bold uppercase tracking-[0.15em]">Allocated</span>
-              <div className="text-4xl font-headline font-extrabold text-zinc-900 dark:text-white mt-1 break-words w-full tracking-tighter" style={{ fontSize: '2rem' }}>{formatCurrency(allocationTotalAmount, undefined, 0)}</div>
+              <div className="text-4xl font-headline font-extrabold text-zinc-900 dark:text-white mt-1 break-words w-full tracking-tighter" style={{ fontSize: '2rem' }}>{formatCurrency(allocationTotalAmount)}</div>
             </div>
           </div>
         </section>
