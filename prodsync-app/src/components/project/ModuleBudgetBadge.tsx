@@ -32,22 +32,23 @@ export function ModuleBudgetBadge({
   const remaining = Math.max(row.budget - row.spent, 0)
 
   return (
-    <div className="rounded-[22px] border border-orange-500/25 bg-orange-500/10 px-4 py-3 shadow-[0_14px_28px_rgba(249,115,22,0.14)]">
-      <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-orange-600 dark:text-orange-300">
-        Budget Allocation
-      </p>
-      <div className="mt-3 grid gap-2 text-sm text-zinc-700 dark:text-zinc-200">
-        <div className="flex items-center justify-between gap-4">
-          <span>Allocated</span>
-          <span className="font-semibold text-zinc-900 dark:text-white">{formatCurrency(row.budget, currency)}</span>
+    <div className="flex items-center rounded-full border border-orange-500/20 bg-orange-500/5 p-1 pr-5 shadow-sm dark:border-orange-500/10">
+      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-orange-500/10 mr-4 dark:bg-orange-500/20">
+         <span className="material-symbols-outlined text-[18px] text-orange-600 dark:text-orange-400" style={{ fontVariationSettings: "'FILL' 1" }}>account_balance_wallet</span>
+      </div>
+      
+      <div className="flex items-center gap-4">
+        <div className="flex flex-col sm:flex-row sm:items-center gap-0.5 sm:gap-2 border-r border-orange-500/20 pr-4">
+          <span className="text-[9px] font-bold uppercase tracking-[0.15em] text-orange-600/70 dark:text-orange-400/80">Allocated</span>
+          <span className="text-sm font-semibold text-zinc-900 dark:text-white">{formatCurrency(row.budget, currency)}</span>
         </div>
-        <div className="flex items-center justify-between gap-4">
-          <span>Used</span>
-          <span className="font-semibold text-zinc-900 dark:text-white">{formatCurrency(row.spent, currency)}</span>
+        <div className="flex flex-col sm:flex-row sm:items-center gap-0.5 sm:gap-2 border-r border-orange-500/20 pr-4">
+          <span className="text-[9px] font-bold uppercase tracking-[0.15em] text-orange-600/70 dark:text-orange-400/80">Used</span>
+          <span className="text-sm font-semibold text-zinc-900 dark:text-white">{formatCurrency(row.spent, currency)}</span>
         </div>
-        <div className="flex items-center justify-between gap-4">
-          <span>Remaining</span>
-          <span className="font-semibold text-zinc-900 dark:text-white">{formatCurrency(remaining, currency)}</span>
+        <div className="flex flex-col sm:flex-row sm:items-center gap-0.5 sm:gap-2">
+          <span className="text-[9px] font-bold uppercase tracking-[0.15em] text-orange-600/70 dark:text-orange-400/80">Remaining</span>
+          <span className="text-sm font-bold text-orange-600 dark:text-orange-400">{formatCurrency(remaining, currency)}</span>
         </div>
       </div>
     </div>

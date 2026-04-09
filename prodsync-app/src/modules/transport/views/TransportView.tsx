@@ -886,22 +886,24 @@ export function TransportView() {
           </p>
         </div>
 
-        <div className="flex flex-wrap items-start justify-end gap-3">
+        <div className="flex flex-col items-end gap-3">
           <ModuleBudgetBadge
             projectId={activeProjectId}
             department="transport"
             currency={activeProject.currency}
           />
           {canManageTransport && (
-            <button
-              onClick={() => {
-                setVehicleForm(emptyVehicleForm)
-                setVehicleModalOpen(true)
-              }}
-              className="btn-primary"
-            >
-              Add Vehicle
-            </button>
+            <div className="flex items-center gap-3">
+              <button
+                onClick={() => {
+                  setVehicleForm(emptyVehicleForm)
+                  setVehicleModalOpen(true)
+                }}
+                className="btn-primary"
+              >
+                Add Vehicle
+              </button>
+            </div>
           )}
         </div>
       </header>

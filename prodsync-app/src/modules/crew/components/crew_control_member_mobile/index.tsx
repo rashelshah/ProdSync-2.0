@@ -41,6 +41,8 @@ export interface MyShiftState {
   shiftStatus: string
 }
 
+export type AttendanceHistoryPreset = 'last_5_days' | 'last_30_days' | 'last_2_months' | 'custom'
+
 export interface CrewControlMemberMobileProps {
   myShift: MyShiftState
   permissions: { canCheckIn: boolean; canCheckOut: boolean; canRequestBatta?: boolean }
@@ -55,7 +57,17 @@ export interface CrewControlMemberMobileProps {
   handleBattaRequest: () => Promise<void>
   currentAttendancePayout: WagePayout | undefined
   myPayouts: WagePayout[]
-  myRecords: CrewAttendanceHistoryItem[]
+  // Attendance History Props
+  attendanceHistoryQ: any
+  historyPreset: AttendanceHistoryPreset
+  setHistoryPreset: (val: AttendanceHistoryPreset) => void
+  customStartDate: string
+  setCustomStartDate: (val: string) => void
+  customEndDate: string
+  setCustomEndDate: (val: string) => void
+  historyPage: number
+  setHistoryPage: (page: number | ((prev: number) => number)) => void
+  onExport: () => Promise<void>
 }
 
 export function CrewControlMemberMobile(props: CrewControlMemberMobileProps) {
@@ -219,48 +231,136 @@ export function CrewControlMemberMobile(props: CrewControlMemberMobileProps) {
     </div>
   ) : null
 
-  const recordsUI = (
-    <div className="mt-8 space-y-4">
-      <div className="flex items-center justify-between px-1 mb-2">
-        <p className="text-[10px] font-bold text-zinc-500 dark:text-zinc-400 uppercase tracking-[0.2em]">My Records</p>
-        <button className="text-[9px] font-bold text-orange-600 dark:text-orange-500 uppercase tracking-widest hover:opacity-80">View All</button>
+  const attendanceHistory = props.attendanceHistoryQ.data?.data ?? []
+  const attendancePagination = props.attendanceHistoryQ.data?.pagination
+
+  const historyUI = (
+    <div className="mt-8 space-y-6">
+      <div className="px-1">
+        <div className="flex items-center justify-between mb-4">
+          <p className="text-[10px] font-bold text-zinc-500 dark:text-zinc-400 uppercase tracking-[0.2em]">Attendance History</p>
+          <button 
+            onClick={() => void props.onExport()}
+            disabled={props.attendanceHistoryQ.isFetching || attendanceHistory.length === 0}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-orange-500 text-black text-[9px] font-bold uppercase tracking-widest active:scale-95 transition-transform disabled:opacity-50"
+          >
+            <span className="material-symbols-outlined text-[14px]">download</span>
+            Export PDF
+          </button>
+        </div>
+
+        {/* Filter Presets */}
+        <div className="flex flex-wrap gap-2 mb-4">
+          {[
+            { id: 'last_5_days' as const, label: '5D' },
+            { id: 'last_30_days' as const, label: '30D' },
+            { id: 'last_2_months' as const, label: '2M' },
+            { id: 'custom' as const, label: 'Custom' },
+          ].map(option => (
+            <button
+              key={option.id}
+              onClick={() => props.setHistoryPreset(option.id)}
+              className={cn(
+                "px-3 py-1.5 rounded-full text-[9px] font-bold uppercase tracking-widest border transition-all",
+                props.historyPreset === option.id
+                  ? "bg-orange-500 border-orange-500 text-black shadow-lg shadow-orange-500/20"
+                  : "bg-white dark:bg-[#151618] border-zinc-200 dark:border-white/5 text-zinc-500"
+              )}
+            >
+              {option.label}
+            </button>
+          ))}
+        </div>
+
+        {/* Custom Range Inputs */}
+        {props.historyPreset === 'custom' && (
+          <div className="grid grid-cols-2 gap-3 mb-6 animate-in fade-in slide-in-from-top-2 duration-200">
+            <div className="space-y-1.5">
+              <p className="text-[8px] font-bold text-zinc-500 uppercase tracking-widest px-1">Start Date</p>
+              <input
+                type="date"
+                value={props.customStartDate}
+                onChange={e => props.setCustomStartDate(e.target.value)}
+                className="w-full h-[40px] rounded-[12px] bg-zinc-100 dark:bg-[#1e1f22] border-none text-[11px] font-medium text-zinc-900 dark:text-white px-3 outline-none"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <p className="text-[8px] font-bold text-zinc-500 uppercase tracking-widest px-1">End Date</p>
+              <input
+                type="date"
+                value={props.customEndDate}
+                onChange={e => props.setCustomEndDate(e.target.value)}
+                className="w-full h-[40px] rounded-[12px] bg-zinc-100 dark:bg-[#1e1f22] border-none text-[11px] font-medium text-zinc-900 dark:text-white px-3 outline-none"
+              />
+            </div>
+          </div>
+        )}
       </div>
-      <div className="flex flex-col gap-3">
-        {props.myRecords.length === 0 ? (
-          <div className="rounded-[24px] border border-dashed border-zinc-200 dark:border-white/10 p-6 flex flex-col items-center justify-center text-center opacity-60">
-             <span className="material-symbols-outlined text-[24px] mb-2 text-zinc-400">history</span>
-             <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">No Records</p>
+
+      <div className="flex flex-col gap-3 min-h-[200px]">
+        {props.attendanceHistoryQ.isLoading ? (
+          <div className="flex-1 flex items-center justify-center p-12">
+            <div className="w-6 h-6 border-2 border-orange-500/20 border-t-orange-500 rounded-full animate-spin" />
+          </div>
+        ) : attendanceHistory.length === 0 ? (
+          <div className="rounded-[24px] border border-dashed border-zinc-200 dark:border-white/10 p-10 flex flex-col items-center justify-center text-center opacity-60">
+             <span className="material-symbols-outlined text-[32px] mb-3 text-zinc-400">history</span>
+             <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest leading-relaxed">
+               No attendance records<br/>found for this range
+             </p>
           </div>
         ) : (
-          props.myRecords.map(row => (
-            <div key={row.id} className="rounded-[24px] border border-zinc-200 dark:border-white/5 bg-white dark:bg-[#151618] p-4 flex items-center gap-4 shadow-sm">
-              <div className="w-12 h-12 rounded-[16px] bg-zinc-100 dark:bg-[#1e1f22] flex items-center justify-center flex-shrink-0">
-                <span className="material-symbols-outlined text-[20px] text-zinc-500 dark:text-zinc-400">calendar_today</span>
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-[13px] font-bold text-zinc-900 dark:text-white truncate">
-                  {row.checkInTime ? formatDate(row.checkInTime) : '--'}
-                </p>
-                <p className="text-[9px] text-zinc-500 mt-0.5 uppercase tracking-wider truncate">
-                  {row.checkInTime ? formatTime(row.checkInTime) : '--'} - {row.checkOutTime ? formatTime(row.checkOutTime) : 'Working'}
-                </p>
-              </div>
-              <div className="flex flex-col items-end gap-1.5 flex-shrink-0">
-                <p className="text-sm font-extrabold text-zinc-900 dark:text-white">
-                  {formatDurationMinutes(row.durationMinutes)}
-                </p>
-                {row.otMinutes > 0 ? (
-                  <span className="px-1.5 py-0.5 rounded-[4px] bg-orange-50 dark:bg-[#28150d] border border-orange-200 dark:border-orange-500/20 text-orange-600 dark:text-orange-500 text-[8px] font-bold tracking-widest uppercase">
-                    Overtime
+          <>
+            {attendanceHistory.map((row: CrewAttendanceHistoryItem) => (
+              <div key={row.attendanceId || row.id} className="rounded-[24px] border border-zinc-200 dark:border-white/5 bg-white dark:bg-[#151618] p-4 flex items-center gap-4 shadow-sm">
+                <div className="w-12 h-12 rounded-[16px] bg-zinc-100 dark:bg-[#1e1f22] flex items-center justify-center flex-shrink-0">
+                  <span className="material-symbols-outlined text-[20px] text-zinc-500 dark:text-zinc-400">calendar_today</span>
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-[13px] font-bold text-zinc-900 dark:text-white truncate">
+                    {row.checkInTime ? formatDate(row.checkInTime) : '--'}
+                  </p>
+                  <p className="text-[9px] text-zinc-500 mt-0.5 uppercase tracking-wider truncate">
+                    {row.checkInTime ? formatTime(row.checkInTime) : '--'} - {row.checkOutTime ? formatTime(row.checkOutTime) : 'Working'}
+                  </p>
+                </div>
+                <div className="flex flex-col items-end gap-1.5 flex-shrink-0">
+                  <p className="text-sm font-extrabold text-zinc-900 dark:text-white">
+                    {formatDurationMinutes(row.durationMinutes)}
+                  </p>
+                  <span className={cn(
+                    "px-1.5 py-0.5 rounded-[4px] text-[8px] font-bold tracking-widest uppercase",
+                    row.state === 'checked_out' 
+                      ? "bg-zinc-100 dark:bg-white/5 text-zinc-500 dark:text-zinc-400"
+                      : "bg-orange-500/10 text-orange-500"
+                  )}>
+                    {row.shiftStatus}
                   </span>
-                ) : (
-                  <span className="px-1.5 py-0.5 rounded-[4px] bg-zinc-100 dark:bg-white/5 border border-zinc-200 dark:border-white/10 text-zinc-500 dark:text-zinc-400 text-[8px] font-bold tracking-widest uppercase">
-                    Normal
-                  </span>
-                )}
+                </div>
               </div>
+            ))}
+
+            {/* Pagination Controls */}
+            <div className="flex items-center justify-between gap-4 pt-2">
+              <button
+                disabled={props.historyPage <= 1}
+                onClick={() => props.setHistoryPage(p => Math.max(1, p - 1))}
+                className="flex-1 h-[44px] rounded-[16px] border border-zinc-200 dark:border-white/5 bg-white dark:bg-[#151618] text-[9px] font-bold uppercase tracking-widest text-zinc-500 hover:text-zinc-900 dark:hover:text-white transition-colors disabled:opacity-30"
+              >
+                Previous
+              </button>
+              <div className="px-4 text-[10px] font-bold text-zinc-400 uppercase tracking-widest">
+                {props.historyPage} / {attendancePagination?.totalPages || 1}
+              </div>
+              <button
+                disabled={props.historyPage >= (attendancePagination?.totalPages || 1)}
+                onClick={() => props.setHistoryPage(p => p + 1)}
+                className="flex-1 h-[44px] rounded-[16px] border border-zinc-200 dark:border-white/5 bg-white dark:bg-[#151618] text-[9px] font-bold uppercase tracking-widest text-zinc-500 hover:text-zinc-900 dark:hover:text-white transition-colors disabled:opacity-30"
+              >
+                Next
+              </button>
             </div>
-          ))
+          </>
         )}
       </div>
     </div>
@@ -323,7 +423,7 @@ export function CrewControlMemberMobile(props: CrewControlMemberMobileProps) {
             {checkInOutUI}
             {geofenceUI}
             {battaFlowUI}
-            {recordsUI}
+            {historyUI}
           </div>
         )}
 
@@ -336,7 +436,7 @@ export function CrewControlMemberMobile(props: CrewControlMemberMobileProps) {
         
         {activeMobileTab === 'records' && (
           <div className="animate-in fade-in slide-in-from-right-2 duration-300">
-            {recordsUI}
+            {historyUI}
           </div>
         )}
       </div>

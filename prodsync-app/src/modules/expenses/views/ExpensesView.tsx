@@ -1333,27 +1333,29 @@ export function ExpensesView() {
           </p>
         </div>
 
-        <div className="page-toolbar">
+        <div className="flex flex-col items-end gap-3">
           <ModuleBudgetBadge
             projectId={activeProjectId}
             department="art"
             currency={activeProject.currency}
           />
-          {canCreateExpenses && (
-            <button onClick={openExpenseModal} className="btn-soft">
-              Add Expense
-            </button>
-          )}
-          {canManagePropsAccess && (
-            <button onClick={openCreatePropModal} className="btn-soft">
-              Add Prop
-            </button>
-          )}
-          {canManageSetsAccess && (
-            <button onClick={openCreateSetModal} className="btn-primary">
-              Add Set
-            </button>
-          )}
+          <div className="flex items-center gap-3">
+            {canCreateExpenses && (
+              <button onClick={openExpenseModal} className="btn-soft">
+                Add Expense
+              </button>
+            )}
+            {canManagePropsAccess && (
+              <button onClick={openCreatePropModal} className="btn-soft">
+                Add Prop
+              </button>
+            )}
+            {canManageSetsAccess && (
+              <button onClick={openCreateSetModal} className="btn-primary">
+                Add Set
+              </button>
+            )}
+          </div>
         </div>
       </header>
 

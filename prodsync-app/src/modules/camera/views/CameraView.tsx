@@ -1147,32 +1147,34 @@ export function CameraView() {
           </p>
         </div>
 
-        <div className="page-toolbar">
+        <div className="flex flex-col items-end gap-3">
           <ModuleBudgetBadge
             projectId={activeProjectId}
             department="camera"
             currency={activeProject.currency}
           />
-          {canManageWishlist && (
-            <button onClick={openWishlistModal} className="btn-soft">
-              Add Wishlist Item
-            </button>
-          )}
-          {canCreateCameraRequests && (
-            <button onClick={openRequestModal} className="btn-soft">
-              Request Gear
-            </button>
-          )}
-          {canCreateMovementLogs && (
-            <button onClick={openScanModal} className="btn-soft">
-              Scan QR
-            </button>
-          )}
-          {canCreateDamageReports && (
-            <button onClick={openDamageModal} className="btn-primary">
-              Report Issue
-            </button>
-          )}
+          <div className="flex items-center gap-3">
+            {canManageWishlist && (
+              <button onClick={openWishlistModal} className="btn-soft">
+                Add Wishlist Item
+              </button>
+            )}
+            {canCreateCameraRequests && (
+              <button onClick={openRequestModal} className="btn-soft">
+                Request Gear
+              </button>
+            )}
+            {canCreateMovementLogs && (
+              <button onClick={openScanModal} className="btn-soft">
+                Scan QR
+              </button>
+            )}
+            {canCreateDamageReports && (
+              <button onClick={openDamageModal} className="btn-primary">
+                Report Issue
+              </button>
+            )}
+          </div>
         </div>
       </header>
 

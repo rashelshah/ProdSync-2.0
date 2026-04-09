@@ -554,24 +554,26 @@ export function WardrobeView() {
           <h1 className="page-title page-title-compact">Wardrobe & Makeup</h1>
           <p className="page-subtitle">Live continuity, laundry, inventory, and high-value accessory tracking for {activeProject.name}.</p>
         </div>
-        <div className="page-toolbar">
+        <div className="flex flex-col items-end gap-3">
           <ModuleBudgetBadge
             projectId={activeProjectId}
             department="wardrobe"
             currency={activeProject.currency}
           />
-          {canManage && (
-            <button onClick={() => setLaundryModalOpen(true)} className="btn-soft">Send to Laundry</button>
-          )}
-          {canManage && (
-            <button onClick={() => setAccessoryModalOpen(true)} className="btn-soft">Add Accessory</button>
-          )}
-          {canManage && (
-            <button onClick={() => setInventoryModalOpen(true)} className="btn-soft">Add Costume</button>
-          )}
-          {canManage && (
-            <button onClick={() => setContinuityModalOpen(true)} className="btn-primary">Upload Continuity</button>
-          )}
+          <div className="flex items-center gap-3">
+            {canManage && (
+              <button onClick={() => setLaundryModalOpen(true)} className="btn-soft">Send to Laundry</button>
+            )}
+            {canManage && (
+              <button onClick={() => setAccessoryModalOpen(true)} className="btn-soft">Add Accessory</button>
+            )}
+            {canManage && (
+              <button onClick={() => setInventoryModalOpen(true)} className="btn-soft">Add Costume</button>
+            )}
+            {canManage && (
+              <button onClick={() => setContinuityModalOpen(true)} className="btn-primary">Upload Continuity</button>
+            )}
+          </div>
         </div>
       </header>
 

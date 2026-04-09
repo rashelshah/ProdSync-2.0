@@ -601,7 +601,16 @@ export function CrewView() {
             handleBattaRequest={handleBattaRequest}
             currentAttendancePayout={currentAttendancePayout}
             myPayouts={myPayouts}
-            myRecords={myRecords}
+            attendanceHistoryQ={attendanceHistoryQ}
+            historyPreset={historyPreset}
+            setHistoryPreset={setHistoryPreset}
+            customStartDate={customStartDate}
+            setCustomStartDate={setCustomStartDate}
+            customEndDate={customEndDate}
+            setCustomEndDate={setCustomEndDate}
+            historyPage={historyPage}
+            setHistoryPage={setHistoryPage}
+            onExport={handleHistoryExport}
           />
         ) : (
           <CrewControlAdminMobile
@@ -660,7 +669,7 @@ export function CrewView() {
                   : 'Department-scoped crew visibility with a cleaner, production-focused layout.'}
             </p>
           </div>
-          <div className="flex flex-wrap items-center gap-3">
+          <div className="flex flex-col items-end gap-3">
             {activeProjectId && (
               <ModuleBudgetBadge
                 projectId={activeProjectId}
@@ -668,9 +677,11 @@ export function CrewView() {
                 currency={activeProject?.currency}
               />
             )}
-            <StatusBadge variant="verified" label="OpenStreetMap" />
-            <div className="rounded-full bg-zinc-900 px-4 py-2 text-[10px] font-semibold uppercase tracking-[0.18em] text-white dark:bg-zinc-100 dark:text-zinc-900">
-              {formatRoleLabel(projectRole)}
+            <div className="flex items-center gap-3">
+              <StatusBadge variant="verified" label="OpenStreetMap" />
+              <div className="rounded-full bg-zinc-900 px-4 py-2 text-[10px] font-semibold uppercase tracking-[0.18em] text-white dark:bg-zinc-100 dark:text-zinc-900">
+                {formatRoleLabel(projectRole)}
+              </div>
             </div>
           </div>
         </header>
@@ -989,63 +1000,8 @@ export function CrewView() {
         />
       )}
 
-      {canSeeCrewTable ? (
-        <Surface variant="table" padding="lg">
-          <div className="mb-6">
-            <p className="section-title">{canSeeFullCrew ? 'Crew Table' : 'Department Crew Table'}</p>
-            <p className="mt-2 text-sm text-zinc-500 dark:text-zinc-400">
-              {canSeeFullCrew
-                ? 'Full-project attendance visibility with checkout state and live durations.'
-                : 'Only crew assigned to your department are visible here.'}
-            </p>
-          </div>
-
-          {crew.length === 0 ? (
-            <EmptyState icon="groups" title="No crew activity yet" description="No attendance has been captured for the active scope today." />
-          ) : (
-            <DataTable<CrewMember>
-              columns={[
-                { key: 'name', label: 'Name', render: row => <span className="font-medium text-zinc-900 dark:text-white">{row.name}</span> },
-                { key: 'role', label: 'Role', render: row => <span className="text-zinc-600 dark:text-zinc-300">{row.role}</span> },
-                { key: 'checkInTime', label: 'Check In', render: row => <span className="font-mono text-[11px] text-zinc-500 dark:text-zinc-400">{row.checkInTime}</span> },
-                { key: 'checkOutTime', label: 'Check Out', render: row => <span className="font-mono text-[11px] text-zinc-500 dark:text-zinc-400">{row.checkOutTime ?? 'Working'}</span> },
-                { key: 'computedDuration', label: 'Total Duration', render: row => <span className="font-medium text-zinc-900 dark:text-white">{row.computedDuration ?? '--'}</span> },
-                { key: 'status', label: 'Status', render: row => <StatusBadge variant={shiftStatusVariant(row.status)} label={row.status === 'offduty' ? 'Checked Out' : row.status === 'ot' ? 'OT' : 'Working'} /> },
-                { key: 'otMinutes', label: 'OT Minutes', render: row => <span className="font-medium text-zinc-900 dark:text-white">{row.otMinutes ?? 0}</span>, align: 'right' },
-              ]}
-              data={crew}
-              getKey={row => row.attendanceId ?? row.id}
-              stickyHeader
-              className="max-h-[400px] overflow-y-auto"
-            />
-          )}
-        </Surface>
-      ) : (
-        <Surface variant="table" padding="lg">
-          <div className="mb-6">
-            <p className="section-title">My Records</p>
-            <p className="mt-2 text-sm text-zinc-500 dark:text-zinc-400">Your own attendance history only. Other crew data and financials stay hidden.</p>
-          </div>
-
-          {myRecords.length === 0 ? (
-            <EmptyState icon="badge" title="No records yet" description="Start your first shift once GPS is available inside the project radius." />
-          ) : (
-            <DataTable<CrewAttendanceHistoryItem>
-              columns={[
-                { key: 'checkInTime', label: 'Date', render: row => row.checkInTime ? formatDate(row.checkInTime) : '--' },
-                { key: 'checkInTimeLabel', label: 'Check In', render: row => row.checkInTime ? formatTime(row.checkInTime) : '--' },
-                { key: 'checkOutTimeLabel', label: 'Check Out', render: row => row.checkOutTime ? formatTime(row.checkOutTime) : 'Working' },
-                { key: 'durationMinutes', label: 'Total Duration', render: row => formatDurationMinutes(row.durationMinutes) },
-                { key: 'shiftStatus', label: 'Status', render: row => <StatusBadge variant={row.state === 'checked_out' ? 'idle' : row.otMinutes > 0 ? 'ot' : 'active'} label={row.shiftStatus} /> },
-                { key: 'otMinutes', label: 'OT Minutes', render: row => String(row.otMinutes), align: 'right' },
-              ]}
-              data={myRecords}
-              getKey={row => row.id}
-              stickyHeader
-              className="max-h-[400px] overflow-y-auto"
-            />
-          )}
-        </Surface>
+      {!canSeeCrewTable && (
+        <div className="h-0 w-0 overflow-hidden" aria-hidden="true" />
       )}
 
       <Surface variant="table" padding="lg">
