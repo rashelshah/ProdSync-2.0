@@ -28,6 +28,7 @@ import type {
 } from '@/modules/wardrobe/types'
 import { wardrobeService } from '@/services/wardrobe.service'
 import { formatDate, formatTime, timeAgo } from '@/utils'
+import { useMobileScrollHide } from '@/hooks/useMobileScrollHide'
 
 const todayDate = new Date().toISOString().slice(0, 10)
 
@@ -281,6 +282,7 @@ export function WardrobeView() {
   const canDeleteLogs = canDeleteWardrobeContinuity(user)
 
   const [activeMobileTab, setActiveMobileTab] = useState<'dashboard' | 'inventory' | 'continuity' | 'laundry' | 'accessories'>('dashboard')
+  const { navRef: bottomNavRef, companionRef: floatingActionsRef } = useMobileScrollHide()
   const [feedback, setFeedback] = useState<ActionFeedbackState | null>(null)
   const [sceneFilter, setSceneFilter] = useState('')
   const [characterFilter, setCharacterFilter] = useState('')
@@ -991,7 +993,7 @@ export function WardrobeView() {
              </section>
 
              {canManage && (
-               <div className="fixed bottom-[96px] left-3 right-3 z-30">
+               <div ref={floatingActionsRef} className="fixed bottom-[96px] left-3 right-3 z-30">
                  <div className="flex flex-col gap-3 bg-white/90 dark:bg-[#0e0e0e]/85 p-4 rounded-[32px] border border-zinc-200/80 dark:border-white/5 shadow-2xl backdrop-blur-2xl">
                    <button onClick={() => setContinuityModalOpen(true)} className="w-full h-[56px] rounded-[16px] bg-orange-500 text-black font-bold flex items-center justify-center gap-2 active:scale-95 duration-200 shadow-lg" style={{ fontFamily: 'Manrope, sans-serif' }}>
                      <span className="material-symbols-outlined font-bold">upload_file</span>
@@ -1171,7 +1173,7 @@ export function WardrobeView() {
         )}
 
         {/* Bottom Navigation */}
-        <nav className="fixed bottom-3 left-3 right-3 z-40 mx-auto flex h-[80px] max-w-md items-center justify-around rounded-[30px] border border-zinc-200/80 bg-white/88 px-2 pb-safe shadow-[0_18px_40px_rgba(15,23,42,0.12)] backdrop-blur-2xl dark:border-white/8 dark:bg-zinc-950/82 dark:shadow-[0_18px_44px_rgba(0,0,0,0.34)]">
+        <nav ref={bottomNavRef} className="fixed bottom-3 left-3 right-3 z-40 mx-auto flex h-[80px] max-w-md items-center justify-around rounded-[30px] border border-zinc-200/80 bg-white/88 px-2 pb-safe shadow-[0_18px_40px_rgba(15,23,42,0.12)] backdrop-blur-2xl dark:border-white/8 dark:bg-zinc-950/82 dark:shadow-[0_18px_44px_rgba(0,0,0,0.34)]">
           {[
             { id: 'dashboard', icon: 'dashboard', label: 'Home' },
             { id: 'inventory', icon: 'inventory_2', label: 'Inventory' },

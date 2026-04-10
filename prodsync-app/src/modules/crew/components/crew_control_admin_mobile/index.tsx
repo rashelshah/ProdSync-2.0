@@ -2,6 +2,7 @@ import { Dispatch, SetStateAction, useState } from 'react'
 import { CrewGeofenceMap } from '../../components/CrewGeofenceMap'
 import { cn, formatCurrency, formatTime } from '@/utils'
 import type { CrewMember, CrewLocationPoint, WagePayout, CrewProjectLocation } from '@/types'
+import { useMobileScrollHide } from '@/hooks/useMobileScrollHide'
 
 type PaymentMethod = 'UPI' | 'CASH' | 'BANK'
 type LocationSearchResult = { name: string; lat: number; lng: number }
@@ -70,6 +71,7 @@ function formatCoordinates(location: CrewLocationPoint | null | undefined) {
 
 export function CrewControlAdminMobile(props: CrewControlAdminMobileProps) {
   const [activeMobileTab, setActiveMobileTab] = useState<'home' | 'crew' | 'payments' | 'location'>('home')
+  const { navRef: bottomNavRef } = useMobileScrollHide()
 
   const mobileStats = [
     { label: 'Visible Crew', value: String(props.summary.totalCrew) },
@@ -412,7 +414,7 @@ export function CrewControlAdminMobile(props: CrewControlAdminMobileProps) {
       )}
 
       {/* Bottom Navigation */}
-      <nav className="fixed bottom-3 left-3 right-3 z-40 mx-auto flex h-[80px] max-w-md items-center justify-around rounded-[30px] border border-zinc-200/80 bg-white/88 px-2 shadow-[0_18px_40px_rgba(15,23,42,0.12)] backdrop-blur-2xl dark:border-white/8 dark:bg-[#0a0a0a]/82 dark:shadow-[0_18px_44px_rgba(0,0,0,0.34)]">
+      <nav ref={bottomNavRef} className="fixed bottom-3 left-3 right-3 z-40 mx-auto flex h-[80px] max-w-md items-center justify-around rounded-[30px] border border-zinc-200/80 bg-white/88 px-2 shadow-[0_18px_40px_rgba(15,23,42,0.12)] backdrop-blur-2xl dark:border-white/8 dark:bg-[#0a0a0a]/82 dark:shadow-[0_18px_44px_rgba(0,0,0,0.34)]">
         {[
           { id: 'home', icon: 'home', label: 'Home' },
           { id: 'location', icon: 'my_location', label: 'Location' },

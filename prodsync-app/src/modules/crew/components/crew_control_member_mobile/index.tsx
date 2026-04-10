@@ -3,6 +3,7 @@ import { StatusBadge } from '@/components/shared/StatusBadge'
 import { CrewGeofenceMap } from '../../components/CrewGeofenceMap'
 import { cn, formatCurrency, formatDate, formatTime } from '@/utils'
 import type { CrewAttendanceHistoryItem, CrewProjectLocation, WagePayout, CrewLocationPoint } from '@/types'
+import { useMobileScrollHide } from '@/hooks/useMobileScrollHide'
 
 function formatDuration(seconds: number) {
   const safeSeconds = Math.max(0, Math.floor(seconds))
@@ -72,6 +73,7 @@ export interface CrewControlMemberMobileProps {
 
 export function CrewControlMemberMobile(props: CrewControlMemberMobileProps) {
   const [activeMobileTab, setActiveMobileTab] = useState<'dashboard' | 'payments' | 'records'>('dashboard')
+  const { navRef: bottomNavRef } = useMobileScrollHide()
 
   const shiftWidgetUI = (
     <div className="rounded-[32px] border border-zinc-200 dark:border-white/5 bg-white dark:bg-[#151618] p-6 shadow-sm">
@@ -442,7 +444,7 @@ export function CrewControlMemberMobile(props: CrewControlMemberMobileProps) {
       </div>
 
       {/* Bottom Navigation */}
-      <nav className="fixed bottom-3 left-3 right-3 z-40 mx-auto flex h-[80px] max-w-md items-center justify-around rounded-[30px] border border-zinc-200/80 bg-white/88 px-2 shadow-[0_18px_40px_rgba(15,23,42,0.12)] backdrop-blur-2xl dark:border-white/8 dark:bg-[#0a0a0a]/82 dark:shadow-[0_18px_44px_rgba(0,0,0,0.34)]">
+      <nav ref={bottomNavRef} className="fixed bottom-3 left-3 right-3 z-40 mx-auto flex h-[80px] max-w-md items-center justify-around rounded-[30px] border border-zinc-200/80 bg-white/88 px-2 shadow-[0_18px_40px_rgba(15,23,42,0.12)] backdrop-blur-2xl dark:border-white/8 dark:bg-[#0a0a0a]/82 dark:shadow-[0_18px_44px_rgba(0,0,0,0.34)]">
         {[
           { id: 'dashboard', icon: 'dashboard', label: 'Dashboard' },
           ...(props.permissions.canRequestBatta ? [{ id: 'payments', icon: 'payments', label: 'Payments' }] : []),

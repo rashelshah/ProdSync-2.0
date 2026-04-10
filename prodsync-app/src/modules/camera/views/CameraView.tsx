@@ -25,6 +25,7 @@ import type {
 } from '@/modules/camera/types'
 import { cameraService } from '@/services/camera.service'
 import { formatCurrency, formatDate, formatTime, timeAgo } from '@/utils'
+import { useMobileScrollHide } from '@/hooks/useMobileScrollHide'
 
 const emptyWishlistForm = {
   itemName: '',
@@ -621,6 +622,7 @@ function RequestApprovalModal({
 
 export function CameraView() {
   const [activeMobileTab, setActiveMobileTab] = useState<'home' | 'activity' | 'reports' | 'alerts' | 'wishlist'>('home')
+  const { navRef: bottomNavRef, companionRef: floatingActionsRef } = useMobileScrollHide()
   const queryClient = useQueryClient()
   const user = useAuthStore(state => state.user)
   const { activeProjectId, activeProject, isLoadingProjectContext } = useResolvedProjectContext()
@@ -1837,7 +1839,7 @@ export function CameraView() {
         )}
 
         {activeMobileTab === 'home' && (
-          <div className="fixed bottom-[96px] left-0 right-0 z-40 mx-auto w-full max-w-md px-4 pointer-events-none">
+          <div ref={floatingActionsRef} className="fixed bottom-[96px] left-0 right-0 z-40 mx-auto w-full max-w-md px-4 pointer-events-none">
             <div className="grid grid-cols-2 gap-3 rounded-[28px] border border-zinc-200/80 bg-white/88 p-3 shadow-[0_22px_48px_rgba(15,23,42,0.14)] backdrop-blur-2xl dark:border-white/8 dark:bg-zinc-900/84 dark:shadow-[0_22px_52px_rgba(0,0,0,0.34)] pointer-events-auto">
               {canCreateMovementLogs && (
                 <button onClick={openScanModal} className="flex min-h-[72px] flex-col items-center justify-center gap-1 rounded-[22px] bg-gradient-to-r from-orange-500 to-orange-400 py-4 text-black shadow-[0_16px_28px_rgba(249,115,22,0.28)] transition-all active:scale-95">
@@ -1855,7 +1857,7 @@ export function CameraView() {
           </div>
         )}
 
-        <nav className="fixed bottom-3 left-3 right-3 z-40 mx-auto flex h-[80px] max-w-md items-center justify-around rounded-[30px] border border-zinc-200/80 bg-white/88 px-2 pb-safe shadow-[0_18px_40px_rgba(15,23,42,0.12)] backdrop-blur-2xl dark:border-white/8 dark:bg-zinc-950/82 dark:shadow-[0_18px_44px_rgba(0,0,0,0.34)]">
+        <nav ref={bottomNavRef} className="fixed bottom-3 left-3 right-3 z-40 mx-auto flex h-[80px] max-w-md items-center justify-around rounded-[30px] border border-zinc-200/80 bg-white/88 px-2 pb-safe shadow-[0_18px_40px_rgba(15,23,42,0.12)] backdrop-blur-2xl dark:border-white/8 dark:bg-zinc-950/82 dark:shadow-[0_18px_44px_rgba(0,0,0,0.34)]">
           {[
             { id: 'home', icon: 'home', label: 'Home' },
             { id: 'activity', icon: 'history', label: 'Activity' },

@@ -15,6 +15,7 @@ import { formatCurrency, formatDate, formatTime } from '@/utils'
 import { useTransportData } from '../hooks/useTransportData'
 import { useTransportLiveTracking } from '../hooks/useTransportLiveTracking'
 import { TransportTrackingMap } from './TransportTrackingMap'
+import { useMobileScrollHide } from '@/hooks/useMobileScrollHide'
 import {
   getCurrentDeviceLocation,
   reverseGeocode,
@@ -126,6 +127,7 @@ export function TransportView() {
   const { activeProjectId, activeProject, isLoadingProjectContext } = useResolvedProjectContext()
 
   const [activeMobileTab, setActiveMobileTab] = useState<'home' | 'fleet' | 'history' | 'ledger'>('home')
+  const { navRef: bottomNavRef, companionRef: floatingActionsRef } = useMobileScrollHide()
   const [tripFilters, setTripFilters] = useState<TripFilters>(initialTripFilters)
   const [vehicleSearch, setVehicleSearch] = useState('')
   const {
@@ -1554,7 +1556,7 @@ export function TransportView() {
 
         {/* Floating Action Container */}
         {activeMobileTab === 'home' && (
-          <div className="fixed bottom-[96px] left-0 right-0 z-30 mx-auto w-full max-w-md px-4 pointer-events-none">
+          <div ref={floatingActionsRef} className="fixed bottom-[96px] left-0 right-0 z-30 mx-auto w-full max-w-md px-4 pointer-events-none">
             <div className="flex gap-3 rounded-[28px] border border-zinc-200/80 bg-white/88 p-3 shadow-[0_22px_48px_rgba(15,23,42,0.14)] backdrop-blur-2xl dark:border-white/8 dark:bg-zinc-900/84 dark:shadow-[0_22px_52px_rgba(0,0,0,0.34)] pointer-events-auto">
               {canManageTransport && (
                 <button
@@ -1583,7 +1585,7 @@ export function TransportView() {
 
 
         {/* Bottom Navigation */}
-        <nav className="fixed bottom-3 left-3 right-3 z-40 mx-auto flex h-[80px] max-w-md items-center justify-around rounded-[30px] border border-zinc-200/80 bg-white/88 px-2 pb-safe shadow-[0_18px_40px_rgba(15,23,42,0.12)] backdrop-blur-2xl dark:border-white/8 dark:bg-zinc-950/82 dark:shadow-[0_18px_44px_rgba(0,0,0,0.34)]">
+        <nav ref={bottomNavRef} className="fixed bottom-3 left-3 right-3 z-40 mx-auto flex h-[80px] max-w-md items-center justify-around rounded-[30px] border border-zinc-200/80 bg-white/88 px-2 pb-safe shadow-[0_18px_40px_rgba(15,23,42,0.12)] backdrop-blur-2xl dark:border-white/8 dark:bg-zinc-950/82 dark:shadow-[0_18px_44px_rgba(0,0,0,0.34)]">
           {[
             { id: 'home', icon: 'dashboard', label: 'Home' },
             { id: 'fleet', icon: 'local_shipping', label: 'Fleet' },
