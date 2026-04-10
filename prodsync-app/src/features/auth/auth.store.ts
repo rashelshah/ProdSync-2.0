@@ -294,10 +294,13 @@ export const useAuthStore = create<AuthStore>()((set, get) => ({
       return { ok: false, reason: 'not_configured', message: 'Supabase environment variables are missing.' }
     }
 
+    const redirectTo = `${window.location.origin}/auth/callback`
+    console.log('[authStore] signing in with Google, redirecting to:', redirectTo)
+
     const { error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
-        redirectTo: `${window.location.origin}/auth/callback`,
+        redirectTo,
       },
     })
 
