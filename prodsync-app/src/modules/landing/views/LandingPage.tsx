@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
+import { motion, useMotionValue, useSpring } from 'motion/react'
+import type { SpringOptions } from 'motion/react'
 import {
   ArrowRight,
   BarChart3,
@@ -103,11 +105,36 @@ function useParallaxMotion() {
   return { previewRef, heroGlowRef }
 }
 
+const previewSpring: SpringOptions = { damping: 30, stiffness: 100, mass: 2 }
+
 export function LandingPage() {
   const { theme, toggleTheme } = useTheme()
   const { previewRef, heroGlowRef } = useParallaxMotion()
   useRevealMotion()
   const [previewImageFailed, setPreviewImageFailed] = useState(false)
+
+  // Tilt spring values for the whole preview shell
+  const tiltX = useSpring(useMotionValue(0), previewSpring)
+  const tiltY = useSpring(useMotionValue(0), previewSpring)
+  const tiltScale = useSpring(1, previewSpring)
+
+  function handleShellMouseMove(e: React.MouseEvent<HTMLDivElement>) {
+    const rect = e.currentTarget.getBoundingClientRect()
+    const ox = e.clientX - rect.left - rect.width / 2
+    const oy = e.clientY - rect.top - rect.height / 2
+    tiltX.set((oy / (rect.height / 2)) * -7)
+    tiltY.set((ox / (rect.width / 2)) * 7)
+  }
+
+  function handleShellMouseEnter() {
+    tiltScale.set(1.025)
+  }
+
+  function handleShellMouseLeave() {
+    tiltX.set(0)
+    tiltY.set(0)
+    tiltScale.set(1)
+  }
 
   const sectionLinks = useMemo(
     () => [
@@ -205,44 +232,60 @@ export function LandingPage() {
           </section>
 
           <section id="preview" data-reveal className="reveal-section scroll-mt-32 pt-6 lg:pt-12">
+            {/* Outer div: parallax scroll transform lives here via previewRef */}
             <div
               ref={previewRef}
-              className="hero-preview-shell relative mx-auto w-full max-w-[1180px] overflow-hidden rounded-[38px] border border-zinc-200 bg-zinc-950 p-3 dark:border-white/8"
+              className="mx-auto w-full max-w-[1180px]"
+              style={{ perspective: '1200px' }}
             >
-              <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(14,165,233,0.18),transparent_34%),radial-gradient(circle_at_right,rgba(99,102,241,0.16),transparent_28%),radial-gradient(circle_at_bottom,rgba(249,115,22,0.18),transparent_32%)]" />
-              <div className="relative overflow-hidden rounded-[30px] border border-white/10 bg-[#0a0b0c] shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]">
-                <div className="aspect-video w-full">
-                  {!previewImageFailed ? (
-                    <img
-                      src={previewImageSrc}
-                      alt="ProdSync site preview"
-                      className="h-full w-full object-cover object-center"
-                      onError={() => setPreviewImageFailed(true)}
-                    />
-                  ) : (
-                    <div className="flex h-full w-full items-center justify-center bg-[linear-gradient(180deg,rgba(22,29,35,0.98),rgba(11,16,20,0.98))] p-6">
-                      <div className="grid h-full w-full grid-cols-[88px_1fr] gap-4 rounded-[24px] border border-white/8 bg-black/20 p-4">
-                        <div className="rounded-[20px] bg-white/[0.03] p-3">
-                          {Array.from({ length: 8 }).map((_, index) => (
-                            <div key={index} className="mb-3 h-3 rounded-full bg-white/[0.08] last:mb-0" />
-                          ))}
-                        </div>
-                        <div className="rounded-[22px] bg-[linear-gradient(180deg,rgba(39,60,68,0.95),rgba(16,24,28,0.96))] p-4">
-                          <div className="space-y-3">
-                            {Array.from({ length: 9 }).map((_, index) => (
-                              <div key={index} className="grid grid-cols-[120px_1fr_28px] items-center gap-4 rounded-2xl bg-black/20 px-4 py-4">
-                                <div className="h-3 rounded-full bg-white/10" />
-                                <div className="h-3 rounded-full bg-white/8" />
-                                <div className="h-3 rounded-full bg-white/10" />
-                              </div>
+              {/* motion.div: 3D tilt — the entire shell rotates as one unit */}
+              <motion.div
+                className="hero-preview-shell relative w-full overflow-hidden rounded-[38px] border border-zinc-200 bg-zinc-950 p-3 dark:border-white/8"
+                style={{
+                  rotateX: tiltX,
+                  rotateY: tiltY,
+                  scale: tiltScale,
+                  transformStyle: 'preserve-3d',
+                }}
+                onMouseMove={handleShellMouseMove}
+                onMouseEnter={handleShellMouseEnter}
+                onMouseLeave={handleShellMouseLeave}
+              >
+                <div className="pointer-events-none absolute inset-0 rounded-[38px] bg-[radial-gradient(circle_at_top,rgba(14,165,233,0.18),transparent_34%),radial-gradient(circle_at_right,rgba(99,102,241,0.16),transparent_28%),radial-gradient(circle_at_bottom,rgba(249,115,22,0.18),transparent_32%)]" />
+                <div className="relative overflow-hidden rounded-[30px] border border-white/10 bg-[#0a0b0c] shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]">
+                  <div className="aspect-video w-full">
+                    {!previewImageFailed ? (
+                      <img
+                        src={previewImageSrc}
+                        alt="ProdSync Dashboard Preview"
+                        className="h-full w-full object-cover object-center"
+                        onError={() => setPreviewImageFailed(true)}
+                      />
+                    ) : (
+                      <div className="flex h-full w-full items-center justify-center bg-[linear-gradient(180deg,rgba(22,29,35,0.98),rgba(11,16,20,0.98))] p-6">
+                        <div className="grid h-full w-full grid-cols-[88px_1fr] gap-4 rounded-[24px] border border-white/8 bg-black/20 p-4">
+                          <div className="rounded-[20px] bg-white/[0.03] p-3">
+                            {Array.from({ length: 8 }).map((_, index) => (
+                              <div key={index} className="mb-3 h-3 rounded-full bg-white/[0.08] last:mb-0" />
                             ))}
+                          </div>
+                          <div className="rounded-[22px] bg-[linear-gradient(180deg,rgba(39,60,68,0.95),rgba(16,24,28,0.96))] p-4">
+                            <div className="space-y-3">
+                              {Array.from({ length: 9 }).map((_, index) => (
+                                <div key={index} className="grid grid-cols-[120px_1fr_28px] items-center gap-4 rounded-2xl bg-black/20 px-4 py-4">
+                                  <div className="h-3 rounded-full bg-white/10" />
+                                  <div className="h-3 rounded-full bg-white/8" />
+                                  <div className="h-3 rounded-full bg-white/10" />
+                                </div>
+                              ))}
+                            </div>
                           </div>
                         </div>
                       </div>
-                    </div>
-                  )}
+                    )}
+                  </div>
                 </div>
-              </div>
+              </motion.div>
             </div>
           </section>
 
