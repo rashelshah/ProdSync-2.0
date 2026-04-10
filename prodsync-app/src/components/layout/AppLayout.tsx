@@ -45,7 +45,7 @@ export function AppLayout({ children }: { children?: ReactNode }) {
       : SIDEBAR_EXPANDED_WIDTH
 
   return (
-    <div className="relative min-h-screen bg-white text-zinc-900 dark:bg-zinc-950 dark:text-white">
+    <div className="relative min-h-screen w-full max-w-[100vw] overflow-x-clip bg-white text-zinc-900 dark:bg-zinc-950 dark:text-white">
       <Sidebar
         isCollapsed={isSidebarCollapsed}
         onToggle={() => setIsSidebarCollapsed(current => !current)}

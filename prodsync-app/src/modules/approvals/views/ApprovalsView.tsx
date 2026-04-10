@@ -100,9 +100,9 @@ export function ApprovalsView() {
   const hasData = pending.length > 0 || history.length > 0 || Boolean(kpis && (kpis.totalPending > 0 || kpis.pendingValueINR > 0))
 
   return (
-    <>
-    {/* DESKTOP UI */}
-    <div className="hidden xl:block page-shell space-y-6">
+    <div className="page-shell space-y-6 md:space-y-0 pb-safe">
+      {/* DESKTOP UI */}
+      <div className="hidden xl:block space-y-6">
       <header className="page-header">
         <div>
           <span className="page-kicker">Decision Layer</span>
@@ -408,6 +408,6 @@ export function ApprovalsView() {
       </div>
     </div>
 
-    </>
+    </div>
   )
 }

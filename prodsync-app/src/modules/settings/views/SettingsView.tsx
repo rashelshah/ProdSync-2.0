@@ -217,9 +217,9 @@ export function SettingsView() {
   }
 
   return (
-    <>
-    {/* DESKTOP UI */}
-    <div className="hidden xl:block page-shell page-shell-narrow space-y-6">
+    <div className="page-shell page-shell-narrow">
+      {/* DESKTOP UI */}
+      <div className="hidden xl:block space-y-6">
       <header>
         <span className="page-kicker">Project Configuration</span>
         <h1 className="page-title page-title-compact">Settings</h1>
@@ -565,7 +565,7 @@ export function SettingsView() {
       </div>
     </div>
 
-    </>
+    </div>
   )
 }
 
