@@ -307,10 +307,12 @@ export function AuthPage() {
 
   const signInWithEmail = useAuthStore(state => state.signInWithEmail)
   const signInWithGoogle = useAuthStore(state => state.signInWithGoogle)
+  const completeGoogleOnboarding = useAuthStore(state => state.completeGoogleOnboarding)
   const registerAccount = useAuthStore(state => state.registerAccount)
   const user = useAuthStore(state => state.user)
   const isAuthenticated = useAuthStore(state => state.isAuthenticated)
   const sessionExpiresAt = useAuthStore(state => state.sessionExpiresAt)
+  const needsOnboarding = useAuthStore(state => state.needsOnboarding)
 
   const [mode, setMode] = useState<AuthMode>('signin')
   const [signupStep, setSignupStep] = useState<SignupStep>('identity')
@@ -330,12 +332,27 @@ export function AuthPage() {
   const [error, setError] = useState<string | null>(null)
   const [info, setInfo] = useState<string | null>(null)
   const [authAction, setAuthAction] = useState<'signin' | 'google' | 'signup' | 'workspace' | null>(null)
+  const isGoogleOnboarding = Boolean(isAuthenticated && user && needsOnboarding)
 
   useEffect(() => {
-    if (isAuthenticated && user && sessionExpiresAt && sessionExpiresAt > Date.now()) {
+    if (isAuthenticated && user && sessionExpiresAt && sessionExpiresAt > Date.now() && !needsOnboarding) {
       navigate(getDefaultAuthorizedPath(user), { replace: true })
     }
-  }, [isAuthenticated, navigate, sessionExpiresAt, user])
+  }, [isAuthenticated, navigate, needsOnboarding, sessionExpiresAt, user])
+
+  useEffect(() => {
+    if (!isGoogleOnboarding || !user) {
+      return
+    }
+
+    setMode('signup')
+    setSignupStep(current => (current === 'identity' ? 'department' : current))
+    setFullName(current => current || user.name)
+    setEmail(current => current || user.email || '')
+    setDepartmentId(user.departmentId ?? 'production')
+    setProjectRoleTitle(user.projectRoleTitle ?? getDefaultProjectRoleForDepartment(user.departmentId ?? 'production'))
+    setInfo('Your Google account is connected. Finish department and role setup to continue.')
+  }, [isGoogleOnboarding, user])
 
   const roleOptions = useMemo(() => getRoleOptionsForDepartment(departmentId), [departmentId])
   const selectedDepartment = useMemo(
@@ -370,6 +387,10 @@ export function AuthPage() {
   }
 
   function openSignIn() {
+    if (isGoogleOnboarding) {
+      return
+    }
+
     resetMessages()
     setAuthAction(null)
     setMode('signin')
@@ -377,6 +398,10 @@ export function AuthPage() {
   }
 
   function openSignUp() {
+    if (isGoogleOnboarding) {
+      return
+    }
+
     resetMessages()
     setAuthAction(null)
     setMode('signup')
@@ -386,7 +411,7 @@ export function AuthPage() {
   function handleBack() {
     resetMessages()
     setAuthAction(null)
-    if (signupStep === 'department') setSignupStep('identity')
+    if (signupStep === 'department' && !isGoogleOnboarding) setSignupStep('identity')
     if (signupStep === 'role') setSignupStep('department')
     if (signupStep === 'permissions') setSignupStep('role')
     if (signupStep === 'confirmation') setSignupStep('permissions')
@@ -478,44 +503,55 @@ export function AuthPage() {
   async function completeSignup() {
     resetMessages()
     setAuthAction('signup')
-    showLoading('Creating account...', { id: 'auth-signup' })
+    showLoading(isGoogleOnboarding ? 'Saving onboarding...' : 'Creating account...', { id: 'auth-signup' })
 
-    const result = await registerAccount({
-      name: fullName.trim(),
-      phone: phone.trim(),
-      email: email.trim(),
-      password,
-      role: accessRole,
-      roleLabel: selectedRole.label,
-      projectRoleTitle: selectedRole.id,
-      departmentId,
-      avatarUrl: undefined,
-    })
+    const result = isGoogleOnboarding
+      ? await completeGoogleOnboarding({
+          departmentId,
+          projectRoleTitle: selectedRole.id,
+        })
+      : await registerAccount({
+          name: fullName.trim(),
+          phone: phone.trim(),
+          email: email.trim(),
+          password,
+          role: accessRole,
+          roleLabel: selectedRole.label,
+          projectRoleTitle: selectedRole.id,
+          departmentId,
+          avatarUrl: undefined,
+        })
 
     if (!result.ok) {
       setAuthAction(null)
       publishError(
         result.reason === 'not_configured'
           ? 'Supabase is not configured yet. Add the frontend environment keys before creating accounts.'
+          : result.reason === 'not_authenticated'
+          ? 'Your Google session expired. Please sign in again.'
           : result.reason === 'email_exists'
           ? 'An account with this email already exists.'
           : result.reason === 'phone_exists'
             ? 'An account with this phone number already exists.'
             : (result.message ?? 'Account creation could not be completed.'),
       )
-      setSignupStep('identity')
+      setSignupStep(isGoogleOnboarding ? 'department' : 'identity')
       return
     }
 
     setCreatedUser(result.user)
-    if (result.requiresEmailConfirmation) {
+    if ('requiresEmailConfirmation' in result && result.requiresEmailConfirmation) {
       setInfo('Account created. Confirm your email in Supabase, then sign in to enter the workspace.')
+    } else if (isGoogleOnboarding) {
+      setInfo('Your Google account is ready. Continue through the Projects Hub for project access.')
     }
     setAuthAction(null)
     showSuccess(
-      result.requiresEmailConfirmation
+      'requiresEmailConfirmation' in result && result.requiresEmailConfirmation
         ? 'Account created. Check your email to continue.'
-        : 'Account created successfully.',
+        : isGoogleOnboarding
+          ? 'Onboarding completed successfully.'
+          : 'Account created successfully.',
       { id: 'auth-signup' },
     )
     setSignupStep('confirmation')
@@ -619,8 +655,12 @@ export function AuthPage() {
 
             <form onSubmit={handleIdentityContinue} style={{ display: 'grid', gap: '14px', marginTop: '20px' }}>
               <div>
-                <h1 style={sectionTitleStyle}>Create Your Account</h1>
-                <p style={copyStyle}>Start with your identity and password, then we&apos;ll guide you through department, role, and access setup.</p>
+                <h1 style={sectionTitleStyle}>{isGoogleOnboarding ? 'Create Your Workspace Profile' : 'Create Your Account'}</h1>
+                <p style={copyStyle}>
+                  {isGoogleOnboarding
+                    ? 'Your Google identity is already verified. We just need department and role details to finish setup.'
+                    : 'Start with your identity and password, then we&apos;ll guide you through department, role, and access setup.'}
+                </p>
               </div>
 
               <div className="authfx-grid authfx-grid-2">
@@ -675,8 +715,27 @@ export function AuthPage() {
             <div style={{ marginBottom: '20px' }}>
               <div style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', padding: '8px 14px', borderRadius: '999px', background: 'rgba(255,106,61,0.12)', color: '#cf4c23', fontSize: '0.72rem', fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase', marginBottom: '14px' }}>Step 02 • Department</div>
               <h1 style={sectionTitleStyle}>Choose Your Department</h1>
-              <p style={copyStyle}>Select your primary department group. The next step will only show roles relevant to that department.</p>
+              <p style={copyStyle}>
+                {isGoogleOnboarding
+                  ? 'Your Google login is already connected. Choose your department to continue the existing onboarding flow from step 2.'
+                  : 'Select your primary department group. The next step will only show roles relevant to that department.'}
+              </p>
             </div>
+            {isGoogleOnboarding && user ? (
+              <div style={{ display: 'grid', gap: '12px', marginBottom: '20px', borderRadius: '24px', padding: '18px 20px', ...surfaceStyle(isDark) }}>
+                <div style={{ fontSize: '0.78rem', fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase', color: 'var(--auth-muted)' }}>Google Account</div>
+                <div className="authfx-grid authfx-grid-2">
+                  <div style={{ borderRadius: '20px', padding: '14px 16px', ...insetStyle() }}>
+                    <div style={{ fontSize: '0.76rem', fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase', color: 'var(--auth-muted)' }}>Name</div>
+                    <div style={{ marginTop: '8px', fontSize: '1rem', fontWeight: 700 }}>{user.name}</div>
+                  </div>
+                  <div style={{ borderRadius: '20px', padding: '14px 16px', ...insetStyle() }}>
+                    <div style={{ fontSize: '0.76rem', fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase', color: 'var(--auth-muted)' }}>Email (Locked)</div>
+                    <div style={{ marginTop: '8px', fontSize: '1rem', fontWeight: 700 }}>{user.email ?? 'Google account email'}</div>
+                  </div>
+                </div>
+              </div>
+            ) : null}
             <div className="authfx-grid authfx-grid-3">
               {DEPARTMENT_OPTIONS.map(option => {
                 const Icon = departmentIcons[option.id]
@@ -698,6 +757,7 @@ export function AuthPage() {
               isDark={isDark}
               onBack={handleBack}
               backLabel="Back to Account"
+              showBack={!isGoogleOnboarding}
               onNext={() => { resetMessages(); setSignupStep('role') }}
               note="This selection controls which role options appear next."
             />
@@ -768,7 +828,7 @@ export function AuthPage() {
                 </button>
                 <button type="button" onClick={completeSignup} disabled={authAction !== null} style={primaryButtonStyle(authAction !== null)}>
                   {authAction === 'signup' ? <span className="ui-spinner" /> : 'Continue'}
-                  {authAction === 'signup' ? 'Creating Account...' : null}
+                  {authAction === 'signup' ? (isGoogleOnboarding ? 'Saving Onboarding...' : 'Creating Account...') : null}
                   {authAction === 'signup' ? null : <ArrowRight size={18} />}
                 </button>
               </div>
@@ -781,10 +841,14 @@ export function AuthPage() {
                 <CheckCircle2 size={24} />
               </div>
               <h1 style={sectionTitleStyle}>You&apos;re Ready</h1>
-              <p style={copyStyle}>Your account is set up. Next stop is the Projects Hub, where project membership unlocks the rest of the workspace.</p>
+              <p style={copyStyle}>
+                {isGoogleOnboarding
+                  ? 'Your Google login is fully linked. Next stop is the Projects Hub, where project membership unlocks the rest of the workspace.'
+                  : 'Your account is set up. Next stop is the Projects Hub, where project membership unlocks the rest of the workspace.'}
+              </p>
 
               <div className="authfx-summary" style={{ margin: '22px 0 20px', padding: '14px 16px', borderRadius: '26px', textAlign: 'left', ...surfaceStyle(isDark) }}>
-                <SummaryCard title="User Name" value={createdUser?.name ?? (fullName || 'ProdSync User')} icon={UserIcon} isDark={isDark} />
+                <SummaryCard title="User Name" value={createdUser?.name ?? (fullName || user?.name || 'ProdSync User')} icon={UserIcon} isDark={isDark} />
                 <SummaryCard title="Role" value={selectedRole.label} icon={roleIcons[selectedRole.id] ?? ShieldCheck} isDark={isDark} />
                 <SummaryCard title="Department" value={selectedDepartment.label} icon={departmentIcons[selectedDepartment.id]} isDark={isDark} />
               </div>
@@ -849,21 +913,25 @@ function StepFooter({
   isDark,
   onBack,
   backLabel,
+  showBack = true,
   onNext,
   note,
 }: {
   isDark: boolean
   onBack: () => void
   backLabel: string
+  showBack?: boolean
   onNext: () => void
   note: string
 }) {
   return (
     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '14px', marginTop: '28px', flexWrap: 'wrap' }}>
-      <button type="button" onClick={onBack} style={secondaryButtonStyle(isDark)}>
-        <ArrowLeft size={18} />
-        {backLabel}
-      </button>
+      {showBack ? (
+        <button type="button" onClick={onBack} style={secondaryButtonStyle(isDark)}>
+          <ArrowLeft size={18} />
+          {backLabel}
+        </button>
+      ) : <span />}
       <div style={{ display: 'flex', alignItems: 'center', gap: '14px', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px', borderRadius: '999px', padding: '12px 18px', fontSize: '0.88rem', color: 'var(--auth-muted)', ...surfaceStyle(isDark) }}>
           <Sparkles size={16} style={{ color: '#ff6a3d', flexShrink: 0 }} />

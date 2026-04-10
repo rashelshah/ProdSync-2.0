@@ -405,8 +405,13 @@ security definer
 set search_path = public
 as $$
 declare
+  v_existing_user public.users%rowtype;
   v_full_name text;
   v_phone text;
+  v_provider text;
+  v_avatar_url text;
+  v_merged_metadata jsonb;
+  v_auth_provider text;
 begin
   v_full_name := coalesce(
     new.raw_user_meta_data ->> 'full_name',
@@ -414,12 +419,62 @@ begin
     split_part(coalesce(new.email, ''), '@', 1)
   );
   v_phone := nullif(new.raw_user_meta_data ->> 'phone', '');
+  v_provider := lower(coalesce(
+    new.raw_app_meta_data ->> 'provider',
+    new.raw_user_meta_data ->> 'provider',
+    'email'
+  ));
+  v_avatar_url := nullif(new.raw_user_meta_data ->> 'avatar_url', '');
+  v_merged_metadata := coalesce(new.raw_user_meta_data, '{}'::jsonb);
+
+  select *
+    into v_existing_user
+  from public.users
+  where email = new.email
+  limit 1;
+
+  if v_existing_user.id is not null and v_existing_user.id <> new.id then
+    v_auth_provider := case
+      when lower(coalesce(v_existing_user.auth_provider, 'email')) = 'both' then 'both'
+      when lower(coalesce(v_existing_user.auth_provider, 'email')) = v_provider then lower(coalesce(v_existing_user.auth_provider, 'email'))
+      when lower(coalesce(v_existing_user.auth_provider, 'email')) = 'google' and v_provider = 'email' then 'both'
+      when lower(coalesce(v_existing_user.auth_provider, 'email')) = 'email' and v_provider = 'google' then 'both'
+      when v_provider = 'google' then 'google'
+      else 'email'
+    end;
+
+    update public.users
+    set
+      email = coalesce(new.email, v_existing_user.email),
+      full_name = coalesce(v_existing_user.full_name, v_full_name, 'ProdSync User'),
+      phone = coalesce(v_existing_user.phone, v_phone),
+      avatar_url = coalesce(v_existing_user.avatar_url, v_avatar_url),
+      auth_provider = v_auth_provider,
+      supabase_user_id = case
+        when v_provider = 'google' then new.id
+        else v_existing_user.supabase_user_id
+      end,
+      is_google_linked = coalesce(v_existing_user.is_google_linked, false) or v_provider = 'google',
+      metadata = coalesce(v_existing_user.metadata, '{}'::jsonb) || v_merged_metadata,
+      updated_at = timezone('utc', now())
+    where id = v_existing_user.id;
+
+    insert into public.user_notification_preferences (user_id)
+    values (v_existing_user.id)
+    on conflict (user_id) do nothing;
+
+    return new;
+  end if;
 
   insert into public.users (
     id,
     full_name,
     email,
     phone,
+    avatar_url,
+    auth_provider,
+    supabase_user_id,
+    is_google_linked,
     metadata
   )
   values (
@@ -427,11 +482,25 @@ begin
     coalesce(v_full_name, 'ProdSync User'),
     new.email,
     v_phone,
-    coalesce(new.raw_user_meta_data, '{}'::jsonb)
+    v_avatar_url,
+    case when v_provider = 'google' then 'google' else 'email' end,
+    case when v_provider = 'google' then new.id else null end,
+    v_provider = 'google',
+    v_merged_metadata
   )
   on conflict (id) do update
     set email = excluded.email,
         phone = coalesce(excluded.phone, public.users.phone),
+        avatar_url = coalesce(public.users.avatar_url, excluded.avatar_url),
+        auth_provider = case
+          when lower(coalesce(public.users.auth_provider, 'email')) = 'both' then 'both'
+          when lower(coalesce(public.users.auth_provider, 'email')) = lower(coalesce(excluded.auth_provider, 'email')) then lower(coalesce(public.users.auth_provider, 'email'))
+          when lower(coalesce(public.users.auth_provider, 'email')) = 'google' and lower(coalesce(excluded.auth_provider, 'email')) = 'email' then 'both'
+          when lower(coalesce(public.users.auth_provider, 'email')) = 'email' and lower(coalesce(excluded.auth_provider, 'email')) = 'google' then 'both'
+          else lower(coalesce(excluded.auth_provider, public.users.auth_provider, 'email'))
+        end,
+        supabase_user_id = coalesce(excluded.supabase_user_id, public.users.supabase_user_id),
+        is_google_linked = coalesce(public.users.is_google_linked, false) or coalesce(excluded.is_google_linked, false),
         metadata = coalesce(public.users.metadata, '{}'::jsonb) || coalesce(excluded.metadata, '{}'::jsonb),
         updated_at = timezone('utc', now());
 

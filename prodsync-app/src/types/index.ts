@@ -5,6 +5,7 @@ export type UserRole = 'EP' | 'LineProducer' | 'HOD' | 'Supervisor' | 'Crew' | '
 export interface User {
   id: string
   name: string
+  email?: string
   role: UserRole
   roleLabel?: string
   projectRoleTitle?: ProjectRequestedRole
