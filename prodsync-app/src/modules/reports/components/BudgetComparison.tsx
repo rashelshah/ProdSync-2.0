@@ -5,6 +5,7 @@ import { formatCurrency } from '@/utils'
 
 interface BudgetComparisonProps {
   departments: ReportDepartmentRow[]
+  variant?: 'desktop' | 'mobile'
 }
 
 function statusVariant(status: ReportDepartmentRow['status']) {
@@ -13,7 +14,49 @@ function statusVariant(status: ReportDepartmentRow['status']) {
   return 'stable' as const
 }
 
-export function BudgetComparison({ departments }: BudgetComparisonProps) {
+export function BudgetComparison({ departments, variant = 'desktop' }: BudgetComparisonProps) {
+  if (variant === 'mobile') {
+    return (
+      <section className="space-y-4">
+        <div className="flex justify-between items-center px-1">
+          <h2 className="text-lg font-bold text-zinc-900 dark:text-white tracking-tight">Budget Guardrails</h2>
+        </div>
+        <div className="space-y-3">
+          {departments.map(row => {
+            const budgetUsage = row.budget > 0 ? Math.min((row.spent / row.budget) * 100, 100) : row.spent > 0 ? 100 : 0
+            const progressColor = row.status === 'red' ? 'bg-red-500' : row.status === 'yellow' ? 'bg-orange-500' : 'bg-emerald-500'
+
+            return (
+              <div key={row.department} className="bg-white dark:bg-zinc-900 p-4 rounded-xl shadow-lg border border-zinc-200 dark:border-zinc-800 flex flex-col gap-3">
+                <div className="flex justify-between items-start">
+                  <div>
+                    <h3 className="font-bold text-sm text-zinc-900 dark:text-white">{row.label}</h3>
+                    <p className="text-[10px] text-zinc-500 mt-1">
+                      Spent: {formatCurrency(row.spent)} • Budget: <span className={row.status === 'red' ? 'text-red-400 font-bold' : ''}>{formatCurrency(row.budget)}</span>
+                    </p>
+                  </div>
+                  <div className="scale-90 origin-top-right flex flex-col items-end gap-1">
+                    <StatusBadge variant={statusVariant(row.status)} label={row.status} />
+                  </div>
+                </div>
+                <div className="flex items-center gap-3">
+                  <div className="flex-1 h-1.5 bg-zinc-100 dark:bg-zinc-800 rounded-full overflow-hidden">
+                    <div className={`h-full ${progressColor} rounded-full`} style={{ width: `${budgetUsage}%` }} />
+                  </div>
+                  <span className="text-[10px] font-mono text-zinc-500 dark:text-zinc-400">{Math.round(budgetUsage)}%</span>
+                </div>
+                <div className="flex justify-between items-center pt-2 border-t border-zinc-200 dark:border-zinc-800/50">
+                  <p className="text-[10px] text-zinc-500">Var: {formatCurrency(row.variance)}</p>
+                  <p className="text-[10px] text-zinc-500">OT: {formatCurrency(row.overtimeLiability)}</p>
+                </div>
+              </div>
+            )
+          })}
+        </div>
+      </section>
+    )
+  }
+
   return (
     <Surface variant="table" padding="lg">
       <div className="section-heading">
