@@ -23,6 +23,11 @@ export default defineConfig({
       '@': path.resolve(__dirname, './src'),
     },
   },
+  // Force Vite to pre-bundle these CJS/ESM libraries on startup.
+  // Prevents "504 Outdated Optimize Dep" when they are newly installed.
+  optimizeDeps: {
+    include: ['ogl'],
+  },
 })
 
 // Restart Vite

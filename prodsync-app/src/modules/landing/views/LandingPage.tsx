@@ -3,28 +3,13 @@ import { Link } from 'react-router-dom'
 import { motion, useMotionValue, useSpring } from 'motion/react'
 import type { SpringOptions } from 'motion/react'
 import {
-  ArrowRight,
-  Camera,
   Clapperboard,
   Play,
-  Receipt,
-  ShieldCheck,
-  Truck,
-  Users,
 } from 'lucide-react'
 import { useTheme } from '@/components/theme/ThemeProvider'
-import { cn } from '@/utils'
 import { TimelineSection } from '@/modules/landing/components/TimelineSection'
-
-
-const modules = [
-  { title: 'Transport & Fleet Tracking', description: 'Live GPS tracking for every vehicle in the unit, with automatic fuel and route logging.', icon: Truck },
-  { title: 'Camera & Asset Management', description: 'Check-in/out gear, track serial numbers, and manage maintenance logs for high-value equipment.', icon: Camera },
-  { title: 'Crew & Wage Tracking', description: 'Automated digital timecards, department approvals, and integrated daily wage calculations.', icon: Users },
-  { title: 'Expense & Budget Control', description: 'Real-time budget burn, PO approvals, and department-wise production finance monitoring.', icon: Receipt },
-  { title: 'Approval Workflows', description: 'Custom approval queues for POs, call sheets, and daily production reports.', icon: ShieldCheck },
-  { title: 'Reports & Insights', description: 'On-demand production efficiency snapshots and stakeholder-ready dashboards.', icon: Clapperboard },
-]
+import CircularGallery from '@/components/ui/CircularGallery'
+import { modulesGallery } from '@/config/modulesGallery'
 
 function useRevealMotion() {
   useEffect(() => {
@@ -270,35 +255,30 @@ export function LandingPage() {
           <TimelineSection />
 
           <section id="modules" data-reveal className="reveal-section scroll-mt-32 pt-24 lg:pt-32">
-            <div className="grid gap-8 lg:grid-cols-[1fr_auto] lg:items-end">
-              <div>
-                <h2 className="max-w-[660px] text-[2.15rem] font-bold tracking-[-0.05em] text-zinc-900 dark:text-white sm:text-[2.75rem]">
-                  Granular Control for Every Department
-                </h2>
-                <p className="mt-5 max-w-[600px] text-[1.02rem] leading-7 text-zinc-500 dark:text-zinc-300">
-                  Built specifically for the complexities of professional filmmaking, covering everything from fleet logistics to crew payroll.
-                </p>
+            {/* Section header */}
+            <div className="mb-10">
+              <div className="mb-5 inline-flex items-center gap-2 rounded-full border border-zinc-200 bg-white/80 px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.22em] text-zinc-500 shadow-soft dark:border-white/8 dark:bg-white/[0.05] dark:text-zinc-400">
+                <span className="h-1.5 w-1.5 rounded-full bg-orange-500" />
+                Modules
               </div>
-
-              <a href="#cta" className="glow-button inline-flex items-center gap-2 rounded-full bg-zinc-900 px-5 py-3 text-sm font-semibold text-white dark:bg-white dark:text-zinc-900">
-                Explore All Modules
-                <ArrowRight className="h-4 w-4" />
-              </a>
+              <h2 className="max-w-[660px] text-[2.15rem] font-bold tracking-[-0.05em] text-zinc-900 dark:text-white sm:text-[2.75rem]">
+                Granular Control for Every Department
+              </h2>
+              <p className="mt-4 max-w-[560px] text-[1rem] leading-7 text-zinc-500 dark:text-zinc-300">
+                Built for the complexities of professional filmmaking — from fleet logistics to crew payroll.
+              </p>
             </div>
 
-            <div className="mt-12 grid gap-5 md:grid-cols-2 xl:grid-cols-3">
-              {modules.map(module => (
-                <article
-                  key={module.title}
-                  className="floating-card rounded-[28px] border border-zinc-200 bg-zinc-50 p-5 shadow-soft dark:border-white/6 dark:bg-white/[0.04]"
-                >
-                  <div className="mb-8 inline-flex h-11 w-11 items-center justify-center rounded-2xl bg-orange-500/12 text-orange-500">
-                    <module.icon className="h-5 w-5" />
-                  </div>
-                  <h3 className="text-[1.6rem] font-semibold tracking-[-0.03em] text-zinc-900 dark:text-white">{module.title}</h3>
-                  <p className="mt-4 text-[0.95rem] leading-7 text-zinc-500 dark:text-zinc-300">{module.description}</p>
-                </article>
-              ))}
+            {/* CircularGallery — drag / scroll to explore all 6 modules */}
+            <div style={{ height: '500px', position: 'relative' }}>
+              <CircularGallery
+                items={modulesGallery}
+                bend={1}
+                textColor={theme === 'dark' ? '#ffffff' : '#111111'}
+                borderRadius={0.08}
+                scrollSpeed={2}
+                scrollEase={0.05}
+              />
             </div>
           </section>
 
