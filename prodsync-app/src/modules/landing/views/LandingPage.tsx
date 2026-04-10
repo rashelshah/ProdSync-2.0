@@ -4,40 +4,18 @@ import { motion, useMotionValue, useSpring } from 'motion/react'
 import type { SpringOptions } from 'motion/react'
 import {
   ArrowRight,
-  BarChart3,
   Camera,
-  CheckCircle2,
   Clapperboard,
   Play,
   Receipt,
   ShieldCheck,
-  Sparkles,
   Truck,
   Users,
 } from 'lucide-react'
 import { useTheme } from '@/components/theme/ThemeProvider'
 import { cn } from '@/utils'
+import { TimelineSection } from '@/modules/landing/components/TimelineSection'
 
-const featureCards = [
-  {
-    title: 'Centralized Production Control',
-    description: 'A single source of truth for production assets, scripts, and timelines. Eliminate fragmented workflows instantly.',
-    icon: Sparkles,
-    accent: 'text-orange-500',
-  },
-  {
-    title: 'Real-Time Tracking',
-    description: 'Monitor unit movements, shooting progress, and asset utilization as it happens on set or on the road.',
-    icon: BarChart3,
-    accent: 'text-violet-500',
-  },
-  {
-    title: 'Department-Level Insights',
-    description: 'Granular data for Camera, Transport, Grip, and Catering. See exactly where your resources are going.',
-    icon: CheckCircle2,
-    accent: 'text-sky-500',
-  },
-]
 
 const modules = [
   { title: 'Transport & Fleet Tracking', description: 'Live GPS tracking for every vehicle in the unit, with automatic fuel and route logging.', icon: Truck },
@@ -289,22 +267,7 @@ export function LandingPage() {
             </div>
           </section>
 
-          <section id="features" data-reveal className="reveal-section scroll-mt-32 pt-20 lg:pt-28">
-            <div className="grid gap-5 lg:grid-cols-3">
-              {featureCards.map(feature => (
-                <article
-                  key={feature.title}
-                  className="floating-card rounded-[30px] border border-zinc-200 bg-zinc-50 p-6 shadow-soft dark:border-white/6 dark:bg-white/[0.05]"
-                >
-                  <div className={cn('mb-8 inline-flex h-12 w-12 items-center justify-center rounded-2xl bg-zinc-900/5 dark:bg-white/5', feature.accent)}>
-                    <feature.icon className="h-5 w-5" />
-                  </div>
-                  <h3 className="max-w-[17rem] text-[1.75rem] font-semibold tracking-[-0.04em] text-zinc-900 dark:text-white">{feature.title}</h3>
-                  <p className="mt-4 text-[0.98rem] leading-7 text-zinc-500 dark:text-zinc-300">{feature.description}</p>
-                </article>
-              ))}
-            </div>
-          </section>
+          <TimelineSection />
 
           <section id="modules" data-reveal className="reveal-section scroll-mt-32 pt-24 lg:pt-32">
             <div className="grid gap-8 lg:grid-cols-[1fr_auto] lg:items-end">
