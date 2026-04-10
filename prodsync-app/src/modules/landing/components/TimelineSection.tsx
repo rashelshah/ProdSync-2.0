@@ -176,11 +176,10 @@ export function TimelineSection() {
     Math.round(v * Math.max(0, rowsHeightRef.current - DOT_PX)),
   )
 
-  // ── Card reveal thresholds ────────────────────────────────────────────────
-  // One-way: once revealed, never hide (standard scroll-storytelling behavior).
+  // Reversible: hide when scrolling back up
   useMotionValueEvent(smooth, 'change', (v) => {
     setRevealed((prev) => {
-      const next = timelineItems.map((item, i) => prev[i] || v >= item.threshold)
+      const next = timelineItems.map((item) => v >= item.threshold)
       const changed = next.some((n, i) => n !== prev[i])
       return changed ? next : prev
     })
@@ -217,7 +216,7 @@ export function TimelineSection() {
       </div>
 
       {/* ── Desktop: animated timeline ─────────────────────────────────────── */}
-      <div className="relative mx-auto hidden max-w-[900px] px-4 md:block">
+      <div className="relative mx-auto hidden max-w-[1100px] px-4 md:block">
 
         {/* Center spine overlay — absolutely positioned, spans full rows height */}
         <div className="pointer-events-none absolute inset-x-0 top-0 bottom-0 flex justify-center">
@@ -277,10 +276,8 @@ export function TimelineSection() {
                         animate={isRevealed ? 'visible' : 'hidden'}
                         transition={{ duration: 0.65, ease: [0.22, 1, 0.36, 1] }}
                         className={cn(
-                          'flex-1 rounded-2xl border p-5',
-                          'shadow-[0_4px_28px_rgba(0,0,0,0.07)]',
-                          item.cardBg,
-                          item.cardBorder,
+                          'flex-1 rounded-[24px] border p-7',
+                          'bg-white dark:bg-[#121417] shadow-soft dark:shadow-[0_8px_30px_rgba(0,0,0,0.4)] dark:border-white/10'
                         )}
                       >
                         <CardContent item={item} />
@@ -294,7 +291,7 @@ export function TimelineSection() {
                         transition={{ duration: 0.38, ease: 'easeOut', delay: 0.12 }}
                         style={{ transformOrigin: 'right' }}
                         className={cn(
-                          'h-[2px] w-9 flex-shrink-0 rounded-full bg-gradient-to-r',
+                          'h-[2px] w-20 flex-shrink-0 rounded-full bg-gradient-to-r',
                           item.connectorFrom,
                           item.connectorTo,
                         )}
@@ -329,7 +326,7 @@ export function TimelineSection() {
                         transition={{ duration: 0.38, ease: 'easeOut', delay: 0.12 }}
                         style={{ transformOrigin: 'left' }}
                         className={cn(
-                          'h-[2px] w-9 flex-shrink-0 rounded-full bg-gradient-to-r',
+                          'h-[2px] w-20 flex-shrink-0 rounded-full bg-gradient-to-r',
                           item.connectorFrom,
                           item.connectorTo,
                         )}
@@ -342,10 +339,8 @@ export function TimelineSection() {
                         animate={isRevealed ? 'visible' : 'hidden'}
                         transition={{ duration: 0.65, ease: [0.22, 1, 0.36, 1] }}
                         className={cn(
-                          'flex-1 rounded-2xl border p-5',
-                          'shadow-[0_4px_28px_rgba(0,0,0,0.07)]',
-                          item.cardBg,
-                          item.cardBorder,
+                          'flex-1 rounded-[24px] border p-7',
+                          'bg-white dark:bg-[#121417] shadow-soft dark:shadow-[0_8px_30px_rgba(0,0,0,0.4)] dark:border-white/10'
                         )}
                       >
                         <CardContent item={item} />
@@ -366,10 +361,8 @@ export function TimelineSection() {
             key={item.id}
             data-reveal
             className={cn(
-              'reveal-section rounded-2xl border p-5',
-              'shadow-[0_4px_24px_rgba(0,0,0,0.06)]',
-              item.cardBg,
-              item.cardBorder,
+              'reveal-section rounded-[24px] border p-7',
+              'bg-white dark:bg-[#121417] shadow-soft dark:shadow-[0_8px_30px_rgba(0,0,0,0.4)] dark:border-white/10'
             )}
           >
             <CardContent item={item} />

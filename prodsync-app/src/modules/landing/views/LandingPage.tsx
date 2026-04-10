@@ -270,7 +270,7 @@ export function LandingPage() {
             </div>
 
             {/* CircularGallery — drag / scroll to explore all 6 modules */}
-            <div style={{ height: '500px', position: 'relative' }}>
+            <div style={{ height: '500px', position: 'relative', filter: 'drop-shadow(0 20px 30px rgba(0, 0, 0, 0.45))' }}>
               <CircularGallery
                 items={modulesGallery}
                 bend={1}

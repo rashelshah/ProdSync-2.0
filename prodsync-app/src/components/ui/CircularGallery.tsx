@@ -77,7 +77,11 @@ function createTextTexture(
   
   context.fillText(text, canvas.width / 2, canvas.height / 2);
 
-  const texture = new Texture(gl, { generateMipmaps: false });
+  const texture = new Texture(gl, { 
+    generateMipmaps: false,
+    minFilter: gl.LINEAR,
+    magFilter: gl.LINEAR
+  });
   texture.image = canvas;
   return { texture, width: canvas.width, height: canvas.height };
 }
@@ -233,7 +237,12 @@ class Media {
   }
 
   createShader() {
-    const texture = new Texture(this.gl, { generateMipmaps: true });
+    // Force LINEAR filtering without mipmap limitations for non-POT images to guarantee sharp rendering
+    const texture = new Texture(this.gl, { 
+      generateMipmaps: false,
+      minFilter: this.gl.LINEAR,
+      magFilter: this.gl.LINEAR
+    });
     this.program = new Program(this.gl, {
       depthTest: false,
       depthWrite: false,
@@ -442,7 +451,8 @@ class App {
   }
 
   createRenderer() {
-    this.renderer = new Renderer({ alpha: true, antialias: true, dpr: Math.min(window.devicePixelRatio || 1, 2) });
+    // Uncapped dpr for maximum hardware clarity on all retina / high DPI displays
+    this.renderer = new Renderer({ alpha: true, antialias: true, dpr: window.devicePixelRatio || 1 });
     this.gl = this.renderer.gl;
     this.gl.clearColor(0, 0, 0, 0);
     this.container.appendChild(this.renderer.gl.canvas as HTMLCanvasElement);
