@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Plus } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { useProjectAlerts } from '@/features/alerts/useProjectAlerts'
@@ -30,13 +30,53 @@ export function Header({
   const logout = useAuthStore(s => s.logout)
   const [showAlerts, setShowAlerts] = useState(false)
   const [showProfileMenu, setShowProfileMenu] = useState(false)
+  const [isVisible, setIsVisible] = useState(true)
+
+  useEffect(() => {
+    if (!isMobileViewport) {
+      setIsVisible(true)
+      return
+    }
+
+    let lastScrollY = window.scrollY
+    let ticking = false
+
+    const handleScroll = () => {
+      if (!ticking) {
+        window.requestAnimationFrame(() => {
+          const currentScrollY = window.scrollY
+          // Require at least 5px scroll to trigger change to avoid flickering
+          if (Math.abs(currentScrollY - lastScrollY) > 5) {
+            if (currentScrollY > lastScrollY && currentScrollY > 40) {
+              setIsVisible(false) // scrolling down
+            } else if (currentScrollY < lastScrollY) {
+              setIsVisible(true) // scrolling up
+            }
+          }
+          // Always show near top
+          if (currentScrollY <= 40) {
+            setIsVisible(true)
+          }
+          lastScrollY = currentScrollY
+          ticking = false
+        })
+        ticking = true
+      }
+    }
+
+    window.addEventListener('scroll', handleScroll, { passive: true })
+    return () => window.removeEventListener('scroll', handleScroll)
+  }, [isMobileViewport])
 
   const recentAlerts = alerts.slice(0, 5)
   const userRoleLabel = user ? getUserRoleLabel(user) : 'Crew Member'
 
   return (
     <header
-      className="fixed right-0 top-0 z-30 border-b border-zinc-200/80 bg-white/85 px-6 py-5 backdrop-blur-xl transition-[left] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] dark:border-zinc-800/80 dark:bg-zinc-950/85 lg:px-8 max-md:border-b-0 max-md:border-transparent max-md:bg-transparent max-md:px-4 max-md:py-4 max-md:backdrop-blur-none max-md:pointer-events-none max-md:dark:bg-transparent"
+      className={cn(
+        "fixed right-0 top-0 z-30 border-b border-zinc-200/80 bg-white/85 px-6 py-5 backdrop-blur-xl transition-all duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] dark:border-zinc-800/80 dark:bg-zinc-950/85 lg:px-8 max-md:border-b-0 max-md:border-transparent max-md:bg-transparent max-md:px-4 max-md:py-4 max-md:backdrop-blur-none max-md:pointer-events-none max-md:dark:bg-transparent",
+        !isVisible && isMobileViewport ? "max-md:-translate-y-[120%] max-md:opacity-0" : "max-md:translate-y-0 max-md:opacity-100"
+      )}
       style={{ left: isMobileViewport ? 0 : sidebarOffset }}
     >
       <div className="flex items-center justify-between gap-6">

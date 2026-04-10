@@ -1,4 +1,6 @@
 import { useQuery } from '@tanstack/react-query'
+import { useAuthStore } from '@/features/auth/auth.store'
+import { isProducerRole } from '@/features/auth/access-rules'
 import { reportsService } from '@/services/reports.service'
 import type { BudgetAllocationDepartment, ProjectCurrency } from '@/types'
 import { formatCurrency } from '@/utils'
@@ -25,7 +27,10 @@ export function ModuleBudgetBadge({
 
   const row = departmentQ.data?.find(item => normalizeDepartment(item.department) === department)
 
-  if (!row) {
+  const user = useAuthStore(s => s.user)
+  const canView = user && (isProducerRole(user.role) || user.role === 'HOD')
+
+  if (!row || !canView) {
     return null
   }
 

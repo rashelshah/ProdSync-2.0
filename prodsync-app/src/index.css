@@ -78,7 +78,6 @@
       radial-gradient(circle at bottom right, rgba(24, 24, 27, 0.04), transparent 22%),
       var(--app-bg);
     color: var(--app-text);
-    overflow-y: auto;
     overflow-x: clip;
     overscroll-behavior-x: none;
     max-width: 100%;
@@ -339,18 +338,12 @@
   }
 
   .clay-input-shell {
-    @apply flex items-center gap-3 rounded-[1.4rem] px-4 py-4;
-    background: linear-gradient(145deg, rgba(239, 235, 230, 0.95), rgba(255, 255, 255, 0.96));
-    box-shadow:
-      inset 8px 8px 16px rgba(224, 219, 212, 0.55),
-      inset -8px -8px 16px rgba(255, 255, 255, 0.92);
+    @apply flex items-center gap-3 rounded-[1rem] border border-zinc-200 bg-zinc-50/80 px-4 py-3.5 transition-colors focus-within:border-orange-500 focus-within:bg-white dark:border-zinc-800 dark:bg-zinc-900/80 dark:focus-within:border-orange-500 dark:focus-within:bg-zinc-950;
+    box-shadow: none;
   }
 
   .dark .clay-input-shell {
-    background: linear-gradient(145deg, rgba(11, 11, 15, 0.94), rgba(24, 24, 28, 0.94));
-    box-shadow:
-      inset 8px 8px 16px rgba(0, 0, 0, 0.34),
-      inset -6px -6px 14px rgba(255, 255, 255, 0.02);
+    box-shadow: none;
   }
 
   .auth-input {
@@ -359,47 +352,43 @@
 
   .auth-select,
   .auth-textarea {
-    @apply w-full rounded-[1.4rem] border-none bg-white/85 px-4 py-4 text-sm text-zinc-900 outline-none shadow-none dark:bg-white/[0.05] dark:text-white;
-    box-shadow:
-      inset 8px 8px 16px rgba(224, 219, 212, 0.55),
-      inset -8px -8px 16px rgba(255, 255, 255, 0.92);
+    @apply w-full rounded-[1rem] border border-zinc-200 bg-zinc-50/80 px-4 py-3.5 text-sm text-zinc-900 outline-none shadow-none transition-colors focus:border-orange-500 focus:bg-white dark:border-zinc-800 dark:bg-zinc-900/80 dark:text-white dark:focus:border-orange-500 dark:focus:bg-zinc-950;
   }
 
   .dark .auth-select,
   .dark .auth-textarea {
-    box-shadow:
-      inset 8px 8px 16px rgba(0, 0, 0, 0.34),
-      inset -6px -6px 14px rgba(255, 255, 255, 0.02);
+    box-shadow: none;
   }
 
   .project-modal-input-shell {
-    @apply flex min-h-11 items-center gap-3 rounded-[1.4rem] border border-zinc-200 bg-white px-[14px] py-0 dark:border-zinc-800 dark:bg-zinc-950;
-    box-shadow:
-      inset 1px 1px 0 rgba(255, 255, 255, 0.72),
-      0 10px 24px rgba(223, 218, 210, 0.14);
+    @apply flex min-h-11 items-center gap-3 rounded-[1rem] border border-zinc-200 bg-zinc-50/80 px-[14px] py-0 transition-colors focus-within:border-orange-500 focus-within:bg-white dark:border-zinc-800 dark:bg-zinc-900/80 dark:focus-within:border-orange-500 dark:focus-within:bg-zinc-950;
+    box-shadow: none;
   }
 
   .dark .project-modal-input-shell {
-    box-shadow:
-      inset 1px 1px 0 rgba(255, 255, 255, 0.02),
-      0 12px 28px rgba(0, 0, 0, 0.22);
+    box-shadow: none;
   }
 
   .project-modal-control,
-  .project-modal-input,
   .project-modal-select,
   .project-modal-textarea {
-    @apply w-full rounded-[1.4rem] border border-zinc-200 px-[14px] text-sm text-zinc-900 outline-none transition-[border-color,box-shadow,background-color,color] duration-200 dark:border-zinc-700 dark:text-white;
+    @apply w-full rounded-[1rem] border border-zinc-200 bg-zinc-50/80 px-[14px] text-sm text-zinc-900 outline-none transition-[border-color,box-shadow,background-color,color] duration-200 dark:border-zinc-800 dark:bg-zinc-900/80 dark:text-white;
     min-height: 44px;
-    background: rgba(255, 255, 255, 0.96);
+    box-shadow: none;
+  }
+
+  .project-modal-input {
+    @apply border-none bg-transparent px-0 py-0 text-sm text-zinc-900 outline-none dark:text-white;
+    min-height: 44px;
+    display: flex;
+    align-items: center;
     box-shadow: none;
   }
 
   .dark .project-modal-control,
-  .dark .project-modal-input,
   .dark .project-modal-select,
   .dark .project-modal-textarea {
-    background: rgba(255, 255, 255, 0.05);
+    box-shadow: none;
   }
 
   .project-modal-input {
@@ -423,10 +412,19 @@
   }
 
   .project-modal-control:focus,
-  .project-modal-input:focus,
   .project-modal-select:focus,
   .project-modal-textarea:focus {
     border-color: rgba(249, 115, 22, 0.72);
+    background-color: #ffffff;
+    box-shadow:
+      0 0 0 1px rgba(249, 115, 22, 0.18),
+      0 0 0 4px rgba(249, 115, 22, 0.12);
+  }
+  
+  .dark .project-modal-control:focus,
+  .dark .project-modal-select:focus,
+  .dark .project-modal-textarea:focus {
+    background-color: #09090b;
     box-shadow:
       0 0 0 1px rgba(249, 115, 22, 0.18),
       0 0 0 4px rgba(249, 115, 22, 0.12);
