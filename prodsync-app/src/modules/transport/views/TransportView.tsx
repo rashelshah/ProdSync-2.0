@@ -12,10 +12,12 @@ import { apiOrigin } from '@/lib/api'
 import { resolveErrorMessage, showError, showInfo, showLoading, showSuccess } from '@/lib/toast'
 import { transportService } from '@/services/transport.service'
 import { formatCurrency, formatDate, formatTime } from '@/utils'
+import { isProductionManagerUser, isTransportCaptain } from '@/utils/permissionGuard'
 import { useTransportData } from '../hooks/useTransportData'
 import { useTransportLiveTracking } from '../hooks/useTransportLiveTracking'
 import { TransportTrackingMap } from './TransportTrackingMap'
 import { useMobileScrollHide } from '@/hooks/useMobileScrollHide'
+import type { User } from '@/types'
 import {
   getCurrentDeviceLocation,
   reverseGeocode,
@@ -23,9 +25,11 @@ import {
   type LocationSuggestion,
 } from '../location-intelligence'
 import { LiquidGlassNavbar } from '@/components/shared/LiquidGlassNavbar'
+import type { MapProviderMode } from '@/config/map.config'
 import type {
   FuelLogInput,
   FuelLogUI,
+  LiveTrackingMeta,
   LocationPoint,
   TripFilters,
   TripUI,
@@ -33,6 +37,7 @@ import type {
   Vehicle,
   VehicleStatus,
 } from '../types'
+import type { LeafletFocusLocation } from './TransportTrackingMap'
 
 const initialCoordinates = {
   latitude: '',
@@ -122,6 +127,49 @@ function tripDestinationLabel(trip: TripUI) {
   return trip.destination?.trim() || trip.endLocation?.address?.trim() || 'Location unavailable'
 }
 
+function isProducerTrackingUser(user: User | null | undefined) {
+  return Boolean(
+    user?.role === 'EP' ||
+    user?.role === 'LineProducer' ||
+    user?.projectRoleTitle === 'Executive Producer' ||
+    user?.projectRoleTitle === 'Line Producer',
+  )
+}
+
+function hasLocationCoordinates(location: LocationPoint | null | undefined): location is LocationPoint & { latitude: number; longitude: number } {
+  return typeof location?.latitude === 'number' && typeof location.longitude === 'number'
+}
+
+function latestCompletedDestination(trips: TripUI[]): LeafletFocusLocation | null {
+  const completedTrips = trips
+    .filter(trip => trip.status === 'completed' && hasLocationCoordinates(trip.endLocation))
+    .sort((left, right) => new Date(right.endTime ?? right.startTime).getTime() - new Date(left.endTime ?? left.startTime).getTime())
+
+  const latestTrip = completedTrips[0]
+  if (!latestTrip || !hasLocationCoordinates(latestTrip.endLocation)) {
+    return null
+  }
+
+  return {
+    latitude: latestTrip.endLocation.latitude,
+    longitude: latestTrip.endLocation.longitude,
+    label: latestTrip.driverName ? `${latestTrip.driverName}'s last destination` : 'Last trip destination',
+    description: tripDestinationLabel(latestTrip),
+  }
+}
+
+function formatMapModeLabel(mode: MapProviderMode, liveMeta: LiveTrackingMeta | null) {
+  if (mode === 'osm') {
+    return 'Testing: OSM'
+  }
+
+  if (mode === 'mapbox') {
+    return liveMeta?.mapEnabled ? 'Testing: Mapbox' : 'Mapbox unavailable'
+  }
+
+  return liveMeta?.provider === 'mapbox' && liveMeta.mapEnabled ? 'Auto: OSM / Mapbox' : 'Auto: OSM'
+}
+
 export function TransportView() {
   const queryClient = useQueryClient()
   const user = useAuthStore(state => state.user)
@@ -152,6 +200,17 @@ export function TransportView() {
 
   const hasData = trips.length > 0 || fuelLogs.length > 0 || vehicles.length > 0 || alerts.length > 0
   const isDriver = user?.role === 'Driver' || user?.projectRoleTitle === 'Driver'
+  const canViewProducerTracking = isProducerTrackingUser(user)
+  const canViewLeafletDriverTracking = !canViewProducerTracking && (
+    isProductionManagerUser(user) ||
+    isTransportCaptain(user) ||
+    isDriver
+  )
+  const trackingAudience = canViewProducerTracking
+    ? 'stream'
+    : canViewLeafletDriverTracking
+      ? 'leaflet'
+      : 'none'
   const canOperateTrips = isDriver || canManageTransport
   const canLogFuel = isDriver || canManageTransport
 
@@ -172,11 +231,15 @@ export function TransportView() {
   const [destinationSuggestions, setDestinationSuggestions] = useState<LocationSuggestion[]>([])
   const [destinationSearchError, setDestinationSearchError] = useState<string | null>(null)
   const [destinationSearchLoading, setDestinationSearchLoading] = useState(false)
+  const [mapModeOverride, setMapModeOverride] = useState<MapProviderMode>('auto')
+  const [deviceMapLocation, setDeviceMapLocation] = useState<LeafletFocusLocation | null>(null)
+  const [preferDestinationMapFocus, setPreferDestinationMapFocus] = useState(false)
   const [startLocationState, setStartLocationState] = useState<LocationFetchState>(idleLocationFetchState)
   const [endLocationState, setEndLocationState] = useState<LocationFetchState>(idleLocationFetchState)
 
   const startLocationFetchedRef = useRef(false)
   const endLocationFetchedRef = useRef(false)
+  const hadActiveTrackingTripRef = useRef(false)
 
   const fuelByTripId = useMemo(() => {
     const summary = new Map<string, { liters: number; cost: number }>()
@@ -210,6 +273,15 @@ export function TransportView() {
     return mapping
   }, [activeTrips])
 
+  const latestDestinationMapFocus = useMemo(
+    () => latestCompletedDestination(trips),
+    [trips],
+  )
+
+  const leafletFocusLocation = preferDestinationMapFocus
+    ? latestDestinationMapFocus ?? deviceMapLocation
+    : deviceMapLocation ?? latestDestinationMapFocus
+
   const visibleVehicles = useMemo(
     () => (isDriver ? vehicles.filter(vehicle => vehicle.assignedDriverUserId === user?.id) : vehicles),
     [isDriver, user?.id, vehicles],
@@ -241,9 +313,99 @@ export function TransportView() {
   } = useTransportLiveTracking({
     activeProjectId,
     activeTrips,
-    canManageTransport,
+    canViewLiveTracking: trackingAudience !== 'none',
+    trackingMode: trackingAudience,
     isDriver,
   })
+
+  useEffect(() => {
+    if (!activeProjectId || trackingAudience === 'none') {
+      setDeviceMapLocation(null)
+      return
+    }
+
+    if (typeof navigator === 'undefined' || !navigator.geolocation) {
+      setDeviceMapLocation(null)
+      return
+    }
+
+    let watchId: number | null = navigator.geolocation.watchPosition(
+      position => {
+        setDeviceMapLocation({
+          latitude: position.coords.latitude,
+          longitude: position.coords.longitude,
+          label: 'Your current location',
+          description: canViewProducerTracking
+            ? 'OSM default view before a trip starts.'
+            : 'Leaflet fallback while no tracked driver trip is active.',
+        })
+      },
+      () => {
+        setDeviceMapLocation(null)
+      },
+      {
+        enableHighAccuracy: true,
+        maximumAge: 5_000,
+        timeout: 20_000,
+      },
+    )
+
+    return () => {
+      if (watchId != null) {
+        navigator.geolocation.clearWatch(watchId)
+        watchId = null
+      }
+    }
+  }, [activeProjectId, canViewProducerTracking, trackingAudience])
+
+  useEffect(() => {
+    if (!canViewProducerTracking) {
+      hadActiveTrackingTripRef.current = false
+      setPreferDestinationMapFocus(false)
+      return
+    }
+
+    if (activeTrips.length > 0) {
+      hadActiveTrackingTripRef.current = true
+      setPreferDestinationMapFocus(false)
+      return
+    }
+
+    if (hadActiveTrackingTripRef.current) {
+      setPreferDestinationMapFocus(true)
+      hadActiveTrackingTripRef.current = false
+    }
+  }, [activeTrips.length, canViewProducerTracking])
+
+  useEffect(() => {
+    if (!canViewProducerTracking || activeTrips.length > 0 || deviceMapLocation) {
+      return
+    }
+
+    let cancelled = false
+    void getCurrentDeviceLocation()
+      .then(location => {
+        if (cancelled || !hasLocationCoordinates(location)) {
+          return
+        }
+
+        setDeviceMapLocation({
+          latitude: location.latitude,
+          longitude: location.longitude,
+          label: 'Your current location',
+          description: 'OSM default view before a trip starts.',
+        })
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setDeviceMapLocation(null)
+        }
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [activeProjectId, activeTrips.length, canViewProducerTracking, deviceMapLocation])
 
   const selectedTripForEnd = activeTrips.find(trip => trip.id === tripEndTripId) ?? null
   const selectedVehicle = vehicles.find(vehicle => vehicle.id === vehicleDetailId) ?? null
@@ -920,6 +1082,26 @@ export function TransportView() {
         <KpiCard label="Fuel Cost" value={formatCurrency(kpis.fuelCost)} subLabel={fuelFailed ? 'Fuel data unavailable' : 'Logged spend'} />
       </section>
 
+      {canViewLeafletDriverTracking && (
+        <Surface variant="table" padding="lg">
+          <div className="mb-6">
+            <p className="section-title">Driver Tracking</p>
+            <p className="mt-2 text-sm text-zinc-500 dark:text-zinc-400">
+              Leaflet shows the active driver for this project when a trip is running, then falls back to your device location when no tracked trip is active.
+            </p>
+          </div>
+
+          <TransportTrackingMap
+            liveLocations={liveLocations}
+            liveMeta={liveMeta}
+            loading={trackingLoading}
+            hasActiveTrips={activeTrips.length > 0}
+            leafletFocusLocation={liveLocations.length > 0 ? null : deviceMapLocation}
+            mapModeOverride="osm"
+          />
+        </Surface>
+      )}
+
       {!hasData ? (
         <Surface variant="table" padding="lg">
           <EmptyState
@@ -1031,27 +1213,28 @@ export function TransportView() {
             )}
           </Surface>
 
-          {canManageTransport && (
+          {canViewProducerTracking && (
             <Surface variant="table" padding="lg">
               <div className="mb-6 flex flex-wrap items-start justify-between gap-4">
                 <div>
                   <p className="section-title">Live Tracking</p>
                   <p className="mt-2 text-sm text-zinc-500 dark:text-zinc-400">
-                    Hybrid checkpoint tracking with smooth marker animation, OSM-safe routing fallback, and automatic Mapbox cutoff protection.
+                    OSM stays active by default. Mapbox takes over only while active trips are broadcasting driver checkpoints.
                   </p>
                 </div>
                 <div className="flex flex-wrap items-center gap-3">
                   <button
                     type="button"
-                    aria-disabled={!liveMeta?.mapEnabled}
-                    onClick={() => showInfo('Mapbox integration under development.', { id: 'transport-map-mode' })}
+                    onClick={() => {
+                      setMapModeOverride(current => current === 'auto' ? 'osm' : current === 'osm' ? 'mapbox' : 'auto')
+                    }}
                     className={`rounded-full border px-4 py-2 text-xs font-semibold uppercase tracking-[0.16em] transition ${
-                      liveMeta?.mapEnabled
+                      mapModeOverride === 'mapbox' && liveMeta?.mapEnabled
                         ? 'border-orange-300 bg-orange-50 text-orange-700 hover:border-orange-400 dark:border-orange-500/40 dark:bg-orange-500/10 dark:text-orange-200'
                         : 'border-zinc-200 bg-zinc-50 text-zinc-500 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-400'
                     }`}
                   >
-                    Map Mode: OSM / Mapbox
+                    {formatMapModeLabel(mapModeOverride, liveMeta)}
                   </button>
                   <StatusBadge variant={liveLocations.length > 0 ? 'live' : 'pending'} label={liveLocations.length > 0 ? 'Live' : 'Standby'} />
                 </div>
@@ -1065,6 +1248,9 @@ export function TransportView() {
                 liveLocations={liveLocations}
                 liveMeta={liveMeta}
                 loading={trackingLoading}
+                hasActiveTrips={activeTrips.length > 0}
+                leafletFocusLocation={leafletFocusLocation}
+                mapModeOverride={mapModeOverride}
               />
 
             </Surface>
@@ -1281,10 +1467,17 @@ export function TransportView() {
                </section>
              )}
 
-             {canManageTransport && (
+             {canViewProducerTracking && (
                <section className="space-y-4">
                  <div className="flex justify-between items-center px-1">
                    <h2 className="text-zinc-500 text-[11px] font-bold uppercase tracking-[0.2em]">Live Map</h2>
+                   <button
+                     type="button"
+                     onClick={() => setMapModeOverride(current => current === 'auto' ? 'osm' : current === 'osm' ? 'mapbox' : 'auto')}
+                     className="text-orange-500 text-[10px] font-bold uppercase tracking-wider"
+                   >
+                     {mapModeOverride}
+                   </button>
                  </div>
                  <div className="bg-white dark:bg-zinc-900 rounded-xl overflow-hidden shadow-2xl border border-zinc-200 dark:border-zinc-800 h-[280px] relative">
                    <div className="absolute inset-0 z-0">
@@ -1292,6 +1485,30 @@ export function TransportView() {
                          liveLocations={liveLocations}
                          liveMeta={liveMeta}
                          loading={trackingLoading}
+                         hasActiveTrips={activeTrips.length > 0}
+                         leafletFocusLocation={leafletFocusLocation}
+                         mapModeOverride={mapModeOverride}
+                      />
+                   </div>
+                 </div>
+               </section>
+             )}
+
+             {canViewLeafletDriverTracking && (
+               <section className="space-y-4">
+                 <div className="flex justify-between items-center px-1">
+                   <h2 className="text-zinc-500 text-[11px] font-bold uppercase tracking-[0.2em]">Driver Tracking</h2>
+                   <span className="text-orange-500 text-[10px] font-bold uppercase tracking-wider">OSM</span>
+                 </div>
+                 <div className="bg-white dark:bg-zinc-900 rounded-xl overflow-hidden shadow-2xl border border-zinc-200 dark:border-zinc-800 h-[280px] relative">
+                   <div className="absolute inset-0 z-0">
+                      <TransportTrackingMap
+                         liveLocations={liveLocations}
+                         liveMeta={liveMeta}
+                         loading={trackingLoading}
+                         hasActiveTrips={activeTrips.length > 0}
+                         leafletFocusLocation={liveLocations.length > 0 ? null : deviceMapLocation}
+                         mapModeOverride="osm"
                       />
                    </div>
                  </div>

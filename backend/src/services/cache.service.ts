@@ -1,5 +1,6 @@
 type RedisClientLike = {
   connect: () => Promise<void>
+  disconnect?: () => Promise<void>
   get: (key: string) => Promise<string | null>
   set: (key: string, value: string, options?: { EX?: number }) => Promise<unknown>
   del: (key: string) => Promise<number>
@@ -18,6 +19,7 @@ type InMemoryEntry = {
 
 const inMemoryStore = new Map<string, InMemoryEntry>()
 let redisClientPromise: Promise<RedisClientLike | null> | null = null
+let redisErrorLogged = false
 
 function cleanupExpiredInMemoryKey(key: string) {
   const entry = inMemoryStore.get(key)
@@ -42,21 +44,44 @@ async function getRedisClient(): Promise<RedisClientLike | null> {
     redisClientPromise = (async () => {
       try {
         const redisModule = require('redis') as {
-          createClient: (options: { url: string }) => RedisClientLike
+          createClient: (options: {
+            url: string
+            socket?: {
+              connectTimeout?: number
+              reconnectStrategy?: false | (() => false)
+            }
+          }) => RedisClientLike
         }
-        const client = redisModule.createClient({ url: env.redisUrl })
+        const client = redisModule.createClient({
+          url: env.redisUrl,
+          socket: {
+            connectTimeout: 3_000,
+            reconnectStrategy: false,
+          },
+        })
 
         client.on?.('error', error => {
-          console.error('[cache][redis] client error', error)
+          if (!redisErrorLogged) {
+            redisErrorLogged = true
+            console.warn('[cache][redis] unavailable, falling back to in-memory cache', error instanceof Error ? error.message : 'connection error')
+          }
         })
 
         if (!client.isOpen) {
-          await client.connect()
+          await Promise.race([
+            client.connect(),
+            new Promise((_, reject) => {
+              setTimeout(() => reject(new Error('Redis connection timed out.')), 3_500)
+            }),
+          ])
         }
 
         return client
       } catch (error) {
-        console.warn('[cache][redis] unavailable, falling back to in-memory cache', error)
+        if (!redisErrorLogged) {
+          redisErrorLogged = true
+          console.warn('[cache][redis] unavailable, falling back to in-memory cache', error instanceof Error ? error.message : 'connection failed')
+        }
         return null
       }
     })()

@@ -1,13 +1,27 @@
 import { memo, useEffect, useMemo, useRef, useState } from 'react'
+import L, { type LatLngExpression } from 'leaflet'
 import type mapboxgl from 'mapbox-gl'
-import 'mapbox-gl/dist/mapbox-gl.css'
 import type { FeatureCollection, LineString } from 'geojson'
+import { MapContainer, Marker, Polyline, Popup, TileLayer, useMap } from 'react-leaflet'
+import 'leaflet/dist/leaflet.css'
+import 'mapbox-gl/dist/mapbox-gl.css'
+import { MAP_CONFIG, type MapProviderMode } from '@/config/map.config'
 import type { LiveTrackingMeta, LiveVehicleLocation } from '../types'
+
+export type LeafletFocusLocation = {
+  latitude: number
+  longitude: number
+  label: string
+  description?: string
+}
 
 type TransportTrackingMapProps = {
   liveLocations: LiveVehicleLocation[]
   liveMeta: LiveTrackingMeta | null
   loading: boolean
+  hasActiveTrips: boolean
+  leafletFocusLocation?: LeafletFocusLocation | null
+  mapModeOverride?: MapProviderMode
 }
 
 type MarkerHandle = {
@@ -19,8 +33,7 @@ type MarkerHandle = {
 }
 
 const ROUTE_SOURCE_ID = 'transport-live-routes'
-const MAPBOX_PUBLIC_TOKEN = (import.meta.env.VITE_MAPBOX_PUBLIC_TOKEN || '').trim()
-const MAPBOX_STYLE_URL = (import.meta.env.VITE_MAPBOX_STYLE_URL || '').trim() || 'mapbox://styles/mapbox/navigation-day-v1'
+const DEFAULT_LEAFLET_CENTER: LatLngExpression = [13.0827, 80.2707]
 
 function formatStatus(value: LiveVehicleLocation['movingStatus']) {
   switch (value) {
@@ -44,15 +57,24 @@ function formatTimestamp(value: string) {
   })
 }
 
+function escapeHtml(value: string | null | undefined) {
+  return (value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;')
+}
+
 function buildPopupHtml(location: LiveVehicleLocation) {
   return `
     <div style="min-width: 180px; font-family: ui-sans-serif, system-ui, sans-serif;">
       <div style="font-size: 11px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: #71717a;">Vehicle</div>
-      <div style="margin-top: 4px; font-size: 14px; font-weight: 700; color: #111827;">${location.vehicleName}</div>
+      <div style="margin-top: 4px; font-size: 14px; font-weight: 700; color: #111827;">${escapeHtml(location.vehicleName)}</div>
       <div style="margin-top: 10px; font-size: 11px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: #71717a;">Driver</div>
-      <div style="margin-top: 4px; font-size: 14px; color: #111827;">${location.driverName ?? 'Unassigned'}</div>
+      <div style="margin-top: 4px; font-size: 14px; color: #111827;">${escapeHtml(location.driverName ?? 'Unassigned')}</div>
       <div style="margin-top: 10px; font-size: 11px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: #71717a;">Status</div>
-      <div style="margin-top: 4px; font-size: 14px; color: #111827;">${formatStatus(location.movingStatus ?? 'enroute')}</div>
+      <div style="margin-top: 4px; font-size: 14px; color: #111827;">${escapeHtml(formatStatus(location.movingStatus ?? 'enroute'))}</div>
     </div>
   `
 }
@@ -72,19 +94,63 @@ function buildMarkerElement() {
   return element
 }
 
+function buildLeafletIcon(tone: 'vehicle' | 'focus') {
+  const fill = tone === 'vehicle' ? '#EA580C' : '#0F766E'
+  const halo = tone === 'vehicle' ? '#FDBA74' : '#5EEAD4'
+
+  return L.divIcon({
+    className: '',
+    html: `
+      <div style="width:36px;height:36px;display:grid;place-items:center;">
+        <svg width="36" height="36" viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <circle cx="18" cy="18" r="16" fill="${halo}" opacity="0.28"/>
+          <circle cx="18" cy="18" r="9" fill="${fill}" stroke="white" stroke-width="2"/>
+          <circle cx="18" cy="18" r="3" fill="white"/>
+        </svg>
+      </div>
+    `,
+    iconSize: [36, 36],
+    iconAnchor: [18, 18],
+    popupAnchor: [0, -18],
+  })
+}
+
+function getDisplayRouteCoordinates(location: LiveVehicleLocation) {
+  if ((location.plannedRouteCoordinates?.length ?? 0) > 1) {
+    return location.plannedRouteCoordinates ?? []
+  }
+
+  if ((location.routeCoordinates?.length ?? 0) > 1) {
+    return location.routeCoordinates ?? []
+  }
+
+  if (typeof location.previousLatitude === 'number' && typeof location.previousLongitude === 'number') {
+    return [
+      [location.previousLongitude, location.previousLatitude],
+      [location.longitude, location.latitude],
+    ] as Array<[number, number]>
+  }
+
+  return [[location.longitude, location.latitude]] as Array<[number, number]>
+}
+
 function buildRouteCollection(liveLocations: LiveVehicleLocation[]): FeatureCollection<LineString> {
   return {
     type: 'FeatureCollection',
     features: liveLocations
-      .filter(location => (location.routeCoordinates?.length ?? 0) > 1)
       .map(location => ({
+        location,
+        routeCoordinates: getDisplayRouteCoordinates(location),
+      }))
+      .filter(entry => entry.routeCoordinates.length > 1)
+      .map(entry => ({
         type: 'Feature' as const,
         properties: {
-          vehicleId: location.vehicleId,
+          vehicleId: entry.location.vehicleId,
         },
         geometry: {
           type: 'LineString' as const,
-          coordinates: location.routeCoordinates ?? [],
+          coordinates: entry.routeCoordinates,
         },
       })),
   }
@@ -159,14 +225,214 @@ function computeBearing(location: LiveVehicleLocation) {
   return (((Math.atan2(y, x) * 180) / Math.PI) + 360) % 360
 }
 
+function closestProgressOnRoute(routeCoordinates: Array<[number, number]>, point: [number, number]) {
+  if (routeCoordinates.length < 2) {
+    return 0
+  }
+
+  let totalLength = 0
+  let traversed = 0
+  let bestProgress = 0
+  let bestDistance = Number.POSITIVE_INFINITY
+
+  for (let index = 1; index < routeCoordinates.length; index += 1) {
+    const start = routeCoordinates[index - 1]
+    const end = routeCoordinates[index]
+    const deltaX = end[0] - start[0]
+    const deltaY = end[1] - start[1]
+    const segmentLength = Math.hypot(deltaX, deltaY)
+
+    if (segmentLength === 0) {
+      continue
+    }
+
+    totalLength += segmentLength
+  }
+
+  if (totalLength === 0) {
+    return 0
+  }
+
+  for (let index = 1; index < routeCoordinates.length; index += 1) {
+    const start = routeCoordinates[index - 1]
+    const end = routeCoordinates[index]
+    const deltaX = end[0] - start[0]
+    const deltaY = end[1] - start[1]
+    const segmentLength = Math.hypot(deltaX, deltaY)
+
+    if (segmentLength === 0) {
+      continue
+    }
+
+    const projection = Math.max(0, Math.min(1, (((point[0] - start[0]) * deltaX) + ((point[1] - start[1]) * deltaY)) / (segmentLength * segmentLength)))
+    const projectedPoint: [number, number] = [
+      start[0] + deltaX * projection,
+      start[1] + deltaY * projection,
+    ]
+    const projectedDistance = Math.hypot(point[0] - projectedPoint[0], point[1] - projectedPoint[1])
+
+    if (projectedDistance < bestDistance) {
+      bestDistance = projectedDistance
+      bestProgress = (traversed + segmentLength * projection) / totalLength
+    }
+
+    traversed += segmentLength
+  }
+
+  return bestProgress
+}
+
+function resolvePredictedCoordinate(location: LiveVehicleLocation, routeCoordinates: Array<[number, number]>, now: number): [number, number] {
+  const capturedAt = new Date(location.capturedAt).getTime()
+  const expectedNextUpdateAt = location.expectedNextUpdateAt ? new Date(location.expectedNextUpdateAt).getTime() : Number.NaN
+
+  if (!Number.isFinite(capturedAt) || !Number.isFinite(expectedNextUpdateAt) || expectedNextUpdateAt <= capturedAt) {
+    return [location.longitude, location.latitude]
+  }
+
+  const progressStart = closestProgressOnRoute(routeCoordinates, [location.longitude, location.latitude])
+  const maxProgress = Math.min(0.985, progressStart + (1 - progressStart) * 0.92)
+  const elapsedProgress = Math.max(0, Math.min(1, (now - capturedAt) / (expectedNextUpdateAt - capturedAt)))
+
+  return interpolateRoute(routeCoordinates, progressStart + (maxProgress - progressStart) * elapsedProgress)
+}
+
 function lastKnownLocationLabel(location: LiveVehicleLocation) {
   return `${location.latitude.toFixed(5)}, ${location.longitude.toFixed(5)}`
+}
+
+function toLeafletRoute(routeCoordinates: Array<[number, number]> | undefined) {
+  return (routeCoordinates ?? [])
+    .filter(point => Array.isArray(point) && point.length === 2)
+    .map(([longitude, latitude]) => [latitude, longitude] as LatLngExpression)
+}
+
+function leafletLocationKey(liveLocations: LiveVehicleLocation[], focus?: LeafletFocusLocation | null) {
+  return JSON.stringify({
+    focus: focus ? [focus.latitude, focus.longitude] : null,
+    locations: liveLocations.map(location => [location.vehicleId, location.latitude, location.longitude, location.capturedAt]),
+  })
+}
+
+function LeafletViewport({
+  liveLocations,
+  focus,
+}: {
+  liveLocations: LiveVehicleLocation[]
+  focus?: LeafletFocusLocation | null
+}) {
+  const map = useMap()
+  const viewportKey = useMemo(() => leafletLocationKey(liveLocations, focus), [focus, liveLocations])
+
+  useEffect(() => {
+    const points = liveLocations.length > 0
+      ? liveLocations.map(location => [location.latitude, location.longitude] as LatLngExpression)
+      : focus
+        ? [[focus.latitude, focus.longitude] as LatLngExpression]
+        : []
+
+    if (points.length > 1) {
+      map.fitBounds(L.latLngBounds(points), {
+        padding: [36, 36],
+        maxZoom: 13,
+      })
+      return
+    }
+
+    if (points.length === 1) {
+      map.setView(points[0], 13, { animate: true })
+    }
+  }, [map, viewportKey])
+
+  return null
+}
+
+function LeafletTrackingMap({
+  liveLocations,
+  focus,
+  loading,
+}: {
+  liveLocations: LiveVehicleLocation[]
+  focus?: LeafletFocusLocation | null
+  loading: boolean
+}) {
+  const center = liveLocations[0]
+    ? [liveLocations[0].latitude, liveLocations[0].longitude] as LatLngExpression
+    : focus
+      ? [focus.latitude, focus.longitude] as LatLngExpression
+      : DEFAULT_LEAFLET_CENTER
+  const vehicleIcon = useMemo(() => buildLeafletIcon('vehicle'), [])
+  const focusIcon = useMemo(() => buildLeafletIcon('focus'), [])
+
+  return (
+    <div className="overflow-hidden rounded-[28px] border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-950">
+      <MapContainer center={center} zoom={12} className="h-[320px] w-full" scrollWheelZoom={false}>
+        <TileLayer attribution={MAP_CONFIG.osmAttribution} url={MAP_CONFIG.osmTileUrl} />
+        <LeafletViewport liveLocations={liveLocations} focus={focus} />
+
+        {liveLocations.map(location => {
+          const route = toLeafletRoute(getDisplayRouteCoordinates(location))
+          return route.length > 1 ? (
+            <Polyline
+              key={`${location.vehicleId}-route`}
+              positions={route}
+              pathOptions={{ color: '#EA580C', weight: 4, opacity: 0.85 }}
+            />
+          ) : null
+        })}
+
+        {liveLocations.map(location => (
+          <Marker
+            key={location.vehicleId}
+            position={[location.latitude, location.longitude]}
+            icon={vehicleIcon}
+          >
+              <Popup>
+                <div className="min-w-[180px]">
+                  <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-zinc-500">Vehicle</p>
+                  <p className="mt-1 text-sm font-semibold text-zinc-900">{location.vehicleName}</p>
+                  <p className="mt-3 text-[10px] font-semibold uppercase tracking-[0.18em] text-zinc-500">Driver</p>
+                  <p className="mt-1 text-sm text-zinc-700">{location.driverName ?? 'Unassigned'}</p>
+                  <p className="mt-3 text-[10px] font-semibold uppercase tracking-[0.18em] text-zinc-500">Updated</p>
+                  <p className="mt-1 text-sm text-zinc-700">{formatTimestamp(location.capturedAt)}</p>
+                </div>
+              </Popup>
+          </Marker>
+        ))}
+
+        {liveLocations.length === 0 && focus && (
+          <Marker position={[focus.latitude, focus.longitude]} icon={focusIcon}>
+            <Popup>
+              <div className="min-w-[180px]">
+                <p className="text-sm font-semibold text-zinc-900">{focus.label}</p>
+                {focus.description && <p className="mt-1 text-xs text-zinc-600">{focus.description}</p>}
+                <p className="mt-2 text-xs text-zinc-500">{focus.latitude.toFixed(5)}, {focus.longitude.toFixed(5)}</p>
+              </div>
+            </Popup>
+          </Marker>
+        )}
+      </MapContainer>
+
+      {liveLocations.length === 0 && (
+        <div className="border-t border-zinc-200 bg-zinc-50 px-5 py-4 text-sm text-zinc-500 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-400">
+          {loading
+            ? 'Loading the latest checkpoints...'
+            : focus
+              ? 'OSM is active until an active trip begins.'
+              : 'OSM is active. Waiting for current location or trip destination coordinates.'}
+        </div>
+      )}
+    </div>
+  )
 }
 
 export const TransportTrackingMap = memo(function TransportTrackingMap({
   liveLocations,
   liveMeta,
   loading,
+  hasActiveTrips,
+  leafletFocusLocation,
+  mapModeOverride = 'auto',
 }: TransportTrackingMapProps) {
   const containerRef = useRef<HTMLDivElement | null>(null)
   const mapRef = useRef<mapboxgl.Map | null>(null)
@@ -177,14 +443,16 @@ export const TransportTrackingMap = memo(function TransportTrackingMap({
   const [mapUnavailable, setMapUnavailable] = useState(false)
 
   const routeCollection = useMemo(() => buildRouteCollection(liveLocations), [liveLocations])
-  const canUseMapbox = Boolean(MAPBOX_PUBLIC_TOKEN && liveMeta?.mapEnabled && liveMeta?.provider === 'mapbox')
-  const shouldUseMapbox = canUseMapbox && !mapUnavailable
+  const mapboxAvailable = Boolean(MAP_CONFIG.publicToken && liveMeta?.mapEnabled && liveMeta?.provider === 'mapbox')
+  const activeTrackingAvailable = hasActiveTrips && liveLocations.length > 0
+  const wantsMapbox = mapModeOverride === 'mapbox' || (mapModeOverride === 'auto' && activeTrackingAvailable)
+  const shouldUseMapbox = mapboxAvailable && wantsMapbox && !mapUnavailable
 
   useEffect(() => {
-    if (!canUseMapbox) {
+    if (!mapboxAvailable) {
       setMapUnavailable(false)
     }
-  }, [canUseMapbox])
+  }, [mapboxAvailable])
 
   useEffect(() => {
     if (!shouldUseMapbox || !containerRef.current || mapRef.current) {
@@ -194,7 +462,7 @@ export const TransportTrackingMap = memo(function TransportTrackingMap({
     let disposed = false
     let map: mapboxgl.Map | null = null
 
-    // Frontend Mapbox usage is limited to GL JS rendering. All location search/reverse geocoding stays on backend APIs.
+    // Frontend Mapbox usage is limited to public-token GL rendering. Secret calls stay on backend proxy/cache routes.
     void import('mapbox-gl')
       .then(module => {
         if (disposed || !containerRef.current) {
@@ -203,10 +471,10 @@ export const TransportTrackingMap = memo(function TransportTrackingMap({
 
         const mapbox = module.default
         mapboxRef.current = mapbox
-        mapbox.accessToken = MAPBOX_PUBLIC_TOKEN
+        mapbox.accessToken = MAP_CONFIG.publicToken
         map = new mapbox.Map({
           container: containerRef.current,
-          style: MAPBOX_STYLE_URL,
+          style: MAP_CONFIG.styleUrl,
           attributionControl: false,
         })
 
@@ -258,7 +526,9 @@ export const TransportTrackingMap = memo(function TransportTrackingMap({
         })
       })
       .catch(error => {
-        console.warn('[transport][tracking-map] failed to load mapbox', error)
+        if (import.meta.env.DEV) {
+          console.warn('[transport][tracking-map] mapbox unavailable', error instanceof Error ? error.message : 'load failed')
+        }
         if (!disposed) {
           setMapUnavailable(true)
         }
@@ -356,23 +626,34 @@ export const TransportTrackingMap = memo(function TransportTrackingMap({
 
       handle.popup.setHTML(buildPopupHtml(location))
       handle.marker.setRotation(computeBearing(location))
-
-      if (!handle.lastCapturedAt || handle.lastCapturedAt === location.capturedAt) {
-        handle.marker.setLngLat([location.longitude, location.latitude])
-        handle.lastCapturedAt = location.capturedAt
-        return
-      }
+      const displayRouteCoordinates = getDisplayRouteCoordinates(location)
 
       if (handle.animationFrame != null) {
         cancelAnimationFrame(handle.animationFrame)
+        handle.animationFrame = null
       }
 
-      const routeCoordinates: Array<[number, number]> = location.routeCoordinates?.length
-        ? location.routeCoordinates
-        : [
-          [location.previousLongitude ?? location.longitude, location.previousLatitude ?? location.latitude],
-          [location.longitude, location.latitude],
-        ]
+      const runPredictiveMotion = () => {
+        if (displayRouteCoordinates.length < 2 || !location.expectedNextUpdateAt) {
+          return false
+        }
+
+        const animate = () => {
+          const [lng, lat] = resolvePredictedCoordinate(location, displayRouteCoordinates, Date.now())
+          handle?.marker.setLngLat([lng, lat])
+          handle!.animationFrame = requestAnimationFrame(animate)
+        }
+
+        handle.animationFrame = requestAnimationFrame(animate)
+        return true
+      }
+
+      if (!handle.lastCapturedAt || handle.lastCapturedAt === location.capturedAt) {
+        handle.marker.setLngLat([location.longitude, location.latitude])
+        runPredictiveMotion()
+        handle.lastCapturedAt = location.capturedAt
+        return
+      }
       const durationMs = Math.max(
         1_000,
         location.previousCapturedAt
@@ -383,7 +664,7 @@ export const TransportTrackingMap = memo(function TransportTrackingMap({
 
       const animate = (timestamp: number) => {
         const progress = Math.min(1, (timestamp - animationStart) / durationMs)
-        const [lng, lat] = interpolateRoute(routeCoordinates, progress)
+        const [lng, lat] = interpolateRoute(displayRouteCoordinates, progress)
         handle?.marker.setLngLat([lng, lat])
 
         if (progress < 1) {
@@ -392,6 +673,7 @@ export const TransportTrackingMap = memo(function TransportTrackingMap({
         }
 
         handle!.animationFrame = null
+        runPredictiveMotion()
       }
 
       handle.lastCapturedAt = location.capturedAt
@@ -424,21 +706,15 @@ export const TransportTrackingMap = memo(function TransportTrackingMap({
   if (!shouldUseMapbox) {
     return (
       <div className="space-y-4">
-        <div className="flex h-[320px] items-center justify-center rounded-[28px] border border-dashed border-zinc-300 bg-zinc-100 px-6 text-center text-sm text-zinc-500 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-400">
-          {liveMeta?.mode === 'disabled'
-            ? 'Map features temporarily limited due to usage limits'
-            : !MAPBOX_PUBLIC_TOKEN || liveMeta?.provider !== 'mapbox'
-              ? 'OSM fallback is active. Vehicle data and hybrid tracking continue without Mapbox.'
-              : 'Mapbox is unavailable in this environment, so the system is showing last known positions only.'}
-        </div>
+        <LeafletTrackingMap
+          liveLocations={liveLocations}
+          focus={leafletFocusLocation}
+          loading={loading}
+        />
 
-        <div className="grid gap-3 lg:grid-cols-2">
-          {liveLocations.length === 0 ? (
-            <div className="rounded-[24px] border border-zinc-200 bg-zinc-50 px-5 py-5 text-sm text-zinc-500 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-400">
-              {loading ? 'Loading the latest checkpoints...' : 'No active vehicles are broadcasting checkpoints right now.'}
-            </div>
-          ) : (
-            liveLocations.map(location => (
+        {liveLocations.length > 0 && (
+          <div className="grid gap-3 lg:grid-cols-2">
+            {liveLocations.map(location => (
               <div key={location.vehicleId} className="rounded-[24px] border border-zinc-200 bg-zinc-50 px-5 py-5 dark:border-zinc-800 dark:bg-zinc-950">
                 <div className="flex items-start justify-between gap-4">
                   <div>
@@ -461,9 +737,9 @@ export const TransportTrackingMap = memo(function TransportTrackingMap({
                   </div>
                 </div>
               </div>
-            ))
-          )}
-        </div>
+            ))}
+          </div>
+        )}
       </div>
     )
   }

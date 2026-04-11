@@ -158,6 +158,8 @@ export interface LiveVehicleLocationRecord {
   previousCapturedAt: string | null
   routeCoordinates: Array<[number, number]>
   routeProvider: 'mapbox' | 'straight_line' | 'none'
+  plannedRouteCoordinates?: Array<[number, number]>
+  plannedRouteProvider?: 'mapbox' | 'straight_line' | 'none'
   updateIntervalMs: number | null
   expectedNextUpdateAt: string | null
   distanceRemainingKm: number | null

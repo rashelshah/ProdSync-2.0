@@ -1,6 +1,5 @@
 import type { Request, Response } from 'express'
 import { trackingLiveQuerySchema, trackingMapQuerySchema } from '../models/transport.schemas'
-import { hasMapboxToken } from '../services/location.service'
 import { listLiveVehicleLocationsForActor, buildTrackingMapImageForActor, getTrackingLiveMetaForRoles } from '../services/tracking.service'
 import { getTransportAccessRoles } from '../utils/role'
 
@@ -10,18 +9,16 @@ export async function getLiveTrackingController(req: Request, res: Response) {
     const meta = await getTrackingLiveMetaForRoles(roles)
     const query = trackingLiveQuerySchema.parse(req.query)
     const locations = await listLiveVehicleLocationsForActor(query, req.authUser?.id ?? null, roles)
-    const mapboxEnabled = hasMapboxToken()
     return res.json({
       data: locations,
       vehicles: locations,
       meta,
-      mapEnabled: mapboxEnabled,
-      provider: mapboxEnabled ? 'mapbox' : 'osm',
-      fallback: !mapboxEnabled,
+      mapEnabled: meta.mapEnabled,
+      provider: meta.provider,
+      fallback: meta.fallback,
     })
   } catch (error) {
     console.warn('[tracking][live] safe fallback', {
-      query: req.query,
       error: error instanceof Error ? error.message : error,
     })
 

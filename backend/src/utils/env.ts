@@ -12,6 +12,12 @@ function requireEnv(name: string) {
   return value
 }
 
+function normalizeRedisUrl(value?: string) {
+  const trimmed = value?.trim() ?? ''
+  const redisCliMatch = trimmed.match(/^redis-cli\s+-u\s+(.+)$/i)
+  return redisCliMatch?.[1]?.trim() ?? trimmed
+}
+
 export const env = {
   nodeEnv: runtimeProcess.env.NODE_ENV ?? 'development',
   port: Number(runtimeProcess.env.PORT ?? 5000),
@@ -20,8 +26,9 @@ export const env = {
   supabaseAnonKey: requireEnv('SUPABASE_ANON_KEY'),
   supabaseServiceRoleKey: requireEnv('SUPABASE_SERVICE_ROLE_KEY'),
   clientOrigin: runtimeProcess.env.CLIENT_ORIGIN ?? 'http://localhost:5173',
-  redisUrl: runtimeProcess.env.REDIS_URL ?? '',
+  redisUrl: normalizeRedisUrl(runtimeProcess.env.REDIS_URL),
   mapboxAccessToken: runtimeProcess.env.MAPBOX_TOKEN ?? runtimeProcess.env.MAPBOX_ACCESS_TOKEN ?? '',
+  mapboxStyleUrl: runtimeProcess.env.MAPBOX_STYLE_URL ?? '',
   mapboxStaticStyleOwner: runtimeProcess.env.MAPBOX_STATIC_STYLE_OWNER ?? 'mapbox',
   mapboxStaticStyleId: runtimeProcess.env.MAPBOX_STATIC_STYLE_ID ?? 'streets-v12',
   mapboxDailyLimit: Math.max(1, Number(runtimeProcess.env.MAPBOX_DAILY_LIMIT ?? 1500)),

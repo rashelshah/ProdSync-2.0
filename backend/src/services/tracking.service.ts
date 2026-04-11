@@ -21,6 +21,7 @@ import {
 import { getMapboxToken, incrementMapboxUsage, safeMapboxCall, type MapProviderRole } from './mapboxUsageService'
 
 const LAST_LOCATION_TTL_SECONDS = 24 * 60 * 60
+const LIVE_RESPONSE_TTL_SECONDS = 10
 const MAP_IMAGE_TTL_SECONDS = 5 * 60
 const ROUTE_CACHE_TTL_SECONDS = 24 * 60 * 60
 const STALE_AFTER_MS = 45 * 60 * 1000
@@ -109,8 +110,17 @@ function liveStateCacheKey(projectId: string, vehicleId: string) {
   return `tracking:state:${projectId}:${vehicleId}`
 }
 
+function liveResponseCacheKey(projectId: string, actorUserId: string | null, roles: Set<TransportAccessRole>) {
+  const roleKey = Array.from(roles).sort().join('-') || 'none'
+  return `tracking:live-response:${projectId}:${roleKey}:${actorUserId ?? 'anonymous'}`
+}
+
 function routeCacheKey(from: { latitude: number; longitude: number }, to: { latitude: number; longitude: number }, provider: string) {
   return `tracking:route:${provider}:${from.latitude.toFixed(4)}:${from.longitude.toFixed(4)}:${to.latitude.toFixed(4)}:${to.longitude.toFixed(4)}`
+}
+
+function hasNumericCoordinates(value: { latitude?: number | null; longitude?: number | null } | null | undefined): value is { latitude: number; longitude: number } {
+  return typeof value?.latitude === 'number' && typeof value.longitude === 'number'
 }
 
 function trackingMapCacheKey(projectId: string, width: number, height: number, locations: LiveVehicleLocationRecord[], provider: string) {
@@ -279,6 +289,25 @@ async function resolveRouteCoordinates(
   }
 
   return generateRoute(from, to, userRole)
+}
+
+async function resolvePlannedRouteCoordinates(
+  trip: ActiveTripRow,
+  trackingPlan: TrackingPlan,
+  userRole: MapProviderRole,
+) {
+  if (!hasNumericCoordinates(trip.start_location) || !hasNumericCoordinates(trackingPlan.destinationLocation)) {
+    return {
+      plannedRouteCoordinates: [] as Array<[number, number]>,
+      plannedRouteProvider: 'none' as const,
+    }
+  }
+
+  const route = await generateRoute(trip.start_location, trackingPlan.destinationLocation, userRole)
+  return {
+    plannedRouteCoordinates: route.routeCoordinates,
+    plannedRouteProvider: route.routeProvider,
+  }
 }
 
 async function generateRoute(
@@ -593,29 +622,40 @@ export async function listLiveVehicleLocationsForActor(
   actorUserId: string | null,
   roles: Set<TransportAccessRole>,
 ) {
+  const responseCacheKey = liveResponseCacheKey(query.projectId, actorUserId, roles)
+  const cachedResponse = await getCacheJson<LiveVehicleLocationRecord[]>(responseCacheKey)
+  if (cachedResponse) {
+    return cachedResponse
+  }
+
   const providerRole = resolveMapProviderRole(roles)
   const activeTrips = await listAccessibleActiveTrips(query.projectId, actorUserId, roles)
   if (activeTrips.length === 0) {
+    await setCacheJson(responseCacheKey, [], LIVE_RESPONSE_TTL_SECONDS)
     return [] as LiveVehicleLocationRecord[]
   }
 
   const cachedLookup = await getCachedLiveLocations(query.projectId, activeTrips.map(trip => trip.vehicle_id))
   const liveLocationResults = await Promise.allSettled(activeTrips.map(async trip => {
+    const trackingPlan = extractTrackingPlan(trip.metadata)
+    const plannedRoute = await resolvePlannedRouteCoordinates(trip, trackingPlan, providerRole)
     const cached = cachedLookup.get(trip.vehicle_id)
     if (cached && cached.tripId === trip.id) {
-        const resolvedRoute = await resolveRouteCoordinates(
-          cached.previousLatitude != null && cached.previousLongitude != null
-            ? { latitude: cached.previousLatitude, longitude: cached.previousLongitude }
-            : null,
-          { latitude: cached.latitude, longitude: cached.longitude },
-          providerRole,
-        )
+      const resolvedRoute = await resolveRouteCoordinates(
+        cached.previousLatitude != null && cached.previousLongitude != null
+          ? { latitude: cached.previousLatitude, longitude: cached.previousLongitude }
+          : null,
+        { latitude: cached.latitude, longitude: cached.longitude },
+        providerRole,
+      )
 
       return {
         ...cached,
         source: 'cache' as const,
         routeCoordinates: resolvedRoute.routeCoordinates,
         routeProvider: resolvedRoute.routeProvider,
+        plannedRouteCoordinates: plannedRoute.plannedRouteCoordinates,
+        plannedRouteProvider: plannedRoute.plannedRouteProvider,
         movingStatus: deriveMovingStatus(cached.trackingMode ?? 'long_trip', cached.capturedAt),
       }
     }
@@ -633,13 +673,15 @@ export async function listLiveVehicleLocationsForActor(
       )
       mapped.routeCoordinates = resolvedRoute.routeCoordinates
       mapped.routeProvider = resolvedRoute.routeProvider
+      mapped.plannedRouteCoordinates = plannedRoute.plannedRouteCoordinates
+      mapped.plannedRouteProvider = plannedRoute.plannedRouteProvider
       mapped.movingStatus = deriveMovingStatus(mapped.trackingMode, mapped.capturedAt)
       await setCacheJson(liveLocationCacheKey(query.projectId, trip.vehicle_id), mapped, LAST_LOCATION_TTL_SECONDS)
     }
     return mapped
   }))
 
-  return liveLocationResults.flatMap(result => {
+  const locations = liveLocationResults.flatMap(result => {
     if (result.status === 'fulfilled') {
       return result.value ? [result.value] : []
     }
@@ -650,6 +692,9 @@ export async function listLiveVehicleLocationsForActor(
     })
     return []
   })
+
+  await setCacheJson(responseCacheKey, locations, LIVE_RESPONSE_TTL_SECONDS)
+  return locations
 }
 
 export async function getTrackingLiveMetaForRoles(roles: Set<TransportAccessRole>): Promise<TrackingLiveMeta> {
@@ -677,7 +722,7 @@ export async function recordVehicleLocationUpdate(
 ) {
   const { data, error } = await adminClient
     .from('trips')
-    .select('id, project_id, vehicle_id, driver_user_id, status, metadata, vehicle:vehicles!trips_vehicle_id_fkey(name, registration_number), driver:users!trips_driver_user_id_fkey(full_name)')
+    .select('id, project_id, vehicle_id, driver_user_id, status, start_location, metadata, vehicle:vehicles!trips_vehicle_id_fkey(name, registration_number), driver:users!trips_driver_user_id_fkey(full_name)')
     .eq('id', input.tripId)
     .eq('project_id', input.projectId)
     .eq('vehicle_id', input.vehicleId)
@@ -760,6 +805,13 @@ export async function recordVehicleLocationUpdate(
   const currentLocation = { latitude: input.latitude, longitude: input.longitude }
   const providerRole = resolveMapProviderRole(roles)
   const route = await resolveRouteCoordinates(previousLocation, currentLocation, providerRole)
+  const tripStartLocation = ((data as Record<string, unknown>).start_location as { latitude?: number; longitude?: number } | null) ?? null
+  const plannedRoute = hasNumericCoordinates(tripStartLocation) && hasNumericCoordinates(destinationLocation)
+    ? await generateRoute(tripStartLocation, destinationLocation, providerRole)
+    : {
+      routeCoordinates: [] as Array<[number, number]>,
+      routeProvider: 'none' as const,
+    }
 
   const payload: LiveVehicleLocationRecord = {
     projectId: input.projectId,
@@ -781,6 +833,8 @@ export async function recordVehicleLocationUpdate(
     previousCapturedAt: previousState?.lastUpdatedAt ?? null,
     routeCoordinates: route.routeCoordinates,
     routeProvider: route.routeProvider,
+    plannedRouteCoordinates: plannedRoute.routeCoordinates,
+    plannedRouteProvider: plannedRoute.routeProvider,
     updateIntervalMs,
     expectedNextUpdateAt,
     distanceRemainingKm,

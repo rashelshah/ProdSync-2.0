@@ -5,6 +5,7 @@ import { getUserFromAccessToken } from '../services/auth.service'
 import { getProjectAccess } from '../services/project-access.service'
 import { recordVehicleLocationUpdate } from '../services/tracking.service'
 import { env, isProduction } from '../utils/env'
+import { hasTransportTrackingViewerAccess } from '../utils/role'
 import type { TransportAccessRole } from '../utils/role'
 
 export interface TransportRealtimeEventPayload {
@@ -23,6 +24,10 @@ let io: Server | null = null
 
 function projectRoom(projectId: string) {
   return `project:${projectId}`
+}
+
+function trackingRoom(projectId: string) {
+  return `tracking:${projectId}`
 }
 
 function normalizeRole(value?: string | null) {
@@ -59,6 +64,27 @@ function deriveSocketTransportRoles(
   }
 
   return roles
+}
+
+function canAccessTrackingFeed(
+  access: Awaited<ReturnType<typeof getProjectAccess>>,
+  user: {
+    role?: string | null
+    projectRoleTitle?: string | null
+  } | null | undefined,
+) {
+  return hasTransportTrackingViewerAccess({
+    authUser: {
+      role: user?.role ?? null,
+      projectRoleTitle: user?.projectRoleTitle ?? null,
+    },
+    projectAccess: {
+      membershipRole: access.membershipRole,
+      projectRole: access.projectRole,
+      department: access.department,
+      isOwner: access.isOwner,
+    },
+  })
 }
 
 export function initializeRealtimeServer(server: HttpServer) {
@@ -119,6 +145,40 @@ export function initializeRealtimeServer(server: HttpServer) {
       await socket.leave(projectRoom(projectId))
     })
 
+    socket.on('tracking:subscribe', async (projectId: string, callback?: (response: { ok: boolean; error?: string }) => void) => {
+      try {
+        const userId = socket.data.user?.id as string | undefined
+        if (!userId || !projectId) {
+          callback?.({ ok: false, error: 'Tracking subscription is missing required context.' })
+          return
+        }
+
+        const access = await getProjectAccess(projectId, userId)
+        if (!access.isMember && !access.isOwner) {
+          callback?.({ ok: false, error: 'Project access denied.' })
+          return
+        }
+
+        if (!canAccessTrackingFeed(access, socket.data.user ?? null)) {
+          callback?.({ ok: false, error: 'Tracking access denied.' })
+          return
+        }
+
+        await socket.join(trackingRoom(projectId))
+        callback?.({ ok: true })
+      } catch (error) {
+        callback?.({ ok: false, error: error instanceof Error ? error.message : 'Tracking subscription failed.' })
+      }
+    })
+
+    socket.on('tracking:unsubscribe', async (projectId: string) => {
+      if (!projectId) {
+        return
+      }
+
+      await socket.leave(trackingRoom(projectId))
+    })
+
     socket.on('vehicle_location_update', async (payload: unknown, callback?: (response: { ok: boolean; error?: string; data?: unknown }) => void) => {
       try {
         const parsed = liveLocationUpdateSchema.parse(payload)
@@ -148,7 +208,8 @@ export function initializeRealtimeServer(server: HttpServer) {
 }
 
 export function emitTransportEvent(eventName: 'trip_started' | 'trip_ended' | 'fuel_logged' | 'alert_created' | 'vehicle_location_update', payload: TransportRealtimeEventPayload) {
-  io?.to(projectRoom(payload.projectId)).emit(eventName, payload)
+  const room = eventName === 'vehicle_location_update' ? trackingRoom(payload.projectId) : projectRoom(payload.projectId)
+  io?.to(room).emit(eventName, payload)
 }
 
 export function emitProjectEvent(eventName: 'project_updated', payload: ProjectRealtimeEventPayload) {

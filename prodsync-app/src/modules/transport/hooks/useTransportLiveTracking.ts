@@ -9,7 +9,8 @@ import type { LiveTrackingMeta, LiveVehicleLocation, TripUI } from '../types'
 interface UseTransportLiveTrackingArgs {
   activeProjectId: string | null | undefined
   activeTrips: TripUI[]
-  canManageTransport: boolean
+  canViewLiveTracking: boolean
+  trackingMode: 'stream' | 'leaflet' | 'none'
   isDriver: boolean
 }
 
@@ -52,14 +53,25 @@ function upsertLiveLocation(current: LiveVehicleLocation[], next: LiveVehicleLoc
   }
 
   const updated = [...current]
-  updated[existingIndex] = next
+  const existing = updated[existingIndex]
+  updated[existingIndex] = {
+    ...existing,
+    ...next,
+    routeCoordinates: (next.routeCoordinates?.length ?? 0) > 1 ? next.routeCoordinates : existing.routeCoordinates,
+    routeProvider: next.routeProvider === 'mapbox' || !existing.routeProvider ? next.routeProvider : existing.routeProvider,
+    plannedRouteCoordinates: (next.plannedRouteCoordinates?.length ?? 0) > 1 ? next.plannedRouteCoordinates : existing.plannedRouteCoordinates,
+    plannedRouteProvider: next.plannedRouteProvider === 'mapbox' || !existing.plannedRouteProvider
+      ? next.plannedRouteProvider
+      : existing.plannedRouteProvider,
+  }
   return updated
 }
 
 export function useTransportLiveTracking({
   activeProjectId,
   activeTrips,
-  canManageTransport,
+  canViewLiveTracking,
+  trackingMode,
   isDriver,
 }: UseTransportLiveTrackingArgs) {
   const user = useAuthStore(state => state.user)
@@ -96,13 +108,23 @@ export function useTransportLiveTracking({
     () => extractTripTrackingPlan(activeTripForDriver),
     [activeTripForDriver],
   )
+  const usesRealtimeTracking = trackingMode === 'stream'
+  const usesLeafletPolling = trackingMode === 'leaflet'
 
   const liveLocationsQuery = useQuery({
     queryKey: ['tracking-live', activeProjectId],
     queryFn: () => transportService.getLiveTrackingState(activeProjectId!),
-    enabled: Boolean(activeProjectId && (canManageTransport || isDriver)),
-    refetchInterval: activeTrips.length > 0 ? 60_000 : false,
-    staleTime: 15_000,
+    enabled: Boolean(activeProjectId && canViewLiveTracking),
+    refetchInterval: !canViewLiveTracking
+      ? false
+      : usesLeafletPolling
+        ? activeTrips.length > 0
+          ? 5 * 60_000
+          : false
+        : activeTrips.length > 0
+          ? 60_000
+          : false,
+    staleTime: usesLeafletPolling ? 4 * 60_000 : 15_000,
   })
 
   useEffect(() => {
@@ -111,7 +133,16 @@ export function useTransportLiveTracking({
   }, [liveLocationsQuery.data])
 
   useEffect(() => {
-    if (!activeProjectId) {
+    if (canViewLiveTracking) {
+      return
+    }
+
+    setLiveLocations([])
+    setLiveMeta(null)
+  }, [canViewLiveTracking])
+
+  useEffect(() => {
+    if (!activeProjectId || !canViewLiveTracking || !usesRealtimeTracking) {
       return
     }
 
@@ -131,10 +162,11 @@ export function useTransportLiveTracking({
         setLiveLocations(current => upsertLiveLocation(current, payload.data))
       }
 
-      socket.emit('project:subscribe', activeProjectId)
+      socket.emit('tracking:subscribe', activeProjectId)
       socket.on('vehicle_location_update', handleLocationUpdate)
       detach = () => {
         socket.off('vehicle_location_update', handleLocationUpdate)
+        socket.emit('tracking:unsubscribe', activeProjectId)
       }
     })
 
@@ -142,7 +174,7 @@ export function useTransportLiveTracking({
       cancelled = true
       detach?.()
     }
-  }, [activeProjectId])
+  }, [activeProjectId, canViewLiveTracking, usesRealtimeTracking])
 
   useEffect(() => {
     if (!activeDriverLiveLocation) {
@@ -239,6 +271,7 @@ export function useTransportLiveTracking({
       const destinationLocation = trackingPlan?.destinationLocation ?? null
       const nearDestinationRadiusKm = trackingPlan?.hybridPolicy?.nearDestinationRadiusKm ?? 6
       if (
+        trackingPlan?.hybridPolicy?.stopIntermediateUpdatesNearDestination &&
         hasCoordinates(destinationLocation) &&
         distanceMeters(latestPosition, destinationLocation) <= nearDestinationRadiusKm * 1000
       ) {

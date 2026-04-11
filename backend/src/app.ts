@@ -14,10 +14,30 @@ import { artRouter } from './modules/art/art.routes'
 import { cameraRouter } from './modules/camera/camera.routes'
 import { wardrobeRouter } from './modules/wardrobe/wardrobe.routes'
 import { reportsRouter } from './modules/reports/reports.routes'
+import { mapRouter } from './modules/map/map.routes'
 import { HttpError } from './utils/httpError'
 import { transportRouter } from './routes/transport.routes'
 import { runtimeProcess } from './utils/runtime'
 import { ZodError } from 'zod'
+
+function redactSensitive(value: unknown): unknown {
+  if (Array.isArray(value)) {
+    return value.map(item => redactSensitive(item))
+  }
+
+  if (!value || typeof value !== 'object') {
+    return value
+  }
+
+  return Object.fromEntries(
+    Object.entries(value as Record<string, unknown>).map(([key, entry]) => [
+      key,
+      /token|secret|password|authorization|apikey|api_key|access[_-]?key/i.test(key)
+        ? '[redacted]'
+        : redactSensitive(entry),
+    ]),
+  )
+}
 
 export function createApp() {
   const app = express()
@@ -60,6 +80,7 @@ export function createApp() {
   app.use('/api/camera', cameraRouter)
   app.use('/api/wardrobe', wardrobeRouter)
   app.use('/api/reports', reportsRouter)
+  app.use('/api/map', mapRouter)
   app.use('/api', transportRouter)
 
   app.use((_req, _res, next) => {
@@ -70,10 +91,10 @@ export function createApp() {
     console.error('[backend][error]', {
       method: req.method,
       path: req.path,
-      query: req.query,
-      body: req.body,
+      query: redactSensitive(req.query),
+      body: redactSensitive(req.body),
       error: error instanceof Error ? error.message : error,
-      stack: error instanceof Error ? error.stack : undefined,
+      stack: runtimeProcess.env.NODE_ENV === 'development' && error instanceof Error ? error.stack : undefined,
     })
 
     if (error instanceof ZodError) {
@@ -87,13 +108,6 @@ export function createApp() {
       return res.status(error.statusCode).json({
         error: error.message,
         details: error.details ?? null,
-      })
-    }
-
-    if (error instanceof Error) {
-      return res.status(500).json({
-        error: error.message,
-        stack: runtimeProcess.env.NODE_ENV === 'development' ? error.stack : undefined,
       })
     }
 
