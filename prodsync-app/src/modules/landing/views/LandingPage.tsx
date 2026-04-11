@@ -11,6 +11,8 @@ import { TimelineSection } from '@/modules/landing/components/TimelineSection'
 import CircularGallery from '@/components/ui/CircularGallery'
 import { modulesGallery } from '@/config/modulesGallery'
 import { PhoneShowcaseSection } from '@/modules/landing/components/PhoneShowcaseSection'
+import { LandingVideoShowcase } from '@/modules/landing/components/LandingVideoShowcase'
+import { FooterBranding } from '@/modules/landing/components/FooterBranding'
 import { useLiquidTransition } from '@/context/LiquidTransitionContext'
 
 function useRevealMotion() {
@@ -116,7 +118,6 @@ export function LandingPage() {
   const { triggerLiquidNav } = useLiquidTransition()
   const navGetStartedRef = useRef<HTMLButtonElement>(null)
   const heroGetStartedRef = useRef<HTMLButtonElement>(null)
-  const ctaGetStartedRef = useRef<HTMLButtonElement>(null)
 
   useEffect(() => {
     setPreviewImageFailed(false)
@@ -300,30 +301,7 @@ export function LandingPage() {
 
           <PhoneShowcaseSection />
 
-          <section id="cta" data-reveal className="reveal-section scroll-mt-32 pt-24 lg:pt-32">
-            <div className="overflow-hidden rounded-[38px] bg-[linear-gradient(145deg,rgba(255,255,255,0.9),rgba(249,115,22,0.08))] px-6 py-10 shadow-soft dark:bg-[linear-gradient(135deg,rgba(255,255,255,0.08),rgba(249,115,22,0.18))] sm:px-9 lg:px-14 lg:py-14">
-              <div className="mx-auto max-w-[720px] text-center">
-                <h2 className="text-[2.2rem] font-bold tracking-[-0.05em] text-zinc-900 dark:text-white sm:text-[2.95rem]">
-                  Ready for your next feature?
-                </h2>
-                <p className="mx-auto mt-5 max-w-[600px] text-[1.02rem] leading-7 text-zinc-500 dark:text-zinc-300">
-                  Join the world&apos;s leading production houses and switch to the only mission control system designed for cinema.
-                </p>
-                <div className="mt-8 flex flex-wrap items-center justify-center gap-4">
-                  <button
-                    ref={ctaGetStartedRef}
-                    onClick={() => triggerLiquidNav(ctaGetStartedRef, '/auth')}
-                    className="glow-button inline-flex items-center rounded-full bg-orange-500 px-7 py-3.5 text-[0.98rem] font-semibold text-black"
-                  >
-                    Get Started for Free
-                  </button>
-                  <a href="#preview" className="glow-button inline-flex items-center rounded-full bg-zinc-900 px-7 py-3.5 text-[0.98rem] font-semibold text-white dark:bg-white dark:text-zinc-900">
-                    Schedule a Demo
-                  </a>
-                </div>
-              </div>
-            </div>
-          </section>
+          <LandingVideoShowcase />
         </main>
 
         <footer id="footer" className="mt-10 border-t border-zinc-200/80 px-4 py-10 dark:border-white/6 sm:px-6 lg:px-8">
@@ -351,6 +329,8 @@ export function LandingPage() {
             <p className="text-sm text-zinc-500 dark:text-zinc-400 lg:self-end">© 2024 ProdSync. All rights reserved.</p>
           </div>
         </footer>
+
+        <FooterBranding />
       </div>
     </div>
   )
