@@ -8,6 +8,7 @@ import { RouteTransitionIndicator } from './components/layout/RouteTransitionInd
 import { ThemeProvider } from './components/theme/ThemeProvider'
 import { useTheme } from './components/theme/ThemeProvider'
 import { ProjectProvider } from './context/ProjectContext'
+import { LiquidTransitionProvider } from './context/LiquidTransitionContext'
 import { useAuthStore } from './features/auth/auth.store'
 
 const queryClient = new QueryClient({
@@ -75,10 +76,12 @@ function App() {
         <ProjectProvider>
           <AppToaster />
           <BrowserRouter>
-            <RouteTransitionIndicator />
-            <ErrorBoundary>
-              <AppRouter />
-            </ErrorBoundary>
+            <LiquidTransitionProvider>
+              <RouteTransitionIndicator />
+              <ErrorBoundary>
+                <AppRouter />
+              </ErrorBoundary>
+            </LiquidTransitionProvider>
           </BrowserRouter>
         </ProjectProvider>
       </ThemeProvider>

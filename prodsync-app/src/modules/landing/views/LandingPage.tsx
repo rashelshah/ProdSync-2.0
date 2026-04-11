@@ -11,6 +11,7 @@ import { TimelineSection } from '@/modules/landing/components/TimelineSection'
 import CircularGallery from '@/components/ui/CircularGallery'
 import { modulesGallery } from '@/config/modulesGallery'
 import { PhoneShowcaseSection } from '@/modules/landing/components/PhoneShowcaseSection'
+import { useLiquidTransition } from '@/context/LiquidTransitionContext'
 
 function useRevealMotion() {
   useEffect(() => {
@@ -111,6 +112,12 @@ export function LandingPage() {
   )
   const previewImageSrc = theme === 'light' ? '/landing/site-preview-light.png' : '/landing/site-preview-dark.png'
 
+  // ── Liquid transition ──────────────────────────────────────────────────────
+  const { triggerLiquidNav } = useLiquidTransition()
+  const navGetStartedRef = useRef<HTMLButtonElement>(null)
+  const heroGetStartedRef = useRef<HTMLButtonElement>(null)
+  const ctaGetStartedRef = useRef<HTMLButtonElement>(null)
+
   useEffect(() => {
     setPreviewImageFailed(false)
   }, [theme])
@@ -157,9 +164,13 @@ export function LandingPage() {
                 <span className="material-symbols-outlined text-[18px]">{theme === 'light' ? 'dark_mode' : 'light_mode'}</span>
               </button>
 
-              <Link to="/auth" className="glow-button inline-flex items-center rounded-full bg-orange-500 px-5 py-2.5 text-sm font-semibold text-black">
+              <button
+                ref={navGetStartedRef}
+                onClick={() => triggerLiquidNav(navGetStartedRef, '/auth')}
+                className="glow-button inline-flex items-center rounded-full bg-orange-500 px-5 py-2.5 text-sm font-semibold text-black"
+              >
                 Get Started
-              </Link>
+              </button>
             </div>
           </div>
         </header>
@@ -173,7 +184,7 @@ export function LandingPage() {
               </div>
 
               <h1 className="max-w-[1040px] text-balance text-5xl font-bold tracking-[-0.07em] text-zinc-900 dark:bg-gradient-to-b dark:from-white dark:via-zinc-100 dark:to-zinc-500 dark:bg-clip-text dark:text-transparent sm:text-[3.65rem] lg:text-[6.2rem] lg:leading-[0.94]">
-                The <span className="animate-gradient-x bg-gradient-to-r from-orange-400 via-violet-500 to-sky-400 bg-clip-text text-transparent">Mission</span> Control for Modern Production
+                The Mission Control for Modern <span className="animate-gradient-x bg-gradient-to-r from-orange-400 via-violet-500 to-sky-400 bg-clip-text text-transparent">Production</span>
               </h1>
 
               <p className="mt-7 max-w-[680px] text-[1.02rem] leading-7 text-zinc-500 dark:text-zinc-300">
@@ -181,9 +192,13 @@ export function LandingPage() {
               </p>
 
               <div className="mt-9 flex flex-wrap items-center justify-center gap-4">
-                <Link to="/auth" className="glow-button inline-flex items-center rounded-full bg-orange-500 px-7 py-3.5 text-[0.98rem] font-semibold text-black">
+                <button
+                  ref={heroGetStartedRef}
+                  onClick={() => triggerLiquidNav(heroGetStartedRef, '/auth')}
+                  className="glow-button inline-flex items-center rounded-full bg-orange-500 px-7 py-3.5 text-[0.98rem] font-semibold text-black"
+                >
                   Get Started
-                </Link>
+                </button>
                 <a
                   href="#preview"
                   className="glow-button inline-flex items-center gap-2 rounded-full border border-zinc-200 bg-white/90 px-7 py-3.5 text-[0.98rem] font-semibold text-zinc-900 dark:border-white/10 dark:bg-white/[0.05] dark:text-white"
@@ -295,9 +310,13 @@ export function LandingPage() {
                   Join the world&apos;s leading production houses and switch to the only mission control system designed for cinema.
                 </p>
                 <div className="mt-8 flex flex-wrap items-center justify-center gap-4">
-                  <Link to="/auth" className="glow-button inline-flex items-center rounded-full bg-orange-500 px-7 py-3.5 text-[0.98rem] font-semibold text-black">
+                  <button
+                    ref={ctaGetStartedRef}
+                    onClick={() => triggerLiquidNav(ctaGetStartedRef, '/auth')}
+                    className="glow-button inline-flex items-center rounded-full bg-orange-500 px-7 py-3.5 text-[0.98rem] font-semibold text-black"
+                  >
                     Get Started for Free
-                  </Link>
+                  </button>
                   <a href="#preview" className="glow-button inline-flex items-center rounded-full bg-zinc-900 px-7 py-3.5 text-[0.98rem] font-semibold text-white dark:bg-white dark:text-zinc-900">
                     Schedule a Demo
                   </a>
