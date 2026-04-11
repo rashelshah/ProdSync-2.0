@@ -11,6 +11,7 @@
 
 import { Camera, Mesh, Plane, Program, Renderer, Texture, Transform } from 'ogl';
 import { useEffect, useRef } from 'react';
+import { ChevronLeft, ChevronRight } from 'lucide-react';
 
 type GL = Renderer['gl'];
 
@@ -583,6 +584,20 @@ class App {
     window.addEventListener('touchend', this.boundOnTouchUp);
   }
 
+  next() {
+    if (!this.medias || !this.medias[0]) return;
+    const width = this.medias[0].width;
+    const currentIndex = Math.round(this.scroll.target / width);
+    this.scroll.target = (currentIndex + 1) * width;
+  }
+
+  prev() {
+    if (!this.medias || !this.medias[0]) return;
+    const width = this.medias[0].width;
+    const currentIndex = Math.round(this.scroll.target / width);
+    this.scroll.target = (currentIndex - 1) * width;
+  }
+
   destroy() {
     window.cancelAnimationFrame(this.raf);
     window.removeEventListener('resize', this.boundOnResize);
@@ -620,6 +635,7 @@ export default function CircularGallery({
   scrollEase = 0.05
 }: CircularGalleryProps) {
   const containerRef = useRef<HTMLDivElement>(null);
+  const appRef = useRef<App | null>(null);
 
   useEffect(() => {
     if (!containerRef.current) return;
@@ -632,13 +648,34 @@ export default function CircularGallery({
       scrollSpeed,
       scrollEase
     });
+    appRef.current = app;
     return () => app.destroy();
   }, [items, bend, textColor, borderRadius, font, scrollSpeed, scrollEase]);
 
   return (
-    <div
-      className="w-full h-full overflow-hidden cursor-grab active:cursor-grabbing"
-      ref={containerRef}
-    />
+    <div className="w-full h-full flex flex-col items-center">
+      <div className="w-full grow min-h-0 relative">
+        <div
+          className="absolute inset-0 overflow-hidden cursor-grab active:cursor-grabbing"
+          ref={containerRef}
+        />
+      </div>
+      <div className="flex-none flex items-center gap-6 z-10 pointer-events-auto pb-4 pt-2">
+        <button 
+          onClick={() => appRef.current?.prev()}
+          className="w-12 h-12 rounded-full bg-black/60 border border-white/10 hover:border-[#f97316] hover:bg-black/80 flex items-center justify-center transition-all duration-300 group shadow-[0_0_15px_rgba(249,115,22,0)] hover:shadow-[0_0_15px_rgba(249,115,22,0.3)] backdrop-blur-sm"
+          aria-label="Previous card"
+        >
+          <ChevronLeft className="w-6 h-6 text-white group-hover:text-[#f97316] transition-colors" />
+        </button>
+        <button 
+          onClick={() => appRef.current?.next()}
+          className="w-12 h-12 rounded-full bg-black/60 border border-white/10 hover:border-[#f97316] hover:bg-black/80 flex items-center justify-center transition-all duration-300 group shadow-[0_0_15px_rgba(249,115,22,0)] hover:shadow-[0_0_15px_rgba(249,115,22,0.3)] backdrop-blur-sm"
+          aria-label="Next card"
+        >
+          <ChevronRight className="w-6 h-6 text-white group-hover:text-[#f97316] transition-colors" />
+        </button>
+      </div>
+    </div>
   );
 }

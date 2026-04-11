@@ -130,7 +130,7 @@ export function LiquidTransitionProvider({ children }: { children: ReactNode }) 
                 key="liquid-expand"
                 initial={{ scale: 0 }}
                 animate={{ scale: targetScale }}
-                transition={{ duration: 0.65, ease: [0.22, 1, 0.36, 1] }}
+                transition={{ duration: vw < 768 ? 0.25 : 0.45, ease: [0.22, 1, 0.36, 1] }}
                 onAnimationComplete={onExpandComplete}
                 style={{
                   position: 'absolute',
@@ -152,7 +152,7 @@ export function LiquidTransitionProvider({ children }: { children: ReactNode }) 
                 key="liquid-collapse"
                 initial={{ scale: targetScale }}
                 animate={{ scale: 0 }}
-                transition={{ duration: 0.55, ease: [0.64, 0, 0.78, 0] }}
+                transition={{ duration: vw < 768 ? 0.2 : 0.35, ease: [0.64, 0, 0.78, 0] }}
                 onAnimationComplete={onCollapseComplete}
                 style={{
                   position: 'absolute',

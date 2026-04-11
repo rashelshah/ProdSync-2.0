@@ -576,6 +576,30 @@ export function AuthPage() {
       <style>{localStyles}</style>
 
       <button
+        onClick={() => navigate('/')}
+        aria-label="Back to landing page"
+        style={{
+          position: 'fixed',
+          top: '20px',
+          left: '20px',
+          zIndex: 40,
+          width: '48px',
+          height: '48px',
+          borderRadius: '999px',
+          border: isDark ? '1px solid rgba(255,255,255,0.08)' : '1px solid rgba(255,255,255,0.76)',
+          background: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(255,255,255,0.74)',
+          boxShadow: isDark ? '0 18px 32px rgba(0,0,0,0.28)' : '0 18px 32px rgba(220,213,205,0.24)',
+          color: isDark ? '#ffffff' : '#171717',
+          cursor: 'pointer',
+          display: 'inline-flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+        }}
+      >
+        <ArrowLeft size={18} />
+      </button>
+
+      <button
         onClick={toggleTheme}
         aria-label={`Switch to ${isDark ? 'light' : 'dark'} mode`}
         style={{
