@@ -4,6 +4,7 @@ import { CrewGeofenceMap } from '../../components/CrewGeofenceMap'
 import { cn, formatCurrency, formatDate, formatTime } from '@/utils'
 import type { CrewAttendanceHistoryItem, CrewProjectLocation, WagePayout, CrewLocationPoint } from '@/types'
 import { useMobileScrollHide } from '@/hooks/useMobileScrollHide'
+import { LiquidGlassNavbar } from '@/components/shared/LiquidGlassNavbar'
 
 function formatDuration(seconds: number) {
   const safeSeconds = Math.max(0, Math.floor(seconds))
@@ -444,28 +445,16 @@ export function CrewControlMemberMobile(props: CrewControlMemberMobileProps) {
       </div>
 
       {/* Bottom Navigation */}
-      <nav ref={bottomNavRef} className="fixed bottom-3 left-3 right-3 z-40 mx-auto flex h-[80px] max-w-md items-center justify-around rounded-[30px] border border-zinc-200/80 bg-white/88 px-2 shadow-[0_18px_40px_rgba(15,23,42,0.12)] backdrop-blur-2xl dark:border-white/8 dark:bg-[#0a0a0a]/82 dark:shadow-[0_18px_44px_rgba(0,0,0,0.34)]">
-        {[
+      <LiquidGlassNavbar
+        ref={bottomNavRef}
+        activeTabId={activeMobileTab}
+        onTabChange={(id) => setActiveMobileTab(id as any)}
+        tabs={[
           { id: 'dashboard', icon: 'dashboard', label: 'Dashboard' },
           ...(props.permissions.canRequestBatta ? [{ id: 'payments', icon: 'payments', label: 'Payments' }] : []),
           { id: 'records', icon: 'history', label: 'Records' },
-        ].map(tab => (
-          <button
-            key={tab.id}
-            onClick={() => setActiveMobileTab(tab.id as any)}
-            className={`flex flex-1 flex-col items-center justify-center gap-1.5 rounded-[20px] py-1.5 transition-all duration-200 ${
-              activeMobileTab === tab.id 
-                ? 'bg-orange-500/10 text-orange-600 dark:text-orange-500 dark:bg-[#1a140d]' 
-                : 'text-zinc-500 hover:text-zinc-700 dark:text-zinc-500 dark:hover:text-zinc-300'
-            }`}
-          >
-             <span className={`material-symbols-outlined text-[24px] ${activeMobileTab === tab.id ? 'scale-105' : ''}`} style={activeMobileTab === tab.id ? { fontVariationSettings: "'FILL' 1" } : {}}>
-               {tab.icon}
-             </span>
-             <span className="text-[9px] font-bold uppercase tracking-[0.05em]">{tab.label}</span>
-          </button>
-        ))}
-      </nav>
+        ]}
+      />
     </div>
   )
 }
