@@ -33,9 +33,9 @@ export const LiquidGlassNavbar = forwardRef<HTMLElement, LiquidGlassNavbarProps>
 
   return (
     <>
-      <svg width="0" height="0" className="absolute hidden pointer-events-none">
+      <svg width="0" height="0" className="absolute pointer-events-none" style={{ visibility: 'hidden' }}>
         <defs>
-          <filter id="liquid-glass-goo">
+          <filter id="liquid-glass-goo" x="-50%" y="-50%" width="200%" height="200%" colorInterpolationFilters="sRGB">
             <feGaussianBlur in="SourceGraphic" stdDeviation="8" result="blur" />
             <feColorMatrix in="blur" mode="matrix" values="1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 24 -8" result="goo" />
             <feBlend in="SourceGraphic" in2="goo" />
@@ -50,8 +50,12 @@ export const LiquidGlassNavbar = forwardRef<HTMLElement, LiquidGlassNavbarProps>
         >
           {/* Gooey Background Layer */}
           <div 
-            className="absolute inset-0 rounded-[2.25rem] overflow-hidden pointer-events-none"
-            style={{ filter: 'url(#liquid-glass-goo)' }}
+            className="absolute inset-0 rounded-[2.25rem] overflow-hidden pointer-events-none transform-gpu"
+            style={{ 
+              filter: 'url(#liquid-glass-goo)',
+              WebkitFilter: 'url(#liquid-glass-goo)',
+              WebkitMaskImage: '-webkit-radial-gradient(white, black)'
+            }}
           >
             {/* The base path layer to merge with */}
             <div className="absolute inset-0 rounded-[2.25rem] bg-transparent" />
