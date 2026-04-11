@@ -63,20 +63,20 @@ export function PhoneShowcaseSection() {
     <section
       id="pwa"
       data-reveal
-      className="reveal-section scroll-mt-32 pt-24 lg:pt-32"
+      className="reveal-section scroll-mt-32 pt-20 sm:pt-24 lg:pt-32"
     >
-      <div className="flex flex-col items-center gap-16 lg:flex-row lg:items-center lg:gap-20">
+      <div className="flex flex-col-reverse items-center gap-12 sm:gap-16 lg:flex-row lg:items-center lg:gap-20">
 
         {/* ── LEFT: Copy ─────────────────────────────────────────────────── */}
-        <div className="flex-1 text-center lg:text-left">
+        <div className="flex-1 w-full text-center lg:text-left">
           {/* Eyebrow badge */}
-          <div className="mb-6 inline-flex items-center gap-2 rounded-full border border-zinc-200 bg-white/80 px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.22em] text-zinc-500 shadow-soft dark:border-white/8 dark:bg-white/[0.05] dark:text-zinc-400">
+          <div className="mb-5 inline-flex items-center gap-2 rounded-full border border-zinc-200 bg-white/80 px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.22em] text-zinc-500 shadow-soft dark:border-white/8 dark:bg-white/[0.05] dark:text-zinc-400">
             <span className="h-1.5 w-1.5 rounded-full bg-orange-500" />
             PWA · Works on Any Device
           </div>
 
           {/* Headline */}
-          <h2 className="max-w-[560px] text-[2.1rem] font-bold tracking-[-0.06em] text-zinc-900 dark:text-white sm:text-[2.65rem] lg:leading-[1.06]">
+          <h2 className="max-w-[560px] mx-auto lg:mx-0 text-[1.85rem] sm:text-[2.1rem] font-bold tracking-[-0.06em] text-zinc-900 dark:text-white lg:text-[2.65rem] lg:leading-[1.06]">
             Phone{' '}
             <span className="animate-gradient-x bg-gradient-to-r from-orange-400 via-violet-500 to-sky-400 bg-clip-text text-transparent">
               Optimised
@@ -86,7 +86,7 @@ export function PhoneShowcaseSection() {
           </h2>
 
           {/* Description */}
-          <p className="mx-auto mt-6 max-w-[500px] text-[1rem] leading-7 text-zinc-500 dark:text-zinc-300 lg:mx-0">
+          <p className="mx-auto mt-5 max-w-[500px] text-[0.95rem] leading-7 text-zinc-500 dark:text-zinc-300 lg:mx-0">
             Every crew member on set gets instant access to call sheets, approvals,
             and gear check-ins — directly on their phone. No app store required.
             Install once, use everywhere on any device.
@@ -144,7 +144,7 @@ function PhoneFrame({ activeIndex, direction, time }: PhoneFrameProps) {
     <motion.div
       animate={{ y: [0, -10, 0] }}
       transition={{ duration: 4, repeat: Infinity, ease: 'easeInOut' }}
-      className="relative"
+      className="relative phone-showcase-frame"
       style={{
         // Realistic phone shadow
         filter: 'drop-shadow(0 40px 60px rgba(0,0,0,0.35)) drop-shadow(0 8px 20px rgba(0,0,0,0.2))',

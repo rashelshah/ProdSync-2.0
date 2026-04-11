@@ -1538,3 +1538,41 @@
 .leaflet-control-container {
   z-index: 1 !important;
 }
+
+/* ==============================
+   Phone Showcase — responsive scaling
+   The frame is intrinsically 328×640 px. On small viewports we scale it
+   down via CSS transform so it never causes horizontal overflow.
+   ============================== */
+.phone-showcase-frame {
+  /* default (≥ 640 px): render at natural size */
+  transform-origin: top center;
+}
+
+@media (max-width: 639px) {
+  .phone-showcase-frame {
+    /* scale to fit inside ~300 px wide safe area on most phones */
+    transform: scale(0.85);
+    /* compensate for the space freed up by scaling */
+    margin-bottom: -6rem;
+    margin-top: -1rem;
+  }
+}
+
+@media (max-width: 374px) {
+  .phone-showcase-frame {
+    transform: scale(0.72);
+    margin-bottom: -10rem;
+    margin-top: -2rem;
+  }
+}
+
+/* ==============================
+   Landing hero — prevent text overflow on tiny screens
+   ============================== */
+@media (max-width: 374px) {
+  .landing-shell h1 {
+    font-size: 2.4rem !important;
+    line-height: 1.05 !important;
+  }
+}

@@ -178,31 +178,31 @@ export function LandingPage() {
 
         <main className="mx-auto max-w-[1400px] px-4 pb-14 pt-8 sm:px-6 lg:px-8 lg:pb-22 lg:pt-14 2xl:max-w-[1480px]">
           <section className="landing-enter relative flex min-h-[78vh] flex-col items-center justify-center py-8 text-center lg:min-h-[86vh] lg:py-16">
-            <div className="reveal-section is-visible flex max-w-[1040px] flex-col items-center lg:-translate-y-6">
-              <div className="mb-8 inline-flex items-center gap-2 rounded-full border border-zinc-200 bg-white/80 px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.22em] text-zinc-500 shadow-soft dark:border-white/8 dark:bg-white/[0.05] dark:text-zinc-400">
+            <div className="reveal-section is-visible flex w-full max-w-[1040px] flex-col items-center px-2 lg:-translate-y-6">
+              <div className="mb-5 sm:mb-8 inline-flex items-center gap-2 rounded-full border border-zinc-200 bg-white/80 px-3 py-1.5 sm:px-4 sm:py-2 text-[10px] sm:text-[11px] font-semibold uppercase tracking-[0.22em] text-zinc-500 shadow-soft dark:border-white/8 dark:bg-white/[0.05] dark:text-zinc-400">
                 <span className="h-1.5 w-1.5 rounded-full bg-orange-500" />
-                Built for Film & Production Teams
+                Built for Film &amp; Production Teams
               </div>
 
-              <h1 className="max-w-[1040px] text-balance text-5xl font-bold tracking-[-0.07em] text-zinc-900 dark:bg-gradient-to-b dark:from-white dark:via-zinc-100 dark:to-zinc-500 dark:bg-clip-text dark:text-transparent sm:text-[3.65rem] lg:text-[6.2rem] lg:leading-[0.94]">
+              <h1 className="max-w-[1040px] text-balance text-[2.7rem] font-bold tracking-[-0.07em] text-zinc-900 dark:bg-gradient-to-b dark:from-white dark:via-zinc-100 dark:to-zinc-500 dark:bg-clip-text dark:text-transparent sm:text-[3.65rem] lg:text-[6.2rem] lg:leading-[0.94]">
                 The Mission Control for Modern <span className="animate-gradient-x bg-gradient-to-r from-orange-400 via-violet-500 to-sky-400 bg-clip-text text-transparent">Production</span>
               </h1>
 
-              <p className="mt-7 max-w-[680px] text-[1.02rem] leading-7 text-zinc-500 dark:text-zinc-300">
+              <p className="mt-5 sm:mt-7 max-w-[680px] text-[0.95rem] sm:text-[1.02rem] leading-7 text-zinc-500 dark:text-zinc-300">
                 Plan, track, and execute film production with full visibility across departments. From logistics to final wrap, everything in one cinematic view.
               </p>
 
-              <div className="mt-9 flex flex-wrap items-center justify-center gap-4">
+              <div className="mt-7 sm:mt-9 flex flex-wrap items-center justify-center gap-3 sm:gap-4">
                 <button
                   ref={heroGetStartedRef}
                   onClick={() => triggerLiquidNav(heroGetStartedRef, '/auth')}
-                  className="glow-button inline-flex items-center rounded-full bg-orange-500 px-7 py-3.5 text-[0.98rem] font-semibold text-black"
+                  className="glow-button inline-flex items-center rounded-full bg-orange-500 px-6 py-3 sm:px-7 sm:py-3.5 text-[0.92rem] sm:text-[0.98rem] font-semibold text-black"
                 >
                   Get Started
                 </button>
                 <a
                   href="#preview"
-                  className="glow-button inline-flex items-center gap-2 rounded-full border border-zinc-200 bg-white/90 px-7 py-3.5 text-[0.98rem] font-semibold text-zinc-900 dark:border-white/10 dark:bg-white/[0.05] dark:text-white"
+                  className="glow-button inline-flex items-center gap-2 rounded-full border border-zinc-200 bg-white/90 px-6 py-3 sm:px-7 sm:py-3.5 text-[0.92rem] sm:text-[0.98rem] font-semibold text-zinc-900 dark:border-white/10 dark:bg-white/[0.05] dark:text-white"
                 >
                   <Play className="h-4 w-4" />
                   View Demo
@@ -271,23 +271,23 @@ export function LandingPage() {
 
           <TimelineSection />
 
-          <section id="modules" data-reveal className="reveal-section scroll-mt-32 pt-24 lg:pt-32">
+          <section id="modules" data-reveal className="reveal-section scroll-mt-32 pt-20 sm:pt-24 lg:pt-32">
             {/* Section header */}
-            <div className="mb-10">
+            <div className="mb-8 sm:mb-10">
               <div className="mb-5 inline-flex items-center gap-2 rounded-full border border-zinc-200 bg-white/80 px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.22em] text-zinc-500 shadow-soft dark:border-white/8 dark:bg-white/[0.05] dark:text-zinc-400">
                 <span className="h-1.5 w-1.5 rounded-full bg-orange-500" />
                 Modules
               </div>
-              <h2 className="max-w-[660px] text-[2.15rem] font-bold tracking-[-0.05em] text-zinc-900 dark:text-white sm:text-[2.75rem]">
+              <h2 className="max-w-[660px] text-[1.8rem] sm:text-[2.15rem] font-bold tracking-[-0.05em] text-zinc-900 dark:text-white sm:text-[2.75rem]">
                 Granular Control for Every <span className="animate-gradient-x bg-gradient-to-r from-orange-400 via-violet-500 to-sky-400 bg-clip-text text-transparent">Department</span>
               </h2>
-              <p className="mt-4 max-w-[560px] text-[1rem] leading-7 text-zinc-500 dark:text-zinc-300">
+              <p className="mt-4 max-w-[560px] text-[0.95rem] sm:text-[1rem] leading-7 text-zinc-500 dark:text-zinc-300">
                 Built for the complexities of professional filmmaking — from fleet logistics to crew payroll.
               </p>
             </div>
 
             {/* CircularGallery — drag / scroll to explore all 6 modules */}
-            <div style={{ height: '500px', position: 'relative', filter: 'drop-shadow(0 20px 30px rgba(0, 0, 0, 0.45))' }}>
+            <div style={{ height: 'clamp(320px, 50vw, 500px)', position: 'relative', filter: 'drop-shadow(0 20px 30px rgba(0, 0, 0, 0.45))' }}>
               <CircularGallery
                 items={modulesGallery}
                 bend={1}
