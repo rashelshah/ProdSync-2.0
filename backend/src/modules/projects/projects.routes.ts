@@ -516,7 +516,7 @@ projectsRouter.get(
       .select('id, name, location, status, start_date, end_date')
       .eq('is_archived', false)
       .eq('invite_enabled', true)
-      .or(`project_code.eq.${codeOrToken},invite_token.eq.${codeOrToken}`)
+      .or(`project_code.eq.${codeOrToken.toUpperCase()},invite_token.eq.${codeOrToken.toLowerCase()}`)
       .maybeSingle()
 
     if (error || !projectRow) {
@@ -564,7 +564,7 @@ projectsRouter.post(
       .select('id')
       .eq('is_archived', false)
       .eq('invite_enabled', true)
-      .or(`project_code.eq.${payload.codeOrToken},invite_token.eq.${payload.codeOrToken}`)
+      .or(`project_code.eq.${payload.codeOrToken.toUpperCase()},invite_token.eq.${payload.codeOrToken.toLowerCase()}`)
       .maybeSingle()
 
     if (error || !projectRow) {
