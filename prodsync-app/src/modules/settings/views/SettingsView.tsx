@@ -65,6 +65,21 @@ export function SettingsView() {
   const canEditProject = user?.role === 'EP'
   const budgetValue = Math.max(Number(budget) || 0, 0)
 
+  const inviteInfoQ = useQuery({
+    queryKey: ['project-invite-info', activeProjectId],
+    queryFn: () => projectsService.getProjectInviteInfo(activeProjectId!),
+    enabled: Boolean(activeProjectId),
+    staleTime: 60_000,
+  })
+
+  const inviteInfo = inviteInfoQ.data
+
+  function copyToClipboard(text: string, label: string) {
+    void navigator.clipboard.writeText(text).then(() => {
+      showSuccess(`${label} copied!`, { id: 'copy-invite' })
+    })
+  }
+
   const budgetAllocationsQ = useQuery({
     queryKey: ['budget-allocations', activeProjectId],
     queryFn: () => projectsService.getBudgetAllocations(activeProjectId!),
@@ -378,6 +393,47 @@ export function SettingsView() {
           </Surface>
 
           <Surface variant="table" padding="lg">
+            <p className="section-title">Project Invite</p>
+            <p className="mt-2 text-sm text-zinc-500 dark:text-zinc-400">Share the code or link with your crew so they can join this project directly.</p>
+            {inviteInfo ? (
+              <div className="mt-5 space-y-4">
+                <div>
+                  <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-zinc-500 dark:text-zinc-400">Project Code</p>
+                  <div className="mt-2 flex items-center gap-3">
+                    <code className="flex-1 rounded-[16px] bg-zinc-50 px-4 py-3 text-lg font-mono font-bold tracking-[0.22em] text-zinc-900 dark:bg-zinc-900 dark:text-white">
+                      {inviteInfo.projectCode}
+                    </code>
+                    <button
+                      onClick={() => copyToClipboard(inviteInfo.projectCode, 'Project code')}
+                      className="clay-icon-button flex-shrink-0"
+                      title="Copy code"
+                    >
+                      <span className="material-symbols-outlined text-[18px]">content_copy</span>
+                    </button>
+                  </div>
+                </div>
+                <div>
+                  <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-zinc-500 dark:text-zinc-400">Invite Link</p>
+                  <div className="mt-2 flex items-center gap-3">
+                    <p className="flex-1 truncate rounded-[16px] bg-zinc-50 px-4 py-3 text-sm text-zinc-600 dark:bg-zinc-900 dark:text-zinc-300">
+                      {inviteInfo.inviteLink}
+                    </p>
+                    <button
+                      onClick={() => copyToClipboard(inviteInfo.inviteLink, 'Invite link')}
+                      className="clay-icon-button flex-shrink-0"
+                      title="Copy link"
+                    >
+                      <span className="material-symbols-outlined text-[18px]">content_copy</span>
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <p className="mt-3 text-sm text-zinc-400">Loading invite info...</p>
+            )}
+          </Surface>
+
+          <Surface variant="table" padding="lg">
             <p className="section-title">Access Reminder</p>
             <p className="mt-3 text-sm leading-6 text-zinc-500 dark:text-zinc-400">
               Crew currency formatting now follows the active project setting. Once the EP changes currency here, active-project dashboards and financial cards will render with the updated symbol.
@@ -545,12 +601,50 @@ export function SettingsView() {
           </div>
         </section>
 
+        {/* Mobile Invite Info */}
+        {inviteInfo && (
+          <section className="space-y-3">
+            <h2 className="text-[10px] font-bold tracking-[0.2em] uppercase text-zinc-500 dark:text-zinc-300">PROJECT INVITE</h2>
+            <div className="bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-white/5 rounded-[20px] p-4 space-y-4 shadow-sm">
+              <div>
+                <div className="text-[8px] font-bold uppercase tracking-widest text-zinc-500 mb-2">Project Code</div>
+                <div className="flex items-center gap-3">
+                  <code className="flex-1 text-center text-xl font-mono font-extrabold tracking-[0.22em] text-zinc-900 dark:text-white">
+                    {inviteInfo.projectCode}
+                  </code>
+                  <button
+                    onClick={() => copyToClipboard(inviteInfo.projectCode, 'Project code')}
+                    className="w-10 h-10 rounded-full bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-white/5 flex items-center justify-center flex-shrink-0 shadow-sm active:scale-95 transition-transform"
+                  >
+                    <span className="material-symbols-outlined text-[16px] text-zinc-500">content_copy</span>
+                  </button>
+                </div>
+              </div>
+              <div className="border-t border-zinc-200 dark:border-white/5 pt-4">
+                <div className="text-[8px] font-bold uppercase tracking-widest text-zinc-500 mb-2">Invite Link</div>
+                <div className="flex items-center gap-3">
+                  <p className="flex-1 text-[11px] text-zinc-500 dark:text-zinc-400 break-all leading-relaxed">
+                    {inviteInfo.inviteLink}
+                  </p>
+                  <button
+                    onClick={() => copyToClipboard(inviteInfo.inviteLink, 'Invite link')}
+                    className="w-10 h-10 rounded-full bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-white/5 flex items-center justify-center flex-shrink-0 shadow-sm active:scale-95 transition-transform"
+                  >
+                    <span className="material-symbols-outlined text-[16px] text-zinc-500">content_copy</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+          </section>
+        )}
+
         <div className="bg-[#FFF4ED] dark:bg-zinc-900 border border-orange-500/30 rounded-[20px] p-4 flex gap-4 mt-8 shadow-sm">
           <span className="material-symbols-outlined text-orange-500 text-[20px] mt-0.5">shield</span>
           <p className="text-[11px] text-zinc-600 dark:text-zinc-400 leading-relaxed pr-2">
             <strong className="text-zinc-900 dark:text-white block mb-1">EP Level Access:</strong> These settings control global project defaults. Changes will propagate to all department heads and affect financial calculations immediately.
           </p>
         </div>
+
 
         <button
           onClick={saveProjectSettings}

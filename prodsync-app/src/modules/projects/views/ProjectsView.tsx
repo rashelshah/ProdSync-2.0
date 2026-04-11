@@ -11,7 +11,7 @@ import { useAuthStore } from '@/features/auth/auth.store'
 import { useResolvedProjectContext } from '@/features/projects/useResolvedProjectContext'
 import { useProjectsStore } from '@/features/projects/projects.store'
 import { resolveErrorMessage, showError, showLoading, showSuccess } from '@/lib/toast'
-import { projectsService } from '@/services/projects.service'
+import { projectsService, type ProjectPreview } from '@/services/projects.service'
 import { cn, formatCurrency, formatDate, timeAgo } from '@/utils'
 import type { ProjectCurrency, ProjectDepartment, ProjectJoinRequest, ProjectRecord, ProjectRequestedRole, ProjectStage } from '@/types'
 
@@ -38,12 +38,13 @@ export function ProjectsView() {
   const user = useAuthStore(state => state.user)
   const setActiveProject = useProjectsStore(state => state.setActiveProject)
   const { projects, projectMembers, activeProjectId, isLoadingProjectContext } = useResolvedProjectContext()
-  const discoverableProjectsQ = useQuery({
-    queryKey: ['discoverable-projects'],
-    queryFn: projectsService.getDiscoverableProjects,
-    enabled: Boolean(user),
-    staleTime: 60_000,
-  })
+  const [joinCodeInput, setJoinCodeInput] = useState('')
+  const [previewProject, setPreviewProject] = useState<ProjectPreview | null>(null)
+  const [isVerifyingCode, setIsVerifyingCode] = useState(false)
+  const [showJoinModal, setShowJoinModal] = useState(false)
+  const [joinDepartment, setJoinDepartment] = useState<ProjectDepartment>('production')
+  const [joinRole, setJoinRole] = useState<ProjectRequestedRole>('Crew Member')
+
   const joinRequestsQ = useQuery({
     queryKey: ['project-join-requests'],
     queryFn: projectsService.getJoinRequests,
@@ -77,18 +78,17 @@ export function ProjectsView() {
     departmentId: 'production' as ProjectDepartment,
   }
 
-  const producerView = isProducerRole(currentUser.role)
-  const visibleProjects = producerView ? projects : discoverableProjectsQ.data ?? projects
   const ownedProjects = projects.filter(project => project.ownerId === currentUser.id)
+  const producerView = isProducerRole(currentUser.role) || ownedProjects.length > 0
+  const visibleProjects = producerView ? projects : projects
   const membershipProjectIds = new Set(projectMembers.filter(member => member.userId === currentUser.id).map(member => member.projectId))
   const accessibleProjectIds = Array.from(new Set([...ownedProjects.map(project => project.id), ...Array.from(membershipProjectIds)]))
-  const joinRoleOptions = getRoleOptionsForDepartment(currentUser.departmentId ?? 'production').map(option => option.id)
+  const joinRoleOptions = getRoleOptionsForDepartment(joinDepartment).map(option => option.id)
   const relevantJoinRequests = producerView
     ? joinRequests.filter(request => request.status === 'pending')
-    : joinRequests.filter(request => request.userId === currentUser.id)
+    : joinRequests.filter(request => request.userId === currentUser.id && request.status === 'pending')
 
   const selectedProject = selectedProjectId ? visibleProjects.find(project => project.id === selectedProjectId) ?? null : null
-  const joinableProject = visibleProjects.find(project => !membershipProjectIds.has(project.id))
 
   const createProjectMutation = useMutation({
     mutationFn: projectsService.createProject,
@@ -123,6 +123,55 @@ export function ProjectsView() {
       await invalidateProjectData(queryClient, { userId: user?.id })
     },
   })
+
+  async function verifyProjectCode(code: string) {
+    if (!code.trim()) return
+    setIsVerifyingCode(true)
+    try {
+      // Basic check if it's a full URL
+      const token = code.includes('/join/') ? code.split('/join/')[1] : code
+      const preview = await projectsService.previewProject(token)
+      if (preview) {
+        setPreviewProject(preview)
+        // If they're already a member, we handle it
+        if (membershipProjectIds.has(preview.id)) {
+           showError('You are already a member of this project.', { id: 'join-code' })
+           setPreviewProject(null)
+           setJoinCodeInput('')
+        }
+      }
+    } catch (err: any) {
+      showError(resolveErrorMessage(err, 'Invalid or expired project code'), { id: 'join-code' })
+      setPreviewProject(null)
+    } finally {
+      setIsVerifyingCode(false)
+    }
+  }
+
+  async function performJoin() {
+    if (!previewProject) return
+
+    void runProjectAction(
+      async () => {
+        const token = joinCodeInput.includes('/join/') ? joinCodeInput.split('/join/')[1] : joinCodeInput
+        const joined = await projectsService.joinProject(token, joinRole, joinDepartment)
+        if (joined?.project) {
+          setShowJoinModal(false)
+          setPreviewProject(null)
+          setJoinCodeInput('')
+          setActiveProject(joined.project.id, joined.project.currency)
+          await invalidateProjectData(queryClient, { userId: user?.id })
+          navigate(getDefaultWorkspacePath(currentUser))
+        }
+      },
+      {
+        actionKey: 'project-join',
+        loadingMessage: 'Joining project...',
+        successMessage: 'Successfully joined project!',
+        errorMessage: 'Could not join project at this time.',
+      }
+    )
+  }
 
   const reviewJoinRequestMutation = useMutation({
     mutationFn: ({ requestId, status }: { requestId: string; status: 'approved' | 'rejected' }) =>
@@ -264,12 +313,10 @@ export function ProjectsView() {
               {projects.find(project => project.id === activeProjectId)?.name ?? 'Not selected'}
             </span>
           </div>
-          {producerView && (
-            <button onClick={() => setShowCreateModal(true)} className="btn-primary">
-              <Plus className="h-4 w-4" />
-              Create Project
-            </button>
-          )}
+          <button onClick={() => setShowCreateModal(true)} className="btn-primary">
+            <Plus className="h-4 w-4" />
+            Create Project
+          </button>
         </div>
       </header>
 
@@ -362,52 +409,95 @@ export function ProjectsView() {
           </section>
         </>
       ) : (
-        <>
-          {accessibleProjectIds.length === 0 && (
-            <Surface variant="muted" padding="lg">
-              <EmptyState
-                icon="workspaces"
-                title="You haven't joined a project yet"
-                description="Project membership is required before you can enter the main workspace. Join a project to continue."
-              />
-              <div className="mt-6 flex justify-center">
-                <button onClick={() => joinableProject && setSelectedProjectId(joinableProject.id)} className="btn-primary">
-                  Join Project
-                </button>
+        <div className="space-y-8">
+          {(accessibleProjectIds.length > 0 || relevantJoinRequests.length > 0) && (
+            <section className="space-y-5">
+              <div className="section-heading">
+                <div>
+                  <p className="section-kicker">Membership Access</p>
+                  <h2 className="section-title">Your Projects</h2>
+                </div>
               </div>
-            </Surface>
+
+              <div className="grid gap-5 xl:grid-cols-2">
+                {visibleProjects
+                  .filter(project => membershipProjectIds.has(project.id))
+                  .map(project => (
+                    <ProjectCard
+                      key={project.id}
+                      project={project}
+                      badgeClass={statusTone[project.status]}
+                      membershipLabel="Member"
+                      onOpen={() => openProject(project.id)}
+                      openLabel="Enter Workspace"
+                    />
+                  ))}
+                {relevantJoinRequests
+                  .filter(request => request.projectDetails)
+                  .map(request => (
+                    <ProjectCard
+                      key={request.id}
+                      project={request.projectDetails!}
+                      badgeClass={statusTone[request.projectDetails!.status] ?? 'bg-zinc-100 text-zinc-700'}
+                      membershipLabel="Pending"
+                      joinDisabled={true}
+                      joinLabel="Request Submitted"
+                      onJoin={() => {}}
+                    />
+                  ))}
+              </div>
+            </section>
           )}
 
           <section className="space-y-5">
             <div className="section-heading">
               <div>
-                <p className="section-kicker">Membership Access</p>
-                <h2 className="section-title">Available Projects</h2>
+                <p className="section-kicker">Join Workspace</p>
+                <h2 className="section-title">Join a Project</h2>
               </div>
             </div>
 
-            <div className="grid gap-5 xl:grid-cols-2">
-              {visibleProjects.map(project => {
-                const isMember = membershipProjectIds.has(project.id)
-                const request = getRequestForProject(project.id)
-
-                return (
-                  <ProjectCard
-                    key={project.id}
-                    project={project}
-                    badgeClass={statusTone[project.status]}
-                    membershipLabel={isMember ? 'Member' : request ? request.status : 'Not joined'}
-                    onOpen={isMember ? () => openProject(project.id) : undefined}
-                    onJoin={!isMember ? () => setSelectedProjectId(project.id) : undefined}
-                    joinDisabled={Boolean(request && request.status === 'pending')}
-                    joinLabel={request?.status === 'pending' ? 'Requested' : request?.status === 'approved' ? 'Approved' : 'Join Project'}
-                    openLabel="Enter Workspace"
+            {previewProject ? (
+              <ProjectPreviewCard
+                preview={previewProject}
+                onJoin={() => setShowJoinModal(true)}
+                onCancel={() => {
+                  setPreviewProject(null)
+                  setJoinCodeInput('')
+                }}
+              />
+            ) : (
+              <Surface variant={accessibleProjectIds.length === 0 ? 'muted' : 'raised'} padding="lg" className="rounded-[30px]">
+                {accessibleProjectIds.length === 0 && (
+                  <EmptyState
+                    icon="workspaces"
+                    title="Join a Project"
+                    description="Enter a project code or paste an invite link to get started."
                   />
-                )
-              })}
-            </div>
+                )}
+                
+                <div className={cn('mx-auto max-w-sm space-y-4 flex flex-col', accessibleProjectIds.length === 0 ? 'mt-8' : 'mt-2')}>
+                  <input
+                    value={joinCodeInput}
+                    onChange={e => setJoinCodeInput(e.target.value.toUpperCase())}
+                    placeholder="Enter project code or link"
+                    className="project-modal-input text-center text-lg tracking-widest uppercase disabled:opacity-50 font-medium"
+                    disabled={isVerifyingCode}
+                    autoFocus={accessibleProjectIds.length === 0}
+                  />
+                  <button
+                    onClick={() => verifyProjectCode(joinCodeInput)}
+                    disabled={isVerifyingCode || joinCodeInput.trim().length < 3}
+                    className="btn-primary w-full h-12 text-base"
+                  >
+                    {isVerifyingCode ? <span className="ui-spinner" /> : null}
+                    {isVerifyingCode ? 'Verifying...' : 'Next'}
+                  </button>
+                </div>
+              </Surface>
+            )}
           </section>
-        </>
+        </div>
       )}
 
       {showCreateModal && (
@@ -510,40 +600,46 @@ export function ProjectsView() {
         </ModalShell>
       )}
 
-      {selectedProject && (
-        <ModalShell title={`Request access to ${selectedProject.name}`} onClose={() => setSelectedProjectId(null)}>
+      {showJoinModal && previewProject && (
+        <ModalShell title={`Join ${previewProject.name}`} onClose={() => setShowJoinModal(false)}>
           <div className="space-y-5">
             <div className="rounded-[24px] bg-zinc-50 px-5 py-4 text-sm text-zinc-500 dark:bg-zinc-900 dark:text-zinc-400">
-              <p className="font-semibold text-zinc-900 dark:text-white">{selectedProject.name}</p>
-              <p className="mt-2">{selectedProject.location} - {selectedProject.status}</p>
+              <p className="font-semibold text-zinc-900 dark:text-white">{previewProject.name}</p>
+              <p className="mt-2">{previewProject.location} - {previewProject.status}</p>
             </div>
 
             <label className="auth-field">
-              <span className="auth-field-label">Requested Role</span>
-              <select value={requestedRole} onChange={event => setRequestedRole(event.target.value as ProjectRequestedRole)} className="project-modal-select">
-                {joinRoleOptions.map(role => (
-                  <option key={role} value={role}>{role}</option>
+              <span className="auth-field-label">Department</span>
+              <select 
+                value={joinDepartment} 
+                onChange={event => {
+                  const dept = event.target.value as ProjectDepartment
+                  setJoinDepartment(dept)
+                  setJoinRole(getRoleOptionsForDepartment(dept)[0].id)
+                }} 
+                className="project-modal-select"
+              >
+                {DEPARTMENTS.map(dept => (
+                  <option key={dept.id} value={dept.id}>{dept.label}</option>
                 ))}
               </select>
             </label>
 
             <label className="auth-field">
-              <span className="auth-field-label">Message</span>
-              <textarea
-                value={requestMessage}
-                onChange={event => setRequestMessage(event.target.value)}
-                className="project-modal-textarea"
-                rows={4}
-                placeholder="Add a short note for the producer or project owner."
-              />
+              <span className="auth-field-label">Role</span>
+              <select value={joinRole} onChange={event => setJoinRole(event.target.value as ProjectRequestedRole)} className="project-modal-select">
+                {joinRoleOptions.map(role => (
+                  <option key={role} value={role}>{role}</option>
+                ))}
+              </select>
             </label>
           </div>
 
           <div className="mt-8 flex flex-wrap gap-3">
-            <button onClick={() => setSelectedProjectId(null)} className="clay-ghost-button" disabled={projectAction === 'project-join-request'}>Cancel</button>
-            <button onClick={submitJoinRequest} className="clay-primary-button" disabled={projectAction === 'project-join-request'}>
-              {projectAction === 'project-join-request' ? <span className="ui-spinner" /> : null}
-              {projectAction === 'project-join-request' ? 'Sending Request...' : 'Send Request'}
+            <button onClick={() => setShowJoinModal(false)} className="clay-ghost-button" disabled={projectAction === 'project-join'}>Cancel</button>
+            <button onClick={performJoin} className="clay-primary-button" disabled={projectAction === 'project-join'}>
+              {projectAction === 'project-join' ? <span className="ui-spinner" /> : null}
+              {projectAction === 'project-join' ? 'Joining...' : 'Confirm Join'}
             </button>
           </div>
         </ModalShell>
@@ -701,5 +797,52 @@ function ModalShell({ title, children, onClose }: { title: string; children: Rea
         <div className="mt-6">{children}</div>
       </div>
     </div>
+  )
+}
+
+function ProjectPreviewCard({
+  preview,
+  onJoin,
+  onCancel,
+}: {
+  preview: ProjectPreview
+  onJoin: () => void
+  onCancel: () => void
+}) {
+  return (
+    <Surface variant="raised" className="rounded-[30px] max-md:rounded-[24px] max-md:p-4">
+      <div className="flex flex-wrap items-start justify-between gap-4 max-md:gap-2">
+        <div>
+          <div className={cn('inline-flex rounded-full px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] max-md:text-[9px] max-md:px-2 max-md:py-0.5', statusTone[preview.status])}>
+            {preview.status}
+          </div>
+          <h3 className="mt-4 text-2xl font-semibold tracking-[-0.04em] text-zinc-900 dark:text-white max-md:mt-3 max-md:text-[18px] max-md:leading-tight">{preview.name}</h3>
+          <p className="mt-2 text-sm text-zinc-500 dark:text-zinc-400 max-md:mt-1 max-md:text-xs">Location: {preview.location}</p>
+        </div>
+      </div>
+
+      <div className="mt-6 grid gap-4 sm:grid-cols-2 max-md:mt-5 max-md:gap-2">
+        <MetricTile label="Active crew" value={`${preview.activeCrew}`} icon={<Users className="h-4 w-4 max-md:h-3 max-md:w-3" />} />
+        <MetricTile label="Progress" value={`${preview.progressPercent}%`} icon={<CheckCircle2 className="h-4 w-4 max-md:h-3 max-md:w-3" />} />
+      </div>
+
+      <div className="mt-6 flex flex-wrap gap-2 text-sm text-zinc-500 dark:text-zinc-400 max-md:mt-5 max-md:gap-1.5">
+        {preview.enabledDepartments.map(department => (
+          <span key={department} className="rounded-full bg-zinc-100 px-3 py-1.5 dark:bg-white/6 max-md:px-2 max-md:py-1 max-md:text-[10px]">{department}</span>
+        ))}
+      </div>
+
+      <div className="mt-8 flex flex-wrap items-center gap-3 max-md:mt-5 max-md:gap-2">
+        <button onClick={onCancel} className="btn-soft max-md:flex-1 max-md:h-10 max-md:text-xs">
+          Cancel
+        </button>
+        <button onClick={onJoin} className="btn-primary max-md:flex-1 max-md:h-10 max-md:text-xs">
+          Join Project
+        </button>
+        <span className="text-xs font-semibold uppercase tracking-[0.18em] text-zinc-500 dark:text-zinc-400 max-md:w-full max-md:text-center max-md:text-[9px] max-md:mt-2">
+          {formatDate(preview.startDate)} - {formatDate(preview.endDate)}
+        </span>
+      </div>
+    </Surface>
   )
 }

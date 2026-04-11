@@ -1,4 +1,5 @@
 import { Router } from 'express'
+import crypto from 'crypto'
 import { z } from 'zod'
 import { adminClient } from '../../config/supabaseClient'
 import { authMiddleware } from '../../middleware/auth.middleware'
@@ -83,6 +84,16 @@ const reviewJoinRequestSchema = z.object({
   status: z.enum(['approved', 'rejected']),
   reviewNote: z.string().trim().max(500).optional(),
 })
+
+const joinProjectSchema = z.object({
+  codeOrToken: z.string().trim().min(3),
+  roleRequested: frontendProjectRoleSchema,
+  department: z.enum(['camera', 'art', 'transport', 'production', 'wardrobe', 'post']),
+})
+
+function generateProjectCode() {
+  return crypto.randomBytes(4).toString('hex').toUpperCase().substring(0, 8)
+}
 
 const frontendProjectStatusToDb = {
   'pre-production': 'pre_production',
@@ -472,6 +483,7 @@ async function listRelevantJoinRequests(userId: string) {
     userName: userNamesById.get(row.user_id) ?? 'ProdSync User',
     projectId: row.project_id,
     projectName: projectsById.get(row.project_id)?.name ?? 'Project',
+    projectDetails: projectsById.get(row.project_id) ?? null,
     roleRequested: formatProjectRole(row.role_requested),
     status: row.status,
     message: row.message ?? undefined,
@@ -494,13 +506,166 @@ projectsRouter.get(
 )
 
 projectsRouter.get(
-  '/discover',
+  '/preview/:codeOrToken',
   authMiddleware,
-  asyncHandler(async (_req, res) => {
-    console.log('[projects][discover] route hit')
-    const projects = await listDiscoverableProjects()
-    console.log('[projects][discover] db result', { count: projects.length })
-    res.json({ projects })
+  asyncHandler(async (req, res) => {
+    const codeOrToken = req.params.codeOrToken ?? ''
+    
+    const { data: projectRow, error } = await adminClient
+      .from('projects')
+      .select('id, name, location, status, start_date, end_date')
+      .eq('is_archived', false)
+      .eq('invite_enabled', true)
+      .or(`project_code.eq.${codeOrToken},invite_token.eq.${codeOrToken}`)
+      .maybeSingle()
+
+    if (error || !projectRow) {
+      throw new HttpError(404, 'Invalid or expired project code / link')
+    }
+
+    const [{ data: departmentRows }, { data: crewCountRows }, progress] = await Promise.all([
+      adminClient.from('project_departments').select('department').eq('project_id', projectRow.id).eq('enabled', true),
+      adminClient.from('project_summary').select('active_crew_count').eq('project_id', projectRow.id),
+      getProjectProgressSnapshot(projectRow.id),
+    ])
+
+    const departments = (departmentRows ?? []).map(row => row.department)
+    const activeCrew = Number(crewCountRows?.[0]?.active_crew_count ?? 0)
+
+    res.json({
+      project: {
+        id: projectRow.id, // We expose ID so the frontend can check if they are already members
+        name: projectRow.name,
+        location: projectRow.location ?? 'Location pending',
+        status: dbProjectStatusToFrontend[projectRow.status] ?? 'pre-production',
+        startDate: projectRow.start_date ?? '',
+        endDate: projectRow.end_date ?? '',
+        enabledDepartments: departments,
+        activeCrew,
+        progressPercent: progress.progress,
+      }
+    })
+  }),
+)
+
+projectsRouter.post(
+  '/join',
+  authMiddleware,
+  asyncHandler(async (req, res) => {
+    const payload = joinProjectSchema.parse(req.body)
+    const userId = req.authUser?.id
+
+    if (!userId) {
+      throw new HttpError(401, 'Authenticated user context is missing.')
+    }
+
+    const { data: projectRow, error } = await adminClient
+      .from('projects')
+      .select('id')
+      .eq('is_archived', false)
+      .eq('invite_enabled', true)
+      .or(`project_code.eq.${payload.codeOrToken},invite_token.eq.${payload.codeOrToken}`)
+      .maybeSingle()
+
+    if (error || !projectRow) {
+      throw new HttpError(404, 'Invalid or expired project code / link')
+    }
+
+    const projectId = projectRow.id
+    const access = await getProjectAccess(projectId, userId)
+    
+    // Check membership explicitly (though DB unique constraint also prevents it)
+    if (access.isMember || access.isOwner) {
+      const project = await getProjectPayload(projectId)
+      return res.json({ project })
+    }
+
+    const dbRole = frontendRoleToDbRole[payload.roleRequested as FrontendProjectRole]
+    const accessRole = frontendRoleToAccessRole[payload.roleRequested as FrontendProjectRole]
+
+    const { error: insertError } = await adminClient
+      .from('project_join_requests')
+      .insert({
+        user_id: userId,
+        project_id: projectId,
+        department: payload.department,
+        role_requested: dbRole,
+        access_role_requested: accessRole,
+        status: 'pending',
+      })
+
+    if (insertError) {
+      if (insertError.code === '23505') { // unique violation
+        const project = await getProjectPayload(projectId)
+        return res.json({ project, joinStatus: 'pending' })
+      }
+      throw insertError ?? new Error('Failed to request to join project.')
+    }
+
+    const project = await getProjectPayload(projectId)
+    res.json({ project, joinStatus: 'pending' })
+  }),
+)
+
+projectsRouter.get(
+  '/:projectId/invite-info',
+  authMiddleware,
+  projectAccessMiddleware,
+  asyncHandler(async (req, res) => {
+    const projectId = req.params.projectId ?? ''
+    const access = await getProjectAccess(projectId, req.authUser?.id ?? '')
+    
+    if (!access.isMember && !access.isOwner) {
+      throw new HttpError(403, 'Access denied.')
+    }
+
+    const { data: projectRow, error } = await adminClient
+      .from('projects')
+      .select('id, name, invite_token, project_code, invite_enabled')
+      .eq('id', projectId)
+      .maybeSingle()
+
+    if (error || !projectRow) {
+      throw new HttpError(404, 'Project not found.')
+    }
+
+    // Backfill if missing
+    let { invite_token, project_code } = projectRow as { invite_token: string | null; project_code: string | null }
+
+    if (!invite_token || !project_code) {
+      let code = generateProjectCode()
+      let attempts = 0
+      let unique = false
+      while (!unique && attempts < 5) {
+        const { data: existing } = await adminClient.from('projects').select('id').eq('project_code', code).maybeSingle()
+        if (!existing) unique = true
+        else { code = generateProjectCode(); attempts++ }
+      }
+
+      const updates: Record<string, string> = {}
+      if (!invite_token) updates.invite_token = crypto.randomUUID()
+      if (!project_code) updates.project_code = code
+
+      const { data: updated } = await adminClient
+        .from('projects')
+        .update(updates)
+        .eq('id', projectId)
+        .select('invite_token, project_code')
+        .single()
+
+      if (updated) {
+        invite_token = (updated as { invite_token: string }).invite_token
+        project_code = (updated as { project_code: string }).project_code
+      }
+    }
+
+    const baseUrl = process.env.FRONTEND_URL ?? 'https://app.prodsync.com'
+    res.json({
+      inviteToken: invite_token,
+      projectCode: project_code,
+      inviteEnabled: (projectRow as { invite_enabled: boolean }).invite_enabled,
+      inviteLink: `${baseUrl}/join/${invite_token}`,
+    })
   }),
 )
 
@@ -615,6 +780,23 @@ projectsRouter.post(
       throw new HttpError(401, 'Authenticated user context is missing.')
     }
 
+    let projectCode = generateProjectCode()
+    let isUnique = false
+    let attempts = 0
+    while (!isUnique && attempts < 5) {
+      const { data } = await adminClient.from('projects').select('id').eq('project_code', projectCode).maybeSingle()
+      if (!data) {
+        isUnique = true
+      } else {
+        projectCode = generateProjectCode()
+        attempts++
+      }
+    }
+    
+    if (!isUnique) {
+      throw new HttpError(500, 'Could not generate a unique project code.')
+    }
+
     const { data: insertedProject, error: insertError } = await adminClient
       .from('projects')
       .insert({
@@ -627,6 +809,8 @@ projectsRouter.post(
         progress_percent: 0,
         start_date: payload.startDate || null,
         end_date: payload.endDate || null,
+        invite_token: crypto.randomUUID(),
+        project_code: projectCode,
       })
       .select('id')
       .single()

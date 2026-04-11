@@ -95,6 +95,7 @@ export interface ProjectJoinRequest {
   userId: string
   userName: string
   projectId: string
+  projectDetails?: ProjectRecord | null
   roleRequested: ProjectRequestedRole
   status: 'pending' | 'approved' | 'rejected'
   message?: string

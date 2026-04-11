@@ -15,6 +15,7 @@ import { WardrobeView } from '@/modules/wardrobe/views/WardrobeView'
 import { ApprovalsView } from '@/modules/approvals/views/ApprovalsView'
 import { ReportsView } from '@/modules/reports/views/ReportsView'
 import { SettingsView } from '@/modules/settings/views/SettingsView'
+import { JoinRedirect } from '@/modules/projects/views/JoinRedirect'
 
 export function AppRouter() {
   return (
@@ -39,6 +40,7 @@ export function AppRouter() {
           <Route path="/approvals" element={<RouteAccessGuard routeId="approvals"><ApprovalsView /></RouteAccessGuard>} />
           <Route path="/reports" element={<RouteAccessGuard routeId="reports"><ReportsView /></RouteAccessGuard>} />
           <Route path="/settings" element={<RouteAccessGuard routeId="settings"><SettingsView /></RouteAccessGuard>} />
+          <Route path="/join/:token" element={<JoinRedirect />} />
         </Route>
       </Route>
 

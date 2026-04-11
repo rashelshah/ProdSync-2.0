@@ -84,9 +84,7 @@ function normalizeAuthProvider(rawProvider?: string | null, sessionProvider?: Se
 }
 
 function hasOnboardingMetadata(profileMetadata: Record<string, unknown>) {
-  const departmentId = typeof profileMetadata.department_id === 'string' ? profileMetadata.department_id.trim() : ''
-  const projectRoleTitle = typeof profileMetadata.project_role_title === 'string' ? profileMetadata.project_role_title.trim() : ''
-  return Boolean(departmentId && projectRoleTitle)
+  return true
 }
 
 function mapAuthenticatedUser(authUser: User, row: UserProfileRow): AuthenticatedUserContext {

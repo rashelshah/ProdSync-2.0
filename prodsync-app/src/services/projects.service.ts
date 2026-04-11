@@ -34,8 +34,23 @@ interface ProjectsResponse {
   projects: AccessibleProjectRow[]
 }
 
-interface DiscoverableProjectsResponse {
-  projects: BackendProject[]
+export interface ProjectPreview {
+  id: string
+  name: string
+  location: string
+  status: ProjectRecord['status']
+  startDate: string
+  endDate: string
+  enabledDepartments: ProjectDepartment[]
+  activeCrew: number
+  progressPercent: number
+}
+
+export interface ProjectInviteInfo {
+  inviteToken: string
+  projectCode: string
+  inviteEnabled: boolean
+  inviteLink: string
 }
 
 interface JoinRequestsResponse {
@@ -113,13 +128,30 @@ export const projectsService = {
     return { projects, projectMembers }
   },
 
-  async getDiscoverableProjects() {
-    console.log('[projectsService] fetching discoverable projects')
-    const response = await apiFetch('/projects/discover')
-    const payload = await readApiJson<DiscoverableProjectsResponse>(response)
-    const projects = (payload.projects ?? []).map(toProjectRecord)
-    console.log('[projectsService] discoverable projects loaded', { count: projects.length })
-    return projects
+  async previewProject(codeOrToken: string) {
+    console.log('[projectsService] fetching project preview', { codeOrToken })
+    const response = await apiFetch(`/projects/preview/${encodeURIComponent(codeOrToken)}`)
+    const payload = await readApiJson<{ project: ProjectPreview }>(response)
+    return payload.project
+  },
+
+  async joinProject(codeOrToken: string, roleRequested: ProjectRequestedRole, department: ProjectDepartment, message?: string) {
+    console.log('[projectsService] joining project', { codeOrToken, roleRequested, department })
+    const response = await apiFetch(`/projects/join`, {
+      method: 'POST',
+      body: JSON.stringify({ codeOrToken, roleRequested, department, message }),
+    })
+    const payload = await readApiJson<{ project: BackendProject | null; joinStatus?: string }>(response)
+    return {
+      project: payload.project ? toProjectRecord(payload.project) : null,
+      joinStatus: payload.joinStatus ?? 'active',
+    }
+  },
+
+  async getProjectInviteInfo(projectId: string) {
+    console.log('[projectsService] fetching invite info', { projectId })
+    const response = await apiFetch(`/projects/${encodeURIComponent(projectId)}/invite-info`)
+    return readApiJson<ProjectInviteInfo>(response)
   },
 
   async getJoinRequests() {

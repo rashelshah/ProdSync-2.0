@@ -39,8 +39,19 @@ import {
 import { showError, showInfo, showLoading, showSuccess } from '@/lib/toast'
 import type { ProjectDepartment, ProjectRequestedRole, User } from '@/types'
 
+import {
+  getThemeVars,
+  surfaceStyle,
+  insetStyle,
+  primaryButtonStyle,
+  secondaryButtonStyle,
+  StageFrame,
+  Field,
+  PasswordField,
+} from '@/features/auth/components/AuthUI'
+
 type AuthMode = 'signin' | 'signup'
-type SignupStep = 'identity' | 'department' | 'role' | 'permissions' | 'confirmation'
+type SignupStep = 'identity' | 'confirmation'
 
 interface PasswordChecks {
   minLength: boolean
@@ -49,7 +60,8 @@ interface PasswordChecks {
   special: boolean
 }
 
-const stageSteps: SignupStep[] = ['identity', 'department', 'role', 'permissions', 'confirmation']
+// For regular email signup we only show 2 step-dots (identity + confirmation)
+const regularStageSteps: SignupStep[] = ['identity', 'confirmation']
 const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
 const departmentIcons: Record<ProjectDepartment, LucideIcon> = {
@@ -89,7 +101,7 @@ const localStyles = `
 .authfx-grid{display:grid;gap:16px}
 .authfx-grid-3{grid-template-columns:repeat(3,minmax(0,1fr))}
 .authfx-grid-2{grid-template-columns:repeat(2,minmax(0,1fr))}
-.authfx-summary{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
+.authfx-summary{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
 .authfx-meter{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}
 .authfx-meter span{height:8px;border-radius:999px;background:rgba(160,160,170,.24);transition:background .24s ease,transform .24s ease}
 .authfx-meter span.is-on{background:linear-gradient(90deg,#ff8a5f 0%,#ff6a3d 100%);transform:scaleY(1.08)}
@@ -101,96 +113,11 @@ const localStyles = `
 @keyframes authfx-enter{from{opacity:0;transform:translateY(18px) scale(.985)}to{opacity:1;transform:translateY(0) scale(1)}}
 `
 
-function getThemeVars(isDark: boolean): CSSProperties {
-  return {
-    '--auth-bg': isDark
-      ? 'radial-gradient(circle at top, rgba(79,70,229,0.16), transparent 28%), radial-gradient(circle at left, rgba(168,85,247,0.14), transparent 24%), radial-gradient(circle at right, rgba(255,106,61,0.16), transparent 26%), #08070b'
-      : 'linear-gradient(180deg, #f9f7f3 0%, #ffffff 35%, #f4f1ed 100%)',
-    '--auth-text': isDark ? '#ffffff' : '#161616',
-    '--auth-muted': isDark ? 'rgba(255,255,255,0.7)' : '#777780',
-    '--auth-soft': isDark ? 'rgba(255,255,255,0.48)' : '#ababaf',
-    '--stage-bg': isDark
-      ? 'linear-gradient(180deg, rgba(19,19,24,0.92) 0%, rgba(9,9,12,0.96) 100%)'
-      : 'linear-gradient(180deg, rgba(255,255,255,0.96) 0%, rgba(248,244,239,0.98) 100%)',
-    '--stage-border': isDark ? 'rgba(255,255,255,0.08)' : 'rgba(255,255,255,0.86)',
-    '--stage-shadow': isDark
-      ? '0 30px 64px rgba(0,0,0,0.42), inset 0 1px 1px rgba(255,255,255,0.05)'
-      : '0 26px 60px rgba(222,214,205,0.42), inset 0 1px 1px rgba(255,255,255,0.95)',
-    '--card-bg': isDark
-      ? 'linear-gradient(180deg, rgba(22,22,28,0.88) 0%, rgba(12,12,16,0.94) 100%)'
-      : 'linear-gradient(180deg, rgba(255,255,255,0.9) 0%, rgba(248,244,239,0.96) 100%)',
-    '--card-shadow': isDark
-      ? '0 18px 34px rgba(0,0,0,0.3), inset 0 1px 1px rgba(255,255,255,0.04)'
-      : '0 18px 34px rgba(220,213,205,0.28), inset 0 1px 1px rgba(255,255,255,0.92)',
-    '--inset-bg': isDark ? 'rgba(255,255,255,0.06)' : 'rgba(244,244,245,0.8)',
-    '--inset-shadow': isDark
-      ? 'inset 0 0 0 1px rgba(255,255,255,0.1), inset 0 2px 4px rgba(0,0,0,0.2)'
-      : 'inset 0 0 0 1px rgba(0,0,0,0.06), inset 0 2px 4px rgba(0,0,0,0.04)',
-  } as CSSProperties
-}
-
-function surfaceStyle(isDark: boolean): CSSProperties {
-  return {
-    background: 'var(--card-bg)',
-    border: isDark ? '1px solid rgba(255,255,255,0.08)' : '1px solid rgba(255,255,255,0.8)',
-    boxShadow: 'var(--card-shadow)',
-  }
-}
-
-function insetStyle(): CSSProperties {
-  return {
-    background: 'var(--inset-bg)',
-    boxShadow: 'var(--inset-shadow)',
-  }
-}
-
-function primaryButtonStyle(disabled = false): CSSProperties {
-  return {
-    minHeight: '50px',
-    padding: '0 22px',
-    borderRadius: '999px',
-    border: 0,
-    fontSize: '0.94rem',
-    fontWeight: 700,
-    color: '#111111',
-    background: 'linear-gradient(180deg, #ff8c60 0%, #ff6a3d 100%)',
-    boxShadow: '0 16px 26px rgba(255,106,61,0.22), inset 0 1px 1px rgba(255,255,255,0.42)',
-    cursor: disabled ? 'not-allowed' : 'pointer',
-    opacity: disabled ? 0.72 : 1,
-    display: 'inline-flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: '10px',
-  }
-}
-
-function secondaryButtonStyle(isDark: boolean, disabled = false): CSSProperties {
-  return {
-    minHeight: '48px',
-    padding: '0 20px',
-    borderRadius: '999px',
-    border: 0,
-    fontSize: '0.92rem',
-    fontWeight: 700,
-    color: isDark ? '#ffffff' : '#171717',
-    background: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(255,255,255,0.74)',
-    boxShadow: isDark
-      ? '0 16px 28px rgba(0,0,0,0.24), inset 0 1px 1px rgba(255,255,255,0.05)'
-      : '0 16px 28px rgba(220,213,205,0.22), inset 0 1px 1px rgba(255,255,255,0.92)',
-    cursor: disabled ? 'not-allowed' : 'pointer',
-    opacity: disabled ? 0.72 : 1,
-    display: 'inline-flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: '10px',
-  }
-}
-
 function getPasswordChecks(password: string): PasswordChecks {
   return {
     minLength: password.length >= 8,
     uppercase: /[A-Z]/.test(password),
-    number: /\d/.test(password),
+    number: /\\d/.test(password),
     special: /[^A-Za-z0-9]/.test(password),
   }
 }
@@ -202,101 +129,6 @@ function getPasswordStrength(password: string) {
   if (score === 2) return { score, label: 'Fair' }
   if (score === 3) return { score, label: 'Good' }
   return { score, label: 'Strong' }
-}
-
-function StageFrame({ width, panelKey, children }: { width: string; panelKey: string; children: ReactNode }) {
-  return (
-    <div className="authfx-stage" style={{ '--stage-width': width } as CSSProperties}>
-      <div key={panelKey} className="authfx-panel" style={{ borderRadius: '28px', padding: '14px' }}>
-        {children}
-      </div>
-    </div>
-  )
-}
-
-function RequiredLabel({ children }: { children: ReactNode }) {
-  return (
-    <span style={{ paddingLeft: '6px', fontSize: '0.73rem', fontWeight: 700, letterSpacing: '0.2em', textTransform: 'uppercase', color: 'var(--auth-muted)' }}>
-      {children}
-      <span style={{ color: '#ff6a3d', marginLeft: '6px' }}>*</span>
-    </span>
-  )
-}
-
-function Field({
-  label,
-  icon: Icon,
-  placeholder,
-  value,
-  onChange,
-  type = 'text',
-  required = false,
-}: {
-  label: string
-  icon: LucideIcon
-  placeholder: string
-  value: string
-  onChange: (value: string) => void
-  type?: 'text' | 'email' | 'tel'
-  required?: boolean
-}) {
-  return (
-    <label style={{ display: 'grid', gap: '10px' }}>
-      {required ? <RequiredLabel>{label}</RequiredLabel> : <span style={{ paddingLeft: '6px', fontSize: '0.73rem', fontWeight: 700, letterSpacing: '0.2em', textTransform: 'uppercase', color: 'var(--auth-muted)' }}>{label}</span>}
-      <span style={{ minHeight: '58px', borderRadius: '22px', display: 'flex', alignItems: 'center', gap: '12px', padding: '0 18px', ...insetStyle() }}>
-        <Icon size={18} style={{ color: 'var(--auth-soft)', flexShrink: 0 }} />
-        <input
-          value={value}
-          onChange={event => onChange(event.target.value)}
-          type={type}
-          placeholder={placeholder}
-          style={{ width: '100%', border: 0, outline: 0, background: 'transparent', color: 'var(--auth-text)', fontSize: '0.98rem' }}
-        />
-      </span>
-    </label>
-  )
-}
-
-function PasswordField({
-  label,
-  value,
-  onChange,
-  visible,
-  onToggleVisibility,
-  placeholder,
-  required = false,
-}: {
-  label: string
-  value: string
-  onChange: (value: string) => void
-  visible: boolean
-  onToggleVisibility: () => void
-  placeholder: string
-  required?: boolean
-}) {
-  return (
-    <label style={{ display: 'grid', gap: '10px' }}>
-      {required ? <RequiredLabel>{label}</RequiredLabel> : <span style={{ paddingLeft: '6px', fontSize: '0.73rem', fontWeight: 700, letterSpacing: '0.2em', textTransform: 'uppercase', color: 'var(--auth-muted)' }}>{label}</span>}
-      <span style={{ minHeight: '58px', borderRadius: '22px', display: 'flex', alignItems: 'center', gap: '12px', padding: '0 12px 0 18px', ...insetStyle() }}>
-        <KeyRound size={18} style={{ color: 'var(--auth-soft)', flexShrink: 0 }} />
-        <input
-          value={value}
-          onChange={event => onChange(event.target.value)}
-          type={visible ? 'text' : 'password'}
-          placeholder={placeholder}
-          style={{ width: '100%', border: 0, outline: 0, background: 'transparent', color: 'var(--auth-text)', fontSize: '0.98rem' }}
-        />
-        <button
-          type="button"
-          onClick={onToggleVisibility}
-          aria-label={visible ? 'Hide password' : 'Show password'}
-          style={{ width: '40px', height: '40px', border: 0, borderRadius: '999px', background: 'transparent', color: 'var(--auth-soft)', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}
-        >
-          {visible ? <EyeOff size={18} /> : <Eye size={18} />}
-        </button>
-      </span>
-    </label>
-  )
 }
 
 export function AuthPage() {
@@ -346,7 +178,7 @@ export function AuthPage() {
     }
 
     setMode('signup')
-    setSignupStep(current => (current === 'identity' ? 'department' : current))
+    setSignupStep('identity')
     setFullName(current => current || user.name)
     setEmail(current => current || user.email || '')
     setDepartmentId(user.departmentId ?? 'production')
@@ -411,10 +243,7 @@ export function AuthPage() {
   function handleBack() {
     resetMessages()
     setAuthAction(null)
-    if (signupStep === 'department' && !isGoogleOnboarding) setSignupStep('identity')
-    if (signupStep === 'role') setSignupStep('department')
-    if (signupStep === 'permissions') setSignupStep('role')
-    if (signupStep === 'confirmation') setSignupStep('permissions')
+    if (signupStep === 'confirmation') setSignupStep('identity')
   }
 
   async function handleSignIn(event: FormEvent<HTMLFormElement>) {
@@ -497,7 +326,12 @@ export function AuthPage() {
       return
     }
 
-    setSignupStep('department')
+    // For regular signup: skip department/role/permissions steps, register immediately
+    if (!isGoogleOnboarding) {
+      void completeSignup()
+    } else {
+      setSignupStep('confirmation')
+    }
   }
 
   async function completeSignup() {
@@ -535,7 +369,7 @@ export function AuthPage() {
             ? 'An account with this phone number already exists.'
             : (result.message ?? 'Account creation could not be completed.'),
       )
-      setSignupStep(isGoogleOnboarding ? 'department' : 'identity')
+      setSignupStep('identity')
       return
     }
 
@@ -734,136 +568,12 @@ export function AuthPage() {
 
               {error ? <Notice tone="error">{error}</Notice> : null}
 
-              <button type="submit" style={primaryButtonStyle()}>
-                Continue Setup
-                <ArrowRight size={18} />
+              <button type="submit" disabled={authAction === 'signup'} style={primaryButtonStyle(authAction === 'signup')}>
+                {authAction === 'signup' ? <span className="ui-spinner" /> : null}
+                {authAction === 'signup' ? (isGoogleOnboarding ? 'Continue Setup...' : 'Creating Account...') : (isGoogleOnboarding ? 'Continue Setup' : 'Create Account')}
+                {authAction !== 'signup' ? <ArrowRight size={18} /> : null}
               </button>
             </form>
-          </StageFrame>
-        ) : signupStep === 'department' ? (
-          <StageFrame width="810px" panelKey={stepKey}>
-            <StepDots currentStep={signupStep} />
-            <div style={{ marginBottom: '20px' }}>
-              <div style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', padding: '8px 14px', borderRadius: '999px', background: 'rgba(255,106,61,0.12)', color: '#cf4c23', fontSize: '0.72rem', fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase', marginBottom: '14px' }}>Step 02 • Department</div>
-              <h1 style={sectionTitleStyle}>Choose Your Department</h1>
-              <p style={copyStyle}>
-                {isGoogleOnboarding
-                  ? 'Your Google login is already connected. Choose your department to continue the existing onboarding flow from step 2.'
-                  : 'Select your primary department group. The next step will only show roles relevant to that department.'}
-              </p>
-            </div>
-            {isGoogleOnboarding && user ? (
-              <div style={{ display: 'grid', gap: '12px', marginBottom: '20px', borderRadius: '24px', padding: '18px 20px', ...surfaceStyle(isDark) }}>
-                <div style={{ fontSize: '0.78rem', fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase', color: 'var(--auth-muted)' }}>Google Account</div>
-                <div className="authfx-grid authfx-grid-2">
-                  <div style={{ borderRadius: '20px', padding: '14px 16px', ...insetStyle() }}>
-                    <div style={{ fontSize: '0.76rem', fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase', color: 'var(--auth-muted)' }}>Name</div>
-                    <div style={{ marginTop: '8px', fontSize: '1rem', fontWeight: 700 }}>{user.name}</div>
-                  </div>
-                  <div style={{ borderRadius: '20px', padding: '14px 16px', ...insetStyle() }}>
-                    <div style={{ fontSize: '0.76rem', fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase', color: 'var(--auth-muted)' }}>Email (Locked)</div>
-                    <div style={{ marginTop: '8px', fontSize: '1rem', fontWeight: 700 }}>{user.email ?? 'Google account email'}</div>
-                  </div>
-                </div>
-              </div>
-            ) : null}
-            <div className="authfx-grid authfx-grid-3">
-              {DEPARTMENT_OPTIONS.map(option => {
-                const Icon = departmentIcons[option.id]
-                const selected = departmentId === option.id
-                return (
-                  <button key={option.id} type="button" onClick={() => setDepartmentId(option.id)} style={{ position: 'relative', borderRadius: '26px', padding: '18px 16px', textAlign: 'left', cursor: 'pointer', transform: selected ? 'translateY(-2px)' : 'none', ...surfaceStyle(isDark), boxShadow: selected ? '0 16px 28px rgba(255,106,61,0.12), var(--card-shadow)' : 'var(--card-shadow)', border: selected ? '1px solid rgba(255,106,61,0.3)' : isDark ? '1px solid rgba(255,255,255,0.08)' : '1px solid rgba(255,255,255,0.8)' }}>
-                    <span style={{ width: '48px', height: '48px', borderRadius: '16px', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', color: '#c94d23', marginBottom: '16px', ...surfaceStyle(isDark) }}>
-                      <Icon size={21} />
-                    </span>
-                    <div style={{ fontSize: '0.98rem', fontWeight: 700, letterSpacing: '-0.02em', lineHeight: 1.35 }}>{option.label}</div>
-                    <div style={{ marginTop: '8px', fontSize: '0.86rem', lineHeight: 1.62, color: 'var(--auth-muted)' }}>{option.description}</div>
-                    {selected ? <span style={{ position: 'absolute', right: '18px', bottom: '18px', color: '#ff6a3d' }}><CheckCircle2 size={18} /></span> : null}
-                  </button>
-                )
-              })}
-            </div>
-
-            <StepFooter
-              isDark={isDark}
-              onBack={handleBack}
-              backLabel="Back to Account"
-              showBack={!isGoogleOnboarding}
-              onNext={() => { resetMessages(); setSignupStep('role') }}
-              note="This selection controls which role options appear next."
-            />
-          </StageFrame>
-        ) : signupStep === 'role' ? (
-          <StageFrame width="810px" panelKey={stepKey}>
-            <StepDots currentStep={signupStep} />
-            <div style={{ marginBottom: '20px' }}>
-              <div style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', padding: '8px 14px', borderRadius: '999px', background: 'rgba(255,106,61,0.12)', color: '#cf4c23', fontSize: '0.72rem', fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase', marginBottom: '14px' }}>Step 03 • Role</div>
-              <h1 style={sectionTitleStyle}>Select Your Role</h1>
-              <p style={copyStyle}>Only roles mapped to {selectedDepartment.label.toLowerCase()} are shown here.</p>
-            </div>
-
-            <div className="authfx-grid authfx-grid-3">
-              {roleOptions.map(option => {
-                const Icon = roleIcons[option.id] ?? ShieldCheck
-                const selected = projectRoleTitle === option.id
-                return (
-                  <button key={option.id} type="button" onClick={() => setProjectRoleTitle(option.id)} style={{ position: 'relative', borderRadius: '26px', padding: '18px 16px', textAlign: 'left', cursor: 'pointer', transform: selected ? 'translateY(-2px)' : 'none', ...surfaceStyle(isDark), boxShadow: selected ? '0 16px 28px rgba(255,106,61,0.12), var(--card-shadow)' : 'var(--card-shadow)', border: selected ? '1px solid rgba(255,106,61,0.3)' : isDark ? '1px solid rgba(255,255,255,0.08)' : '1px solid rgba(255,255,255,0.8)' }}>
-                    <span style={{ width: '48px', height: '48px', borderRadius: '16px', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', color: '#c94d23', marginBottom: '16px', ...surfaceStyle(isDark) }}>
-                      <Icon size={21} />
-                    </span>
-                    <div style={{ fontSize: '0.98rem', fontWeight: 700, letterSpacing: '-0.02em', lineHeight: 1.35 }}>{option.label}</div>
-                    <div style={{ marginTop: '8px', fontSize: '0.86rem', lineHeight: 1.62, color: 'var(--auth-muted)' }}>{option.description}</div>
-                    <div style={{ marginTop: '16px', fontSize: '0.82rem', fontWeight: 700, color: 'var(--auth-soft)' }}>Mapped access: {option.accessRole}</div>
-                    {selected ? <span style={{ position: 'absolute', right: '18px', bottom: '18px', color: '#ff6a3d' }}><CheckCircle2 size={18} /></span> : null}
-                  </button>
-                )
-              })}
-            </div>
-
-            <StepFooter
-              isDark={isDark}
-              onBack={handleBack}
-              backLabel="Back to Department"
-              onNext={() => { resetMessages(); setSignupStep('permissions') }}
-              note={`${selectedRole.label} will be used as your visible role label across the app.`}
-            />
-          </StageFrame>
-        ) : signupStep === 'permissions' ? (
-          <StageFrame width="720px" panelKey={stepKey}>
-            <StepDots currentStep={signupStep} />
-            <div style={{ borderRadius: '26px', padding: '22px 20px 20px', ...surfaceStyle(isDark) }}>
-              <div style={{ width: '66px', height: '66px', margin: '0 auto 16px', borderRadius: '999px', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', color: '#111111', background: 'linear-gradient(180deg, #ff8a5f 0%, #ff6a3d 100%)', boxShadow: '0 20px 36px rgba(255,106,61,0.24)' }}>
-                <ShieldCheck size={22} />
-              </div>
-              <div style={{ textAlign: 'center' }}>
-                <h1 style={sectionTitleStyle}>Permissions Preview</h1>
-                <p style={copyStyle}>Review what this role can and cannot do before entering the Projects Hub.</p>
-              </div>
-
-              <div style={{ marginTop: '18px', display: 'inline-flex', alignItems: 'center', gap: '10px', padding: '10px 16px', borderRadius: '999px', fontSize: '0.83rem', fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'var(--auth-muted)', ...surfaceStyle(isDark) }}>
-                <span>{selectedDepartment.label}</span>
-                <span style={{ color: '#ca441b' }}>{selectedRole.label}</span>
-              </div>
-
-              <div className="authfx-grid authfx-grid-2" style={{ marginTop: '20px' }}>
-                <PermissionPanel title="Can Do" items={permissionCopy.can} tone="positive" isDark={isDark} />
-                <PermissionPanel title="Cannot Do" items={permissionCopy.cannot} tone="negative" isDark={isDark} />
-              </div>
-
-              {error ? <div style={{ marginTop: '18px' }}><Notice tone="error">{error}</Notice></div> : null}
-
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px', marginTop: '22px', flexWrap: 'wrap' }}>
-                <button type="button" onClick={handleBack} disabled={authAction !== null} style={secondaryButtonStyle(isDark, authAction !== null)}>
-                  <ArrowLeft size={18} />
-                  Adjust Role
-                </button>
-                <button type="button" onClick={completeSignup} disabled={authAction !== null} style={primaryButtonStyle(authAction !== null)}>
-                  {authAction === 'signup' ? <span className="ui-spinner" /> : 'Continue'}
-                  {authAction === 'signup' ? (isGoogleOnboarding ? 'Saving Onboarding...' : 'Creating Account...') : null}
-                  {authAction === 'signup' ? null : <ArrowRight size={18} />}
-                </button>
-              </div>
-            </div>
           </StageFrame>
         ) : (
           <StageFrame width="720px" panelKey={stepKey}>
@@ -874,8 +584,8 @@ export function AuthPage() {
               <h1 style={sectionTitleStyle}>You&apos;re Ready</h1>
               <p style={copyStyle}>
                 {isGoogleOnboarding
-                  ? 'Your Google login is fully linked. Next stop is the Projects Hub, where project membership unlocks the rest of the workspace.'
-                  : 'Your account is set up. Next stop is the Projects Hub, where project membership unlocks the rest of the workspace.'}
+                  ? 'Your Google login is fully linked. Use a project code or invite link from your producer to join a project and access your workspace.'
+                  : 'Your account is set up. Use a project code or invite link from your producer to join a project and access your workspace.'}
               </p>
 
               <div className="authfx-summary" style={{ margin: '22px 0 20px', padding: '14px 16px', borderRadius: '26px', textAlign: 'left', ...surfaceStyle(isDark) }}>
@@ -930,10 +640,11 @@ function Notice({ tone, children }: { tone: 'error' | 'info'; children: ReactNod
   )
 }
 
-function StepDots({ currentStep }: { currentStep: SignupStep }) {
+function StepDots({ currentStep, isGoogle }: { currentStep: SignupStep; isGoogle: boolean }) {
+  const steps = regularStageSteps
   return (
     <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', marginBottom: '22px' }}>
-      {stageSteps.map(step => (
+      {steps.map(step => (
         <span key={step} style={{ width: step === currentStep ? '60px' : '34px', height: '10px', borderRadius: '999px', background: step === currentStep ? 'linear-gradient(90deg,#ff8a5f 0%,#ff6a3d 100%)' : 'rgba(255,255,255,0.68)', boxShadow: step === currentStep ? '0 12px 24px rgba(255,106,61,0.16)' : 'none', transition: 'all .24s ease' }} />
       ))}
     </div>
