@@ -26,6 +26,7 @@ import type {
 import { cameraService } from '@/services/camera.service'
 import { formatCurrency, formatDate, formatTime, timeAgo } from '@/utils'
 import { useMobileScrollHide } from '@/hooks/useMobileScrollHide'
+import { LiquidGlassNavbar } from '@/components/shared/LiquidGlassNavbar'
 
 const emptyWishlistForm = {
   itemName: '',
@@ -1857,24 +1858,18 @@ export function CameraView() {
           </div>
         )}
 
-        <nav ref={bottomNavRef} className="fixed bottom-3 left-3 right-3 z-40 mx-auto flex h-[80px] max-w-md items-center justify-around rounded-[30px] border border-zinc-200/80 bg-white/88 px-2 pb-safe shadow-[0_18px_40px_rgba(15,23,42,0.12)] backdrop-blur-2xl dark:border-white/8 dark:bg-zinc-950/82 dark:shadow-[0_18px_44px_rgba(0,0,0,0.34)]">
-          {[
+        <LiquidGlassNavbar
+          ref={bottomNavRef}
+          activeTabId={activeMobileTab}
+          onTabChange={(id) => setActiveMobileTab(id as any)}
+          tabs={[
             { id: 'home', icon: 'home', label: 'Home' },
             { id: 'activity', icon: 'history', label: 'Activity' },
             { id: 'reports', icon: 'report_problem', label: 'Reports' },
             { id: 'alerts', icon: 'notifications_active', label: 'Alerts' },
             { id: 'wishlist', icon: 'favorite', label: 'Wishlist' },
-          ].map(tab => (
-            <button
-              key={tab.id}
-              onClick={() => setActiveMobileTab(tab.id as any)}
-              className={`flex w-16 flex-col items-center justify-center gap-1 rounded-[20px] py-2 transition-all duration-200 ${activeMobileTab === tab.id ? 'bg-orange-500/12 text-orange-500 dark:bg-orange-500/16' : 'text-zinc-500 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-200'}`}
-            >
-               <span className={`material-symbols-outlined text-2xl transition-transform duration-300 ${activeMobileTab === tab.id ? 'scale-110' : ''}`} style={activeMobileTab === tab.id ? { fontVariationSettings: "'FILL' 1" } : {}}>{tab.icon}</span>
-               <span className="text-[10px] font-bold uppercase tracking-wider">{tab.label}</span>
-            </button>
-          ))}
-        </nav>
+          ]}
+        />
       </div>
     </div>
   )
