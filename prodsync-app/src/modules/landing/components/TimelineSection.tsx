@@ -208,7 +208,7 @@ export function TimelineSection() {
           How It Works
         </div>
         <h2 className="mx-auto mt-6 max-w-[600px] text-[2rem] font-bold tracking-[-0.05em] text-zinc-900 dark:text-white sm:text-[2.55rem]">
-          Everything in one cinematic view
+          Everything in one <span className="animate-gradient-x bg-gradient-to-r from-orange-400 via-violet-500 to-sky-400 bg-clip-text text-transparent">cinematic</span> view
         </h2>
         <p className="mx-auto mt-4 max-w-[480px] text-[1rem] leading-7 text-zinc-500 dark:text-zinc-300">
           A structured story of how ProdSync keeps every department in perfect sync.

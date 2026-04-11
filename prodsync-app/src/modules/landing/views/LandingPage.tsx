@@ -10,6 +10,7 @@ import { useTheme } from '@/components/theme/ThemeProvider'
 import { TimelineSection } from '@/modules/landing/components/TimelineSection'
 import CircularGallery from '@/components/ui/CircularGallery'
 import { modulesGallery } from '@/config/modulesGallery'
+import { PhoneShowcaseSection } from '@/modules/landing/components/PhoneShowcaseSection'
 
 function useRevealMotion() {
   useEffect(() => {
@@ -172,7 +173,7 @@ export function LandingPage() {
               </div>
 
               <h1 className="max-w-[1040px] text-balance text-5xl font-bold tracking-[-0.07em] text-zinc-900 dark:bg-gradient-to-b dark:from-white dark:via-zinc-100 dark:to-zinc-500 dark:bg-clip-text dark:text-transparent sm:text-[3.65rem] lg:text-[6.2rem] lg:leading-[0.94]">
-                The Mission Control for Modern Production
+                The <span className="animate-gradient-x bg-gradient-to-r from-orange-400 via-violet-500 to-sky-400 bg-clip-text text-transparent">Mission</span> Control for Modern Production
               </h1>
 
               <p className="mt-7 max-w-[680px] text-[1.02rem] leading-7 text-zinc-500 dark:text-zinc-300">
@@ -262,7 +263,7 @@ export function LandingPage() {
                 Modules
               </div>
               <h2 className="max-w-[660px] text-[2.15rem] font-bold tracking-[-0.05em] text-zinc-900 dark:text-white sm:text-[2.75rem]">
-                Granular Control for Every Department
+                Granular Control for Every <span className="animate-gradient-x bg-gradient-to-r from-orange-400 via-violet-500 to-sky-400 bg-clip-text text-transparent">Department</span>
               </h2>
               <p className="mt-4 max-w-[560px] text-[1rem] leading-7 text-zinc-500 dark:text-zinc-300">
                 Built for the complexities of professional filmmaking — from fleet logistics to crew payroll.
@@ -281,6 +282,8 @@ export function LandingPage() {
               />
             </div>
           </section>
+
+          <PhoneShowcaseSection />
 
           <section id="cta" data-reveal className="reveal-section scroll-mt-32 pt-24 lg:pt-32">
             <div className="overflow-hidden rounded-[38px] bg-[linear-gradient(145deg,rgba(255,255,255,0.9),rgba(249,115,22,0.08))] px-6 py-10 shadow-soft dark:bg-[linear-gradient(135deg,rgba(255,255,255,0.08),rgba(249,115,22,0.18))] sm:px-9 lg:px-14 lg:py-14">
