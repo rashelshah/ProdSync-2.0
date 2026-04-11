@@ -129,7 +129,8 @@ export function ProjectsView() {
     setIsVerifyingCode(true)
     try {
       // Basic check if it's a full URL
-      const token = code.includes('/join/') ? code.split('/join/')[1] : code
+      const upperCode = code.toUpperCase()
+      const token = upperCode.includes('/JOIN/') ? upperCode.split('/JOIN/')[1].trim() : code.trim()
       const preview = await projectsService.previewProject(token)
       if (preview) {
         setPreviewProject(preview)
@@ -153,7 +154,8 @@ export function ProjectsView() {
 
     void runProjectAction(
       async () => {
-        const token = joinCodeInput.includes('/join/') ? joinCodeInput.split('/join/')[1] : joinCodeInput
+        const upperCode = joinCodeInput.toUpperCase()
+        const token = upperCode.includes('/JOIN/') ? upperCode.split('/JOIN/')[1].trim() : joinCodeInput.trim()
         const joined = await projectsService.joinProject(token, joinRole, joinDepartment)
         if (joined?.project) {
           setShowJoinModal(false)
