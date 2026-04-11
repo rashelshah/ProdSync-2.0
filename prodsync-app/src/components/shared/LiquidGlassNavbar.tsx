@@ -75,7 +75,7 @@ export const LiquidGlassNavbar = forwardRef<HTMLElement, LiquidGlassNavbarProps>
                 <button
                   key={tab.id}
                   onClick={() => onTabChange(tab.id)}
-                  ref={el => (itemRefs.current[index] = el)}
+                  ref={el => { itemRefs.current[index] = el; }}
                   className={cn(
                     'group relative flex flex-1 min-w-0 h-full flex-col items-center justify-center gap-1 transition-colors duration-300',
                     isActive ? 'text-black dark:text-zinc-900' : 'text-zinc-500 dark:text-zinc-400'

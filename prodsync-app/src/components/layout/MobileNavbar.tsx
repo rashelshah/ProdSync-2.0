@@ -139,7 +139,7 @@ export function MobileNavbar({ onOpenMenu }: { onOpenMenu?: () => void }) {
                   <button
                     key={item.path}
                     onClick={onOpenMenu}
-                    ref={el => (itemRefs.current[index] = el as unknown as HTMLDivElement)}
+                    ref={el => { itemRefs.current[index] = el as unknown as HTMLDivElement; }}
                     className={classNameStr}
                   >
                     {content}
@@ -151,7 +151,7 @@ export function MobileNavbar({ onOpenMenu }: { onOpenMenu?: () => void }) {
                 <NavLink
                   key={item.path}
                   to={item.path}
-                  ref={el => (itemRefs.current[index] = el as unknown as HTMLDivElement)}
+                  ref={el => { itemRefs.current[index] = el as unknown as HTMLDivElement; }}
                   className={() => classNameStr}
                 >
                   {content}
