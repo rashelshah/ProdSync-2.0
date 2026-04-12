@@ -13,13 +13,15 @@
 
 @layer utilities {
   @keyframes gradient-x {
-    0%, 100% { background-position: 0% 50%; }
+    0% { background-position: 0% 50%; }
     50% { background-position: 100% 50%; }
+    100% { background-position: 0% 50%; }
   }
   
   .animate-gradient-x {
-    animation: gradient-x 5s ease infinite;
-    background-size: 200% auto;
+    animation: gradient-x 6s linear infinite;
+    background-size: 200% 200%;
+    will-change: background-position;
   }
 }
 

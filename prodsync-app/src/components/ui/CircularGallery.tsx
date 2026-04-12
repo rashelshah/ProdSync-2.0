@@ -10,7 +10,7 @@
  */
 
 import { Camera, Mesh, Plane, Program, Renderer, Texture, Transform } from 'ogl';
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 
 type GL = Renderer['gl'];
@@ -242,7 +242,9 @@ class Media {
     const texture = new Texture(this.gl, { 
       generateMipmaps: false,
       minFilter: this.gl.LINEAR,
-      magFilter: this.gl.LINEAR
+      magFilter: this.gl.LINEAR,
+      wrapS: this.gl.CLAMP_TO_EDGE,
+      wrapT: this.gl.CLAMP_TO_EDGE
     });
     this.program = new Program(this.gl, {
       depthTest: false,
@@ -295,7 +297,7 @@ class Media {
       uniforms: {
         tMap: { value: texture },
         uPlaneSizes: { value: [0, 0] },
-        uImageSizes: { value: [0, 0] },
+        uImageSizes: { value: [1.0, 1.0] },
         uSpeed: { value: 0 },
         uTime: { value: 100 * Math.random() },
         uBorderRadius: { value: this.borderRadius }
@@ -307,6 +309,9 @@ class Media {
     img.src = this.image;
     img.onload = () => {
       texture.image = img;
+      if ('needsUpdate' in texture) {
+        (texture as any).needsUpdate = true;
+      }
       this.program.uniforms.uImageSizes.value = [img.naturalWidth, img.naturalHeight];
     };
   }
@@ -399,10 +404,14 @@ interface AppConfig {
   font?: string;
   scrollSpeed?: number;
   scrollEase?: number;
+  isMobile?: boolean;
+  isLowEnd?: boolean;
 }
 
 class App {
   container: HTMLElement;
+  isMobile: boolean;
+  isLowEnd: boolean;
   scrollSpeed: number;
   scroll: { ease: number; current: number; target: number; last: number; position?: number };
   onCheckDebounce: (...args: any[]) => void;
@@ -423,6 +432,9 @@ class App {
   boundOnTouchUp!: () => void;
   isDown: boolean = false;
   start: number = 0;
+  lastFrameTime: number = 0;
+  frameDuration: number = 0;
+  boundUpdate!: (time: number) => void;
 
   constructor(
     container: HTMLElement,
@@ -433,21 +445,27 @@ class App {
       borderRadius = 0,
       font = '600 22px Inter',
       scrollSpeed = 2,
-      scrollEase = 0.05
+      scrollEase = 0.05,
+      isMobile = false,
+      isLowEnd = false
     }: AppConfig
   ) {
     document.documentElement.classList.remove('no-js');
     this.container = container;
+    this.isMobile = isMobile;
+    this.isLowEnd = isLowEnd;
     this.scrollSpeed = scrollSpeed;
     this.scroll = { ease: scrollEase, current: 0, target: 0, last: 0 };
+    this.frameDuration = this.isMobile ? 1000 / (this.isLowEnd ? 30 : 60) : 0;
     this.onCheckDebounce = debounce(this.onCheck.bind(this), 200);
+    this.boundUpdate = this.update.bind(this);
     this.createRenderer();
     this.createCamera();
     this.createScene();
     this.onResize();
     this.createGeometry();
     this.createMedias(items, bend, textColor, borderRadius, font);
-    this.update();
+    this.raf = window.requestAnimationFrame(this.boundUpdate);
     this.addEventListeners();
   }
 
@@ -556,7 +574,13 @@ class App {
     }
   }
 
-  update() {
+  update(time = 0) {
+    if (this.frameDuration > 0 && this.lastFrameTime !== 0 && time - this.lastFrameTime < this.frameDuration) {
+      this.raf = window.requestAnimationFrame(this.boundUpdate);
+      return;
+    }
+
+    this.lastFrameTime = time;
     this.scroll.current = lerp(this.scroll.current, this.scroll.target, this.scroll.ease);
     const direction = this.scroll.current > this.scroll.last ? 'right' : 'left';
     if (this.medias) {
@@ -564,7 +588,7 @@ class App {
     }
     this.renderer.render({ scene: this.scene, camera: this.camera });
     this.scroll.last = this.scroll.current;
-    this.raf = window.requestAnimationFrame(this.update.bind(this));
+    this.raf = window.requestAnimationFrame(this.boundUpdate);
   }
 
   addEventListeners() {
@@ -623,6 +647,23 @@ export interface CircularGalleryProps {
   font?: string;
   scrollSpeed?: number;
   scrollEase?: number;
+  isMobile?: boolean;
+  isLowEnd?: boolean;
+}
+
+function requestIdleWork(callback: () => void) {
+  const idleWindow = window as Window & {
+    requestIdleCallback?: (callback: IdleRequestCallback) => number;
+    cancelIdleCallback?: (handle: number) => void;
+  };
+
+  if (typeof idleWindow.requestIdleCallback === 'function' && typeof idleWindow.cancelIdleCallback === 'function') {
+    const idleId = idleWindow.requestIdleCallback(() => callback());
+    return () => idleWindow.cancelIdleCallback?.(idleId);
+  }
+
+  const timeoutId = window.setTimeout(callback, 1);
+  return () => window.clearTimeout(timeoutId);
 }
 
 export default function CircularGallery({
@@ -632,13 +673,27 @@ export default function CircularGallery({
   borderRadius = 0.05,
   font = '600 22px Inter',
   scrollSpeed = 2,
-  scrollEase = 0.05
+  scrollEase = 0.05,
+  isMobile = false,
+  isLowEnd = false
 }: CircularGalleryProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const appRef = useRef<App | null>(null);
+  const lastNavClickRef = useRef(0);
+  const [ready, setReady] = useState(false);
 
   useEffect(() => {
-    if (!containerRef.current) return;
+    setReady(false);
+    if (!isMobile) {
+      setReady(true);
+      return;
+    }
+
+    return requestIdleWork(() => setReady(true));
+  }, [isMobile]);
+
+  useEffect(() => {
+    if (!ready || !containerRef.current) return;
     const app = new App(containerRef.current, {
       items,
       bend,
@@ -646,11 +701,36 @@ export default function CircularGallery({
       borderRadius,
       font,
       scrollSpeed,
-      scrollEase
+      scrollEase,
+      isMobile,
+      isLowEnd
     });
     appRef.current = app;
-    return () => app.destroy();
-  }, [items, bend, textColor, borderRadius, font, scrollSpeed, scrollEase]);
+    return () => {
+      app.destroy();
+      appRef.current = null;
+    };
+  }, [ready, items, bend, textColor, borderRadius, font, scrollSpeed, scrollEase, isMobile, isLowEnd]);
+
+  function canNavigate() {
+    if (!isMobile) return true;
+    const now = Date.now();
+    if (now - lastNavClickRef.current < 300) {
+      return false;
+    }
+    lastNavClickRef.current = now;
+    return true;
+  }
+
+  function handlePrev() {
+    if (!canNavigate()) return;
+    appRef.current?.prev();
+  }
+
+  function handleNext() {
+    if (!canNavigate()) return;
+    appRef.current?.next();
+  }
 
   return (
     <div className="w-full h-full flex flex-col items-center">
@@ -658,18 +738,23 @@ export default function CircularGallery({
         <div
           className="absolute inset-0 overflow-hidden cursor-grab active:cursor-grabbing"
           ref={containerRef}
+          style={{
+            transform: 'translateZ(0)',
+            willChange: 'transform',
+            backfaceVisibility: 'hidden',
+          }}
         />
       </div>
       <div className="flex-none flex items-center gap-6 z-10 pointer-events-auto pb-4 pt-2">
         <button 
-          onClick={() => appRef.current?.prev()}
+          onClick={handlePrev}
           className="w-12 h-12 rounded-full bg-black/60 border border-white/10 hover:border-[#f97316] hover:bg-black/80 flex items-center justify-center transition-all duration-300 group shadow-[0_0_15px_rgba(249,115,22,0)] hover:shadow-[0_0_15px_rgba(249,115,22,0.3)] backdrop-blur-sm"
           aria-label="Previous card"
         >
           <ChevronLeft className="w-6 h-6 text-white group-hover:text-[#f97316] transition-colors" />
         </button>
         <button 
-          onClick={() => appRef.current?.next()}
+          onClick={handleNext}
           className="w-12 h-12 rounded-full bg-black/60 border border-white/10 hover:border-[#f97316] hover:bg-black/80 flex items-center justify-center transition-all duration-300 group shadow-[0_0_15px_rgba(249,115,22,0)] hover:shadow-[0_0_15px_rgba(249,115,22,0.3)] backdrop-blur-sm"
           aria-label="Next card"
         >

@@ -14,6 +14,7 @@ import { PhoneShowcaseSection } from '@/modules/landing/components/PhoneShowcase
 import { LandingVideoShowcase } from '@/modules/landing/components/LandingVideoShowcase'
 import { FooterBranding } from '@/modules/landing/components/FooterBranding'
 import { useLiquidTransition } from '@/context/LiquidTransitionContext'
+import { useDevicePerformance } from '@/hooks/useDevicePerformance'
 
 function useRevealMotion() {
   useEffect(() => {
@@ -77,6 +78,7 @@ const previewSpring: SpringOptions = { damping: 30, stiffness: 100, mass: 2 }
 export function LandingPage() {
   const { theme, toggleTheme } = useTheme()
   const { previewRef, heroGlowRef } = useParallaxMotion()
+  const { isMobile, isLowEnd } = useDevicePerformance()
   useRevealMotion()
   const [previewImageFailed, setPreviewImageFailed] = useState(false)
 
@@ -290,11 +292,13 @@ export function LandingPage() {
             <div style={{ height: 'clamp(320px, 50vw, 500px)', position: 'relative', filter: 'drop-shadow(0 20px 30px rgba(0, 0, 0, 0.45))' }}>
               <CircularGallery
                 items={modulesGallery}
-                bend={1}
+                bend={isMobile ? (isLowEnd ? 0.4 : 0.6) : 1}
                 textColor={theme === 'dark' ? '#ffffff' : '#111111'}
                 borderRadius={0.08}
-                scrollSpeed={2}
-                scrollEase={0.05}
+                scrollSpeed={isMobile ? (isLowEnd ? 0.8 : 1.2) : 2}
+                scrollEase={isMobile ? (isLowEnd ? 0.1 : 0.08) : 0.05}
+                isMobile={isMobile}
+                isLowEnd={isMobile && isLowEnd}
               />
             </div>
           </section>
