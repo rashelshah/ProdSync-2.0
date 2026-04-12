@@ -283,15 +283,15 @@ export function ApprovalsView() {
            <div className="grid grid-cols-2 gap-3">
              <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 p-4 rounded-xl shadow-md min-w-0 flex flex-col justify-between">
                <span className="text-zinc-500 text-[10px] font-bold uppercase tracking-widest">In Pipeline</span>
-               <div className="text-4xl font-headline font-extrabold text-zinc-900 dark:text-white mt-1 break-words w-full tracking-tighter" style={{ fontSize: '2rem' }}>{kpis?.totalPending ?? 0}</div>
+               <div className="text-4xl font-headline font-extrabold text-zinc-900 dark:text-white mt-1 whitespace-nowrap w-full tracking-tighter" style={{ fontSize: String(kpis?.totalPending ?? 0).length >= 12 ? '0.9rem' : String(kpis?.totalPending ?? 0).length >= 10 ? '1.05rem' : String(kpis?.totalPending ?? 0).length >= 8 ? '1.25rem' : '2rem' }}>{kpis?.totalPending ?? 0}</div>
              </div>
              <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 p-4 rounded-xl shadow-md min-w-0 flex flex-col justify-between">
                <span className="text-zinc-500 text-[10px] font-bold uppercase tracking-widest">Avg Time</span>
-               <div className="text-4xl font-headline font-extrabold text-zinc-900 dark:text-white mt-1 break-words w-full tracking-tighter" style={{ fontSize: '2rem' }}>{kpis?.avgActionTimeMinutes ?? 0}m</div>
+               <div className="text-4xl font-headline font-extrabold text-zinc-900 dark:text-white mt-1 whitespace-nowrap w-full tracking-tighter" style={{ fontSize: String(kpis?.avgActionTimeMinutes ?? 0).length >= 11 ? '0.9rem' : String(kpis?.avgActionTimeMinutes ?? 0).length >= 9 ? '1.05rem' : String(kpis?.avgActionTimeMinutes ?? 0).length >= 7 ? '1.25rem' : '2rem' }}>{kpis?.avgActionTimeMinutes ?? 0}m</div>
              </div>
              <div className="col-span-2 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 p-4 rounded-xl shadow-md min-w-0 flex flex-col justify-between">
                <span className="text-zinc-500 text-[10px] font-bold uppercase tracking-widest">Pending Value</span>
-               <div className="text-4xl font-headline font-extrabold text-zinc-900 dark:text-white mt-1 break-words w-full tracking-tighter" style={{ fontSize: '2rem' }}>{formatCurrency(kpis?.pendingValueINR ?? 0)}</div>
+               <div className="text-4xl font-headline font-extrabold text-zinc-900 dark:text-white mt-1 whitespace-nowrap w-full tracking-tighter" style={{ fontSize: String(formatCurrency(kpis?.pendingValueINR ?? 0)).length >= 12 ? '0.9rem' : String(formatCurrency(kpis?.pendingValueINR ?? 0)).length >= 10 ? '1.05rem' : String(formatCurrency(kpis?.pendingValueINR ?? 0)).length >= 8 ? '1.25rem' : '2rem' }}>{formatCurrency(kpis?.pendingValueINR ?? 0)}</div>
              </div>
            </div>
         </section>

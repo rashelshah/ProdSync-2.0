@@ -48,6 +48,17 @@ export function MissionControlMobile({ kpis, pendingApprovals, alerts, events, a
     </div>
   )
 
+  const getDynamicStyle = (val: string | number) => {
+    const len = String(val).length
+    return { fontSize: len >= 13 ? '0.9rem' : len >= 11 ? '1.05rem' : len >= 9 ? '1.25rem' : len >= 7 ? '1.45rem' : '1.8rem' }
+  }
+
+  const budgetActualStr = formatCurrency(kpis?.budgetActualUSD ?? 0)
+  const todaySpendStr = formatCurrency(kpis?.todaySpendUSD ?? 0)
+  const cashFlowStr = formatCurrency(kpis?.cashFlowUSD ?? 0)
+  const otCostStr = formatCurrency(kpis?.otCostTodayUSD ?? 0)
+  const activeOpsStr = `${kpis?.activeCrew ?? 0} Crew • ${pendingApprovals.length} Approvals`
+
   const keyMetricsGrid = (
     <div className="mt-8 px-1">
       <div className="flex justify-between items-center mb-4">
@@ -56,24 +67,24 @@ export function MissionControlMobile({ kpis, pendingApprovals, alerts, events, a
       <div className="grid grid-cols-2 gap-3">
         <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 p-4 rounded-xl shadow-md min-w-0 flex flex-col justify-between">
           <span className="text-zinc-500 text-[10px] font-bold uppercase tracking-widest">Budget vs Actual</span>
-          <div className="font-headline font-extrabold text-zinc-900 dark:text-white mt-1 break-words w-full tracking-tighter text-2xl">{formatCurrency(kpis?.budgetActualUSD ?? 0)}</div>
+          <div className="font-headline font-extrabold text-zinc-900 dark:text-white mt-1 whitespace-nowrap w-full tracking-tighter" style={getDynamicStyle(budgetActualStr)}>{budgetActualStr}</div>
         </div>
         <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 p-4 rounded-xl shadow-md min-w-0 flex flex-col justify-between">
           <span className="text-zinc-500 text-[10px] font-bold uppercase tracking-widest">Today's Spend</span>
-          <div className="font-headline font-extrabold text-zinc-900 dark:text-white mt-1 break-words w-full tracking-tighter text-2xl">{formatCurrency(kpis?.todaySpendUSD ?? 0)}</div>
+          <div className="font-headline font-extrabold text-zinc-900 dark:text-white mt-1 whitespace-nowrap w-full tracking-tighter" style={getDynamicStyle(todaySpendStr)}>{todaySpendStr}</div>
         </div>
         <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 p-4 rounded-xl shadow-md min-w-0 flex flex-col justify-between">
           <span className="text-zinc-500 text-[10px] font-bold uppercase tracking-widest">Cash Flow</span>
-          <div className="font-headline font-extrabold text-zinc-900 dark:text-white mt-1 break-words w-full tracking-tighter text-2xl">{formatCurrency(kpis?.cashFlowUSD ?? 0)}</div>
+          <div className="font-headline font-extrabold text-zinc-900 dark:text-white mt-1 whitespace-nowrap w-full tracking-tighter" style={getDynamicStyle(cashFlowStr)}>{cashFlowStr}</div>
         </div>
         <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 p-4 rounded-xl shadow-md min-w-0 flex flex-col justify-between">
           <span className="text-zinc-500 text-[10px] font-bold uppercase tracking-widest">OT Cost Today</span>
-          <div className="font-headline font-extrabold text-zinc-900 dark:text-white mt-1 break-words w-full tracking-tighter text-2xl">{formatCurrency(kpis?.otCostTodayUSD ?? 0)}</div>
+          <div className="font-headline font-extrabold text-zinc-900 dark:text-white mt-1 whitespace-nowrap w-full tracking-tighter" style={getDynamicStyle(otCostStr)}>{otCostStr}</div>
         </div>
         <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 p-4 rounded-xl shadow-md min-w-0 flex flex-col justify-between col-span-2">
           <span className="text-zinc-500 text-[10px] font-bold uppercase tracking-widest">Active Operations</span>
-          <div className="font-headline font-extrabold text-zinc-900 dark:text-white mt-1 break-words w-full tracking-tighter text-[1.35rem]">
-            {kpis?.activeCrew ?? 0} Crew • {pendingApprovals.length} Approvals
+          <div className="font-headline font-extrabold text-zinc-900 dark:text-white mt-1 whitespace-nowrap overflow-hidden text-ellipsis w-full tracking-tighter" style={getDynamicStyle(activeOpsStr)}>
+            {activeOpsStr}
           </div>
         </div>
       </div>

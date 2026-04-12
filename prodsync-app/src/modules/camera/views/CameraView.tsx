@@ -1453,7 +1453,7 @@ export function CameraView() {
                     className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 p-4 rounded-xl shadow-md min-w-0 flex flex-col justify-between"
                   >
                     <span className="text-zinc-500 text-[10px] font-bold uppercase tracking-widest">{card.label}</span>
-                    <div className="font-headline font-extrabold text-zinc-900 dark:text-white mt-1 break-words w-full tracking-tighter" style={{ fontSize: String(card.value).length > 10 ? '1.35rem' : String(card.value).length > 6 ? '1.7rem' : '2rem' }}>{card.value}</div>
+                    <div className="font-headline font-extrabold text-zinc-900 dark:text-white mt-1 whitespace-nowrap w-full tracking-tighter" style={{ fontSize: String(card.value).length >= 13 ? '0.9rem' : String(card.value).length >= 11 ? '1.05rem' : String(card.value).length >= 9 ? '1.25rem' : String(card.value).length >= 7 ? '1.45rem' : '1.8rem' }}>{card.value}</div>
                   </div>
                 ))}
               </div>

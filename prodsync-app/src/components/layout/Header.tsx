@@ -44,7 +44,7 @@ export function Header({
           {/* Mobile Hamburger Menu */}
           <button
             onClick={onToggleMobileSidebar}
-            className="md:hidden flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-zinc-500 transition-colors pointer-events-auto active:scale-95 duration-200"
+            className="md:hidden flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-orange-500 transition-colors pointer-events-auto active:scale-95 duration-200"
             aria-label="Toggle mobile menu"
           >
             <span className="material-symbols-outlined text-[24px]">menu</span>
