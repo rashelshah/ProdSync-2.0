@@ -57,6 +57,20 @@ function resolveActorsActionError(error: unknown, fallback: string) {
   return message
 }
 
+function resolveActorsLoadError(error: unknown) {
+  const message = resolveErrorMessage(error, 'Actor & Juniors data could not be loaded.')
+  const normalized = message.toLowerCase()
+  const status = typeof error === 'object' && error !== null && 'status' in error
+    ? (error as { status?: unknown }).status
+    : null
+
+  if (status === 404 || normalized.includes('route not found')) {
+    return 'Actor & Juniors is not available on the deployed backend yet. Redeploy the backend service with the latest actors module, then refresh this page.'
+  }
+
+  return message
+}
+
 export function ActorsView() {
   const queryClient = useQueryClient()
   const user = useAuthStore(state => state.user)
@@ -95,7 +109,7 @@ export function ActorsView() {
     image: null as File | null,
   })
 
-  const { juniorLogs, callSheetGroups, payments, looks, alerts, isLoading, isError, refetch } = useActorsData(
+  const { juniorLogs, callSheetGroups, payments, looks, alerts, error, isLoading, isError, refetch } = useActorsData(
     activeProjectId,
     {
       actor: lookActorFilter.trim() || undefined,
@@ -226,7 +240,7 @@ export function ActorsView() {
   }
 
   if (isError) {
-    return <ErrorState message="Actor & Juniors data could not be loaded." retry={() => void refetch()} />
+    return <ErrorState message={resolveActorsLoadError(error)} retry={() => void refetch()} />
   }
 
   return (

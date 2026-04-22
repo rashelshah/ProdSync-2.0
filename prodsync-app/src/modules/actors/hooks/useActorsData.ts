@@ -44,6 +44,7 @@ export function useActorsData(projectId: string | null, lookFilters: { actor?: s
     payments: paymentsQ.data ?? [],
     looks: looksQ.data ?? [],
     alerts: alertsQ.data ?? [],
+    error: juniorsQ.error ?? callSheetsQ.error ?? paymentsQ.error ?? looksQ.error ?? alertsQ.error ?? null,
     isLoading: juniorsQ.isLoading || callSheetsQ.isLoading || paymentsQ.isLoading || looksQ.isLoading,
     isError: juniorsQ.isError || callSheetsQ.isError || paymentsQ.isError || looksQ.isError,
     refetch: () => Promise.all([
