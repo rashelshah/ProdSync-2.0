@@ -11,6 +11,7 @@ import { crewRouter } from './modules/crew/crew.routes'
 import { alertsRouter } from './modules/alerts/alerts.routes'
 import { activityRouter } from './modules/activity/activity.routes'
 import { artRouter } from './modules/art/art.routes'
+import { actorsRouter } from './modules/actors/actors.routes'
 import { cameraRouter } from './modules/camera/camera.routes'
 import { wardrobeRouter } from './modules/wardrobe/wardrobe.routes'
 import { reportsRouter } from './modules/reports/reports.routes'
@@ -77,6 +78,7 @@ export function createApp() {
   app.use('/api/alerts', alertsRouter)
   app.use('/api/activity', activityRouter)
   app.use('/api/art', artRouter)
+  app.use('/api/actors', actorsRouter)
   app.use('/api/camera', cameraRouter)
   app.use('/api/wardrobe', wardrobeRouter)
   app.use('/api/reports', reportsRouter)

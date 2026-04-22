@@ -117,6 +117,32 @@ export function canAccessReportsWorkspace(user: UserLike) {
   )
 }
 
+export function isActorCoordinator(user: UserLike) {
+  return Boolean(
+    hasProjectRole(user, ['Actor Coordinator'])
+      || (user?.departmentId === 'actors' && user.role === 'HOD'),
+  )
+}
+
+export function isJuniorArtistCoordinator(user: UserLike) {
+  return Boolean(
+    hasProjectRole(user, ['Junior Artist Coordinator'])
+      || (user?.departmentId === 'actors' && user.role === 'Crew'),
+  )
+}
+
+export function canAccessActorsWorkspace(user: UserLike) {
+  return isProducerUser(user) || isActorCoordinator(user) || isJuniorArtistCoordinator(user)
+}
+
+export function canManageActorsOperations(user: UserLike) {
+  return canAccessActorsWorkspace(user)
+}
+
+export function canDeleteActorLooks(user: UserLike) {
+  return isProducerUser(user) || isActorCoordinator(user)
+}
+
 export function isCostumeSupervisor(user: UserLike) {
   return Boolean(
     hasProjectRole(user, ['Costume Supervisor'])

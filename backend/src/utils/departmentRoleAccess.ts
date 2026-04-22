@@ -131,6 +131,27 @@ export function canAccessWardrobeModule(req: Request) {
   )
 }
 
+export function canAccessActorsModule(req: Request) {
+  return Boolean(
+    isProducerRequest(req)
+      || projectRole(req) === 'ACTOR_COORDINATOR'
+      || projectRole(req) === 'JUNIOR_ARTIST_COORDINATOR'
+      || department(req) === 'ACTORS',
+  )
+}
+
+export function canManageActorsModule(req: Request) {
+  return canAccessActorsModule(req)
+}
+
+export function canDeleteActorLooks(req: Request) {
+  return Boolean(
+    isProducerRequest(req)
+      || projectRole(req) === 'ACTOR_COORDINATOR'
+      || (department(req) === 'ACTORS' && membershipRole(req) === 'HOD'),
+  )
+}
+
 export function canManageWardrobeContinuity(req: Request) {
   return canAccessWardrobeModule(req)
 }

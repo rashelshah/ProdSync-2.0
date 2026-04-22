@@ -23,6 +23,7 @@ const DEPARTMENTS: { id: ProjectDepartment; label: string }[] = [
   { id: 'production', label: 'Production' },
   { id: 'wardrobe', label: 'Wardrobe' },
   { id: 'post', label: 'Post' },
+  { id: 'actors', label: 'Actor & Juniors' },
 ]
 const PROJECT_CURRENCIES: ProjectCurrency[] = ['INR', 'USD', 'EUR']
 

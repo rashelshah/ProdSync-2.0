@@ -15,7 +15,7 @@ import { HttpError } from '../../utils/httpError'
 
 export const projectsRouter = Router()
 
-const departmentSchema = z.enum(['camera', 'art', 'transport', 'production', 'wardrobe', 'post'])
+const departmentSchema = z.enum(['camera', 'art', 'transport', 'production', 'wardrobe', 'post', 'actors'])
 const frontendProjectStatusSchema = z.enum(['pre-production', 'shooting', 'post'])
 const currencySchema = z.enum(['INR', 'USD', 'EUR'])
 const frontendProjectRoleSchema = z.enum([
@@ -34,6 +34,8 @@ const frontendProjectRoleSchema = z.enum([
   'Colorist',
   'Costume Supervisor',
   'Wardrobe Stylist',
+  'Actor Coordinator',
+  'Junior Artist Coordinator',
   'Crew Member',
   'Data Wrangler',
 ])
@@ -47,7 +49,7 @@ const createProjectSchema = z.object({
   activeCrew: z.coerce.number().int().min(0).max(100_000).optional(),
   startDate: z.string().date().optional().or(z.literal('')),
   endDate: z.string().date().optional().or(z.literal('')),
-  enabledDepartments: z.array(departmentSchema).max(6).default([]),
+  enabledDepartments: z.array(departmentSchema).max(7).default([]),
   otRulesLabel: z.string().trim().max(200).optional(),
 })
 
@@ -88,7 +90,7 @@ const reviewJoinRequestSchema = z.object({
 const joinProjectSchema = z.object({
   codeOrToken: z.string().trim().min(3),
   roleRequested: frontendProjectRoleSchema,
-  department: z.enum(['camera', 'art', 'transport', 'production', 'wardrobe', 'post']),
+  department: z.enum(['camera', 'art', 'transport', 'production', 'wardrobe', 'post', 'actors']),
 })
 
 function generateProjectCode() {
@@ -123,6 +125,8 @@ const frontendRoleToDbRole = {
   Colorist: 'colorist',
   'Costume Supervisor': 'costume_supervisor',
   'Wardrobe Stylist': 'wardrobe_stylist',
+  'Actor Coordinator': 'actor_coordinator',
+  'Junior Artist Coordinator': 'junior_artist_coordinator',
   'Crew Member': 'crew_member',
   'Data Wrangler': 'data_wrangler',
 } as const
@@ -143,6 +147,8 @@ const frontendRoleToAccessRole = {
   Colorist: 'SUPERVISOR',
   'Costume Supervisor': 'HOD',
   'Wardrobe Stylist': 'CREW',
+  'Actor Coordinator': 'HOD',
+  'Junior Artist Coordinator': 'CREW',
   'Crew Member': 'CREW',
   'Data Wrangler': 'DATA_WRANGLER',
 } as const
@@ -163,6 +169,8 @@ const frontendRoleToDepartment = {
   Colorist: 'post',
   'Costume Supervisor': 'wardrobe',
   'Wardrobe Stylist': 'wardrobe',
+  'Actor Coordinator': 'actors',
+  'Junior Artist Coordinator': 'actors',
   'Crew Member': 'production',
   'Data Wrangler': 'camera',
 } as const
@@ -827,7 +835,7 @@ projectsRouter.post(
       department,
       enabled: true,
     }))
-    const departmentDisables = ['camera', 'art', 'transport', 'production', 'wardrobe', 'post']
+    const departmentDisables = ['camera', 'art', 'transport', 'production', 'wardrobe', 'post', 'actors']
       .filter(department => !enabledDepartments.has(department as z.infer<typeof departmentSchema>))
       .map(department => ({
         project_id: projectId,
@@ -884,7 +892,7 @@ projectsRouter.put(
     }
 
     const enabledDepartments = new Set(['production', ...payload.enabledDepartments])
-    const departmentRows = ['camera', 'art', 'transport', 'production', 'wardrobe', 'post'].map(department => ({
+    const departmentRows = ['camera', 'art', 'transport', 'production', 'wardrobe', 'post', 'actors'].map(department => ({
       project_id: projectId,
       department,
       enabled: enabledDepartments.has(department as z.infer<typeof departmentSchema>),

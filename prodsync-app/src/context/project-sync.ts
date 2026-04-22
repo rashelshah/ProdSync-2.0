@@ -42,6 +42,11 @@ export async function invalidateProjectData(
       ['art-sets', projectId],
       ['art-budget', projectId],
       ['art-alerts', projectId],
+      ['actors-juniors', projectId],
+      ['actors-call-sheets', projectId],
+      ['actors-payments', projectId],
+      ['actors-looks', projectId],
+      ['actors-alerts', projectId],
     ]
 
     for (const queryKey of projectScopedKeys) {

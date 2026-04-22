@@ -44,6 +44,11 @@ export const DEPARTMENT_OPTIONS: DepartmentConfig[] = [
     label: 'Wardrobe',
     description: 'Costume prep, continuity, fittings, and on-set wardrobe support.',
   },
+  {
+    id: 'actors',
+    label: 'Actor & Juniors',
+    description: 'Actor scheduling, junior artist coordination, batta tracking, and look continuity.',
+  },
 ]
 
 export const DEPARTMENT_ROLE_OPTIONS: Record<ProjectDepartment, DepartmentRoleConfig[]> = {
@@ -149,6 +154,20 @@ export const DEPARTMENT_ROLE_OPTIONS: Record<ProjectDepartment, DepartmentRoleCo
       accessRole: 'Crew',
     },
   ],
+  actors: [
+    {
+      id: 'Actor Coordinator',
+      label: 'Actor Coordinator',
+      description: 'Lead actor scheduling, call sheets, payments, and look continuity decisions.',
+      accessRole: 'HOD',
+    },
+    {
+      id: 'Junior Artist Coordinator',
+      label: 'Junior Artist Coordinator',
+      description: 'Handle daily junior artist supply, supporting actor logistics, and set coordination.',
+      accessRole: 'Crew',
+    },
+  ],
 }
 
 const DEFAULT_ROLE_LABELS: Record<UserRole, string> = {
@@ -178,6 +197,7 @@ const DEFAULT_PROJECT_ROLE_BY_DEPARTMENT: Record<ProjectDepartment, ProjectReque
   transport: 'Driver',
   post: 'Editor',
   wardrobe: 'Wardrobe Stylist',
+  actors: 'Junior Artist Coordinator',
 }
 
 const PERMISSION_COPY: Record<

@@ -15,7 +15,7 @@ export interface User {
 }
 
 export type ProjectStage = 'pre-production' | 'shooting' | 'post'
-export type ProjectDepartment = 'camera' | 'art' | 'transport' | 'production' | 'wardrobe' | 'post'
+export type ProjectDepartment = 'camera' | 'art' | 'transport' | 'production' | 'wardrobe' | 'post' | 'actors'
 export type ProjectCurrency = 'INR' | 'USD' | 'EUR'
 export type ProjectRequestedRole =
   | 'Executive Producer'
@@ -33,6 +33,8 @@ export type ProjectRequestedRole =
   | 'Colorist'
   | 'Costume Supervisor'
   | 'Wardrobe Stylist'
+  | 'Actor Coordinator'
+  | 'Junior Artist Coordinator'
   | 'Crew Member'
   | 'Data Wrangler'
 

@@ -71,6 +71,7 @@ const departmentIcons: Record<ProjectDepartment, LucideIcon> = {
   transport: Truck,
   post: Film,
   wardrobe: Sparkles,
+  actors: Users,
 }
 
 const roleIcons: Partial<Record<ProjectRequestedRole, LucideIcon>> = {
@@ -89,6 +90,8 @@ const roleIcons: Partial<Record<ProjectRequestedRole, LucideIcon>> = {
   Colorist: Film,
   'Costume Supervisor': Sparkles,
   'Wardrobe Stylist': Sparkles,
+  'Actor Coordinator': Users,
+  'Junior Artist Coordinator': Users,
   'Crew Member': Clapperboard,
   'Data Wrangler': Film,
 }

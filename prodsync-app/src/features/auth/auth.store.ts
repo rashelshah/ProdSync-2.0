@@ -97,7 +97,7 @@ function normalizeUserRole(rawRole?: string | null): UserRole {
 
 function normalizeDepartment(rawDepartment?: string | null): ProjectDepartment {
   const department = rawDepartment?.trim()
-  if (department === 'camera' || department === 'art' || department === 'transport' || department === 'production' || department === 'wardrobe' || department === 'post') {
+  if (department === 'camera' || department === 'art' || department === 'transport' || department === 'production' || department === 'wardrobe' || department === 'post' || department === 'actors') {
     return department
   }
 

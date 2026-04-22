@@ -19,6 +19,7 @@ const DEPARTMENTS: { id: ProjectDepartment; label: string }[] = [
   { id: 'production', label: 'Production' },
   { id: 'wardrobe', label: 'Wardrobe' },
   { id: 'post', label: 'Post' },
+  { id: 'actors', label: 'Actor & Juniors' },
 ]
 const ALLOCATION_DEPARTMENTS: { id: BudgetAllocationDepartment; label: string }[] = [
   { id: 'transport', label: 'Transport' },

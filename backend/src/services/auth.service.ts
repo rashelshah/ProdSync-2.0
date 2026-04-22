@@ -221,6 +221,8 @@ const projectRoleToAccessRole: Record<string, string> = {
   Colorist: 'SUPERVISOR',
   'Costume Supervisor': 'HOD',
   'Wardrobe Stylist': 'CREW',
+  'Actor Coordinator': 'HOD',
+  'Junior Artist Coordinator': 'CREW',
   'Crew Member': 'CREW',
   'Data Wrangler': 'DATA_WRANGLER',
 }
@@ -241,6 +243,8 @@ const projectRoleToDepartment: Record<string, string> = {
   Colorist: 'post',
   'Costume Supervisor': 'wardrobe',
   'Wardrobe Stylist': 'wardrobe',
+  'Actor Coordinator': 'actors',
+  'Junior Artist Coordinator': 'actors',
   'Crew Member': 'production',
   'Data Wrangler': 'camera',
 }

@@ -8,7 +8,7 @@ import { HttpError } from '../../utils/httpError'
 export const authRouter = Router()
 
 const googleOnboardingSchema = z.object({
-  departmentId: z.enum(['camera', 'art', 'transport', 'production', 'wardrobe', 'post']),
+  departmentId: z.enum(['camera', 'art', 'transport', 'production', 'wardrobe', 'post', 'actors']),
   projectRoleTitle: z.enum([
     'Executive Producer',
     'Line Producer',
@@ -25,6 +25,8 @@ const googleOnboardingSchema = z.object({
     'Colorist',
     'Costume Supervisor',
     'Wardrobe Stylist',
+    'Actor Coordinator',
+    'Junior Artist Coordinator',
     'Crew Member',
     'Data Wrangler',
   ]),
