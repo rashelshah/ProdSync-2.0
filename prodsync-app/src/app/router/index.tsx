@@ -13,6 +13,7 @@ import { CrewView } from '@/modules/crew/views/CrewView'
 import { ExpensesView } from '@/modules/expenses/views/ExpensesView'
 import { ActorsView } from '@/modules/actors/views/ActorsView'
 import { WardrobeView } from '@/modules/wardrobe/views/WardrobeView'
+import { AccommodationView } from '@/modules/accommodation/views/AccommodationView'
 import { ApprovalsView } from '@/modules/approvals/views/ApprovalsView'
 import { ReportsView } from '@/modules/reports/views/ReportsView'
 import { SettingsView } from '@/modules/settings/views/SettingsView'
@@ -39,6 +40,7 @@ export function AppRouter() {
           <Route path="/expenses" element={<RouteAccessGuard routeId="expenses"><ExpensesView /></RouteAccessGuard>} />
           <Route path="/actors" element={<RouteAccessGuard routeId="actors"><ActorsView /></RouteAccessGuard>} />
           <Route path="/wardrobe" element={<RouteAccessGuard routeId="wardrobe"><WardrobeView /></RouteAccessGuard>} />
+          <Route path="/accommodation" element={<RouteAccessGuard routeId="accommodation"><AccommodationView /></RouteAccessGuard>} />
           <Route path="/approvals" element={<RouteAccessGuard routeId="approvals"><ApprovalsView /></RouteAccessGuard>} />
           <Route path="/reports" element={<RouteAccessGuard routeId="reports"><ReportsView /></RouteAccessGuard>} />
           <Route path="/settings" element={<RouteAccessGuard routeId="settings"><SettingsView /></RouteAccessGuard>} />
@@ -50,3 +52,4 @@ export function AppRouter() {
     </Routes>
   )
 }
+

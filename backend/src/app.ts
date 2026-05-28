@@ -14,6 +14,7 @@ import { artRouter } from './modules/art/art.routes'
 import { actorsRouter } from './modules/actors/actors.routes'
 import { cameraRouter } from './modules/camera/camera.routes'
 import { wardrobeRouter } from './modules/wardrobe/wardrobe.routes'
+import { accommodationRouter } from './modules/accommodation/accommodation.routes'
 import { reportsRouter } from './modules/reports/reports.routes'
 import { mapRouter } from './modules/map/map.routes'
 import { HttpError } from './utils/httpError'
@@ -81,6 +82,7 @@ export function createApp() {
   app.use('/api/actors', actorsRouter)
   app.use('/api/camera', cameraRouter)
   app.use('/api/wardrobe', wardrobeRouter)
+  app.use('/api/accommodation', accommodationRouter)
   app.use('/api/reports', reportsRouter)
   app.use('/api/map', mapRouter)
   app.use('/api', transportRouter)
@@ -120,3 +122,4 @@ export function createApp() {
 
   return app
 }
+
