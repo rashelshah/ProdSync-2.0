@@ -769,7 +769,7 @@ export function AccommodationView() {
 
   if (isLoadingProjectContext) {
     return (
-      <div className="space-y-6">
+      <div className="page-shell space-y-6">
         <SkeletonCard />
         <div className="grid gap-6 xl:grid-cols-[1.6fr_1fr]">
           <SkeletonCard />
@@ -785,16 +785,24 @@ export function AccommodationView() {
   }
 
   if (!activeProjectId) {
-    return <EmptyState icon="hotel" title="No active project selected" description="Choose a project to access accommodation and travel operations." />
+    return (
+      <div className="page-shell">
+        <EmptyState icon="hotel" title="No active project selected" description="Choose a project to access accommodation and travel operations." />
+      </div>
+    )
   }
 
   if (isError) {
-    return <ErrorState message="Unable to load accommodation data." retry={() => { void refetch() }} />
+    return (
+      <div className="page-shell">
+        <ErrorState message="Unable to load accommodation data." retry={() => { void refetch() }} />
+      </div>
+    )
   }
 
   if (isLoading) {
     return (
-      <div className="space-y-6">
+      <div className="page-shell space-y-6">
         <div className="grid gap-6 xl:grid-cols-[1.6fr_1fr]">
           <SkeletonCard />
           <SkeletonCard />
@@ -810,7 +818,7 @@ export function AccommodationView() {
 
   return (
     <>
-      <div className="space-y-6">
+      <div className="page-shell space-y-6">
         <Surface variant="table" padding="lg">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
             <div>
