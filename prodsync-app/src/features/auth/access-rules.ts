@@ -1,5 +1,5 @@
 import type { User, UserRole } from '@/types'
-import { canAccessActorsWorkspace, canAccessArtWorkspace, canAccessCameraWorkspace, canAccessReportsWorkspace, isProducerUser } from './role-capabilities'
+import { canAccessActorsWorkspace, canAccessArtWorkspace, canAccessCameraWorkspace, canAccessLocationsWorkspace, canAccessReportsWorkspace, isProducerUser } from './role-capabilities'
 import { canAccessCrewModule } from '@/utils/permissionGuard'
 
 export type AppRouteId =
@@ -12,6 +12,7 @@ export type AppRouteId =
   | 'actors'
   | 'wardrobe'
   | 'accommodation'
+  | 'locations'
   | 'approvals'
   | 'reports'
   | 'settings'
@@ -26,6 +27,7 @@ export const APP_NAV_ITEMS: { path: string; label: string; icon: string; routeId
   { path: '/actors', label: 'Actor & Juniors', icon: 'theater_comedy', routeId: 'actors' },
   { path: '/wardrobe', label: 'Wardrobe & Makeup', icon: 'checkroom', routeId: 'wardrobe' },
   { path: '/accommodation', label: 'Accommodation & Travel', icon: 'hotel', routeId: 'accommodation' },
+  { path: '/locations', label: 'Locations', icon: 'place', routeId: 'locations' },
   { path: '/approvals', label: 'Approvals', icon: 'verified_user', routeId: 'approvals' },
   { path: '/reports', label: 'Reports', icon: 'analytics', routeId: 'reports' },
   { path: '/settings', label: 'Settings', icon: 'settings', routeId: 'settings' },
@@ -66,6 +68,8 @@ export function canAccessRoute(user: User, routeId: AppRouteId) {
       return isProducerRole(user.role) || hasDepartmentAccess(user, ['wardrobe'])
     case 'accommodation':
       return isProducerRole(user.role) || hasDepartmentAccess(user, ['production', 'actors'])
+    case 'locations':
+      return canAccessLocationsWorkspace(user)
     case 'approvals':
       return isProducerUser(user)
     case 'reports':

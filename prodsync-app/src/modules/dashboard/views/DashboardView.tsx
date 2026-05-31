@@ -3,7 +3,7 @@ import { KpiCard } from '@/components/shared/KpiCard'
 import { Surface } from '@/components/shared/Surface'
 import { EmptyState, LoadingState, ErrorState } from '@/components/system/SystemStates'
 import { useResolvedProjectContext } from '@/features/projects/useResolvedProjectContext'
-import { formatCurrency } from '@/utils'
+import { formatCurrency, formatDate } from '@/utils'
 import { MissionControlMobile } from '../components/mission_control_mobile'
 
 export function DashboardView() {
@@ -15,6 +15,7 @@ export function DashboardView() {
     pendingApprovals,
     alerts,
     events,
+    locationsDashboard,
   } = useDashboardData()
 
   const { activeProject } = useResolvedProjectContext()
@@ -24,6 +25,7 @@ export function DashboardView() {
     pendingApprovals.length > 0 ||
     alerts.length > 0 ||
     events.length > 0 ||
+    Boolean(locationsDashboard && (locationsDashboard.activeLocations > 0 || locationsDashboard.pendingPermissions > 0 || locationsDashboard.expiredPermissions > 0)) ||
     kpis.activeCrew > 0 ||
     kpis.activeFleet > 0 ||
     kpis.otCostTodayUSD > 0
@@ -92,6 +94,15 @@ export function DashboardView() {
           <KpiCard label="Active Crew" value={String(kpis.activeCrew)} subLabel="Driven by attendance logs" />
           <KpiCard label="Pending Approvals" value={String(pendingApprovals.length)} subLabel="Driven by approval requests" />
         </section>
+
+        {locationsDashboard && (
+          <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+            <KpiCard label="Active Locations" value={String(locationsDashboard.activeLocations)} subLabel="Scouting and live sets" />
+            <KpiCard label="Shoot Ready" value={String(locationsDashboard.shootReadyLocations)} subLabel="Readiness engine ready" />
+            <KpiCard label="Pending Permissions" value={String(locationsDashboard.pendingPermissions)} subLabel="Awaiting approvals or issue" />
+            <KpiCard label="Expired Permissions" value={String(locationsDashboard.expiredPermissions)} subLabel={`${locationsDashboard.expiringPermissions7Days} critical this week`} subType={locationsDashboard.expiredPermissions > 0 ? 'critical' : 'default'} />
+          </section>
+        )}
 
         {/* Alerts + Activity */}
         {!hasOperationalData ? (
@@ -162,6 +173,30 @@ export function DashboardView() {
                         <p className="text-sm font-semibold text-zinc-900 dark:text-white">{event.title}</p>
                         <p className="mt-0.5 text-xs text-zinc-500 dark:text-zinc-400 leading-relaxed line-clamp-2">{event.description}</p>
                       </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            </Surface>
+
+            <Surface variant="table" padding="lg">
+              <div className="section-heading">
+                <div>
+                  <p className="section-kicker">Locations</p>
+                  <h2 className="section-title">Recent Location Activity</h2>
+                </div>
+              </div>
+              <div className="mt-6 flex flex-col gap-3">
+                {(locationsDashboard?.recentActivity.length ?? 0) === 0 ? (
+                  <p className="text-sm text-zinc-500 dark:text-zinc-400">No recent location activity.</p>
+                ) : (
+                  locationsDashboard?.recentActivity.map(event => (
+                    <div key={event.id} className="rounded-[20px] border border-zinc-200 bg-zinc-50 px-5 py-4 dark:border-zinc-800 dark:bg-zinc-900">
+                      <div className="flex items-center justify-between gap-3">
+                        <p className="text-sm font-semibold text-zinc-900 dark:text-white">{event.title}</p>
+                        <p className="text-xs text-zinc-500 dark:text-zinc-400">{formatDate(event.eventAt)}</p>
+                      </div>
+                      {event.description && <p className="mt-2 text-xs leading-relaxed text-zinc-500 dark:text-zinc-400">{event.description}</p>}
                     </div>
                   ))
                 )}

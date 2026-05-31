@@ -5,6 +5,7 @@ import { crewService } from '@/services/crew.service'
 import { approvalsService } from '@/services/approvals.service'
 import { alertsService } from '@/services/alerts.service'
 import { activityService } from '@/services/activity.service'
+import { locationsService } from '@/services/locations.service'
 import { mapDashboardKpis, buildDeptVelocity, buildBurnData, buildDeptSnapshots } from '@/services/adapters/dashboard.adapter'
 import { mapTransportKpis, transformFuelLog } from '@/services/adapters/transport.adapter'
 import { mapCrewKpis } from '@/services/adapters/crew.adapter'
@@ -60,6 +61,12 @@ export function useDashboardData() {
     staleTime: 60_000,
     enabled: Boolean(activeProjectId),
   })
+  const locationsDashboardQ = useQuery({
+    queryKey: ['locations-dashboard', activeProjectId],
+    queryFn: () => locationsService.getDashboard(activeProjectId!),
+    staleTime: 20_000,
+    enabled: Boolean(activeProjectId),
+  })
 
   const trips = tripsQ.data ?? []
   const fuelLogs = fuelQ.data ?? []
@@ -69,6 +76,7 @@ export function useDashboardData() {
   const alerts = alertsQ.data ?? []
   const events = activityQ.data ?? []
   const report = reportQ.data
+  const locationsDashboard = locationsDashboardQ.data
 
   const kpis = mapDashboardKpis(otGroups, crew, report)
   const transportKpis = mapTransportKpis(trips, fuelLogs)
@@ -79,8 +87,8 @@ export function useDashboardData() {
   const deptSnapshots = buildDeptSnapshots(trips, crew, otGroups)
 
   return {
-    isLoading: isLoadingProjectContext || tripsQ.isLoading || crewQ.isLoading || fuelQ.isLoading || approvalsQ.isLoading || alertsQ.isLoading || activityQ.isLoading || reportQ.isLoading,
-    isError: isErrorProjectContext || tripsQ.isError || crewQ.isError || fuelQ.isError || approvalsQ.isError || alertsQ.isError || activityQ.isError || reportQ.isError,
+    isLoading: isLoadingProjectContext || tripsQ.isLoading || crewQ.isLoading || fuelQ.isLoading || approvalsQ.isLoading || alertsQ.isLoading || activityQ.isLoading || reportQ.isLoading || locationsDashboardQ.isLoading,
+    isError: isErrorProjectContext || tripsQ.isError || crewQ.isError || fuelQ.isError || approvalsQ.isError || alertsQ.isError || activityQ.isError || reportQ.isError || locationsDashboardQ.isError,
     kpis,
     transportKpis,
     crewKpis,
@@ -92,5 +100,6 @@ export function useDashboardData() {
     alerts: alerts.slice(0, 4),
     events: events.slice(0, 5),
     trips: trips.slice(0, 5),
+    locationsDashboard,
   }
 }

@@ -168,3 +168,11 @@ export function canManageWardrobeOperations(user: UserLike) {
 export function canDeleteWardrobeContinuity(user: UserLike) {
   return isProducerUser(user) || isCostumeSupervisor(user)
 }
+
+export function canAccessLocationsWorkspace(user: UserLike) {
+  return Boolean(
+    isProducerUser(user)
+      || user?.role === 'HOD'
+      || hasProjectRole(user, ['Production Manager', 'DOP', 'Art Director', 'Transport Captain', 'Costume Supervisor', 'Editor', 'Actor Coordinator']),
+  )
+}

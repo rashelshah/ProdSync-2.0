@@ -422,7 +422,7 @@ export interface DepartmentSnapshot {
 // ─── Alerts ─────────────────────────────────────────────────────────────────
 
 export type AlertSeverity = 'critical' | 'warning' | 'info'
-export type AlertSource = 'transport' | 'crew' | 'camera' | 'expenses' | 'wardrobe' | 'approvals' | 'system'
+export type AlertSource = 'transport' | 'crew' | 'camera' | 'expenses' | 'wardrobe' | 'locations' | 'approvals' | 'system'
 
 export interface AlertItem {
   id: string

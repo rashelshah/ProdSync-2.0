@@ -106,10 +106,11 @@ export function Sidebar({
             {navItems.map(item => {
               const isActive = item.exact ? location.pathname === item.path : location.pathname.startsWith(item.path)
               const hasAlert =
-                (item.path === '/transport' || item.path === '/crew' || item.path === '/approvals') &&
+                (item.path === '/transport' || item.path === '/crew' || item.path === '/locations' || item.path === '/approvals') &&
                 criticalAlerts.some(a => {
                   if (item.path === '/transport' && a.source === 'transport') return true
                   if (item.path === '/crew' && a.source === 'crew') return true
+                  if (item.path === '/locations' && a.source === 'locations') return true
                   if (item.path === '/approvals' && a.source === 'approvals') return true
                   return false
                 })

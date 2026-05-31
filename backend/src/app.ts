@@ -17,6 +17,7 @@ import { wardrobeRouter } from './modules/wardrobe/wardrobe.routes'
 import { accommodationRouter } from './modules/accommodation/accommodation.routes'
 import { reportsRouter } from './modules/reports/reports.routes'
 import { mapRouter } from './modules/map/map.routes'
+import { locationsRouter } from './modules/locations/locations.routes'
 import { HttpError } from './utils/httpError'
 import { transportRouter } from './routes/transport.routes'
 import { runtimeProcess } from './utils/runtime'
@@ -85,6 +86,7 @@ export function createApp() {
   app.use('/api/accommodation', accommodationRouter)
   app.use('/api/reports', reportsRouter)
   app.use('/api/map', mapRouter)
+  app.use('/api/locations', locationsRouter)
   app.use('/api', transportRouter)
 
   app.use((_req, _res, next) => {
