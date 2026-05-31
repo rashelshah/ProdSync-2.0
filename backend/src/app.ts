@@ -15,6 +15,7 @@ import { actorsRouter } from './modules/actors/actors.routes'
 import { cameraRouter } from './modules/camera/camera.routes'
 import { wardrobeRouter } from './modules/wardrobe/wardrobe.routes'
 import { accommodationRouter } from './modules/accommodation/accommodation.routes'
+import { foodBeveragesRouter } from './modules/food-beverages/food-beverages.routes'
 import { reportsRouter } from './modules/reports/reports.routes'
 import { mapRouter } from './modules/map/map.routes'
 import { locationsRouter } from './modules/locations/locations.routes'
@@ -84,6 +85,7 @@ export function createApp() {
   app.use('/api/camera', cameraRouter)
   app.use('/api/wardrobe', wardrobeRouter)
   app.use('/api/accommodation', accommodationRouter)
+  app.use('/api/food-beverages', foodBeveragesRouter)
   app.use('/api/reports', reportsRouter)
   app.use('/api/map', mapRouter)
   app.use('/api/locations', locationsRouter)

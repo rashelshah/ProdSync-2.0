@@ -13,6 +13,7 @@ const googleOnboardingSchema = z.object({
     'Executive Producer',
     'Line Producer',
     'Production Manager',
+    'Production Coordinator',
     '1st AD',
     'DOP',
     '1st AC',

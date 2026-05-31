@@ -4,6 +4,7 @@ import { useSearchParams } from 'react-router-dom'
 import { KpiCard } from '@/components/shared/KpiCard'
 import { StatusBadge } from '@/components/shared/StatusBadge'
 import { Surface } from '@/components/shared/Surface'
+import { SectionSelectorSheet } from '@/components/shared/SectionSelectorSheet'
 import { EmptyState, ErrorState, LoadingState } from '@/components/system/SystemStates'
 import { useAuthStore } from '@/features/auth/auth.store'
 import { useResolvedProjectContext } from '@/features/projects/useResolvedProjectContext'
@@ -225,6 +226,7 @@ function ActionButton({
   tone = 'default',
   type = 'button',
   disabled = false,
+  loading = false,
 }: {
   label: string
   icon: string
@@ -232,19 +234,20 @@ function ActionButton({
   tone?: 'default' | 'danger'
   type?: 'button' | 'submit'
   disabled?: boolean
+  loading?: boolean
 }) {
   return (
     <button
       type={type}
       onClick={onClick}
-      disabled={disabled}
+      disabled={disabled || loading}
       className={`inline-flex items-center justify-center gap-2 rounded-full px-4 py-2.5 text-[11px] font-semibold uppercase tracking-[0.18em] transition ${
         tone === 'danger'
           ? 'border border-red-200 bg-red-50 text-red-600 hover:bg-red-100 dark:border-red-500/20 dark:bg-red-500/10 dark:text-red-300'
           : 'border border-zinc-200 bg-white text-zinc-900 hover:border-orange-200 hover:bg-orange-50 hover:text-orange-600 dark:border-zinc-800 dark:bg-zinc-950 dark:text-white dark:hover:border-orange-500/20 dark:hover:bg-orange-500/10 dark:hover:text-orange-300'
-      } ${disabled ? 'cursor-not-allowed opacity-60' : ''}`}
+      } ${(disabled || loading) ? 'cursor-not-allowed opacity-60' : ''}`}
     >
-      <span className="material-symbols-outlined text-[16px]">{icon}</span>
+      {loading ? <span className="ui-spinner" /> : <span className="material-symbols-outlined text-[16px]">{icon}</span>}
       {label}
     </button>
   )
@@ -444,6 +447,8 @@ export function LocationsView() {
   const [createMode, setCreateMode] = useState<CreateMode>('menu')
   const [createModalOpen, setCreateModalOpen] = useState(false)
   const [editingLocation, setEditingLocation] = useState<LocationRecord | null>(null)
+  const [locationTabSheetOpen, setLocationTabSheetOpen] = useState(false)
+  const [switchingTab, setSwitchingTab] = useState<WorkspaceTab | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<LocationRecord | null>(null)
   const [deletePrompt, setDeletePrompt] = useState<{
     title: string
@@ -495,6 +500,12 @@ export function LocationsView() {
   })
 
   const selectedTab = workspaceTab
+
+  useEffect(() => {
+    if (!switchingTab) return
+    const timer = window.setTimeout(() => setSwitchingTab(null), 180)
+    return () => window.clearTimeout(timer)
+  }, [switchingTab, selectedTab])
 
   const locationFileInputRef = useRef<HTMLInputElement | null>(null)
   const mediaFileInputRef = useRef<HTMLInputElement | null>(null)
@@ -852,6 +863,15 @@ export function LocationsView() {
     onError: error => showError(resolveErrorMessage(error, 'Could not add comment.')),
   })
 
+  const handleWorkspaceTabSwitch = (locationId: string, tab: WorkspaceTab) => {
+    setSwitchingTab(tab)
+    setSearchParams(params => {
+      params.set('locationId', locationId)
+      params.set('tab', tab)
+      return params
+    })
+  }
+
   const selectedDetailComments = selectedDetailData?.comments ?? []
 
   const overviewStats = useMemo(() => {
@@ -963,6 +983,18 @@ export function LocationsView() {
             </div>
           </Surface>
         </div>
+        <SectionSelectorSheet
+          open={locationTabSheetOpen}
+          title="Select Section"
+          description="Choose a workspace section without horizontal scrolling."
+          selectedId={selectedTab}
+          options={WORKSPACE_TABS}
+          onSelect={tab => {
+            setLocationTabSheetOpen(false)
+            handleWorkspaceTabSwitch(selectedLocation.id, tab as WorkspaceTab)
+          }}
+          onClose={() => setLocationTabSheetOpen(false)}
+        />
       </div>
     )
   }
@@ -997,7 +1029,7 @@ export function LocationsView() {
                 setMediaUploadLongitude('')
               }}
             />
-            <ActionButton label="Upload" icon="upload" onClick={() => mediaFileInputRef.current?.click()} />
+            <ActionButton label="Upload" icon="upload" loading={uploadMediaMutation.isPending} onClick={() => mediaFileInputRef.current?.click()} />
           </div>
         </div>
 
@@ -1042,6 +1074,7 @@ export function LocationsView() {
                       label="Delete"
                       icon="delete"
                       tone="danger"
+                      loading={deleteMediaMutation.isPending}
                       onClick={() => {
                         if (!selectedLocationId || !activeProjectId) return
                         setDeletePrompt({
@@ -1077,6 +1110,7 @@ export function LocationsView() {
               <ActionButton
                 label="Upload File"
                 icon="upload"
+                loading={uploadMediaMutation.isPending}
                 onClick={() => {
                   if (!selectedLocationId || !activeProjectId || !mediaUploadFile) return
                   uploadMediaMutation.mutate({
@@ -1157,6 +1191,7 @@ export function LocationsView() {
                         label="Delete"
                         icon="delete"
                         tone="danger"
+                        loading={deletePermissionMutation.isPending}
                         onClick={() => deletePermissionMutation.mutate({
                           projectId: activeProjectId!,
                           locationId: selectedLocation.id,
@@ -1227,10 +1262,11 @@ export function LocationsView() {
                     <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-zinc-500 dark:text-zinc-400">Attachment Hint</p>
                     <p className="mt-2 text-sm leading-6 text-zinc-500 dark:text-zinc-400">Use Documents to attach the actual PDF or scan. The button above opens the upload flow already linked to this permission.</p>
                     <div className="mt-4 flex justify-end">
-                      <ActionButton
-                        label={existing ? 'Save Changes' : 'Create Item'}
-                        icon="save"
-                        onClick={() => {
+                    <ActionButton
+                      label={existing ? 'Save Changes' : 'Create Item'}
+                      icon="save"
+                      loading={existing ? updatePermissionMutation.isPending : createPermissionMutation.isPending}
+                      onClick={() => {
                           if (!selectedLocationId || !activeProjectId) return
                           const values: CreateLocationPermissionInput = {
                             projectId: activeProjectId,
@@ -1367,6 +1403,7 @@ export function LocationsView() {
                     <ActionButton
                       label="Save"
                       icon="save"
+                      loading={upsertAmenityMutation.isPending}
                       onClick={() => {
                         if (!selectedLocationId || !activeProjectId) return
                         upsertAmenityMutation.mutate({
@@ -1453,6 +1490,7 @@ export function LocationsView() {
           <ActionButton
             label="Replace"
             icon="swap_horiz"
+            loading={uploadDocumentMutation.isPending}
             onClick={() => {
               if (!documentUploadFile) {
                 documentFileInputRef.current?.click()
@@ -1472,6 +1510,7 @@ export function LocationsView() {
           <ActionButton
             label="Upload Document"
             icon="upload_file"
+            loading={uploadDocumentMutation.isPending}
             onClick={() => {
               if (!selectedLocationId || !activeProjectId || !documentUploadFile) {
                 showError('Choose a document file first.')
@@ -1523,6 +1562,7 @@ export function LocationsView() {
                       <ActionButton
                         label="Replace"
                         icon="swap_horiz"
+                        loading={uploadDocumentMutation.isPending}
                         onClick={() => {
                           setDocumentUploadCategory(document.category)
                           setUploadPermissionId(document.permissionId ?? '')
@@ -1534,6 +1574,7 @@ export function LocationsView() {
                         label="Delete"
                         icon="delete"
                         tone="danger"
+                        loading={deleteDocumentMutation.isPending}
                         onClick={() => {
                           if (!selectedLocationId || !activeProjectId) return
                           setDeletePrompt({
@@ -1629,6 +1670,7 @@ export function LocationsView() {
                 <ActionButton
                   label="Post Comment"
                   icon="send"
+                  loading={createCommentMutation.isPending}
                   onClick={() => {
                     if (!selectedLocationId || !activeProjectId || !commentForm.message.trim()) return
                     createCommentMutation.mutate({
@@ -1655,6 +1697,7 @@ export function LocationsView() {
                 <ActionButton
                   label="Add Event"
                   icon="event"
+                  loading={createTimelineMutation.isPending}
                   onClick={() => {
                     if (!selectedLocationId || !activeProjectId || !timelineForm.title.trim()) return
                     createTimelineMutation.mutate({
@@ -1692,7 +1735,7 @@ export function LocationsView() {
 
     return (
       <div className="space-y-6">
-        <Surface variant="table" padding="lg" className="sticky top-4 z-20">
+        <Surface variant="table" padding="lg" className="relative">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
             <div className="min-w-0">
               <button
@@ -1745,34 +1788,39 @@ export function LocationsView() {
               <button
                 key={tab.id}
                 type="button"
-                onClick={() => setSearchParams(params => {
-                  params.set('locationId', selectedLocation.id)
-                  params.set('tab', tab.id)
-                  return params
-                })}
+                onClick={() => handleWorkspaceTabSwitch(selectedLocation.id, tab.id)}
+                disabled={switchingTab !== null}
                 className={`inline-flex items-center gap-2 rounded-full px-4 py-3 text-[11px] font-semibold uppercase tracking-[0.18em] transition ${
                   selectedTab === tab.id
                     ? 'bg-orange-500 text-black shadow-[0_10px_24px_rgba(249,115,22,0.22)]'
                     : 'bg-zinc-100 text-zinc-600 hover:bg-zinc-200 dark:bg-zinc-900 dark:text-zinc-300 dark:hover:bg-zinc-800'
                 }`}
               >
-                <span className="material-symbols-outlined text-[16px]">{tab.icon}</span>
+                {switchingTab === tab.id ? <span className="ui-spinner" /> : <span className="material-symbols-outlined text-[16px]">{tab.icon}</span>}
                 {tab.label}
               </button>
             ))}
           </div>
 
           <div className="mt-5 md:hidden">
-            <Field label="Workspace Section">
-              <Select value={selectedTab} onChange={event => setSearchParams(params => {
-                params.set('locationId', selectedLocation.id)
-                params.set('tab', event.target.value)
-                return params
-              })}>
-                {WORKSPACE_TABS.map(tab => <option key={tab.id} value={tab.id}>{tab.mobileLabel}</option>)}
-              </Select>
-            </Field>
+            <button
+              type="button"
+              onClick={() => setLocationTabSheetOpen(true)}
+              className="flex w-full items-center justify-between rounded-2xl border border-zinc-200 bg-white px-4 py-3 text-left text-sm text-zinc-900 dark:border-zinc-800 dark:bg-zinc-950 dark:text-white"
+            >
+              <span className="inline-flex items-center gap-2 font-medium">
+                <span className="material-symbols-outlined text-[18px]">{WORKSPACE_TABS.find(tab => tab.id === selectedTab)?.icon}</span>
+                {WORKSPACE_TABS.find(tab => tab.id === selectedTab)?.mobileLabel}
+              </span>
+              <span className="material-symbols-outlined text-[18px] text-zinc-500 dark:text-zinc-400">keyboard_arrow_down</span>
+            </button>
           </div>
+          {switchingTab && (
+            <p className="mt-4 inline-flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-zinc-500 dark:text-zinc-400">
+              <span className="ui-spinner" />
+              Switching section...
+            </p>
+          )}
         </Surface>
 
         {selectedTab === 'overview' && renderOverviewPanel()}
@@ -1829,11 +1877,8 @@ export function LocationsView() {
                 <ActionButton
                   label="Details"
                   icon="arrow_forward"
-                  onClick={() => setSearchParams(params => {
-                    params.set('locationId', location.id)
-                    params.set('tab', 'overview')
-                    return params
-                  })}
+                  loading={switchingTab === 'overview' && selectedLocationId === location.id}
+                  onClick={() => handleWorkspaceTabSwitch(location.id, 'overview')}
                 />
                 <ActionButton
                   label="Edit"
@@ -2036,6 +2081,7 @@ export function LocationsView() {
               <ActionButton
                 label="Save Changes"
                 icon="save"
+                loading={updateLocationMutation.isPending}
                 onClick={() => {
                   if (!editingLocation) return
                   updateLocationMutation.mutate({ id: editingLocation.id, values: { ...locationDraft, projectId: editingLocation.projectId } })
@@ -2045,6 +2091,7 @@ export function LocationsView() {
               <ActionButton
                 label="Save Location"
                 icon="save"
+                loading={createLocationMutation.isPending}
                 onClick={() => {
                   if (!locationDraft.name.trim()) {
                     showError('Location name is required.')
@@ -2302,6 +2349,7 @@ export function LocationsView() {
               label="Delete"
               icon="delete"
               tone="danger"
+              loading={deleteLocationMutation.isPending}
               onClick={() => {
                 if (!deleteTarget || !activeProjectId) return
                 deleteLocationMutation.mutate({ projectId: activeProjectId, id: deleteTarget.id })

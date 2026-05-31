@@ -95,21 +95,22 @@ export function Sidebar({
           )}
         </div>
 
-        <div className="mt-10 flex-1">
+        <div className="mt-10 flex min-h-0 flex-1 flex-col">
           {!effectiveCollapsed && (
             <p className="mb-4 px-3 text-[10px] font-semibold uppercase tracking-[0.22em] text-zinc-500 dark:text-zinc-400">
               Navigation
             </p>
           )}
 
-          <nav className="space-y-1">
+          <nav className="min-h-0 flex-1 space-y-1 overflow-y-auto pr-1">
             {navItems.map(item => {
               const isActive = item.exact ? location.pathname === item.path : location.pathname.startsWith(item.path)
               const hasAlert =
-                (item.path === '/transport' || item.path === '/crew' || item.path === '/locations' || item.path === '/approvals') &&
+                (item.path === '/transport' || item.path === '/crew' || item.path === '/food-beverages' || item.path === '/locations' || item.path === '/approvals') &&
                 criticalAlerts.some(a => {
                   if (item.path === '/transport' && a.source === 'transport') return true
                   if (item.path === '/crew' && a.source === 'crew') return true
+                  if (item.path === '/food-beverages' && a.source === 'food_beverages') return true
                   if (item.path === '/locations' && a.source === 'locations') return true
                   if (item.path === '/approvals' && a.source === 'approvals') return true
                   return false

@@ -176,3 +176,19 @@ export function canAccessLocationsWorkspace(user: UserLike) {
       || hasProjectRole(user, ['Production Manager', 'DOP', 'Art Director', 'Transport Captain', 'Costume Supervisor', 'Editor', 'Actor Coordinator']),
   )
 }
+
+export function canAccessFoodBeveragesWorkspace(user: UserLike) {
+  return Boolean(
+    isProducerUser(user)
+      || user?.role === 'HOD'
+      || hasProjectRole(user, ['Production Manager', 'Production Coordinator']),
+  )
+}
+
+export function canSubmitFoodForecast(user: UserLike) {
+  return Boolean(
+    canAccessFoodBeveragesWorkspace(user)
+      || user?.role === 'HOD'
+      || hasProjectRole(user, ['Production Manager', 'Production Coordinator']),
+  )
+}

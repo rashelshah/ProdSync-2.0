@@ -14,6 +14,7 @@ import { ExpensesView } from '@/modules/expenses/views/ExpensesView'
 import { ActorsView } from '@/modules/actors/views/ActorsView'
 import { WardrobeView } from '@/modules/wardrobe/views/WardrobeView'
 import { AccommodationView } from '@/modules/accommodation/views/AccommodationView'
+import { FoodBeveragesView } from '@/modules/food-beverages/views/FoodBeveragesView'
 import { LocationsView } from '@/modules/locations/views/LocationsView'
 import { ApprovalsView } from '@/modules/approvals/views/ApprovalsView'
 import { ReportsView } from '@/modules/reports/views/ReportsView'
@@ -42,6 +43,7 @@ export function AppRouter() {
           <Route path="/actors" element={<RouteAccessGuard routeId="actors"><ActorsView /></RouteAccessGuard>} />
           <Route path="/wardrobe" element={<RouteAccessGuard routeId="wardrobe"><WardrobeView /></RouteAccessGuard>} />
           <Route path="/accommodation" element={<RouteAccessGuard routeId="accommodation"><AccommodationView /></RouteAccessGuard>} />
+          <Route path="/food-beverages" element={<RouteAccessGuard routeId="food-beverages"><FoodBeveragesView /></RouteAccessGuard>} />
           <Route path="/locations/*" element={<RouteAccessGuard routeId="locations"><LocationsView /></RouteAccessGuard>} />
           <Route path="/approvals" element={<RouteAccessGuard routeId="approvals"><ApprovalsView /></RouteAccessGuard>} />
           <Route path="/reports" element={<RouteAccessGuard routeId="reports"><ReportsView /></RouteAccessGuard>} />

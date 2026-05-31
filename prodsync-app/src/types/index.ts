@@ -21,6 +21,7 @@ export type ProjectRequestedRole =
   | 'Executive Producer'
   | 'Line Producer'
   | 'Production Manager'
+  | 'Production Coordinator'
   | '1st AD'
   | 'DOP'
   | '1st AC'
@@ -422,7 +423,7 @@ export interface DepartmentSnapshot {
 // ─── Alerts ─────────────────────────────────────────────────────────────────
 
 export type AlertSeverity = 'critical' | 'warning' | 'info'
-export type AlertSource = 'transport' | 'crew' | 'camera' | 'expenses' | 'wardrobe' | 'locations' | 'approvals' | 'system'
+export type AlertSource = 'transport' | 'crew' | 'camera' | 'expenses' | 'wardrobe' | 'locations' | 'approvals' | 'food_beverages' | 'system'
 
 export interface AlertItem {
   id: string

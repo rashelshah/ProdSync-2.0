@@ -72,6 +72,12 @@ export const DEPARTMENT_ROLE_OPTIONS: Record<ProjectDepartment, DepartmentRoleCo
       accessRole: 'Supervisor',
     },
     {
+      id: 'Production Coordinator',
+      label: 'Production Coordinator',
+      description: 'Coordinate daily production execution and department submissions.',
+      accessRole: 'Supervisor',
+    },
+    {
       id: '1st AD',
       label: '1st AD',
       description: 'Run floor execution, call timing, and set readiness.',
