@@ -1,4 +1,9 @@
+import { useEffect, useRef, useState } from 'react'
 import { Surface } from '@/components/shared/Surface'
+import { cn } from '@/utils'
+
+const TUBE_LIGHT_LOADER_SRC = '/video/tubelight%20loader.webm'
+const EXIT_FADE_MS = 180
 
 export function LoadingState({ message = 'Loading...' }: { message?: string }) {
   return (
@@ -8,6 +13,116 @@ export function LoadingState({ message = 'Loading...' }: { message?: string }) {
         <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-zinc-500 dark:text-zinc-400">{message}</p>
       </div>
     </Surface>
+  )
+}
+
+export function TubeLightLoaderOverlay({
+  open,
+  message = 'Loading...',
+}: {
+  open: boolean
+  message?: string
+}) {
+  const [isMounted, setIsMounted] = useState(open)
+  const [isExiting, setIsExiting] = useState(false)
+  const videoRef = useRef<HTMLVideoElement | null>(null)
+  const exitTimerRef = useRef<number | null>(null)
+  const [dotCount, setDotCount] = useState(1)
+
+  const clearTimers = () => {
+    if (exitTimerRef.current != null) {
+      window.clearTimeout(exitTimerRef.current)
+      exitTimerRef.current = null
+    }
+  }
+
+  const beginExit = () => {
+    if (isExiting || exitTimerRef.current != null) {
+      return
+    }
+
+    setIsExiting(true)
+    exitTimerRef.current = window.setTimeout(() => {
+      exitTimerRef.current = null
+      setIsMounted(false)
+      setIsExiting(false)
+    }, EXIT_FADE_MS)
+  }
+
+  useEffect(() => {
+    if (open) {
+      clearTimers()
+      setIsMounted(true)
+      setIsExiting(false)
+      const video = videoRef.current
+      if (video) {
+        video.currentTime = 0
+        void video.play().catch(() => {
+          // Muted autoplay may still be rejected in a few environments.
+        })
+      }
+    }
+  }, [open])
+
+  useEffect(() => {
+    if (!open && isMounted) {
+      beginExit()
+    }
+  }, [isMounted, open])
+
+  useEffect(() => () => clearTimers(), [])
+
+  useEffect(() => {
+    if (!open || isExiting) {
+      return
+    }
+
+    const timerId = window.setInterval(() => {
+      setDotCount(current => (current % 3) + 1)
+    }, 360)
+
+    return () => window.clearInterval(timerId)
+  }, [isExiting, open])
+
+  if (!isMounted) {
+    return null
+  }
+
+  return (
+    <div
+      aria-hidden="true"
+      className={cn(
+        'fixed inset-0 z-[220] flex items-center justify-center overflow-hidden px-4 py-8 transition-opacity duration-200 ease-[cubic-bezier(0.22,1,0.36,1)]',
+        isExiting ? 'opacity-0' : 'opacity-100',
+      )}
+    >
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(249,115,22,0.06),transparent_28%),linear-gradient(180deg,color-mix(in_srgb,var(--app-bg)_92%,transparent),color-mix(in_srgb,var(--app-bg)_86%,transparent))] backdrop-blur-[1.5px] dark:bg-[radial-gradient(circle_at_center,rgba(249,115,22,0.08),transparent_28%),linear-gradient(180deg,rgba(9,9,11,0.84),rgba(9,9,11,0.78))]" />
+
+      <div className="relative flex flex-col items-center justify-center">
+        <video
+          ref={videoRef}
+          src={TUBE_LIGHT_LOADER_SRC}
+          autoPlay
+          loop
+          muted
+          playsInline
+          preload="auto"
+          className="block w-[min(72vw,18rem)] max-w-[18rem] select-none object-contain mix-blend-screen [filter:drop-shadow(0_0_18px_rgba(249,115,22,0.16))_drop-shadow(0_0_44px_rgba(249,115,22,0.10))]"
+        />
+        <p className="mt-0 text-sm font-medium tracking-[0.02em] text-[color:var(--app-text)]">
+          <span className="inline-flex items-center justify-center">
+            <span className="inline-block">Loading</span>
+            <span
+              aria-hidden="true"
+              className="inline-block w-[3ch] text-left"
+            >
+              {'.'.repeat(dotCount)}
+            </span>
+          </span>
+          <span className="sr-only">{message}</span>
+        </p>
+      </div>
+    </div>
   )
 }
 

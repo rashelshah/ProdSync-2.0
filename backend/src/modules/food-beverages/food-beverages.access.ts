@@ -46,6 +46,12 @@ export function canManageFoodBeverages(req: Request) {
   )
 }
 
+export function canViewAllFoodBeverages(req: Request) {
+  return canManageFoodBeverages(req)
+    || authRole(req) === 'LINE_PRODUCER'
+    || membershipRole(req) === 'LINE_PRODUCER'
+}
+
 export function canSubmitFoodForecast(req: Request) {
   return canViewFoodBeverages(req)
 }

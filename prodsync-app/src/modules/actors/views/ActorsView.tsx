@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { Surface } from '@/components/shared/Surface'
-import { EmptyState, ErrorState, LoadingState } from '@/components/system/SystemStates'
+import { EmptyState, ErrorState, TubeLightLoaderOverlay } from '@/components/system/SystemStates'
 import { invalidateProjectData } from '@/context/project-sync'
 import { useAuthStore } from '@/features/auth/auth.store'
 import { canAccessActorsWorkspace } from '@/features/auth/role-capabilities'
@@ -216,7 +216,7 @@ export function ActorsView() {
   }
 
   if (isLoadingProjectContext) {
-    return <LoadingState message="Loading actor workspace..." />
+    return <TubeLightLoaderOverlay open message="Loading actor workspace..." />
   }
 
   if (!activeProjectId) {
@@ -236,7 +236,7 @@ export function ActorsView() {
   }
 
   if (isLoading) {
-    return <LoadingState message="Loading actor records..." />
+    return <TubeLightLoaderOverlay open message="Loading actor records..." />
   }
 
   if (isError) {

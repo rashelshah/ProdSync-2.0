@@ -10,12 +10,14 @@ export function RouteTransitionIndicator() {
   useEffect(() => {
     setVisible(true)
 
-    const timeoutId = window.setTimeout(() => {
+    const progressTimeoutId = window.setTimeout(() => {
       setVisible(false)
     }, TRANSITION_VISIBILITY_MS)
 
-    return () => window.clearTimeout(timeoutId)
-  }, [location.hash, location.pathname, location.search])
+    return () => {
+      window.clearTimeout(progressTimeoutId)
+    }
+  }, [location.pathname])
 
   return (
     <div

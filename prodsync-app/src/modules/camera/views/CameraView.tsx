@@ -5,7 +5,7 @@ import { ModuleBudgetBadge } from '@/components/project/ModuleBudgetBadge'
 import { KpiCard } from '@/components/shared/KpiCard'
 import { StatusBadge } from '@/components/shared/StatusBadge'
 import { Surface } from '@/components/shared/Surface'
-import { EmptyState, ErrorState, LoadingState } from '@/components/system/SystemStates'
+import { EmptyState, ErrorState, TubeLightLoaderOverlay } from '@/components/system/SystemStates'
 import { useAuthStore } from '@/features/auth/auth.store'
 import {
   canLogCameraMovement,
@@ -1072,7 +1072,7 @@ export function CameraView() {
   }
 
   if (isLoadingProjectContext) {
-    return <LoadingState message="Resolving project access..." />
+    return <TubeLightLoaderOverlay open message="Resolving project access..." />
   }
 
   if (!activeProjectId || !activeProject) {
@@ -1089,7 +1089,7 @@ export function CameraView() {
     )
   }
 
-  if (isLoading) return <LoadingState message="Loading camera operations..." />
+  if (isLoading) return <TubeLightLoaderOverlay open message="Loading camera operations..." />
   if (isError) return <ErrorState message="Failed to load camera module data" />
 
   return (

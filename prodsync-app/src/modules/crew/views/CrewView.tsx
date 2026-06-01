@@ -5,7 +5,7 @@ import { KpiCard } from '@/components/shared/KpiCard'
 import { ModuleBudgetBadge } from '@/components/project/ModuleBudgetBadge'
 import { StatusBadge } from '@/components/shared/StatusBadge'
 import { Surface } from '@/components/shared/Surface'
-import { EmptyState, ErrorState, LoadingState } from '@/components/system/SystemStates'
+import { EmptyState, ErrorState, LoadingState, TubeLightLoaderOverlay } from '@/components/system/SystemStates'
 import { useProject } from '@/context/ProjectContext'
 import { invalidateProjectData } from '@/context/project-sync'
 import { useAuthStore } from '@/features/auth/auth.store'
@@ -566,7 +566,7 @@ export function CrewView() {
     }
   }
 
-  if (isLoading) return <LoadingState message="Loading crew control..." />
+  if (isLoading) return <TubeLightLoaderOverlay open message="Loading crew control..." />
   if (isError) return <ErrorState message="Failed to load crew data" retry={() => void refetch()} />
 
   if (!canUseCrewModule) {

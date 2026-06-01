@@ -1,10 +1,10 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState, type InputHTMLAttributes, type ReactNode, type SelectHTMLAttributes, type TextareaHTMLAttributes } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useSearchParams } from 'react-router-dom'
 import { KpiCard } from '@/components/shared/KpiCard'
 import { StatusBadge } from '@/components/shared/StatusBadge'
 import { Surface } from '@/components/shared/Surface'
-import { EmptyState, ErrorState, LoadingState } from '@/components/system/SystemStates'
+import { EmptyState, ErrorState, TubeLightLoaderOverlay } from '@/components/system/SystemStates'
 import { SectionSelectorSheet } from '@/components/shared/SectionSelectorSheet'
 import { useAuthStore } from '@/features/auth/auth.store'
 import { useResolvedProjectContext } from '@/features/projects/useResolvedProjectContext'
@@ -13,11 +13,9 @@ import { formatCurrency, formatDate, timeAgo } from '@/utils'
 import type { ProjectCurrency } from '@/types'
 import { foodBeveragesService } from '../service'
 import type {
-  FoodBeverageDietaryProfileInput,
   FoodBeverageForecastInput,
   FoodBeverageInvoiceInput,
   FoodBeverageMealLogInput,
-  FoodBeverageVendorInput,
   FoodBeveragesTabId,
 } from '../types'
 
@@ -29,11 +27,10 @@ const TAB_CONFIG: Array<{
   description: string
 }> = [
   { id: 'overview', label: 'Overview', mobileLabel: 'Overview', icon: 'dashboard', description: 'Daily forecast, waste, and cost snapshot.' },
-  { id: 'forecasting', label: 'Forecasting', mobileLabel: 'Forecasting', icon: 'schedule', description: 'Next-day meal counts and estimated fallback.' },
-  { id: 'meal-logs', label: 'Meal Logs', mobileLabel: 'Meal Logs', icon: 'restaurant', description: 'Served meals, waste, and vendor accountability.' },
-  { id: 'vendor-ledger', label: 'Vendor Ledger', mobileLabel: 'Vendor Ledger', icon: 'receipt_long', description: 'Vendors, invoices, and approval tracking.' },
-  { id: 'dietary', label: 'Dietary', mobileLabel: 'Dietary', icon: 'person_raised_hand', description: 'Dietary counts and allergy readiness.' },
-  { id: 'analytics', label: 'Analytics', mobileLabel: 'Analytics', icon: 'analytics', description: 'Forecast coverage, waste, and vendor performance.' },
+  { id: 'forecasting', label: 'Forecasting', mobileLabel: 'Forecasting', icon: 'schedule', description: 'Next-day meal counts and vendor details.' },
+  { id: 'meal-logs', label: 'Meal Logs', mobileLabel: 'Meal Logs', icon: 'restaurant', description: 'Actual consumption with linked forecast data.' },
+  { id: 'invoices', label: 'Invoices', mobileLabel: 'Invoices', icon: 'receipt_long', description: 'Generated invoices, approvals, and PDF attachments.' },
+  { id: 'analytics', label: 'Analytics', mobileLabel: 'Analytics', icon: 'analytics', description: 'Forecast coverage, waste, and cost trends.' },
   { id: 'timeline', label: 'Timeline', mobileLabel: 'Timeline', icon: 'timeline', description: 'Action history and variance alerts.' },
 ]
 
@@ -59,8 +56,7 @@ function labelize(value: string) {
 }
 
 function mealPeriodLabel(value: string | null) {
-  if (!value) return 'All Day'
-  return labelize(value)
+  return value ? labelize(value) : 'All Day'
 }
 
 function badgeVariant(status: string) {
@@ -80,9 +76,7 @@ function badgeVariant(status: string) {
 }
 
 function resolveProjectCurrency(value: string | null | undefined): ProjectCurrency | undefined {
-  if (value === 'INR' || value === 'USD' || value === 'EUR') {
-    return value
-  }
+  if (value === 'INR' || value === 'USD' || value === 'EUR') return value
   return undefined
 }
 
@@ -92,36 +86,38 @@ function tabFromValue(value: string | null, visibleTabs: FoodBeveragesTabId[]) {
   return visibleTabs[0]
 }
 
+function toPositiveNumber(value: number | null | undefined) {
+  return Math.max(0, Number.isFinite(value ?? NaN) ? Number(value) : 0)
+}
+
 function Field({
   label,
   children,
   hint,
 }: {
   label: string
-  children: React.ReactNode
+  children: ReactNode
   hint?: string
 }) {
   return (
-    <label className="block space-y-2">
-      <div className="flex items-center justify-between gap-4">
-        <span className="text-[10px] font-semibold uppercase tracking-[0.22em] text-zinc-500 dark:text-zinc-400">{label}</span>
-      </div>
+    <label className="space-y-2">
+      <span className="text-[10px] font-semibold uppercase tracking-[0.22em] text-[color:var(--app-muted)]">{label}</span>
       {children}
-      {hint && <p className="text-xs leading-5 text-zinc-500 dark:text-zinc-400">{hint}</p>}
+      {hint && <p className="text-xs leading-5 text-[color:var(--app-muted)]">{hint}</p>}
     </label>
   )
 }
 
-function Input(props: React.InputHTMLAttributes<HTMLInputElement>) {
-  return <input {...props} className={`w-full rounded-2xl border border-zinc-200 bg-white px-4 py-3 text-sm text-zinc-900 outline-none transition focus:border-orange-300 focus:ring-2 focus:ring-orange-500/20 dark:border-zinc-800 dark:bg-zinc-950 dark:text-white ${props.className ?? ''}`} />
+function Input(props: InputHTMLAttributes<HTMLInputElement>) {
+  return <input {...props} className={`w-full rounded-2xl border border-[color:var(--app-border)] bg-[color:var(--app-surface-strong)] px-4 py-3 text-sm text-[color:var(--app-text)] outline-none transition focus:border-orange-500 ${props.className ?? ''}`} />
 }
 
-function Select(props: React.SelectHTMLAttributes<HTMLSelectElement>) {
-  return <select {...props} className={`w-full rounded-2xl border border-zinc-200 bg-white px-4 py-3 text-sm text-zinc-900 outline-none transition focus:border-orange-300 focus:ring-2 focus:ring-orange-500/20 dark:border-zinc-800 dark:bg-zinc-950 dark:text-white ${props.className ?? ''}`} />
+function Select(props: SelectHTMLAttributes<HTMLSelectElement>) {
+  return <select {...props} className={`w-full rounded-2xl border border-[color:var(--app-border)] bg-[color:var(--app-surface-strong)] px-4 py-3 text-sm text-[color:var(--app-text)] outline-none transition focus:border-orange-500 ${props.className ?? ''}`} />
 }
 
-function Textarea(props: React.TextareaHTMLAttributes<HTMLTextAreaElement>) {
-  return <textarea {...props} className={`w-full rounded-2xl border border-zinc-200 bg-white px-4 py-3 text-sm text-zinc-900 outline-none transition focus:border-orange-300 focus:ring-2 focus:ring-orange-500/20 dark:border-zinc-800 dark:bg-zinc-950 dark:text-white ${props.className ?? ''}`} />
+function Textarea(props: TextareaHTMLAttributes<HTMLTextAreaElement>) {
+  return <textarea {...props} className={`w-full rounded-2xl border border-[color:var(--app-border)] bg-[color:var(--app-surface-strong)] px-4 py-3 text-sm text-[color:var(--app-text)] outline-none transition focus:border-orange-500 ${props.className ?? ''}`} />
 }
 
 function ActionButton({
@@ -149,7 +145,7 @@ function ActionButton({
       className={`inline-flex items-center justify-center gap-2 rounded-full px-4 py-2.5 text-[11px] font-semibold uppercase tracking-[0.18em] transition ${
         tone === 'danger'
           ? 'border border-red-200 bg-red-50 text-red-600 hover:bg-red-100 dark:border-red-500/20 dark:bg-red-500/10 dark:text-red-300'
-          : 'border border-zinc-200 bg-white text-zinc-900 hover:border-orange-200 hover:bg-orange-50 hover:text-orange-600 dark:border-zinc-800 dark:bg-zinc-950 dark:text-white dark:hover:border-orange-500/20 dark:hover:bg-orange-500/10 dark:hover:text-orange-300'
+          : 'border border-[color:var(--app-border)] bg-[color:var(--app-surface-strong)] text-[color:var(--app-text)] hover:border-orange-200 hover:bg-orange-50 dark:hover:bg-zinc-900'
       } ${(disabled || loading) ? 'cursor-not-allowed opacity-60' : ''}`}
     >
       {loading ? <span className="ui-spinner" /> : <span className="material-symbols-outlined text-[16px]">{icon}</span>}
@@ -166,8 +162,8 @@ function SectionCard({
 }: {
   title: string
   subtitle?: string
-  children: React.ReactNode
-  action?: React.ReactNode
+  children: ReactNode
+  action?: ReactNode
 }) {
   return (
     <Surface variant="raised" padding="md">
@@ -191,6 +187,7 @@ export function FoodBeveragesView() {
   const user = useAuthStore(state => state.user)
   const isForecastOnly = user?.role === 'HOD'
   const visibleTabs = useMemo(() => (isForecastOnly ? ['forecasting'] as FoodBeveragesTabId[] : TAB_CONFIG.map(tab => tab.id)), [isForecastOnly])
+  const visibleTabConfig = useMemo(() => TAB_CONFIG.filter(tab => visibleTabs.includes(tab.id)), [visibleTabs])
   const [searchParams, setSearchParams] = useSearchParams()
   const [sectionSheetOpen, setSectionSheetOpen] = useState(false)
   const [switchingTab, setSwitchingTab] = useState<FoodBeveragesTabId | null>(null)
@@ -199,6 +196,15 @@ export function FoodBeveragesView() {
     forecastDate: tomorrowIso(),
     department: 'production',
     mealCount: 0,
+    expectedCrewCount: 0,
+    vegCount: 0,
+    nonVegCount: 0,
+    eggCount: 0,
+    jainCount: 0,
+    veganCount: 0,
+    medicalCount: 0,
+    vendorName: '',
+    vendorContactNumber: '',
     mealPeriod: null,
     notes: '',
   })
@@ -207,25 +213,36 @@ export function FoodBeveragesView() {
     mealDate: todayIso(),
     department: 'production',
     mealPeriod: 'lunch',
+    forecastId: null,
+    forecastCount: 0,
+    actualPeopleServed: 0,
     mealsServed: 0,
+    unusedPlates: 0,
     wasteCount: 0,
+    wastedMeals: 0,
+    plateCost: 0,
+    extraExpense: 0,
+    expenseNotes: '',
     vendorId: null,
+    vendorName: '',
+    vendorContactNumber: '',
     notes: '',
-  })
-  const [vendorDraft, setVendorDraft] = useState<FoodBeverageVendorInput>({
-    projectId: activeProjectId ?? '',
-    name: '',
-    category: '',
-    contactName: '',
-    email: '',
-    phone: '',
-    paymentTerms: '',
-    notes: '',
-    active: true,
   })
   const [invoiceDraft, setInvoiceDraft] = useState<FoodBeverageInvoiceInput>({
     projectId: activeProjectId ?? '',
+    mealLogId: null,
+    forecastId: null,
     vendorId: null,
+    vendorName: '',
+    vendorContactNumber: '',
+    department: '',
+    mealPeriod: null,
+    forecastCount: 0,
+    actualPeopleServed: 0,
+    plateCost: 0,
+    extraCost: 0,
+    totalCost: 0,
+    varianceCount: 0,
     invoiceNumber: '',
     invoiceDate: todayIso(),
     amount: 0,
@@ -233,29 +250,17 @@ export function FoodBeveragesView() {
     approvalRequested: true,
     status: 'submitted',
     notes: '',
+    expenseNotes: '',
+    generatedFromMealLog: false,
   })
   const [selectedInvoiceFile, setSelectedInvoiceFile] = useState<File | null>(null)
   const [invoiceEditingId, setInvoiceEditingId] = useState<string | null>(null)
-  const [dietaryDraft, setDietaryDraft] = useState<FoodBeverageDietaryProfileInput>({
-    projectId: activeProjectId ?? '',
-    department: 'production',
-    vegetarianCount: 0,
-    veganCount: 0,
-    jainCount: 0,
-    glutenFreeCount: 0,
-    allergenNotes: '',
-    contactName: '',
-    contactPhone: '',
-    notes: '',
-  })
 
   useEffect(() => {
     if (!activeProjectId) return
     setForecastDraft(current => ({ ...current, projectId: activeProjectId }))
     setMealDraft(current => ({ ...current, projectId: activeProjectId }))
-    setVendorDraft(current => ({ ...current, projectId: activeProjectId }))
     setInvoiceDraft(current => ({ ...current, projectId: activeProjectId }))
-    setDietaryDraft(current => ({ ...current, projectId: activeProjectId }))
   }, [activeProjectId])
 
   const selectedTab = tabFromValue(searchParams.get('tab'), visibleTabs)
@@ -288,23 +293,17 @@ export function FoodBeveragesView() {
     enabled: Boolean(activeProjectId),
     staleTime: 20_000,
   })
+  const mealForecastsQ = useQuery({
+    queryKey: ['food-beverages-forecasts', activeProjectId, mealDraft.mealDate],
+    queryFn: () => foodBeveragesService.getForecasts(activeProjectId!, mealDraft.mealDate),
+    enabled: Boolean(activeProjectId && !isForecastOnly),
+    staleTime: 20_000,
+  })
   const mealLogsQ = useQuery({
     queryKey: ['food-beverages-meal-logs', activeProjectId, mealDraft.mealDate],
     queryFn: () => foodBeveragesService.getMealLogs(activeProjectId!, mealDraft.mealDate),
     enabled: Boolean(activeProjectId && !isForecastOnly),
     staleTime: 20_000,
-  })
-  const vendorsQ = useQuery({
-    queryKey: ['food-beverages-vendors', activeProjectId],
-    queryFn: () => foodBeveragesService.getVendors(activeProjectId!),
-    enabled: Boolean(activeProjectId && !isForecastOnly),
-    staleTime: 30_000,
-  })
-  const dietaryQ = useQuery({
-    queryKey: ['food-beverages-dietary', activeProjectId],
-    queryFn: () => foodBeveragesService.getDietaryProfiles(activeProjectId!),
-    enabled: Boolean(activeProjectId && !isForecastOnly),
-    staleTime: 30_000,
   })
   const analyticsQ = useQuery({
     queryKey: ['food-beverages-analytics', activeProjectId],
@@ -339,6 +338,7 @@ export function FoodBeveragesView() {
       await queryClient.invalidateQueries({ queryKey: ['food-beverages-overview', activeProjectId] })
       await queryClient.invalidateQueries({ queryKey: ['food-beverages-analytics', activeProjectId] })
       await queryClient.invalidateQueries({ queryKey: ['food-beverages-alerts', activeProjectId] })
+      await queryClient.invalidateQueries({ queryKey: ['food-beverages-timeline', activeProjectId] })
     },
     onError: error => showError(resolveErrorMessage(error, 'Could not submit the forecast.')),
   })
@@ -347,6 +347,7 @@ export function FoodBeveragesView() {
     onSuccess: async () => {
       showSuccess('Meal log saved.')
       await queryClient.invalidateQueries({ queryKey: ['food-beverages-meal-logs', activeProjectId] })
+      await queryClient.invalidateQueries({ queryKey: ['food-beverages-invoices', activeProjectId] })
       await queryClient.invalidateQueries({ queryKey: ['food-beverages-overview', activeProjectId] })
       await queryClient.invalidateQueries({ queryKey: ['food-beverages-analytics', activeProjectId] })
       await queryClient.invalidateQueries({ queryKey: ['food-beverages-alerts', activeProjectId] })
@@ -354,28 +355,10 @@ export function FoodBeveragesView() {
     },
     onError: error => showError(resolveErrorMessage(error, 'Could not save the meal log.')),
   })
-  const createVendorMutation = useMutation({
-    mutationFn: (payload: FoodBeverageVendorInput) => foodBeveragesService.createVendor(payload),
-    onSuccess: async () => {
-      showSuccess('Vendor saved.')
-      await queryClient.invalidateQueries({ queryKey: ['food-beverages-vendors', activeProjectId] })
-      await queryClient.invalidateQueries({ queryKey: ['food-beverages-timeline', activeProjectId] })
-    },
-    onError: error => showError(resolveErrorMessage(error, 'Could not save the vendor.')),
-  })
-  const saveDietaryMutation = useMutation({
-    mutationFn: (payload: typeof dietaryDraft) => foodBeveragesService.upsertDietaryProfile(payload),
-    onSuccess: async () => {
-      showSuccess('Dietary profile saved.')
-      await queryClient.invalidateQueries({ queryKey: ['food-beverages-dietary', activeProjectId] })
-      await queryClient.invalidateQueries({ queryKey: ['food-beverages-timeline', activeProjectId] })
-    },
-    onError: error => showError(resolveErrorMessage(error, 'Could not save dietary information.')),
-  })
   const createInvoiceMutation = useMutation({
     mutationFn: ({ payload, file, invoiceId }: { payload: FoodBeverageInvoiceInput; file?: File | null; invoiceId?: string | null }) => (
       invoiceId
-        ? foodBeveragesService.updateInvoice(invoiceId, payload)
+        ? foodBeveragesService.updateInvoice(invoiceId, payload, file)
         : foodBeveragesService.createInvoice(payload, file)
     ),
     onSuccess: async () => {
@@ -386,13 +369,12 @@ export function FoodBeveragesView() {
       await queryClient.invalidateQueries({ queryKey: ['food-beverages-analytics', activeProjectId] })
       await queryClient.invalidateQueries({ queryKey: ['food-beverages-overview', activeProjectId] })
       await queryClient.invalidateQueries({ queryKey: ['food-beverages-alerts', activeProjectId] })
+      await queryClient.invalidateQueries({ queryKey: ['food-beverages-timeline', activeProjectId] })
     },
     onError: error => showError(resolveErrorMessage(error, 'Could not save the invoice.')),
   })
 
   const canManage = !isForecastOnly
-  const visibleTabConfig = TAB_CONFIG.filter(tab => visibleTabs.includes(tab.id))
-
   const handleTabSwitch = (tabId: FoodBeveragesTabId) => {
     setSwitchingTab(tabId)
     setSearchParams(params => {
@@ -402,57 +384,69 @@ export function FoodBeveragesView() {
   }
 
   const forecastRows = forecastsQ.data ?? []
+  const mealForecastRows = mealForecastsQ.data ?? []
   const mealLogs = mealLogsQ.data ?? []
-  const vendors = vendorsQ.data ?? []
-  const dietaryProfiles = dietaryQ.data ?? []
   const alerts = alertsQ.data ?? []
   const invoices = invoicesQ.data ?? []
+  const selectedMealForecast = useMemo(() => {
+    if (!mealForecastRows.length) return null
+    if (mealDraft.forecastId) return mealForecastRows.find(forecast => forecast.id === mealDraft.forecastId) ?? null
+    const targetDepartment = mealDraft.department.trim().toLowerCase()
+    return mealForecastRows.find(forecast => forecast.department.trim().toLowerCase() === targetDepartment) ?? mealForecastRows[0] ?? null
+  }, [mealDraft.department, mealDraft.forecastId, mealForecastRows])
 
+  useEffect(() => {
+    if (!selectedMealForecast) return
+    setMealDraft(current => ({
+      ...current,
+      forecastId: selectedMealForecast.id,
+      forecastCount: selectedMealForecast.expectedCrewCount ?? selectedMealForecast.mealCount,
+      vendorName: current.vendorName?.trim() ? current.vendorName : (selectedMealForecast.vendorName ?? ''),
+      vendorContactNumber: current.vendorContactNumber?.trim() ? current.vendorContactNumber : (selectedMealForecast.vendorContactNumber ?? ''),
+    }))
+  }, [selectedMealForecast?.id])
+
+  const selectedInvoiceRecord = invoiceEditingId ? invoices.find(invoice => invoice.id === invoiceEditingId) ?? null : null
+  const forecastCrewCount = toPositiveNumber(forecastDraft.expectedCrewCount ?? forecastDraft.mealCount)
+  const forecastDietaryTotal = toPositiveNumber(forecastDraft.vegCount) + toPositiveNumber(forecastDraft.nonVegCount) + toPositiveNumber(forecastDraft.eggCount) + toPositiveNumber(forecastDraft.jainCount) + toPositiveNumber(forecastDraft.veganCount) + toPositiveNumber(forecastDraft.medicalCount)
+  const forecastOverflow = Math.max(forecastDietaryTotal - forecastCrewCount, 0)
+  const forecastRemaining = Math.max(forecastCrewCount - forecastDietaryTotal, 0)
   const loadingTabs = selectedTab === 'overview'
     ? overviewQ.isLoading
     : selectedTab === 'forecasting'
       ? forecastsQ.isLoading
       : selectedTab === 'meal-logs'
         ? mealLogsQ.isLoading
-        : selectedTab === 'vendor-ledger'
-          ? vendorsQ.isLoading || invoicesQ.isLoading
-          : selectedTab === 'dietary'
-            ? dietaryQ.isLoading
-            : selectedTab === 'analytics'
-              ? analyticsQ.isLoading
-              : timelineQ.isLoading
+        : selectedTab === 'invoices'
+          ? invoicesQ.isLoading
+          : selectedTab === 'analytics'
+            ? analyticsQ.isLoading
+            : timelineQ.isLoading
+  const isRequestPending = createForecastMutation.isPending || createMealLogMutation.isPending || createInvoiceMutation.isPending
 
   if (isLoadingProjectContext) {
-    return <LoadingState message="Loading food and beverages workspace..." />
+    return <TubeLightLoaderOverlay open message="Loading food and beverages workspace..." />
   }
 
   if (isErrorProjectContext || !activeProjectId) {
     return <ErrorState message="Project context is unavailable." retry={() => window.location.reload()} />
   }
 
-  if (overviewQ.isError || forecastsQ.isError || mealLogsQ.isError || vendorsQ.isError || dietaryQ.isError || analyticsQ.isError || timelineQ.isError || alertsQ.isError || invoicesQ.isError) {
+  if (overviewQ.isError || forecastsQ.isError || mealLogsQ.isError || analyticsQ.isError || timelineQ.isError || alertsQ.isError || invoicesQ.isError) {
     return <ErrorState message="Could not load the Food & Beverages workspace." retry={() => window.location.reload()} />
   }
 
   return (
-    <div className="min-h-screen bg-[radial-gradient(circle_at_top_left,rgba(249,115,22,0.12),transparent_30%),radial-gradient(circle_at_top_right,rgba(255,255,255,0.03),transparent_24%)] pb-10">
+    <div className="min-h-screen bg-[color:var(--app-bg)] pb-10">
       <div className="mx-auto w-full max-w-7xl px-4 py-5 sm:px-6 lg:px-8">
         <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
           <div className="max-w-3xl">
-            <p className="text-[10px] font-semibold uppercase tracking-[0.26em] text-zinc-500 dark:text-zinc-400">Food &amp; Beverages</p>
-            <h1 className="mt-2 text-4xl font-semibold tracking-[-0.06em] text-zinc-900 dark:text-white">Catering control, forecasting, and cost accountability.</h1>
-            <p className="mt-3 text-sm leading-6 text-zinc-500 dark:text-zinc-400">
+            <p className="text-[10px] font-semibold uppercase tracking-[0.26em] text-[color:var(--app-muted)]">Food &amp; Beverages</p>
+            <h1 className="mt-2 text-4xl font-semibold tracking-[-0.06em] text-[color:var(--app-text)]">Catering control, forecasting, and cost accountability.</h1>
+            <p className="mt-3 text-sm leading-6 text-[color:var(--app-muted)]">
               Keep the catering team honest, prevent waste, and give production a clear forecast before the next meal is cooked for {activeProject?.name ?? 'this project'}.
             </p>
           </div>
-
-          {canManage && (
-            <div className="flex flex-wrap items-center gap-3">
-              <ActionButton label="Add Vendor" icon="store" onClick={() => handleTabSwitch('vendor-ledger')} />
-              <ActionButton label="Log Meal" icon="restaurant" onClick={() => handleTabSwitch('meal-logs')} />
-              <ActionButton label="Invoice" icon="receipt_long" onClick={() => handleTabSwitch('vendor-ledger')} />
-            </div>
-          )}
         </div>
 
         <Surface variant="table" padding="md" className="mt-6">
@@ -462,11 +456,12 @@ export function FoodBeveragesView() {
                 <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-zinc-500 dark:text-zinc-400">Workspace Sections</p>
                 <p className="mt-2 text-sm text-zinc-500 dark:text-zinc-400">Switch tabs without sticky navigation or horizontal scroll.</p>
               </div>
-              <button
-                type="button"
-                onClick={() => setSectionSheetOpen(true)}
-                className="inline-flex items-center gap-2 rounded-full border border-zinc-200 bg-white px-4 py-2.5 text-[11px] font-semibold uppercase tracking-[0.18em] text-zinc-900 transition hover:border-orange-200 hover:bg-orange-50 hover:text-orange-600 dark:border-zinc-800 dark:bg-zinc-950 dark:text-white dark:hover:border-orange-500/20 dark:hover:bg-orange-500/10 dark:hover:text-orange-300 md:hidden"
-              >
+                <button
+                  type="button"
+                  onClick={() => setSectionSheetOpen(true)}
+                  disabled={isRequestPending}
+                  className="inline-flex items-center gap-2 rounded-full border border-[color:var(--app-border)] bg-[color:var(--app-surface-strong)] px-4 py-2.5 text-[11px] font-semibold uppercase tracking-[0.18em] text-[color:var(--app-text)] transition hover:border-orange-200 hover:bg-orange-50 disabled:cursor-not-allowed disabled:opacity-60 md:hidden"
+                >
                 <span className="material-symbols-outlined text-[16px]">{TAB_CONFIG.find(tab => tab.id === selectedTab)?.icon ?? 'dashboard'}</span>
                 {TAB_CONFIG.find(tab => tab.id === selectedTab)?.mobileLabel ?? 'Overview'}
                 <span className="material-symbols-outlined text-[16px]">keyboard_arrow_down</span>
@@ -481,10 +476,10 @@ export function FoodBeveragesView() {
                   onClick={() => handleTabSwitch(tab.id)}
                   className={`inline-flex items-center gap-2 rounded-full px-4 py-3 text-[11px] font-semibold uppercase tracking-[0.18em] transition ${
                     selectedTab === tab.id
-                      ? 'bg-orange-500 text-black shadow-[0_10px_24px_rgba(249,115,22,0.22)]'
-                      : 'bg-zinc-100 text-zinc-600 hover:bg-zinc-200 dark:bg-zinc-900 dark:text-zinc-300 dark:hover:bg-zinc-800'
+                      ? 'bg-orange-50 text-orange-600 shadow-[0_10px_24px_rgba(249,115,22,0.14)] dark:bg-orange-500/12 dark:text-orange-400'
+                      : 'bg-[color:var(--app-surface-muted)] text-[color:var(--app-muted)] hover:bg-[color:var(--app-surface)]'
                   }`}
-                  disabled={switchingTab !== null}
+                  disabled={switchingTab !== null || isRequestPending}
                 >
                   {switchingTab === tab.id ? <span className="ui-spinner" /> : <span className="material-symbols-outlined text-[16px]">{tab.icon}</span>}
                   {tab.label}
@@ -501,7 +496,7 @@ export function FoodBeveragesView() {
           </div>
         </Surface>
 
-        {selectedTab === 'overview' && !isForecastOnly && (
+        {selectedTab === 'overview' && canManage && (
           <div className="mt-6 space-y-6">
             <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
               <KpiCard label="Today's Forecast" value={String(overviewQ.data?.todaysForecast ?? 0)} subLabel="Meals scheduled" />
@@ -540,7 +535,7 @@ export function FoodBeveragesView() {
                       <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
                         <div className="min-w-0">
                           <p className="text-sm font-semibold text-zinc-900 dark:text-white">{entry.summary}</p>
-                          <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">{entry.actorUserName ?? 'ProdSync User'} · {timeAgo(entry.createdAt)}</p>
+                          <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">{entry.actorUserName ?? 'ProdSync User'} - {timeAgo(entry.createdAt)}</p>
                         </div>
                         <StatusBadge variant="stable" label={labelize(entry.action)} />
                       </div>
@@ -548,7 +543,7 @@ export function FoodBeveragesView() {
                   ))}
                 </div>
               ) : (
-                <EmptyState icon="timeline" title="No activity yet" description="Forecasts, meal logs, and vendor changes will appear here." />
+                <EmptyState icon="timeline" title="No activity yet" description="Forecasts, meal logs, and invoice changes will appear here." />
               )}
             </SectionCard>
           </div>
@@ -566,16 +561,28 @@ export function FoodBeveragesView() {
                     {DEPARTMENT_OPTIONS.map(option => <option key={option} value={option}>{labelize(option)}</option>)}
                   </Select>
                 </Field>
-                <Field label="Meal Count">
+                <Field label="Expected Crew Count">
+                  <Input type="number" min="0" value={forecastDraft.expectedCrewCount ?? 0} onChange={event => setForecastDraft(current => ({ ...current, expectedCrewCount: Number(event.target.value) }))} />
+                </Field>
+                <Field label="Forecast Total">
                   <Input type="number" min="0" value={forecastDraft.mealCount} onChange={event => setForecastDraft(current => ({ ...current, mealCount: Number(event.target.value) }))} />
                 </Field>
-                <Field label="Meal Period">
-                  <Select value={forecastDraft.mealPeriod ?? ''} onChange={event => setForecastDraft(current => ({ ...current, mealPeriod: event.target.value ? event.target.value as FoodBeverageForecastInput['mealPeriod'] : null }))}>
-                    <option value="">All Day</option>
-                    {MEAL_PERIOD_OPTIONS.map(option => <option key={option} value={option}>{mealPeriodLabel(option)}</option>)}
-                  </Select>
-                </Field>
               </div>
+
+              <div className="mt-4 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+                <Field label="Vegetarian"><Input type="number" min="0" value={forecastDraft.vegCount ?? 0} onChange={event => setForecastDraft(current => ({ ...current, vegCount: Number(event.target.value) }))} /></Field>
+                <Field label="Non-Veg"><Input type="number" min="0" value={forecastDraft.nonVegCount ?? 0} onChange={event => setForecastDraft(current => ({ ...current, nonVegCount: Number(event.target.value) }))} /></Field>
+                <Field label="Egg"><Input type="number" min="0" value={forecastDraft.eggCount ?? 0} onChange={event => setForecastDraft(current => ({ ...current, eggCount: Number(event.target.value) }))} /></Field>
+                <Field label="Jain"><Input type="number" min="0" value={forecastDraft.jainCount ?? 0} onChange={event => setForecastDraft(current => ({ ...current, jainCount: Number(event.target.value) }))} /></Field>
+                <Field label="Vegan"><Input type="number" min="0" value={forecastDraft.veganCount ?? 0} onChange={event => setForecastDraft(current => ({ ...current, veganCount: Number(event.target.value) }))} /></Field>
+                <Field label="Medical / Special"><Input type="number" min="0" value={forecastDraft.medicalCount ?? 0} onChange={event => setForecastDraft(current => ({ ...current, medicalCount: Number(event.target.value) }))} /></Field>
+              </div>
+
+              <div className="mt-4 grid gap-4 md:grid-cols-2">
+                <Field label="Vendor Name"><Input value={forecastDraft.vendorName ?? ''} onChange={event => setForecastDraft(current => ({ ...current, vendorName: event.target.value }))} /></Field>
+                <Field label="Vendor Contact Number"><Input value={forecastDraft.vendorContactNumber ?? ''} onChange={event => setForecastDraft(current => ({ ...current, vendorContactNumber: event.target.value }))} /></Field>
+              </div>
+
               <div className="mt-4 grid gap-4 md:grid-cols-[1fr_auto]">
                 <Field label="Notes" hint="Optional context for catering and production management.">
                   <Textarea rows={3} value={forecastDraft.notes ?? ''} onChange={event => setForecastDraft(current => ({ ...current, notes: event.target.value }))} />
@@ -585,20 +592,53 @@ export function FoodBeveragesView() {
                     label="Submit Forecast"
                     icon="send"
                     loading={createForecastMutation.isPending}
+                    disabled={forecastOverflow > 0}
                     onClick={() => {
                       if (!forecastDraft.department.trim()) {
                         showError('Please select a department.')
                         return
                       }
+                      if (forecastOverflow > 0) {
+                        showError('Dietary counts must not exceed the expected crew count.')
+                        return
+                      }
                       createForecastMutation.mutate({
                         ...forecastDraft,
                         projectId: activeProjectId,
+                        expectedCrewCount: forecastCrewCount,
                         mealCount: Number(forecastDraft.mealCount) || 0,
+                        vegCount: Number(forecastDraft.vegCount) || 0,
+                        nonVegCount: Number(forecastDraft.nonVegCount) || 0,
+                        eggCount: Number(forecastDraft.eggCount) || 0,
+                        jainCount: Number(forecastDraft.jainCount) || 0,
+                        veganCount: Number(forecastDraft.veganCount) || 0,
+                        medicalCount: Number(forecastDraft.medicalCount) || 0,
+                        vendorName: forecastDraft.vendorName?.trim() || undefined,
+                        vendorContactNumber: forecastDraft.vendorContactNumber?.trim() || undefined,
                         notes: forecastDraft.notes?.trim() || undefined,
                       })
                     }}
                   />
                 </div>
+              </div>
+
+              <div className="mt-4 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+                <Surface variant="muted" padding="md">
+                  <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-zinc-500 dark:text-zinc-400">Crew Count</p>
+                  <p className="mt-2 text-2xl font-semibold text-zinc-900 dark:text-white">{forecastCrewCount}</p>
+                </Surface>
+                <Surface variant="muted" padding="md">
+                  <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-zinc-500 dark:text-zinc-400">Dietary Total</p>
+                  <p className={`mt-2 text-2xl font-semibold ${forecastOverflow > 0 ? 'text-red-500' : 'text-zinc-900 dark:text-white'}`}>{forecastDietaryTotal}</p>
+                </Surface>
+                <Surface variant="muted" padding="md">
+                  <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-zinc-500 dark:text-zinc-400">Remaining</p>
+                  <p className="mt-2 text-2xl font-semibold text-zinc-900 dark:text-white">{forecastRemaining}</p>
+                </Surface>
+                <Surface variant="muted" padding="md">
+                  <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-zinc-500 dark:text-zinc-400">Validation</p>
+                  <p className={`mt-2 text-sm font-semibold ${forecastOverflow > 0 ? 'text-red-500' : 'text-emerald-500'}`}>{forecastOverflow > 0 ? `${forecastOverflow} over limit` : 'Within crew count'}</p>
+                </Surface>
               </div>
             </SectionCard>
 
@@ -608,7 +648,7 @@ export function FoodBeveragesView() {
                   <div className="grid grid-cols-12 bg-zinc-50 px-4 py-3 text-[10px] font-semibold uppercase tracking-[0.18em] text-zinc-500 dark:bg-zinc-900 dark:text-zinc-400">
                     <div className="col-span-3">Department</div>
                     <div className="col-span-2">Date</div>
-                    <div className="col-span-2">Meal Count</div>
+                    <div className="col-span-2">Crew</div>
                     <div className="col-span-2">Period</div>
                     <div className="col-span-3">Status</div>
                   </div>
@@ -617,7 +657,7 @@ export function FoodBeveragesView() {
                       <div key={row.id} className="grid grid-cols-12 gap-2 px-4 py-4 text-sm">
                         <div className="col-span-3 font-medium text-zinc-900 dark:text-white">{labelize(row.department)}</div>
                         <div className="col-span-2 text-zinc-500 dark:text-zinc-400">{formatDate(row.forecastDate)}</div>
-                        <div className="col-span-2 text-zinc-900 dark:text-white">{row.mealCount}</div>
+                        <div className="col-span-2 text-zinc-900 dark:text-white">{row.expectedCrewCount ?? row.mealCount}</div>
                         <div className="col-span-2 text-zinc-500 dark:text-zinc-400">{mealPeriodLabel(row.mealPeriod)}</div>
                         <div className="col-span-3 flex flex-wrap items-center gap-2">
                           <StatusBadge variant={row.isEstimated ? 'warning' : 'approved'} label={row.isEstimated ? 'Estimated' : 'Submitted'} />
@@ -641,18 +681,52 @@ export function FoodBeveragesView() {
                 <Field label="Meal Date"><Input type="date" value={mealDraft.mealDate} onChange={event => setMealDraft(current => ({ ...current, mealDate: event.target.value }))} /></Field>
                 <Field label="Department"><Select value={mealDraft.department} onChange={event => setMealDraft(current => ({ ...current, department: event.target.value }))}>{DEPARTMENT_OPTIONS.map(option => <option key={option} value={option}>{labelize(option)}</option>)}</Select></Field>
                 <Field label="Meal Period"><Select value={mealDraft.mealPeriod} onChange={event => setMealDraft(current => ({ ...current, mealPeriod: event.target.value as FoodBeverageMealLogInput['mealPeriod'] }))}>{MEAL_PERIOD_OPTIONS.map(option => <option key={option} value={option}>{mealPeriodLabel(option)}</option>)}</Select></Field>
-                <Field label="Meals Served"><Input type="number" min="0" value={mealDraft.mealsServed} onChange={event => setMealDraft(current => ({ ...current, mealsServed: Number(event.target.value) }))} /></Field>
-                <Field label="Waste Count"><Input type="number" min="0" value={mealDraft.wasteCount ?? 0} onChange={event => setMealDraft(current => ({ ...current, wasteCount: Number(event.target.value) }))} /></Field>
-                <Field label="Vendor">
-                  <Select value={mealDraft.vendorId ?? ''} onChange={event => setMealDraft(current => ({ ...current, vendorId: event.target.value || null }))}>
-                    <option value="">No vendor linked</option>
-                    {vendors.map(vendor => <option key={vendor.id} value={vendor.id}>{vendor.name}</option>)}
+                <Field label="Forecast Link">
+                  <Select value={mealDraft.forecastId ?? ''} onChange={event => setMealDraft(current => ({ ...current, forecastId: event.target.value || null }))}>
+                    <option value="">Auto-link matching forecast</option>
+                    {mealForecastRows.map(forecast => (
+                      <option key={forecast.id} value={forecast.id}>
+                        {formatDate(forecast.forecastDate)} - {labelize(forecast.department)} - {forecast.expectedCrewCount ?? forecast.mealCount}
+                      </option>
+                    ))}
                   </Select>
                 </Field>
+                <Field label="Forecast Count"><Input type="number" min="0" value={mealDraft.forecastCount ?? 0} onChange={event => setMealDraft(current => ({ ...current, forecastCount: Number(event.target.value) }))} /></Field>
+                <Field label="Actual People Served"><Input type="number" min="0" value={mealDraft.actualPeopleServed} onChange={event => setMealDraft(current => ({ ...current, actualPeopleServed: Number(event.target.value), mealsServed: Number(event.target.value) }))} /></Field>
+                <Field label="Unused Plates"><Input type="number" min="0" value={mealDraft.unusedPlates ?? 0} onChange={event => setMealDraft(current => ({ ...current, unusedPlates: Number(event.target.value) }))} /></Field>
+                <Field label="Wasted Meals"><Input type="number" min="0" value={mealDraft.wastedMeals ?? 0} onChange={event => setMealDraft(current => ({ ...current, wastedMeals: Number(event.target.value), wasteCount: Number(event.target.value) }))} /></Field>
+                <Field label="Plate Cost"><Input type="number" min="0" value={mealDraft.plateCost ?? 0} onChange={event => setMealDraft(current => ({ ...current, plateCost: Number(event.target.value) }))} /></Field>
+                <Field label="Extra Expense"><Input type="number" min="0" value={mealDraft.extraExpense ?? 0} onChange={event => setMealDraft(current => ({ ...current, extraExpense: Number(event.target.value) }))} /></Field>
+                <Field label="Vendor Name"><Input value={mealDraft.vendorName ?? ''} onChange={event => setMealDraft(current => ({ ...current, vendorName: event.target.value }))} /></Field>
+                <Field label="Vendor Contact Number"><Input value={mealDraft.vendorContactNumber ?? ''} onChange={event => setMealDraft(current => ({ ...current, vendorContactNumber: event.target.value }))} /></Field>
               </div>
+
+              {selectedMealForecast && (
+                <Surface variant="muted" padding="md" className="mt-4">
+                  <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+                    <div>
+                      <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-zinc-500 dark:text-zinc-400">Forecast Date</p>
+                      <p className="mt-2 text-sm font-semibold text-zinc-900 dark:text-white">{formatDate(selectedMealForecast.forecastDate)}</p>
+                    </div>
+                    <div>
+                      <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-zinc-500 dark:text-zinc-400">Crew Count</p>
+                      <p className="mt-2 text-sm font-semibold text-zinc-900 dark:text-white">{selectedMealForecast.expectedCrewCount ?? selectedMealForecast.mealCount}</p>
+                    </div>
+                    <div>
+                      <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-zinc-500 dark:text-zinc-400">Vendor</p>
+                      <p className="mt-2 text-sm font-semibold text-zinc-900 dark:text-white">{selectedMealForecast.vendorName ?? 'No vendor linked'}</p>
+                    </div>
+                    <div>
+                      <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-zinc-500 dark:text-zinc-400">Contact</p>
+                      <p className="mt-2 text-sm font-semibold text-zinc-900 dark:text-white">{selectedMealForecast.vendorContactNumber ?? 'Unavailable'}</p>
+                    </div>
+                  </div>
+                </Surface>
+              )}
+
               <div className="mt-4 grid gap-4 md:grid-cols-[1fr_auto]">
-                <Field label="Notes">
-                  <Textarea rows={3} value={mealDraft.notes ?? ''} onChange={event => setMealDraft(current => ({ ...current, notes: event.target.value }))} />
+                <Field label="Expense Notes">
+                  <Textarea rows={3} value={mealDraft.expenseNotes ?? ''} onChange={event => setMealDraft(current => ({ ...current, expenseNotes: event.target.value }))} />
                 </Field>
                 <div className="flex items-end">
                   <ActionButton
@@ -662,7 +736,15 @@ export function FoodBeveragesView() {
                     onClick={() => createMealLogMutation.mutate({
                       ...mealDraft,
                       projectId: activeProjectId,
-                      wasteCount: Number(mealDraft.wasteCount) || 0,
+                      forecastCount: Number(mealDraft.forecastCount) || 0,
+                      actualPeopleServed: Number(mealDraft.actualPeopleServed) || 0,
+                      mealsServed: Number(mealDraft.actualPeopleServed) || 0,
+                      unusedPlates: Number(mealDraft.unusedPlates) || 0,
+                      wasteCount: Number(mealDraft.wastedMeals) || 0,
+                      wastedMeals: Number(mealDraft.wastedMeals) || 0,
+                      plateCost: Number(mealDraft.plateCost) || 0,
+                      extraExpense: Number(mealDraft.extraExpense) || 0,
+                      expenseNotes: mealDraft.expenseNotes?.trim() || undefined,
                       notes: mealDraft.notes?.trim() || undefined,
                     })}
                   />
@@ -677,8 +759,8 @@ export function FoodBeveragesView() {
                     <Surface key={row.id} variant="muted" padding="md">
                       <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
                         <div>
-                          <p className="text-sm font-semibold text-zinc-900 dark:text-white">{labelize(row.department)} · {mealPeriodLabel(row.mealPeriod)}</p>
-                          <p className="mt-2 text-sm text-zinc-500 dark:text-zinc-400">{formatDate(row.mealDate)} · {row.vendorName ?? 'No vendor linked'} · {row.createdByName ?? 'ProdSync User'}</p>
+                          <p className="text-sm font-semibold text-zinc-900 dark:text-white">{labelize(row.department)} - {mealPeriodLabel(row.mealPeriod)}</p>
+                          <p className="mt-2 text-sm text-zinc-500 dark:text-zinc-400">{formatDate(row.mealDate)} - {row.vendorName ?? 'No vendor linked'} - {row.createdByName ?? 'ProdSync User'}</p>
                         </div>
                         <div className="flex flex-wrap gap-2">
                           <StatusBadge variant="approved" label={`${row.mealsServed} served`} />
@@ -695,87 +777,50 @@ export function FoodBeveragesView() {
           </div>
         )}
 
-        {selectedTab === 'vendor-ledger' && canManage && (
+        {selectedTab === 'invoices' && canManage && (
           <div className="mt-6 space-y-6">
-            <SectionCard title="Vendor Profile" subtitle="Track vendor contact details and accountability.">
+            <SectionCard title="Generated Invoices" subtitle="Meal logs automatically create draft invoices that can be reviewed, approved, rejected, exported, or updated with a PDF attachment.">
               <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-                <Field label="Vendor Name"><Input value={vendorDraft.name} onChange={event => setVendorDraft(current => ({ ...current, name: event.target.value }))} /></Field>
-                <Field label="Category"><Input value={vendorDraft.category ?? ''} onChange={event => setVendorDraft(current => ({ ...current, category: event.target.value }))} /></Field>
-                <Field label="Contact Name"><Input value={vendorDraft.contactName ?? ''} onChange={event => setVendorDraft(current => ({ ...current, contactName: event.target.value }))} /></Field>
-                <Field label="Payment Terms"><Input value={vendorDraft.paymentTerms ?? ''} onChange={event => setVendorDraft(current => ({ ...current, paymentTerms: event.target.value }))} /></Field>
-                <Field label="Email"><Input value={vendorDraft.email ?? ''} onChange={event => setVendorDraft(current => ({ ...current, email: event.target.value }))} /></Field>
-                <Field label="Phone"><Input value={vendorDraft.phone ?? ''} onChange={event => setVendorDraft(current => ({ ...current, phone: event.target.value }))} /></Field>
-                <Field label="Active">
-                  <Select value={vendorDraft.active ? 'true' : 'false'} onChange={event => setVendorDraft(current => ({ ...current, active: event.target.value === 'true' }))}>
-                    <option value="true">Active</option>
-                    <option value="false">Inactive</option>
+                <Field label="Meal Log">
+                  <Select
+                    value={invoiceDraft.mealLogId ?? ''}
+                    onChange={event => {
+                      const mealLog = mealLogs.find(row => row.id === event.target.value) ?? null
+                      setInvoiceDraft(current => ({
+                        ...current,
+                        mealLogId: event.target.value || null,
+                        forecastId: mealLog?.forecastId ?? current.forecastId ?? null,
+                        vendorId: mealLog?.vendorId ?? current.vendorId ?? null,
+                        vendorName: mealLog?.vendorName ?? current.vendorName ?? '',
+                        vendorContactNumber: mealLog?.vendorContactNumber ?? current.vendorContactNumber ?? '',
+                        department: mealLog?.department ?? current.department ?? '',
+                        mealPeriod: mealLog?.mealPeriod ?? current.mealPeriod ?? null,
+                        forecastCount: mealLog?.forecastCount ?? current.forecastCount ?? 0,
+                        actualPeopleServed: mealLog?.actualPeopleServed ?? current.actualPeopleServed ?? 0,
+                        plateCost: mealLog?.plateCost ?? current.plateCost ?? 0,
+                        extraCost: mealLog?.extraCost ?? current.extraCost ?? 0,
+                        totalCost: mealLog?.totalMealCost ?? current.totalCost ?? 0,
+                        varianceCount: mealLog?.varianceCount ?? current.varianceCount ?? 0,
+                        invoiceDate: mealLog?.mealDate ?? current.invoiceDate,
+                        amount: mealLog?.totalMealCost ?? current.amount ?? 0,
+                        generatedFromMealLog: Boolean(mealLog),
+                        approvalRequested: true,
+                        status: 'submitted',
+                        invoiceNumber: mealLog ? `INV-${mealLog.mealDate.replace(/-/g, '')}-${mealLog.department.slice(0, 4).toUpperCase()}-${mealLog.mealPeriod.slice(0, 3).toUpperCase()}-${mealLog.id.slice(0, 8).toUpperCase()}` : current.invoiceNumber,
+                      }))
+                    }}
+                  >
+                    <option value="">Select meal log</option>
+                    {mealLogs.map(mealLog => (
+                      <option key={mealLog.id} value={mealLog.id}>
+                        {formatDate(mealLog.mealDate)} - {labelize(mealLog.department)} - {mealPeriodLabel(mealLog.mealPeriod)}
+                      </option>
+                    ))}
                   </Select>
                 </Field>
-              </div>
-              <div className="mt-4 grid gap-4 md:grid-cols-[1fr_auto]">
-                <Field label="Notes">
-                  <Textarea rows={3} value={vendorDraft.notes ?? ''} onChange={event => setVendorDraft(current => ({ ...current, notes: event.target.value }))} />
-                </Field>
-                <div className="flex items-end">
-                  <ActionButton
-                    label="Save Vendor"
-                    icon="save"
-                    loading={createVendorMutation.isPending}
-                    onClick={() => {
-                      if (!vendorDraft.name.trim()) {
-                        showError('Vendor name is required.')
-                        return
-                      }
-                      createVendorMutation.mutate({
-                        ...vendorDraft,
-                        projectId: activeProjectId,
-                        notes: vendorDraft.notes?.trim() || undefined,
-                        category: vendorDraft.category?.trim() || undefined,
-                        contactName: vendorDraft.contactName?.trim() || undefined,
-                        email: vendorDraft.email?.trim() || undefined,
-                        phone: vendorDraft.phone?.trim() || undefined,
-                        paymentTerms: vendorDraft.paymentTerms?.trim() || undefined,
-                      })
-                    }}
-                  />
-                </div>
-              </div>
-            </SectionCard>
-
-            <SectionCard title="Vendor Ledger" subtitle="Registered vendors and their latest operating status.">
-              {vendors.length ? (
-                <div className="space-y-3">
-                  {vendors.map(vendor => (
-                    <Surface key={vendor.id} variant="muted" padding="md">
-                      <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-                        <div>
-                          <div className="flex flex-wrap items-center gap-3">
-                            <p className="text-sm font-semibold text-zinc-900 dark:text-white">{vendor.name}</p>
-                            <StatusBadge variant={vendor.active ? 'approved' : 'stable'} label={vendor.active ? 'Active' : 'Inactive'} />
-                          </div>
-                          <p className="mt-2 text-sm text-zinc-500 dark:text-zinc-400">{vendor.category ?? 'Uncategorized'} · {vendor.contactName ?? 'No contact'} · {vendor.phone ?? 'No phone'}</p>
-                        </div>
-                        <p className="text-xs uppercase tracking-[0.16em] text-zinc-500 dark:text-zinc-400">Updated {timeAgo(vendor.updatedAt)}</p>
-                      </div>
-                    </Surface>
-                  ))}
-                </div>
-              ) : (
-                <EmptyState icon="store" title="No vendors yet" description="Vendor entries will appear here once they are created." />
-              )}
-            </SectionCard>
-
-            <SectionCard title="Invoice Queue" subtitle="Submit invoices and route them through approval if required.">
-              <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
                 <Field label="Invoice Number"><Input value={invoiceDraft.invoiceNumber} onChange={event => setInvoiceDraft(current => ({ ...current, invoiceNumber: event.target.value }))} /></Field>
                 <Field label="Invoice Date"><Input type="date" value={invoiceDraft.invoiceDate} onChange={event => setInvoiceDraft(current => ({ ...current, invoiceDate: event.target.value }))} /></Field>
                 <Field label="Amount"><Input type="number" min="0" value={invoiceDraft.amount} onChange={event => setInvoiceDraft(current => ({ ...current, amount: Number(event.target.value) }))} /></Field>
-                <Field label="Vendor">
-                  <Select value={invoiceDraft.vendorId ?? ''} onChange={event => setInvoiceDraft(current => ({ ...current, vendorId: event.target.value || null }))}>
-                    <option value="">Select vendor</option>
-                    {vendors.map(vendor => <option key={vendor.id} value={vendor.id}>{vendor.name}</option>)}
-                  </Select>
-                </Field>
                 <Field label="Currency"><Input value={invoiceDraft.currencyCode ?? 'INR'} onChange={event => setInvoiceDraft(current => ({ ...current, currencyCode: event.target.value.toUpperCase() }))} /></Field>
                 <Field label="Approval Requested">
                   <Select value={invoiceDraft.approvalRequested ? 'true' : 'false'} onChange={event => setInvoiceDraft(current => ({ ...current, approvalRequested: event.target.value === 'true' }))}>
@@ -787,6 +832,7 @@ export function FoodBeveragesView() {
                   <Input type="file" accept="application/pdf,image/*" onChange={event => setSelectedInvoiceFile(event.target.files?.[0] ?? null)} />
                 </Field>
               </div>
+
               <div className="mt-4 grid gap-4 md:grid-cols-[1fr_auto]">
                 <Field label="Notes">
                   <Textarea rows={3} value={invoiceDraft.notes ?? ''} onChange={event => setInvoiceDraft(current => ({ ...current, notes: event.target.value }))} />
@@ -801,112 +847,203 @@ export function FoodBeveragesView() {
                         showError('Invoice number is required.')
                         return
                       }
+
                       createInvoiceMutation.mutate({
+                        invoiceId: invoiceEditingId,
+                        file: selectedInvoiceFile,
                         payload: {
                           ...invoiceDraft,
                           projectId: activeProjectId,
+                          mealLogId: invoiceDraft.mealLogId || undefined,
+                          forecastId: invoiceDraft.forecastId || undefined,
                           vendorId: invoiceDraft.vendorId || undefined,
+                          vendorName: invoiceDraft.vendorName?.trim() || undefined,
+                          vendorContactNumber: invoiceDraft.vendorContactNumber?.trim() || undefined,
+                          department: invoiceDraft.department?.trim() || undefined,
                           notes: invoiceDraft.notes?.trim() || undefined,
+                          expenseNotes: invoiceDraft.expenseNotes?.trim() || undefined,
                           currencyCode: (invoiceDraft.currencyCode ?? 'INR').toUpperCase(),
                         },
-                        file: selectedInvoiceFile,
-                        invoiceId: invoiceEditingId,
                       })
                     }}
                   />
                 </div>
               </div>
 
-              <div className="mt-6 space-y-3">
-                {invoices.length ? invoices.map(invoice => (
-                  <Surface key={invoice.id} variant="muted" padding="md">
-                    <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-                      <div>
-                        <div className="flex flex-wrap items-center gap-3">
-                          <p className="text-sm font-semibold text-zinc-900 dark:text-white">{invoice.invoiceNumber}</p>
-                          <StatusBadge variant={badgeVariant(invoice.status)} label={labelize(invoice.status)} />
-                          <StatusBadge variant={invoice.approvalRequested ? 'warning' : 'stable'} label={invoice.approvalRequested ? 'Approval Requested' : 'No Approval'} />
-                        </div>
-                        <p className="mt-2 text-sm text-zinc-500 dark:text-zinc-400">{invoice.vendorName ?? 'Unknown vendor'} · {formatDate(invoice.invoiceDate)} · {formatCurrency(invoice.amount, resolveProjectCurrency(invoice.currencyCode) ?? activeProject?.currency)}</p>
-                      </div>
-                      <div className="flex flex-wrap items-center gap-2">
-                        <ActionButton label="Edit" icon="edit" onClick={() => {
-                          setInvoiceEditingId(invoice.id)
-                          setInvoiceDraft(current => ({
-                            ...current,
-                            vendorId: invoice.vendorId,
-                            invoiceNumber: invoice.invoiceNumber,
-                            invoiceDate: invoice.invoiceDate,
-                            amount: invoice.amount,
-                            currencyCode: invoice.currencyCode,
-                            approvalRequested: invoice.approvalRequested,
-                            status: invoice.status,
-                            notes: invoice.notes ?? '',
-                          }))
-                        }} />
-                      </div>
-                    </div>
-                  </Surface>
-                )) : (
-                  <EmptyState icon="receipt_long" title="No invoices yet" description="Submitted invoices will show up here for approval and review." />
-                )}
-              </div>
-            </SectionCard>
-          </div>
-        )}
-
-        {selectedTab === 'dietary' && canManage && (
-          <div className="mt-6 space-y-6">
-            <SectionCard title="Dietary Profile" subtitle="Track vegetarian, vegan, Jain, gluten-free, and allergy needs by department.">
-              <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-                <Field label="Department"><Select value={dietaryDraft.department} onChange={event => setDietaryDraft(current => ({ ...current, department: event.target.value }))}>{DEPARTMENT_OPTIONS.map(option => <option key={option} value={option}>{labelize(option)}</option>)}</Select></Field>
-                <Field label="Vegetarian"><Input type="number" min="0" value={dietaryDraft.vegetarianCount} onChange={event => setDietaryDraft(current => ({ ...current, vegetarianCount: Number(event.target.value) }))} /></Field>
-                <Field label="Vegan"><Input type="number" min="0" value={dietaryDraft.veganCount} onChange={event => setDietaryDraft(current => ({ ...current, veganCount: Number(event.target.value) }))} /></Field>
-                <Field label="Jain"><Input type="number" min="0" value={dietaryDraft.jainCount} onChange={event => setDietaryDraft(current => ({ ...current, jainCount: Number(event.target.value) }))} /></Field>
-                <Field label="Gluten Free"><Input type="number" min="0" value={dietaryDraft.glutenFreeCount} onChange={event => setDietaryDraft(current => ({ ...current, glutenFreeCount: Number(event.target.value) }))} /></Field>
-                <Field label="Contact Name"><Input value={dietaryDraft.contactName ?? ''} onChange={event => setDietaryDraft(current => ({ ...current, contactName: event.target.value }))} /></Field>
-                <Field label="Contact Phone"><Input value={dietaryDraft.contactPhone ?? ''} onChange={event => setDietaryDraft(current => ({ ...current, contactPhone: event.target.value }))} /></Field>
-              </div>
-              <div className="mt-4 grid gap-4 md:grid-cols-[1fr_auto]">
-                <Field label="Allergen Notes"><Textarea rows={3} value={dietaryDraft.allergenNotes ?? ''} onChange={event => setDietaryDraft(current => ({ ...current, allergenNotes: event.target.value }))} /></Field>
-                <div className="flex items-end">
+              {invoiceEditingId && selectedInvoiceRecord && (
+                <div className="mt-4 flex items-center justify-between gap-4 rounded-[24px] border border-zinc-200 bg-zinc-50 px-4 py-3 dark:border-zinc-800 dark:bg-zinc-900">
+                  <p className="text-sm text-zinc-600 dark:text-zinc-300">Editing {selectedInvoiceRecord.invoiceNumber}</p>
                   <ActionButton
-                    label="Save Dietary"
-                    icon="save"
-                    loading={saveDietaryMutation.isPending}
-                    onClick={() => saveDietaryMutation.mutate({
-                      ...dietaryDraft,
-                      projectId: activeProjectId,
-                      notes: dietaryDraft.notes?.trim() || undefined,
-                      allergenNotes: dietaryDraft.allergenNotes?.trim() || undefined,
-                      contactName: dietaryDraft.contactName?.trim() || undefined,
-                      contactPhone: dietaryDraft.contactPhone?.trim() || undefined,
-                    })}
+                    label="Cancel Edit"
+                    icon="close"
+                    onClick={() => {
+                      setInvoiceEditingId(null)
+                      setSelectedInvoiceFile(null)
+                      setInvoiceDraft({
+                        projectId: activeProjectId ?? '',
+                        mealLogId: null,
+                        forecastId: null,
+                        vendorId: null,
+                        vendorName: '',
+                        vendorContactNumber: '',
+                        department: '',
+                        mealPeriod: null,
+                        forecastCount: 0,
+                        actualPeopleServed: 0,
+                        plateCost: 0,
+                        extraCost: 0,
+                        totalCost: 0,
+                        varianceCount: 0,
+                        invoiceNumber: '',
+                        invoiceDate: todayIso(),
+                        amount: 0,
+                        currencyCode: 'INR',
+                        approvalRequested: true,
+                        status: 'submitted',
+                        notes: '',
+                        expenseNotes: '',
+                        generatedFromMealLog: false,
+                      })
+                    }}
                   />
                 </div>
-              </div>
-            </SectionCard>
+              )}
 
-            <SectionCard title="Dietary Coverage" subtitle="Department-by-department readiness for special meal requirements.">
-              {dietaryProfiles.length ? (
-                <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-                  {dietaryProfiles.map(profile => (
-                    <Surface key={profile.id} variant="muted" padding="md">
-                      <div className="flex items-start justify-between gap-4">
-                        <div>
-                          <p className="text-sm font-semibold text-zinc-900 dark:text-white">{labelize(profile.department)}</p>
+              <div className="mt-6 space-y-3">
+                {invoices.length ? invoices.map(invoice => {
+                  const currency = resolveProjectCurrency(invoice.currencyCode) ?? activeProject?.currency
+                  return (
+                    <Surface key={invoice.id} variant="muted" padding="md">
+                      <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+                        <div className="min-w-0">
+                          <div className="flex flex-wrap items-center gap-3">
+                            <p className="text-sm font-semibold text-zinc-900 dark:text-white">{invoice.invoiceNumber}</p>
+                            <StatusBadge variant={badgeVariant(invoice.status)} label={labelize(invoice.status)} />
+                            <StatusBadge variant={invoice.approvalRequested ? 'warning' : 'stable'} label={invoice.approvalRequested ? 'Approval Requested' : 'No Approval'} />
+                          </div>
                           <p className="mt-2 text-sm text-zinc-500 dark:text-zinc-400">
-                            Veg {profile.vegetarianCount} · Vegan {profile.veganCount} · Jain {profile.jainCount} · GF {profile.glutenFreeCount}
+                            {invoice.vendorName ?? 'Unknown vendor'} - {formatDate(invoice.invoiceDate)} - {formatCurrency(invoice.amount, currency)}
+                          </p>
+                          <p className="mt-2 text-xs uppercase tracking-[0.16em] text-zinc-500 dark:text-zinc-400">
+                            {invoice.generatedFromMealLog ? 'Generated from meal log' : 'Manual invoice'} - {invoice.department ?? 'No department'}
                           </p>
                         </div>
-                        <StatusBadge variant="stable" label={timeAgo(profile.updatedAt)} />
+                        <div className="flex flex-wrap items-center gap-2">
+                          {invoice.fileUrl && (
+                            <>
+                              <a href={invoice.fileUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-2 rounded-full border border-zinc-200 bg-white px-4 py-2.5 text-[11px] font-semibold uppercase tracking-[0.18em] text-zinc-900 transition hover:border-zinc-400 hover:bg-zinc-100 dark:border-zinc-800 dark:bg-zinc-950 dark:text-white dark:hover:border-zinc-600 dark:hover:bg-zinc-900">View</a>
+                              <a href={invoice.fileUrl} download={invoice.invoiceNumber} className="inline-flex items-center gap-2 rounded-full border border-zinc-200 bg-white px-4 py-2.5 text-[11px] font-semibold uppercase tracking-[0.18em] text-zinc-900 transition hover:border-zinc-400 hover:bg-zinc-100 dark:border-zinc-800 dark:bg-zinc-950 dark:text-white dark:hover:border-zinc-600 dark:hover:bg-zinc-900">Download</a>
+                            </>
+                          )}
+                          <ActionButton
+                            label="Edit"
+                            icon="edit"
+                            disabled={createInvoiceMutation.isPending || isRequestPending}
+                            onClick={() => {
+                              setInvoiceEditingId(invoice.id)
+                              setSelectedInvoiceFile(null)
+                              setInvoiceDraft(current => ({
+                                ...current,
+                                mealLogId: invoice.mealLogId,
+                                forecastId: invoice.forecastId,
+                                vendorId: invoice.vendorId,
+                                vendorName: invoice.vendorName ?? '',
+                                vendorContactNumber: invoice.vendorContactNumber ?? '',
+                                department: invoice.department ?? '',
+                                mealPeriod: invoice.mealPeriod,
+                                forecastCount: invoice.forecastCount,
+                                actualPeopleServed: invoice.actualPeopleServed,
+                                plateCost: invoice.plateCost,
+                                extraCost: invoice.extraCost,
+                                totalCost: invoice.totalCost,
+                                varianceCount: invoice.varianceCount,
+                                invoiceNumber: invoice.invoiceNumber,
+                                invoiceDate: invoice.invoiceDate,
+                                amount: invoice.amount,
+                                currencyCode: invoice.currencyCode,
+                                approvalRequested: invoice.approvalRequested,
+                                status: invoice.status,
+                                notes: invoice.notes ?? '',
+                                expenseNotes: invoice.expenseNotes ?? '',
+                                generatedFromMealLog: invoice.generatedFromMealLog,
+                              }))
+                            }}
+                          />
+                          <ActionButton
+                            label="Approve"
+                            icon="check"
+                            disabled={createInvoiceMutation.isPending || invoice.status === 'approved'}
+                            onClick={() => createInvoiceMutation.mutate({
+                              invoiceId: invoice.id,
+                              payload: {
+                                projectId: activeProjectId,
+                                mealLogId: invoice.mealLogId ?? undefined,
+                                forecastId: invoice.forecastId ?? undefined,
+                                vendorId: invoice.vendorId ?? undefined,
+                                vendorName: invoice.vendorName ?? undefined,
+                                vendorContactNumber: invoice.vendorContactNumber ?? undefined,
+                                department: invoice.department ?? undefined,
+                                mealPeriod: invoice.mealPeriod,
+                                forecastCount: invoice.forecastCount,
+                                actualPeopleServed: invoice.actualPeopleServed,
+                                plateCost: invoice.plateCost,
+                                extraCost: invoice.extraCost,
+                                totalCost: invoice.totalCost,
+                                varianceCount: invoice.varianceCount,
+                                invoiceNumber: invoice.invoiceNumber,
+                                invoiceDate: invoice.invoiceDate,
+                                amount: invoice.amount,
+                                currencyCode: invoice.currencyCode,
+                                approvalRequested: true,
+                                status: 'approved',
+                                notes: invoice.notes ?? undefined,
+                                expenseNotes: invoice.expenseNotes ?? undefined,
+                                generatedFromMealLog: invoice.generatedFromMealLog,
+                              },
+                            })}
+                          />
+                          <ActionButton
+                            label="Reject"
+                            icon="close"
+                            tone="danger"
+                            disabled={createInvoiceMutation.isPending || invoice.status === 'rejected'}
+                            onClick={() => createInvoiceMutation.mutate({
+                              invoiceId: invoice.id,
+                              payload: {
+                                projectId: activeProjectId,
+                                mealLogId: invoice.mealLogId ?? undefined,
+                                forecastId: invoice.forecastId ?? undefined,
+                                vendorId: invoice.vendorId ?? undefined,
+                                vendorName: invoice.vendorName ?? undefined,
+                                vendorContactNumber: invoice.vendorContactNumber ?? undefined,
+                                department: invoice.department ?? undefined,
+                                mealPeriod: invoice.mealPeriod,
+                                forecastCount: invoice.forecastCount,
+                                actualPeopleServed: invoice.actualPeopleServed,
+                                plateCost: invoice.plateCost,
+                                extraCost: invoice.extraCost,
+                                totalCost: invoice.totalCost,
+                                varianceCount: invoice.varianceCount,
+                                invoiceNumber: invoice.invoiceNumber,
+                                invoiceDate: invoice.invoiceDate,
+                                amount: invoice.amount,
+                                currencyCode: invoice.currencyCode,
+                                approvalRequested: true,
+                                status: 'rejected',
+                                notes: invoice.notes ?? undefined,
+                                expenseNotes: invoice.expenseNotes ?? undefined,
+                                generatedFromMealLog: invoice.generatedFromMealLog,
+                              },
+                            })}
+                          />
+                        </div>
                       </div>
                     </Surface>
-                  ))}
-                </div>
-              ) : (
-                <EmptyState icon="person_raised_hand" title="No dietary data yet" description="Add dietary needs per department to keep catering accurate." />
-              )}
+                  )
+                }) : (
+                  <EmptyState icon="receipt_long" title="No invoices yet" description="Submitted meal logs generate invoices here for approval, export, and attachment management." />
+                )}
+              </div>
             </SectionCard>
           </div>
         )}
@@ -916,11 +1053,42 @@ export function FoodBeveragesView() {
             <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
               <KpiCard label="Coverage Submitted" value={String(analyticsQ.data?.forecastCoverage.submitted ?? 0)} subLabel="Forecast rows" />
               <KpiCard label="Estimated Rows" value={String(analyticsQ.data?.forecastCoverage.estimated ?? 0)} subLabel="Fallback values" />
+              <KpiCard label="Forecast Accuracy" value={`${analyticsQ.data?.forecastAccuracy.averageVariancePercent?.toFixed(1) ?? '0.0'}%`} subLabel="Average variance" />
               <KpiCard label="Waste % Avg" value={`${analyticsQ.data?.wasteSummary.averageWastePercent?.toFixed(1) ?? '0.0'}%`} subLabel="Average waste" />
-              <KpiCard label="Total Waste" value={String(analyticsQ.data?.wasteSummary.totalWaste ?? 0)} subLabel="Meals wasted" />
               <KpiCard label="Monthly Burn" value={formatCurrency(analyticsQ.data?.costSummary.monthlyBurn ?? 0, activeProject?.currency ?? 'INR')} subLabel="Food spend this month" />
-              <KpiCard label="Pending Approval" value={formatCurrency(analyticsQ.data?.costSummary.pendingApproval ?? 0, activeProject?.currency ?? 'INR')} subLabel="Invoices awaiting review" />
+              <KpiCard label="Cost / Person" value={formatCurrency(analyticsQ.data?.costSummary.costPerPerson ?? 0, activeProject?.currency ?? 'INR')} subLabel="Blended cost per person" />
             </div>
+
+            <SectionCard title="Department Consumption" subtitle="Crew planning and actual consumption side by side.">
+              {analyticsQ.data?.departmentConsumption.length ? (
+                <div className="space-y-3">
+                  {analyticsQ.data.departmentConsumption.map(item => (
+                    <Surface key={item.department} variant="muted" padding="md">
+                      <div className="grid gap-4 md:grid-cols-4">
+                        <div>
+                          <p className="text-sm font-semibold text-zinc-900 dark:text-white">{labelize(item.department)}</p>
+                          <p className="mt-2 text-sm text-zinc-500 dark:text-zinc-400">Cost {formatCurrency(item.totalCost, activeProject?.currency ?? 'INR')}</p>
+                        </div>
+                        <div>
+                          <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-zinc-500 dark:text-zinc-400">Forecast</p>
+                          <p className="mt-2 text-base font-semibold text-zinc-900 dark:text-white">{item.forecastCount}</p>
+                        </div>
+                        <div>
+                          <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-zinc-500 dark:text-zinc-400">Served</p>
+                          <p className="mt-2 text-base font-semibold text-zinc-900 dark:text-white">{item.servedCount}</p>
+                        </div>
+                        <div>
+                          <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-zinc-500 dark:text-zinc-400">Variance</p>
+                          <p className={`mt-2 text-base font-semibold ${item.varianceCount > 0 ? 'text-red-500' : 'text-zinc-900 dark:text-white'}`}>{item.varianceCount}</p>
+                        </div>
+                      </div>
+                    </Surface>
+                  ))}
+                </div>
+              ) : (
+                <EmptyState icon="analytics" title="No analytics yet" description="Analytics will populate as forecasts, meal logs, and invoices come in." />
+              )}
+            </SectionCard>
 
             <SectionCard title="Vendor Performance" subtitle="Use this to check whether a vendor is keeping up with demand.">
               {analyticsQ.data?.vendorPerformance.length ? (
@@ -949,7 +1117,7 @@ export function FoodBeveragesView() {
                   ))}
                 </div>
               ) : (
-                <EmptyState icon="analytics" title="No analytics yet" description="Analytics will populate as forecasts and invoices come in." />
+                <EmptyState icon="analytics" title="No vendor performance yet" description="Performance data appears once forecasts, meal logs, and invoices exist." />
               )}
             </SectionCard>
           </div>
@@ -980,7 +1148,7 @@ export function FoodBeveragesView() {
               )}
             </SectionCard>
 
-            <SectionCard title="Activity Timeline" subtitle="Everything logged here also lands in the global activity stream.">
+            <SectionCard title="Activity Timeline" subtitle="Forecast submitted, meal logged, invoice generated, and approval activity all land here.">
               {timelineQ.data?.length ? (
                 <div className="space-y-3">
                   {timelineQ.data.map(item => (
@@ -988,7 +1156,7 @@ export function FoodBeveragesView() {
                       <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
                         <div>
                           <p className="text-sm font-semibold text-zinc-900 dark:text-white">{item.summary}</p>
-                          <p className="mt-2 text-sm text-zinc-500 dark:text-zinc-400">{item.actorUserName ?? 'ProdSync User'} · {timeAgo(item.createdAt)}</p>
+                          <p className="mt-2 text-sm text-zinc-500 dark:text-zinc-400">{item.actorUserName ?? 'ProdSync User'} - {timeAgo(item.createdAt)}</p>
                         </div>
                         <StatusBadge variant="stable" label={labelize(item.action)} />
                       </div>
@@ -1003,9 +1171,9 @@ export function FoodBeveragesView() {
         )}
 
         {isForecastOnly && (
-          <Surface variant="warning" padding="lg" className="mt-6">
-            <p className="text-sm leading-6 text-orange-700 dark:text-orange-300">
-              Your access is limited to forecast submission only. Production leadership can review the full vendor, meal, dietary, analytics, and timeline workspace.
+          <Surface variant="muted" padding="lg" className="mt-6">
+            <p className="text-sm leading-6 text-zinc-600 dark:text-zinc-300">
+              Your access is limited to forecast submission only. Production leadership can review meal logs, invoices, analytics, and timeline activity for the full workflow.
             </p>
           </Surface>
         )}

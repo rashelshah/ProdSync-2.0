@@ -5,7 +5,7 @@ import { KpiCard } from '@/components/shared/KpiCard'
 import { StatusBadge } from '@/components/shared/StatusBadge'
 import { Surface } from '@/components/shared/Surface'
 import { SectionSelectorSheet } from '@/components/shared/SectionSelectorSheet'
-import { EmptyState, ErrorState, LoadingState } from '@/components/system/SystemStates'
+import { EmptyState, ErrorState, TubeLightLoaderOverlay } from '@/components/system/SystemStates'
 import { useAuthStore } from '@/features/auth/auth.store'
 import { useResolvedProjectContext } from '@/features/projects/useResolvedProjectContext'
 import { resolveErrorMessage, showError, showSuccess } from '@/lib/toast'
@@ -186,21 +186,21 @@ function ModalShell({
       <button
         type="button"
         aria-label="Close modal"
-        className="absolute inset-0 bg-zinc-950/70 backdrop-blur-md"
+        className="absolute inset-0 bg-[color:rgba(9,9,11,0.7)] backdrop-blur-md"
         onClick={onClose}
       />
       <Surface variant="raised" padding="none" className={`relative z-10 w-full overflow-hidden ${maxWidth}`}>
         <div className="border-b border-zinc-200 px-5 py-4 dark:border-zinc-800 sm:px-6">
           <div className="flex items-start justify-between gap-4">
             <div>
-              <p className="text-[10px] font-semibold uppercase tracking-[0.24em] text-zinc-500 dark:text-zinc-400">ProdSync</p>
+              <p className="text-[10px] font-semibold uppercase tracking-[0.24em] text-[color:var(--app-muted)]">ProdSync</p>
               <h2 className="mt-1 text-xl font-semibold tracking-[-0.03em] text-zinc-900 dark:text-white">{title}</h2>
-              {description && <p className="mt-2 max-w-2xl text-sm leading-6 text-zinc-500 dark:text-zinc-400">{description}</p>}
+              {description && <p className="mt-2 max-w-2xl text-sm leading-6 text-[color:var(--app-muted)]">{description}</p>}
             </div>
             <button
               type="button"
               onClick={onClose}
-              className="flex h-11 w-11 items-center justify-center rounded-full border border-zinc-200 bg-zinc-50 text-zinc-600 transition hover:border-orange-200 hover:bg-orange-50 hover:text-orange-600 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-300 dark:hover:border-orange-500/20 dark:hover:bg-orange-500/10 dark:hover:text-orange-300"
+              className="flex h-11 w-11 items-center justify-center rounded-full border border-[color:var(--app-border)] bg-[color:var(--app-surface-strong)] text-[color:var(--app-muted)] transition hover:border-orange-200 hover:bg-orange-50 hover:text-orange-600"
             >
               <span className="material-symbols-outlined text-[18px]">close</span>
             </button>
@@ -244,7 +244,7 @@ function ActionButton({
       className={`inline-flex items-center justify-center gap-2 rounded-full px-4 py-2.5 text-[11px] font-semibold uppercase tracking-[0.18em] transition ${
         tone === 'danger'
           ? 'border border-red-200 bg-red-50 text-red-600 hover:bg-red-100 dark:border-red-500/20 dark:bg-red-500/10 dark:text-red-300'
-          : 'border border-zinc-200 bg-white text-zinc-900 hover:border-orange-200 hover:bg-orange-50 hover:text-orange-600 dark:border-zinc-800 dark:bg-zinc-950 dark:text-white dark:hover:border-orange-500/20 dark:hover:bg-orange-500/10 dark:hover:text-orange-300'
+          : 'border border-[color:var(--app-border)] bg-[color:var(--app-surface-strong)] text-[color:var(--app-text)] hover:border-orange-200 hover:bg-orange-50 hover:text-orange-600'
       } ${(disabled || loading) ? 'cursor-not-allowed opacity-60' : ''}`}
     >
       {loading ? <span className="ui-spinner" /> : <span className="material-symbols-outlined text-[16px]">{icon}</span>}
@@ -264,9 +264,9 @@ function Field({
 }) {
   return (
     <label className="space-y-2">
-      <span className="text-[10px] font-semibold uppercase tracking-[0.22em] text-zinc-500 dark:text-zinc-400">{label}</span>
+      <span className="text-[10px] font-semibold uppercase tracking-[0.22em] text-[color:var(--app-muted)]">{label}</span>
       {children}
-      {hint && <p className="text-xs leading-5 text-zinc-500 dark:text-zinc-400">{hint}</p>}
+      {hint && <p className="text-xs leading-5 text-[color:var(--app-muted)]">{hint}</p>}
     </label>
   )
 }
@@ -275,7 +275,7 @@ function Input(props: InputHTMLAttributes<HTMLInputElement>) {
   return (
     <input
       {...props}
-      className={`w-full rounded-2xl border border-zinc-200 bg-white px-4 py-3 text-sm text-zinc-900 outline-none transition focus:border-orange-300 dark:border-zinc-800 dark:bg-zinc-950 dark:text-white ${props.className ?? ''}`}
+      className={`w-full rounded-2xl border border-[color:var(--app-border)] bg-[color:var(--app-surface-strong)] px-4 py-3 text-sm text-[color:var(--app-text)] outline-none transition focus:border-orange-500 ${props.className ?? ''}`}
     />
   )
 }
@@ -284,7 +284,7 @@ function Textarea(props: TextareaHTMLAttributes<HTMLTextAreaElement>) {
   return (
     <textarea
       {...props}
-      className={`min-h-[108px] w-full rounded-2xl border border-zinc-200 bg-white px-4 py-3 text-sm text-zinc-900 outline-none transition focus:border-orange-300 dark:border-zinc-800 dark:bg-zinc-950 dark:text-white ${props.className ?? ''}`}
+      className={`min-h-[108px] w-full rounded-2xl border border-[color:var(--app-border)] bg-[color:var(--app-surface-strong)] px-4 py-3 text-sm text-[color:var(--app-text)] outline-none transition focus:border-orange-500 ${props.className ?? ''}`}
     />
   )
 }
@@ -293,7 +293,7 @@ function Select(props: SelectHTMLAttributes<HTMLSelectElement>) {
   return (
     <select
       {...props}
-      className={`w-full rounded-2xl border border-zinc-200 bg-white px-4 py-3 text-sm text-zinc-900 outline-none transition focus:border-orange-300 dark:border-zinc-800 dark:bg-zinc-950 dark:text-white ${props.className ?? ''}`}
+      className={`w-full rounded-2xl border border-[color:var(--app-border)] bg-[color:var(--app-surface-strong)] px-4 py-3 text-sm text-[color:var(--app-text)] outline-none transition focus:border-orange-500 ${props.className ?? ''}`}
     />
   )
 }
@@ -393,10 +393,10 @@ function LocationSearchField({
         onKeyDown={handleKeyDown}
       />
       {open && (loading || error || results.length > 0 || value.trim().length >= 3) && (
-        <div className="absolute left-0 right-0 top-[calc(100%+0.75rem)] z-30 overflow-hidden rounded-[24px] border border-zinc-200 bg-white shadow-[0_22px_46px_rgba(15,23,42,0.16)] dark:border-zinc-800 dark:bg-zinc-950">
-          {loading && (
-            <div className="flex items-center gap-3 px-4 py-4 text-sm text-zinc-500 dark:text-zinc-400">
-              <span className="h-4 w-4 animate-spin rounded-full border-2 border-zinc-200 border-t-orange-500 dark:border-zinc-800 dark:border-t-orange-500" />
+          <div className="absolute left-0 right-0 top-[calc(100%+0.75rem)] z-30 overflow-hidden rounded-[24px] border border-[color:var(--app-border)] bg-[color:var(--app-surface-strong)] shadow-[0_22px_46px_rgba(15,23,42,0.16)]">
+            {loading && (
+            <div className="flex items-center gap-3 px-4 py-4 text-sm text-[color:var(--app-muted)]">
+              <span className="h-4 w-4 animate-spin rounded-full border-2 border-[color:var(--app-border)] border-t-orange-500" />
               Searching locations...
             </div>
           )}
@@ -404,7 +404,7 @@ function LocationSearchField({
             <div className="px-4 py-4 text-sm text-red-600 dark:text-red-300">{error}</div>
           )}
           {!loading && !error && results.length === 0 && value.trim().length >= 3 && (
-            <div className="px-4 py-4 text-sm text-zinc-500 dark:text-zinc-400">No matching places found.</div>
+            <div className="px-4 py-4 text-sm text-[color:var(--app-muted)]">No matching places found.</div>
           )}
           {!loading && !error && results.length > 0 && (
             <div className="max-h-72 overflow-y-auto py-2">
@@ -419,7 +419,7 @@ function LocationSearchField({
                   }}
                   className={`block w-full px-4 py-3 text-left transition ${
                     index === activeIndex
-                      ? 'bg-orange-50 text-orange-700 dark:bg-orange-500/10 dark:text-orange-300'
+                      ? 'bg-zinc-100 text-zinc-900 dark:bg-zinc-800 dark:text-white'
                       : 'text-zinc-900 hover:bg-zinc-50 dark:text-white dark:hover:bg-zinc-900'
                   }`}
                 >
@@ -1066,7 +1066,7 @@ export function LocationsView() {
                   </div>
                   {item.notes && <p className="text-sm leading-6 text-zinc-600 dark:text-zinc-300">{item.notes}</p>}
                   <div className="flex flex-wrap gap-3">
-                    <a href={item.url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-2 rounded-full border border-zinc-200 bg-white px-4 py-2.5 text-[11px] font-semibold uppercase tracking-[0.18em] text-zinc-900 transition hover:border-orange-200 hover:bg-orange-50 hover:text-orange-600 dark:border-zinc-800 dark:bg-zinc-950 dark:text-white dark:hover:border-orange-500/20 dark:hover:bg-orange-500/10 dark:hover:text-orange-300">
+                    <a href={item.url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-2 rounded-full border border-zinc-200 bg-white px-4 py-2.5 text-[11px] font-semibold uppercase tracking-[0.18em] text-zinc-900 transition hover:border-zinc-400 hover:bg-zinc-100 hover:text-zinc-950 dark:border-zinc-800 dark:bg-zinc-950 dark:text-white dark:hover:border-zinc-600 dark:hover:bg-zinc-900">
                       <span className="material-symbols-outlined text-[16px]">open_in_new</span>
                       Open
                     </a>
@@ -1162,7 +1162,7 @@ export function LocationsView() {
                 <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
                   <div className="min-w-0 flex-1">
                     <div className="flex flex-wrap items-center gap-3">
-                      <span className={`flex h-9 w-9 items-center justify-center rounded-full ${existing ? 'bg-orange-500 text-black' : 'bg-zinc-200 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300'}`}>
+                      <span className={`flex h-9 w-9 items-center justify-center rounded-full ${existing ? 'bg-zinc-800 text-white dark:bg-zinc-100 dark:text-zinc-950' : 'bg-zinc-200 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300'}`}>
                         <span className="material-symbols-outlined text-[18px]">{existing ? 'check_circle' : 'radio_button_unchecked'}</span>
                       </span>
                       <div>
@@ -1373,7 +1373,7 @@ export function LocationsView() {
                           mapLink: result.mapLink ?? '',
                         },
                       }))}
-                      className="w-full rounded-[22px] border border-zinc-200 bg-white px-4 py-3 text-left transition hover:border-orange-200 hover:bg-orange-50 dark:border-zinc-800 dark:bg-zinc-950 dark:hover:border-orange-500/20 dark:hover:bg-orange-500/10"
+                      className="w-full rounded-[22px] border border-zinc-200 bg-white px-4 py-3 text-left transition hover:border-zinc-400 hover:bg-zinc-100 dark:border-zinc-800 dark:bg-zinc-950 dark:hover:border-zinc-600 dark:hover:bg-zinc-900"
                     >
                       <p className="text-sm font-medium text-zinc-900 dark:text-white">{result.name}</p>
                       <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">{result.address}</p>
@@ -1551,11 +1551,11 @@ export function LocationsView() {
                       {document.notes && <p className="mt-3 text-sm leading-6 text-zinc-600 dark:text-zinc-300">{document.notes}</p>}
                     </div>
                     <div className="flex flex-wrap gap-3">
-                      <a href={document.url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-2 rounded-full border border-zinc-200 bg-white px-4 py-2.5 text-[11px] font-semibold uppercase tracking-[0.18em] text-zinc-900 transition hover:border-orange-200 hover:bg-orange-50 hover:text-orange-600 dark:border-zinc-800 dark:bg-zinc-950 dark:text-white dark:hover:border-orange-500/20 dark:hover:bg-orange-500/10 dark:hover:text-orange-300">
+                      <a href={document.url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-2 rounded-full border border-zinc-200 bg-white px-4 py-2.5 text-[11px] font-semibold uppercase tracking-[0.18em] text-zinc-900 transition hover:border-zinc-400 hover:bg-zinc-100 hover:text-zinc-950 dark:border-zinc-800 dark:bg-zinc-950 dark:text-white dark:hover:border-zinc-600 dark:hover:bg-zinc-900">
                         <span className="material-symbols-outlined text-[16px]">visibility</span>
                         Preview
                       </a>
-                      <a href={document.url} download={document.originalName} className="inline-flex items-center gap-2 rounded-full border border-zinc-200 bg-white px-4 py-2.5 text-[11px] font-semibold uppercase tracking-[0.18em] text-zinc-900 transition hover:border-orange-200 hover:bg-orange-50 hover:text-orange-600 dark:border-zinc-800 dark:bg-zinc-950 dark:text-white dark:hover:border-orange-500/20 dark:hover:bg-orange-500/10 dark:hover:text-orange-300">
+                      <a href={document.url} download={document.originalName} className="inline-flex items-center gap-2 rounded-full border border-zinc-200 bg-white px-4 py-2.5 text-[11px] font-semibold uppercase tracking-[0.18em] text-zinc-900 transition hover:border-zinc-400 hover:bg-zinc-100 hover:text-zinc-950 dark:border-zinc-800 dark:bg-zinc-950 dark:text-white dark:hover:border-zinc-600 dark:hover:bg-zinc-900">
                         <span className="material-symbols-outlined text-[16px]">download</span>
                         Download
                       </a>
@@ -1722,7 +1722,7 @@ export function LocationsView() {
 
   const renderWorkspace = () => {
     if (selectedDetailQuery.isLoading) {
-      return <LoadingState message="Loading location workspace..." />
+      return <TubeLightLoaderOverlay open message="Loading location workspace..." />
     }
 
     if (selectedDetailQuery.isError) {
@@ -1747,7 +1747,7 @@ export function LocationsView() {
                     return params
                   })
                 }}
-                className="inline-flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-zinc-500 transition hover:text-orange-600 dark:text-zinc-400 dark:hover:text-orange-300"
+                className="inline-flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-zinc-500 transition hover:text-zinc-950 dark:text-zinc-400 dark:hover:text-white"
               >
                 <span className="material-symbols-outlined text-[16px]">arrow_back</span>
                 Back to locations
@@ -1792,8 +1792,8 @@ export function LocationsView() {
                 disabled={switchingTab !== null}
                 className={`inline-flex items-center gap-2 rounded-full px-4 py-3 text-[11px] font-semibold uppercase tracking-[0.18em] transition ${
                   selectedTab === tab.id
-                    ? 'bg-orange-500 text-black shadow-[0_10px_24px_rgba(249,115,22,0.22)]'
-                    : 'bg-zinc-100 text-zinc-600 hover:bg-zinc-200 dark:bg-zinc-900 dark:text-zinc-300 dark:hover:bg-zinc-800'
+                    ? 'bg-orange-50 text-orange-600 shadow-[0_10px_24px_rgba(249,115,22,0.14)] dark:bg-orange-500/12 dark:text-orange-400'
+                    : 'bg-[color:var(--app-surface-muted)] text-[color:var(--app-muted)] hover:bg-[color:var(--app-surface)]'
                 }`}
               >
                 {switchingTab === tab.id ? <span className="ui-spinner" /> : <span className="material-symbols-outlined text-[16px]">{tab.icon}</span>}
@@ -1806,17 +1806,17 @@ export function LocationsView() {
             <button
               type="button"
               onClick={() => setLocationTabSheetOpen(true)}
-              className="flex w-full items-center justify-between rounded-2xl border border-zinc-200 bg-white px-4 py-3 text-left text-sm text-zinc-900 dark:border-zinc-800 dark:bg-zinc-950 dark:text-white"
+              className="flex w-full items-center justify-between rounded-2xl border border-[color:var(--app-border)] bg-[color:var(--app-surface-strong)] px-4 py-3 text-left text-sm text-[color:var(--app-text)]"
             >
               <span className="inline-flex items-center gap-2 font-medium">
                 <span className="material-symbols-outlined text-[18px]">{WORKSPACE_TABS.find(tab => tab.id === selectedTab)?.icon}</span>
                 {WORKSPACE_TABS.find(tab => tab.id === selectedTab)?.mobileLabel}
               </span>
-              <span className="material-symbols-outlined text-[18px] text-zinc-500 dark:text-zinc-400">keyboard_arrow_down</span>
+              <span className="material-symbols-outlined text-[18px] text-[color:var(--app-muted)]">keyboard_arrow_down</span>
             </button>
           </div>
           {switchingTab && (
-            <p className="mt-4 inline-flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-zinc-500 dark:text-zinc-400">
+            <p className="mt-4 inline-flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-[color:var(--app-muted)]">
               <span className="ui-spinner" />
               Switching section...
             </p>
@@ -1835,7 +1835,7 @@ export function LocationsView() {
 
   const renderLocationList = () => {
     if (locationsQuery.isLoading) {
-      return <LoadingState message="Loading locations..." />
+      return <TubeLightLoaderOverlay open message="Loading locations..." />
     }
 
     if (locationsQuery.isError) {
@@ -1857,7 +1857,7 @@ export function LocationsView() {
     return (
       <div className="mt-6 space-y-3">
         {locations.map(location => (
-          <Surface key={location.id} variant="table" padding="md" className="transition hover:border-orange-200 hover:shadow-[0_18px_36px_rgba(15,23,42,0.08)] dark:hover:border-orange-500/20">
+          <Surface key={location.id} variant="table" padding="md" className="transition hover:border-zinc-400 hover:shadow-[0_18px_36px_rgba(15,23,42,0.08)] dark:hover:border-zinc-600">
             <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
               <div className="min-w-0">
                 <div className="flex flex-wrap items-center gap-3">
@@ -1995,7 +1995,7 @@ export function LocationsView() {
   }, [newLocationPreview])
 
   if (isLoadingProjectContext) {
-    return <LoadingState message="Loading locations workspace..." />
+    return <TubeLightLoaderOverlay open message="Loading locations workspace..." />
   }
 
   if (isErrorProjectContext || !activeProjectId) {
@@ -2003,13 +2003,13 @@ export function LocationsView() {
   }
 
   return (
-    <div className="min-h-screen bg-[radial-gradient(circle_at_top_left,rgba(249,115,22,0.1),transparent_30%),radial-gradient(circle_at_top_right,rgba(255,255,255,0.03),transparent_20%)] pb-10">
+    <div className="min-h-screen bg-[color:var(--app-bg)] pb-10">
       <div className="mx-auto w-full max-w-7xl px-4 py-5 sm:px-6 lg:px-8">
         <div className="flex items-start justify-between gap-4">
           <div>
-            <p className="text-[10px] font-semibold uppercase tracking-[0.26em] text-zinc-500 dark:text-zinc-400">Locations</p>
-            <h1 className="mt-2 text-4xl font-semibold tracking-[-0.06em] text-zinc-900 dark:text-white">Capture location, save, manage.</h1>
-            <p className="mt-3 max-w-3xl text-sm leading-6 text-zinc-500 dark:text-zinc-400">
+            <p className="text-[10px] font-semibold uppercase tracking-[0.26em] text-[color:var(--app-muted)]">LOCATION</p>
+            <h1 className="mt-2 text-4xl font-semibold tracking-[-0.06em] text-[color:var(--app-text)]">LOCATION</h1>
+            <p className="mt-3 max-w-3xl text-sm leading-6 text-[color:var(--app-muted)]">
               Enter the module and immediately see your location list. Open a workspace only when you need to manage scouting, permissions, amenities, documents, and timeline activity for one location.
             </p>
           </div>
@@ -2162,9 +2162,9 @@ export function LocationsView() {
                 setCaptureMessage('')
                 locationFileInputRef.current?.click()
               }}
-              className="group rounded-[30px] border border-zinc-200 bg-zinc-50 p-6 text-left transition hover:border-orange-200 hover:bg-orange-50 dark:border-zinc-800 dark:bg-zinc-900 dark:hover:border-orange-500/20 dark:hover:bg-orange-500/10"
+              className="group rounded-[30px] border border-zinc-200 bg-zinc-50 p-6 text-left transition hover:border-zinc-400 hover:bg-zinc-100 dark:border-zinc-800 dark:bg-zinc-900 dark:hover:border-zinc-600 dark:hover:bg-zinc-800"
             >
-              <div className="flex h-14 w-14 items-center justify-center rounded-[20px] bg-orange-500 text-black">
+              <div className="flex h-14 w-14 items-center justify-center rounded-[20px] bg-zinc-800 text-white dark:bg-zinc-100 dark:text-zinc-950">
                 <span className="material-symbols-outlined text-[28px]">photo_camera</span>
               </div>
               <h3 className="mt-4 text-xl font-semibold text-zinc-900 dark:text-white">Capture Location</h3>
@@ -2178,9 +2178,9 @@ export function LocationsView() {
                 setNewLocationSearch('')
                 locationFileInputRef.current?.click()
               }}
-              className="group rounded-[30px] border border-zinc-200 bg-zinc-50 p-6 text-left transition hover:border-orange-200 hover:bg-orange-50 dark:border-zinc-800 dark:bg-zinc-900 dark:hover:border-orange-500/20 dark:hover:bg-orange-500/10"
+              className="group rounded-[30px] border border-zinc-200 bg-zinc-50 p-6 text-left transition hover:border-zinc-400 hover:bg-zinc-100 dark:border-zinc-800 dark:bg-zinc-900 dark:hover:border-zinc-600 dark:hover:bg-zinc-800"
             >
-              <div className="flex h-14 w-14 items-center justify-center rounded-[20px] bg-orange-500 text-black">
+              <div className="flex h-14 w-14 items-center justify-center rounded-[20px] bg-zinc-800 text-white dark:bg-zinc-100 dark:text-zinc-950">
                 <span className="material-symbols-outlined text-[28px]">upload_file</span>
               </div>
               <h3 className="mt-4 text-xl font-semibold text-zinc-900 dark:text-white">Upload Image</h3>

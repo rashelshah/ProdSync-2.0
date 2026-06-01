@@ -39,4 +39,4 @@ foodBeveragesRouter.get('/timeline', authMiddleware, projectAccessMiddleware, as
 foodBeveragesRouter.get('/alerts', authMiddleware, projectAccessMiddleware, asyncHandler(listFoodBeverageAlertsController))
 foodBeveragesRouter.get('/invoices', authMiddleware, projectAccessMiddleware, asyncHandler(listFoodBeverageInvoicesController))
 foodBeveragesRouter.post('/invoices', authMiddleware, foodBeverageInvoiceUpload.single('file'), projectAccessMiddleware, asyncHandler(createFoodBeverageInvoiceController))
-foodBeveragesRouter.patch('/invoices/:invoiceId', authMiddleware, projectAccessMiddleware, asyncHandler(updateFoodBeverageInvoiceController))
+foodBeveragesRouter.patch('/invoices/:invoiceId', authMiddleware, foodBeverageInvoiceUpload.single('file'), projectAccessMiddleware, asyncHandler(updateFoodBeverageInvoiceController))

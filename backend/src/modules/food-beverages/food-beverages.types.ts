@@ -1,3 +1,4 @@
+export type FoodBeveragesTabId = 'overview' | 'forecasting' | 'meal-logs' | 'invoices' | 'analytics' | 'timeline'
 export type FoodBeverageForecastStatus = 'submitted' | 'estimated'
 export type FoodBeverageInvoiceStatus = 'draft' | 'submitted' | 'approved' | 'rejected' | 'paid'
 export type FoodBeverageAlertSeverity = 'critical' | 'warning' | 'info'
@@ -24,6 +25,15 @@ export interface FoodBeverageForecastRecord {
   forecastDate: string
   department: string
   mealCount: number
+  expectedCrewCount: number
+  vegCount: number
+  nonVegCount: number
+  eggCount: number
+  jainCount: number
+  veganCount: number
+  medicalCount: number
+  vendorName: string | null
+  vendorContactNumber: string | null
   mealPeriod: FoodBeverageMealPeriod | null
   isEstimated: boolean
   status: FoodBeverageForecastStatus
@@ -39,11 +49,25 @@ export interface FoodBeverageMealLogRecord {
   mealDate: string
   department: string
   mealPeriod: FoodBeverageMealPeriod
+  forecastId: string | null
+  forecastCount: number
+  actualPeopleServed: number
   mealsServed: number
+  unusedPlates: number
   wasteCount: number
+  wastedMeals: number
+  plateCost: number
+  extraExpense: number
+  foodCost: number
+  extraCost: number
+  totalMealCost: number
+  varianceCount: number
+  wastePercent: number
   vendorId: string | null
   vendorName: string | null
+  vendorContactNumber: string | null
   notes: string | null
+  expenseNotes: string | null
   createdBy: string | null
   createdByName: string | null
   createdAt: string
@@ -67,8 +91,19 @@ export interface FoodBeverageDietaryProfileRecord {
 export interface FoodBeverageInvoiceRecord {
   id: string
   projectId: string
+  mealLogId: string | null
+  forecastId: string | null
   vendorId: string | null
   vendorName: string | null
+  vendorContactNumber: string | null
+  department: string | null
+  mealPeriod: FoodBeverageMealPeriod | null
+  forecastCount: number
+  actualPeopleServed: number
+  plateCost: number
+  extraCost: number
+  totalCost: number
+  varianceCount: number
   invoiceNumber: string
   invoiceDate: string
   amount: number
@@ -77,8 +112,10 @@ export interface FoodBeverageInvoiceRecord {
   approvalRequested: boolean
   approvalId: string | null
   approvalStatus: 'pending' | 'approved' | 'rejected' | 'not_requested'
+  generatedFromMealLog: boolean
   fileUrl: string | null
   notes: string | null
+  expenseNotes: string | null
   createdAt: string
   updatedAt: string
 }
@@ -133,6 +170,11 @@ export interface FoodBeverageAnalyticsRecord {
     estimated: number
     total: number
   }
+  forecastAccuracy: {
+    averageVariancePercent: number
+    exactMatches: number
+    total: number
+  }
   wasteSummary: {
     totalWaste: number
     averageWastePercent: number
@@ -142,7 +184,25 @@ export interface FoodBeverageAnalyticsRecord {
     total: number
     monthlyBurn: number
     pendingApproval: number
+    costPerPerson: number
   }
+  departmentConsumption: Array<{
+    department: string
+    forecastCount: number
+    servedCount: number
+    varianceCount: number
+    wastePercent: number
+    totalCost: number
+  }>
+  costTrend: Array<{
+    date: string
+    totalCost: number
+  }>
+  mealWasteTrend: Array<{
+    date: string
+    wastePercent: number
+    wastedMeals: number
+  }>
   vendorPerformance: Array<{
     vendorName: string
     forecastCount: number
@@ -157,6 +217,15 @@ export interface FoodBeverageForecastInput {
   forecastDate: string
   department: string
   mealCount: number
+  expectedCrewCount?: number
+  vegCount?: number
+  nonVegCount?: number
+  eggCount?: number
+  jainCount?: number
+  veganCount?: number
+  medicalCount?: number
+  vendorName?: string | null
+  vendorContactNumber?: string | null
   mealPeriod?: FoodBeverageMealPeriod | null
   notes?: string | null
 }
@@ -166,9 +235,19 @@ export interface FoodBeverageMealLogInput {
   mealDate: string
   department: string
   mealPeriod: FoodBeverageMealPeriod
+  forecastId?: string | null
+  forecastCount?: number
+  actualPeopleServed: number
   mealsServed: number
+  unusedPlates?: number
   wasteCount?: number
+  wastedMeals?: number
+  plateCost?: number
+  extraExpense?: number
+  expenseNotes?: string | null
   vendorId?: string | null
+  vendorName?: string | null
+  vendorContactNumber?: string | null
   notes?: string | null
 }
 
@@ -199,7 +278,19 @@ export interface FoodBeverageDietaryProfileInput {
 
 export interface FoodBeverageInvoiceInput {
   projectId: string
+  mealLogId?: string | null
+  forecastId?: string | null
   vendorId?: string | null
+  vendorName?: string | null
+  vendorContactNumber?: string | null
+  department?: string | null
+  mealPeriod?: FoodBeverageMealPeriod | null
+  forecastCount?: number
+  actualPeopleServed?: number
+  plateCost?: number
+  extraCost?: number
+  totalCost?: number
+  varianceCount?: number
   invoiceNumber: string
   invoiceDate: string
   amount: number
@@ -207,4 +298,6 @@ export interface FoodBeverageInvoiceInput {
   approvalRequested?: boolean
   status?: FoodBeverageInvoiceStatus
   notes?: string | null
+  expenseNotes?: string | null
+  generatedFromMealLog?: boolean
 }

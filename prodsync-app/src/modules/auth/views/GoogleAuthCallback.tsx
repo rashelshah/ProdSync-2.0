@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { LoadingState } from '@/components/system/SystemStates'
+import { TubeLightLoaderOverlay } from '@/components/system/SystemStates'
 import { useAuthStore } from '@/features/auth/auth.store'
 import { showError, showInfo, showSuccess } from '@/lib/toast'
 
@@ -37,5 +37,5 @@ export function GoogleAuthCallback() {
     })()
   }, [finalizeGoogleSignIn, isAuthReady, navigate])
 
-  return <LoadingState message="Finalizing Google sign-in..." />
+  return <TubeLightLoaderOverlay open message="Finalizing Google sign-in..." />
 }

@@ -44,6 +44,15 @@ import type {
 
 type DbRow = Record<string, unknown>
 
+type LocationVisibilityScope = {
+  viewerUserId: string | null
+  canViewAll: boolean
+}
+
+function isScopeVisibleToUser(rowOwnerId: string | null | undefined, scope: LocationVisibilityScope) {
+  return scope.canViewAll || Boolean(scope.viewerUserId && rowOwnerId && scope.viewerUserId === rowOwnerId)
+}
+
 function asString(value: unknown) {
   return typeof value === 'string' && value.trim() ? value : null
 }
@@ -783,7 +792,7 @@ export async function listLocations(query: LocationsListQuery): Promise<Paginate
   return toPaginatedResult(locations, count ?? locations.length, pagination)
 }
 
-export async function getLocationDetail(projectId: string, locationId: string): Promise<LocationDetailRecord> {
+export async function getLocationDetail(projectId: string, locationId: string, scope: LocationVisibilityScope = { viewerUserId: null, canViewAll: true }): Promise<LocationDetailRecord> {
   const locationRow = await ensureLocation(projectId, locationId)
 
   const [readinessMap, metricsMap, permissionsResult, amenitiesResult, timelineResult, commentsResult, costsResult] = await Promise.all([
@@ -800,9 +809,16 @@ export async function getLocationDetail(projectId: string, locationId: string): 
     if (result.error) throw result.error
   }
 
-  const timelineRows = (timelineResult.data ?? []) as DbRow[]
-  const commentRows = (commentsResult.data ?? []) as DbRow[]
-  const costRows = (costsResult.data ?? []) as DbRow[]
+  const permissionRows = ((permissionsResult.data ?? []) as DbRow[])
+    .filter(row => isScopeVisibleToUser(asString(row.created_by), scope))
+  const amenityRows = ((amenitiesResult.data ?? []) as DbRow[])
+    .filter(row => isScopeVisibleToUser(asString(row.created_by), scope))
+  const timelineRows = ((timelineResult.data ?? []) as DbRow[])
+    .filter(row => isScopeVisibleToUser(asString(row.created_by), scope))
+  const commentRows = ((commentsResult.data ?? []) as DbRow[])
+    .filter(row => isScopeVisibleToUser(asString(row.user_id), scope))
+  const costRows = ((costsResult.data ?? []) as DbRow[])
+    .filter(row => isScopeVisibleToUser(asString(row.created_by), scope))
   const userNames = await getUserNameMap([
     ...timelineRows.map(row => asString(row.created_by)),
     ...commentRows.map(row => asString(row.user_id)),
@@ -822,8 +838,8 @@ export async function getLocationDetail(projectId: string, locationId: string): 
         totalCost: 0,
       },
     ),
-    permissions: ((permissionsResult.data ?? []) as DbRow[]).map(mapPermissionRow),
-    amenities: ((amenitiesResult.data ?? []) as DbRow[]).map(mapAmenityRow),
+    permissions: permissionRows.map(mapPermissionRow),
+    amenities: amenityRows.map(mapAmenityRow),
     timeline: timelineRows.map(row => mapTimelineRow(row, userNames)),
     comments: commentRows.map(row => mapCommentRow(row, userNames)),
     costs: costRows.map(row => mapCostRow(row, approvalStatuses)),
@@ -999,12 +1015,12 @@ export async function deleteLocation(projectId: string, locationId: string, acto
   if (error) throw error
 }
 
-export async function listLocationMedia(projectId: string, locationId: string, page: number, pageSize: number) {
+export async function listLocationMedia(projectId: string, locationId: string, page: number, pageSize: number, scope: LocationVisibilityScope = { viewerUserId: null, canViewAll: true }) {
   await ensureLocation(projectId, locationId)
   const pagination = createPagination({ page, pageSize })
   const { from, to } = rangeFromPagination(pagination)
 
-  const { data, error, count } = await adminClient
+  const { data, error } = await adminClient
     .from('location_media')
     .select('*', { count: 'exact' })
     .eq('project_id', projectId)
@@ -1014,9 +1030,9 @@ export async function listLocationMedia(projectId: string, locationId: string, p
 
   if (error) throw error
 
-  const rows = (data ?? []) as DbRow[]
+  const rows = ((data ?? []) as DbRow[]).filter(row => isScopeVisibleToUser(asString(row.uploaded_by), scope))
   const userNames = await getUserNameMap(rows.map(row => asString(row.uploaded_by)))
-  return toPaginatedResult(rows.map(row => mapMediaRow(row, userNames)), count ?? rows.length, pagination)
+  return toPaginatedResult(rows.map(row => mapMediaRow(row, userNames)), rows.length, pagination)
 }
 
 export async function uploadLocationMedia(projectId: string, locationId: string, input: LocationMediaUploadInput, actorUserId: string | null, file: Express.Multer.File) {
@@ -1130,12 +1146,12 @@ export async function deleteLocationMedia(projectId: string, locationId: string,
   await syncLocationReadiness(projectId, locationId, actorUserId)
 }
 
-export async function listLocationDocuments(projectId: string, locationId: string, page: number, pageSize: number) {
+export async function listLocationDocuments(projectId: string, locationId: string, page: number, pageSize: number, scope: LocationVisibilityScope = { viewerUserId: null, canViewAll: true }) {
   await ensureLocation(projectId, locationId)
   const pagination = createPagination({ page, pageSize })
   const { from, to } = rangeFromPagination(pagination)
 
-  const { data, error, count } = await adminClient
+  const { data, error } = await adminClient
     .from('location_documents')
     .select('*', { count: 'exact' })
     .eq('project_id', projectId)
@@ -1145,9 +1161,9 @@ export async function listLocationDocuments(projectId: string, locationId: strin
 
   if (error) throw error
 
-  const rows = (data ?? []) as DbRow[]
+  const rows = ((data ?? []) as DbRow[]).filter(row => isScopeVisibleToUser(asString(row.uploaded_by), scope))
   const userNames = await getUserNameMap(rows.map(row => asString(row.uploaded_by)))
-  return toPaginatedResult(rows.map(row => mapDocumentRow(row, userNames)), count ?? rows.length, pagination)
+  return toPaginatedResult(rows.map(row => mapDocumentRow(row, userNames)), rows.length, pagination)
 }
 
 export async function uploadLocationDocument(projectId: string, locationId: string, input: LocationDocumentUploadInput, actorUserId: string | null, file: Express.Multer.File) {
@@ -1254,7 +1270,7 @@ export async function deleteLocationDocument(projectId: string, locationId: stri
   await syncLocationReadiness(projectId, locationId, actorUserId)
 }
 
-export async function listLocationPermissions(projectId: string, locationId: string) {
+export async function listLocationPermissions(projectId: string, locationId: string, scope: LocationVisibilityScope = { viewerUserId: null, canViewAll: true }) {
   await ensureLocation(projectId, locationId)
   const { data, error } = await adminClient
     .from('location_permissions')
@@ -1264,7 +1280,7 @@ export async function listLocationPermissions(projectId: string, locationId: str
     .order('created_at', { ascending: false })
 
   if (error) throw error
-  return ((data ?? []) as DbRow[]).map(mapPermissionRow)
+  return ((data ?? []) as DbRow[]).filter(row => isScopeVisibleToUser(asString(row.created_by), scope)).map(mapPermissionRow)
 }
 
 export async function createLocationPermission(projectId: string, locationId: string, input: CreateLocationPermissionInput, actorUserId: string | null) {
@@ -1523,7 +1539,7 @@ export async function createLocationTimelineEvent(projectId: string, locationId:
   return data
 }
 
-export async function listLocationTimeline(projectId: string, locationId: string) {
+export async function listLocationTimeline(projectId: string, locationId: string, scope: LocationVisibilityScope = { viewerUserId: null, canViewAll: true }) {
   await ensureLocation(projectId, locationId)
   const { data, error } = await adminClient
     .from('location_timeline')
@@ -1533,7 +1549,7 @@ export async function listLocationTimeline(projectId: string, locationId: string
     .order('event_at', { ascending: false })
 
   if (error) throw error
-  const rows = (data ?? []) as DbRow[]
+  const rows = ((data ?? []) as DbRow[]).filter(row => isScopeVisibleToUser(asString(row.created_by), scope))
   const userNames = await getUserNameMap(rows.map(row => asString(row.created_by)))
   return rows.map(row => mapTimelineRow(row, userNames))
 }
@@ -1567,7 +1583,7 @@ export async function createLocationComment(projectId: string, locationId: strin
   return data
 }
 
-export async function listLocationComments(projectId: string, locationId: string) {
+export async function listLocationComments(projectId: string, locationId: string, scope: LocationVisibilityScope = { viewerUserId: null, canViewAll: true }) {
   await ensureLocation(projectId, locationId)
   const { data, error } = await adminClient
     .from('location_comments')
@@ -1577,12 +1593,12 @@ export async function listLocationComments(projectId: string, locationId: string
     .order('created_at', { ascending: false })
 
   if (error) throw error
-  const rows = (data ?? []) as DbRow[]
+  const rows = ((data ?? []) as DbRow[]).filter(row => isScopeVisibleToUser(asString(row.user_id), scope))
   const userNames = await getUserNameMap(rows.map(row => asString(row.user_id)))
   return rows.map(row => mapCommentRow(row, userNames))
 }
 
-export async function listLocationCosts(projectId: string, locationId: string) {
+export async function listLocationCosts(projectId: string, locationId: string, scope: LocationVisibilityScope = { viewerUserId: null, canViewAll: true }) {
   await ensureLocation(projectId, locationId)
   const { data, error } = await adminClient
     .from('location_costs')
@@ -1592,7 +1608,7 @@ export async function listLocationCosts(projectId: string, locationId: string) {
     .order('created_at', { ascending: false })
 
   if (error) throw error
-  const rows = (data ?? []) as DbRow[]
+  const rows = ((data ?? []) as DbRow[]).filter(row => isScopeVisibleToUser(asString(row.created_by), scope))
   const approvalStatuses = await getApprovalStatusMap(rows.map(row => asString(row.approval_id)))
   return rows.map(row => mapCostRow(row, approvalStatuses))
 }

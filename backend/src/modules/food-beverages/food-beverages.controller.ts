@@ -1,6 +1,6 @@
 import type { Request, Response } from 'express'
 import { HttpError } from '../../utils/httpError'
-import { canManageFoodBeverages, canSubmitFoodForecast, canViewFoodBeverages } from './food-beverages.access'
+import { canManageFoodBeverages, canSubmitFoodForecast, canViewAllFoodBeverages, canViewFoodBeverages } from './food-beverages.access'
 import {
   createFoodBeverageForecast,
   createFoodBeverageInvoice,
@@ -58,14 +58,20 @@ function requireForecastAccess(req: Request) {
 export async function getFoodBeveragesOverviewController(req: Request, res: Response) {
   requireViewAccess(req)
   const query = foodBeverageOverviewQuerySchema.parse(req.query)
-  const overview = await getFoodBeveragesOverview(query.projectId)
+  const overview = await getFoodBeveragesOverview(query.projectId, {
+    viewerUserId: req.authUser?.id ?? null,
+    canViewAll: canViewAllFoodBeverages(req),
+  })
   res.json({ overview })
 }
 
 export async function listFoodBeverageForecastsController(req: Request, res: Response) {
   requireViewAccess(req)
   const query = foodBeverageForecastListQuerySchema.parse(req.query)
-  const forecasts = await listFoodBeverageForecasts(query.projectId, query.date ?? null)
+  const forecasts = await listFoodBeverageForecasts(query.projectId, query.date ?? null, {
+    viewerUserId: req.authUser?.id ?? null,
+    canViewAll: canViewAllFoodBeverages(req),
+  })
   res.json({ forecasts })
 }
 
@@ -79,7 +85,10 @@ export async function createFoodBeveragesForecastController(req: Request, res: R
 export async function listFoodBeverageMealLogsController(req: Request, res: Response) {
   requireViewAccess(req)
   const query = foodBeverageMealLogListQuerySchema.parse(req.query)
-  const mealLogs = await listFoodBeverageMealLogs(query.projectId, query.date ?? null)
+  const mealLogs = await listFoodBeverageMealLogs(query.projectId, query.date ?? null, {
+    viewerUserId: req.authUser?.id ?? null,
+    canViewAll: canViewAllFoodBeverages(req),
+  })
   res.json({ mealLogs })
 }
 
@@ -128,7 +137,10 @@ export async function upsertFoodBeverageDietaryProfileController(req: Request, r
 export async function listFoodBeverageInvoicesController(req: Request, res: Response) {
   requireViewAccess(req)
   const query = foodBeverageInvoiceListQuerySchema.parse(req.query)
-  const invoices = await listFoodBeverageInvoices(query.projectId, query.status ?? null)
+  const invoices = await listFoodBeverageInvoices(query.projectId, query.status ?? null, {
+    viewerUserId: req.authUser?.id ?? null,
+    canViewAll: canViewAllFoodBeverages(req),
+  })
   res.json({ invoices })
 }
 
@@ -142,27 +154,36 @@ export async function createFoodBeverageInvoiceController(req: Request, res: Res
 export async function updateFoodBeverageInvoiceController(req: Request, res: Response) {
   requireManageAccess(req)
   const payload = updateFoodBeverageInvoiceSchema.parse(req.body)
-  const invoice = await updateFoodBeverageInvoice(payload.projectId, String(req.params.invoiceId ?? ''), payload, req.authUser?.id ?? null, req.authUser?.fullName ?? req.authUser?.email ?? null)
+  const invoice = await updateFoodBeverageInvoice(payload.projectId, String(req.params.invoiceId ?? ''), payload, req.authUser?.id ?? null, req.authUser?.fullName ?? req.authUser?.email ?? null, req.file ?? null)
   res.json({ invoice })
 }
 
 export async function getFoodBeverageAnalyticsController(req: Request, res: Response) {
   requireViewAccess(req)
   const query = foodBeverageAnalyticsQuerySchema.parse(req.query)
-  const analytics = await getFoodBeverageAnalytics(query.projectId)
+  const analytics = await getFoodBeverageAnalytics(query.projectId, {
+    viewerUserId: req.authUser?.id ?? null,
+    canViewAll: canViewAllFoodBeverages(req),
+  })
   res.json({ analytics })
 }
 
 export async function listFoodBeverageTimelineController(req: Request, res: Response) {
   requireViewAccess(req)
   const query = foodBeverageTimelineQuerySchema.parse(req.query)
-  const timeline = await listFoodBeverageTimeline(query.projectId)
+  const timeline = await listFoodBeverageTimeline(query.projectId, {
+    viewerUserId: req.authUser?.id ?? null,
+    canViewAll: canViewAllFoodBeverages(req),
+  })
   res.json({ timeline })
 }
 
 export async function listFoodBeverageAlertsController(req: Request, res: Response) {
   requireViewAccess(req)
   const query = foodBeveragesProjectQuerySchema.parse(req.query)
-  const alerts = await listFoodBeverageAlerts(query.projectId)
+  const alerts = await listFoodBeverageAlerts(query.projectId, {
+    viewerUserId: req.authUser?.id ?? null,
+    canViewAll: canViewAllFoodBeverages(req),
+  })
   res.json({ alerts })
 }

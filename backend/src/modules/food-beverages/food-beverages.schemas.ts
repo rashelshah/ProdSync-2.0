@@ -62,8 +62,34 @@ export const foodBeverageForecastSchema = z.object({
   forecastDate: isoDateSchema,
   department: z.string().trim().min(2).max(120),
   mealCount: z.coerce.number().int().min(0).max(100_000),
+  expectedCrewCount: z.coerce.number().int().min(0).max(100_000).optional(),
+  vegCount: z.coerce.number().int().min(0).max(100_000).default(0),
+  nonVegCount: z.coerce.number().int().min(0).max(100_000).default(0),
+  eggCount: z.coerce.number().int().min(0).max(100_000).default(0),
+  jainCount: z.coerce.number().int().min(0).max(100_000).default(0),
+  veganCount: z.coerce.number().int().min(0).max(100_000).default(0),
+  medicalCount: z.coerce.number().int().min(0).max(100_000).default(0),
+  vendorName: optionalText(160),
+  vendorContactNumber: optionalText(80),
   mealPeriod: z.enum(mealPeriodValues).nullable().optional(),
   notes: optionalText(2_000),
+}).superRefine((value, ctx) => {
+  const crewCount = value.expectedCrewCount ?? value.mealCount
+  const totalDietary =
+    (value.vegCount ?? 0) +
+    (value.nonVegCount ?? 0) +
+    (value.eggCount ?? 0) +
+    (value.jainCount ?? 0) +
+    (value.veganCount ?? 0) +
+    (value.medicalCount ?? 0)
+
+  if (totalDietary > crewCount) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['nonVegCount'],
+      message: 'Dietary counts must not exceed the total crew count.',
+    })
+  }
 })
 
 export const foodBeverageMealLogSchema = z.object({
@@ -71,10 +97,28 @@ export const foodBeverageMealLogSchema = z.object({
   mealDate: isoDateSchema,
   department: z.string().trim().min(2).max(120),
   mealPeriod: z.enum(mealPeriodValues),
+  forecastId: z.string().uuid().nullable().optional(),
+  forecastCount: z.coerce.number().int().min(0).max(100_000).default(0),
+  actualPeopleServed: z.coerce.number().int().min(0).max(100_000),
   mealsServed: z.coerce.number().int().min(0).max(100_000),
+  unusedPlates: z.coerce.number().int().min(0).max(100_000).default(0),
   wasteCount: z.coerce.number().int().min(0).max(100_000).default(0),
+  wastedMeals: z.coerce.number().int().min(0).max(100_000).default(0),
+  plateCost: z.coerce.number().min(0).max(1_000_000_000).default(0),
+  extraExpense: z.coerce.number().min(0).max(1_000_000_000).default(0),
   vendorId: z.string().uuid().nullable().optional(),
+  vendorName: optionalText(160),
+  vendorContactNumber: optionalText(80),
+  expenseNotes: optionalText(2_000),
   notes: optionalText(2_000),
+}).superRefine((value, ctx) => {
+  if (value.actualPeopleServed !== value.mealsServed) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['actualPeopleServed'],
+      message: 'Actual people served must match the served count.',
+    })
+  }
 })
 
 export const foodBeverageDietaryProfileSchema = z.object({
@@ -92,7 +136,19 @@ export const foodBeverageDietaryProfileSchema = z.object({
 
 const invoiceBaseSchema = z.object({
   projectId: z.string().uuid(),
+  mealLogId: z.string().uuid().nullable().optional(),
+  forecastId: z.string().uuid().nullable().optional(),
   vendorId: z.string().uuid().nullable().optional(),
+  vendorName: optionalText(160),
+  vendorContactNumber: optionalText(80),
+  department: optionalText(120),
+  mealPeriod: z.enum(mealPeriodValues).nullable().optional(),
+  forecastCount: z.coerce.number().int().min(0).max(100_000).default(0),
+  actualPeopleServed: z.coerce.number().int().min(0).max(100_000).default(0),
+  plateCost: z.coerce.number().min(0).max(1_000_000_000).default(0),
+  extraCost: z.coerce.number().min(0).max(1_000_000_000).default(0),
+  totalCost: z.coerce.number().min(0).max(1_000_000_000).default(0),
+  varianceCount: z.coerce.number().int().default(0),
   invoiceNumber: z.string().trim().min(1).max(120),
   invoiceDate: isoDateSchema,
   amount: z.coerce.number().min(0).max(1_000_000_000),
@@ -103,6 +159,8 @@ const invoiceBaseSchema = z.object({
   approvalRequested: optionalBoolean().default(false),
   status: z.enum(invoiceStatusValues).default('submitted'),
   notes: optionalText(2_000),
+  expenseNotes: optionalText(2_000),
+  generatedFromMealLog: optionalBoolean().default(false),
 })
 
 export const createFoodBeverageInvoiceSchema = invoiceBaseSchema

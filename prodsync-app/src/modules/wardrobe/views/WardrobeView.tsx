@@ -6,7 +6,7 @@ import { DataTable } from '@/components/shared/DataTable'
 import { KpiCard } from '@/components/shared/KpiCard'
 import { StatusBadge } from '@/components/shared/StatusBadge'
 import { Surface } from '@/components/shared/Surface'
-import { EmptyState, ErrorState, LoadingState } from '@/components/system/SystemStates'
+import { EmptyState, ErrorState, TubeLightLoaderOverlay } from '@/components/system/SystemStates'
 import { useAuthStore } from '@/features/auth/auth.store'
 import { canAccessWardrobeWorkspace, canDeleteWardrobeContinuity, canManageWardrobeOperations } from '@/features/auth/role-capabilities'
 import { useResolvedProjectContext } from '@/features/projects/useResolvedProjectContext'
@@ -517,7 +517,7 @@ export function WardrobeView() {
   const turnaround = returnedLaundry.length > 0 ? Math.round((onTimeLaundry.length / returnedLaundry.length) * 100) : 100
 
   if (isLoadingProjectContext) {
-    return <div className="page-shell"><LoadingState message="Loading wardrobe workspace..." /></div>
+    return <TubeLightLoaderOverlay open message="Loading wardrobe workspace..." />
   }
 
   if (isErrorProjectContext) {
@@ -539,7 +539,7 @@ export function WardrobeView() {
   }
 
   if (isLoading && continuityLogs.length === 0 && inventory.length === 0 && laundry.length === 0 && accessories.length === 0) {
-    return <div className="page-shell"><LoadingState message="Loading wardrobe records..." /></div>
+    return <TubeLightLoaderOverlay open message="Loading wardrobe records..." />
   }
 
   if (isError) {

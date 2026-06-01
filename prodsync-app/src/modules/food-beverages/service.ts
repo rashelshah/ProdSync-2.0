@@ -149,10 +149,10 @@ export const foodBeveragesService = {
     return payload.invoice
   },
 
-  async updateInvoice(invoiceId: string, input: FoodBeverageInvoiceInput): Promise<FoodBeverageInvoiceRecord> {
+  async updateInvoice(invoiceId: string, input: FoodBeverageInvoiceInput, file?: File | null): Promise<FoodBeverageInvoiceRecord> {
     const response = await apiFetch(`/food-beverages/invoices/${encodeURIComponent(invoiceId)}`, {
       method: 'PATCH',
-      body: JSON.stringify(input),
+      body: buildFormData(input, file ?? null),
     })
     const payload = await readApiJson<{ invoice: FoodBeverageInvoiceRecord }>(response)
     return payload.invoice

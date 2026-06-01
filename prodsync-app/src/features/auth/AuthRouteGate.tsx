@@ -1,6 +1,6 @@
 import { useEffect } from 'react'
 import { Navigate, Outlet, useLocation } from 'react-router-dom'
-import { LoadingState } from '@/components/system/SystemStates'
+import { TubeLightLoaderOverlay } from '@/components/system/SystemStates'
 import { getDefaultAuthorizedPath } from './access-rules'
 import { hasActiveSession, useAuthStore } from './auth.store'
 
@@ -21,7 +21,7 @@ export function PublicOnlyRoute() {
   }, [isActive, isAuthenticated, logout])
 
   if (!isAuthReady) {
-    return <LoadingState message="Checking session..." />
+    return <TubeLightLoaderOverlay open message="Checking session..." />
   }
 
   if (isActive && user && !needsOnboarding) {
@@ -52,7 +52,7 @@ export function ProtectedRoute() {
   }, [isAuthenticated, isActive, logout])
 
   if (!isAuthReady) {
-    return <LoadingState message="Checking session..." />
+    return <TubeLightLoaderOverlay open message="Checking session..." />
   }
 
   if (!isActive) {

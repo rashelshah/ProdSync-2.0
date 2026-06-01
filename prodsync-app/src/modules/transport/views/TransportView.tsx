@@ -5,7 +5,7 @@ import { KpiCard } from '@/components/shared/KpiCard'
 import { DataTable } from '@/components/shared/DataTable'
 import { StatusBadge } from '@/components/shared/StatusBadge'
 import { Surface } from '@/components/shared/Surface'
-import { EmptyState, ErrorState, LoadingState } from '@/components/system/SystemStates'
+import { EmptyState, ErrorState, LoadingState, TubeLightLoaderOverlay } from '@/components/system/SystemStates'
 import { useAuthStore } from '@/features/auth/auth.store'
 import { useResolvedProjectContext } from '@/features/projects/useResolvedProjectContext'
 import { apiOrigin } from '@/lib/api'
@@ -727,7 +727,7 @@ export function TransportView() {
   }, [streamState.message, streamState.status])
 
   if (isLoadingProjectContext) {
-    return <LoadingState message="Resolving project access..." />
+    return <TubeLightLoaderOverlay open message="Resolving project access..." />
   }
 
   if (!activeProjectId || !activeProject) {
@@ -745,7 +745,7 @@ export function TransportView() {
   }
 
   if (isLoading) {
-    return <LoadingState message="Loading fleet data..." />
+    return <TubeLightLoaderOverlay open message="Loading fleet data..." />
   }
 
   if (isError) {

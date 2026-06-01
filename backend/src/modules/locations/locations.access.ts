@@ -57,3 +57,6 @@ export function canCommentOnLocations(req: Request) {
   return canViewLocations(req)
 }
 
+export function canViewAllLocations(req: Request) {
+  return canManageLocations(req)
+}

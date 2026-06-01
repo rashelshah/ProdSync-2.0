@@ -6,12 +6,12 @@ type SurfacePadding = 'none' | 'sm' | 'md' | 'lg'
 
 const variantClasses: Record<SurfaceVariant, string> = {
   default: 'bg-transparent border-none shadow-none',
-  muted: 'rounded-[28px] border border-zinc-200 bg-zinc-50 shadow-soft dark:border-zinc-800 dark:bg-zinc-900',
-  raised: 'rounded-[30px] border border-zinc-200 bg-white shadow-soft dark:border-zinc-800 dark:bg-zinc-900',
-  table: 'rounded-[30px] border border-zinc-200 bg-white shadow-soft dark:border-zinc-800 dark:bg-zinc-900',
+  muted: 'rounded-[28px] border border-[color:var(--app-border)] bg-[color:var(--app-surface-muted)] shadow-soft',
+  raised: 'rounded-[30px] border border-[color:var(--app-border)] bg-[color:var(--app-surface-strong)] shadow-soft',
+  table: 'rounded-[30px] border border-[color:var(--app-border)] bg-[color:var(--app-surface-strong)] shadow-soft',
   danger: 'rounded-[28px] border border-red-200 bg-red-50/80 shadow-soft dark:border-red-500/20 dark:bg-red-500/10',
   warning: 'rounded-[28px] border border-orange-200 bg-orange-50/80 shadow-soft dark:border-orange-500/20 dark:bg-orange-500/10',
-  inverse: 'rounded-[30px] border border-zinc-900 bg-zinc-900 text-white shadow-soft dark:border-zinc-800 dark:bg-zinc-50 dark:text-zinc-900',
+  inverse: 'rounded-[30px] border border-[color:var(--app-text)] bg-[color:var(--app-text)] text-[color:var(--app-bg)] shadow-soft',
 }
 
 const paddingClasses: Record<SurfacePadding, string> = {

@@ -5,7 +5,7 @@ import { approvalsService } from '@/services/approvals.service'
 import { KpiCard } from '@/components/shared/KpiCard'
 import { StatusBadge } from '@/components/shared/StatusBadge'
 import { Surface } from '@/components/shared/Surface'
-import { EmptyState, ErrorState, LoadingState } from '@/components/system/SystemStates'
+import { EmptyState, ErrorState, TubeLightLoaderOverlay } from '@/components/system/SystemStates'
 import { RoleGuard } from '@/features/auth/RoleGuard'
 import { useAuthStore } from '@/features/auth/auth.store'
 import { useResolvedProjectContext } from '@/features/projects/useResolvedProjectContext'
@@ -90,7 +90,7 @@ export function ApprovalsView() {
     }
   }
 
-  if (isLoadingProjectContext || pendingQ.isLoading) return <LoadingState message="Loading approvals..." />
+  if (isLoadingProjectContext || pendingQ.isLoading) return <TubeLightLoaderOverlay open message="Loading approvals..." />
   if (isErrorProjectContext || pendingQ.isError || historyQ.isError || kpisQ.isError) return <ErrorState message="Failed to load approvals" />
 
   const pending = pendingQ.data ?? []
