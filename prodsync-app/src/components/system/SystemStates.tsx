@@ -109,7 +109,7 @@ export function TubeLightLoaderOverlay({
           preload="auto"
           className="block w-[min(72vw,18rem)] max-w-[18rem] select-none object-contain mix-blend-screen [filter:drop-shadow(0_0_18px_rgba(249,115,22,0.16))_drop-shadow(0_0_44px_rgba(249,115,22,0.10))]"
         />
-        <p className="mt-0 text-sm font-medium tracking-[0.02em] text-[color:var(--app-text)]">
+        <p className="-mt-1.5 text-sm font-medium leading-none tracking-[0.02em] text-[color:var(--app-text)]">
           <span className="inline-flex items-center justify-center">
             <span className="inline-block">Loading</span>
             <span
