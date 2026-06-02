@@ -55,6 +55,31 @@ function requireForecastAccess(req: Request) {
   }
 }
 
+function serializeError(error: unknown) {
+  if (error instanceof Error) {
+    const serialized: Record<string, unknown> = {
+      name: error.name,
+      message: error.message,
+      stack: error.stack,
+    }
+
+    for (const key of ['code', 'details', 'hint', 'status', 'statusCode', 'table', 'schema', 'constraint', 'column', 'routine', 'file', 'line', 'position']) {
+      const value = (error as unknown as Record<string, unknown>)[key]
+      if (value !== undefined) {
+        serialized[key] = value
+      }
+    }
+
+    return serialized
+  }
+
+  if (error && typeof error === 'object') {
+    return error as Record<string, unknown>
+  }
+
+  return error
+}
+
 export async function getFoodBeveragesOverviewController(req: Request, res: Response) {
   requireViewAccess(req)
   const query = foodBeverageOverviewQuerySchema.parse(req.query)
@@ -76,10 +101,34 @@ export async function listFoodBeverageForecastsController(req: Request, res: Res
 }
 
 export async function createFoodBeveragesForecastController(req: Request, res: Response) {
-  requireForecastAccess(req)
-  const payload = foodBeverageForecastSchema.parse(req.body)
-  const forecast = await createFoodBeverageForecast(payload, req.authUser?.id ?? null, req.authUser?.fullName ?? req.authUser?.email ?? null)
-  res.status(201).json({ forecast })
+  console.info('[food-beverages]', JSON.stringify({
+    stage: 'forecast_request_received',
+    payload: req.body,
+  }))
+
+  try {
+    requireForecastAccess(req)
+
+    const payload = foodBeverageForecastSchema.parse(req.body)
+    console.info('[food-beverages]', JSON.stringify({
+      stage: 'forecast_validated',
+      validatedPayload: payload,
+    }))
+
+    const forecast = await createFoodBeverageForecast(payload, req.authUser?.id ?? null, req.authUser?.fullName ?? req.authUser?.email ?? null)
+    console.info('[food-beverages]', JSON.stringify({
+      stage: 'forecast_response',
+      responsePayload: { forecast },
+    }))
+
+    res.status(201).json({ forecast })
+  } catch (error) {
+    console.error('[food-beverages][forecast_failed]', JSON.stringify({
+      stage: 'forecast_request_failed',
+      error: serializeError(error),
+    }))
+    throw error
+  }
 }
 
 export async function listFoodBeverageMealLogsController(req: Request, res: Response) {

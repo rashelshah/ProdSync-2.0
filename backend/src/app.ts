@@ -43,6 +43,31 @@ function redactSensitive(value: unknown): unknown {
   )
 }
 
+function serializeError(error: unknown) {
+  if (error instanceof Error) {
+    const serialized: Record<string, unknown> = {
+      name: error.name,
+      message: error.message,
+      stack: error.stack,
+    }
+
+    for (const key of ['code', 'details', 'hint', 'status', 'statusCode', 'table', 'schema', 'constraint', 'column', 'routine', 'file', 'line', 'position']) {
+      const value = (error as unknown as Record<string, unknown>)[key]
+      if (value !== undefined) {
+        serialized[key] = value
+      }
+    }
+
+    return serialized
+  }
+
+  if (error && typeof error === 'object') {
+    return error as Record<string, unknown>
+  }
+
+  return error
+}
+
 export function createApp() {
   const app = express()
 
@@ -101,8 +126,7 @@ export function createApp() {
       path: req.path,
       query: redactSensitive(req.query),
       body: redactSensitive(req.body),
-      error: error instanceof Error ? error.message : error,
-      stack: runtimeProcess.env.NODE_ENV === 'development' && error instanceof Error ? error.stack : undefined,
+      error: serializeError(error),
     })
 
     if (error instanceof ZodError) {

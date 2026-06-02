@@ -91,6 +91,31 @@ function logFoodBeverageStage(stage: string, payload: Record<string, unknown>) {
   }))
 }
 
+function serializeError(error: unknown) {
+  if (error instanceof Error) {
+    const serialized: Record<string, unknown> = {
+      name: error.name,
+      message: error.message,
+      stack: error.stack,
+    }
+
+    for (const key of ['code', 'details', 'hint', 'status', 'statusCode', 'table', 'schema', 'constraint', 'column', 'routine', 'file', 'line', 'position']) {
+      const value = (error as unknown as Record<string, unknown>)[key]
+      if (value !== undefined) {
+        serialized[key] = value
+      }
+    }
+
+    return serialized
+  }
+
+  if (error && typeof error === 'object') {
+    return error as Record<string, unknown>
+  }
+
+  return error
+}
+
 function normalizeDepartment(value: string | null | undefined) {
   return (value ?? 'production').trim().toLowerCase()
 }
@@ -152,7 +177,7 @@ async function withBestEffort<T>(stage: string, payload: Record<string, unknown>
     console.error('[food-beverages][stage-failed]', JSON.stringify({
       stage,
       ...payload,
-      error: error instanceof Error ? error.message : String(error),
+      error: serializeError(error),
     }))
     return null
   }
@@ -212,11 +237,11 @@ async function logModuleActivity(params: {
   afterState?: unknown
   metadata?: Record<string, unknown>
 }) {
-  const activityId = randomUUID()
   const moduleMetadata = params.metadata ?? {}
 
-  await adminClient.from('food_beverage_activity_logs').insert({
-    id: activityId,
+  const timelineId = randomUUID()
+  const { data: timelineData, error: timelineError } = await adminClient.from('food_beverage_activity_logs').insert({
+    id: timelineId,
     project_id: params.projectId,
     action: params.action,
     entity_type: params.entityType,
@@ -227,10 +252,30 @@ async function logModuleActivity(params: {
     before_state: params.beforeState ?? null,
     after_state: params.afterState ?? null,
     metadata: moduleMetadata,
+  }).select('id').single()
+
+  if (timelineError) {
+    console.error('[food-beverages][activity-log-failed]', JSON.stringify({
+      stage: 'timeline_create',
+      projectId: params.projectId,
+      entityType: params.entityType,
+      entityId: params.entityId,
+      error: serializeError(timelineError),
+    }))
+    throw timelineError
+  }
+
+  const resolvedTimelineId = String(timelineData?.id ?? timelineId)
+  logFoodBeverageStage('timeline_created', {
+    projectId: params.projectId,
+    timelineId: resolvedTimelineId,
+    entityType: params.entityType,
+    entityId: params.entityId,
   })
 
-  await adminClient.from('activity_logs').insert({
-    id: randomUUID(),
+  const activityId = randomUUID()
+  const { data: activityData, error: activityError } = await adminClient.from('activity_logs').insert({
+    id: activityId,
     project_id: params.projectId,
     user_id: params.actorUserId,
     action: params.action,
@@ -240,7 +285,31 @@ async function logModuleActivity(params: {
     old_data: params.beforeState ?? null,
     new_data: params.afterState ?? null,
     context: moduleMetadata,
+  }).select('id').single()
+
+  if (activityError) {
+    console.error('[food-beverages][activity-log-failed]', JSON.stringify({
+      stage: 'activity_create',
+      projectId: params.projectId,
+      entityType: params.entityType,
+      entityId: params.entityId,
+      error: serializeError(activityError),
+    }))
+    throw activityError
+  }
+
+  const resolvedActivityId = String(activityData?.id ?? activityId)
+  logFoodBeverageStage('activity_created', {
+    projectId: params.projectId,
+    activityId: resolvedActivityId,
+    entityType: params.entityType,
+    entityId: params.entityId,
   })
+
+  return {
+    timelineId: resolvedTimelineId,
+    activityId: resolvedActivityId,
+  }
 }
 
 async function createOrUpdateAlert(params: {
@@ -860,13 +929,15 @@ export async function createFoodBeverageForecast(input: FoodBeverageForecastInpu
   logFoodBeverageStage('forecast_request', { projectId: input.projectId, payload: input, actorUserId })
 
   const crewCount = resolveForecastCrewCount(input)
+  const department = normalizeDepartment(input.department)
+  const forecastDate = input.forecastDate
   const { data, error } = await adminClient
     .from('food_beverage_forecasts')
     .upsert({
       id: randomUUID(),
       project_id: input.projectId,
-      forecast_date: input.forecastDate,
-      department: normalizeDepartment(input.department),
+      forecast_date: forecastDate,
+      department,
       meal_count: crewCount,
       expected_crew_count: crewCount,
       veg_count: Math.max(0, Math.round(input.vegCount ?? 0)),
@@ -895,11 +966,38 @@ export async function createFoodBeverageForecast(input: FoodBeverageForecastInpu
     throw error
   }
 
-  const forecast = mapForecastRow(data as DbRow, actorUserName)
+  let forecastRow = (data ?? null) as DbRow | null
+  if (!forecastRow) {
+    const refetchResult = await adminClient
+      .from('food_beverage_forecasts')
+      .select('*')
+      .eq('project_id', input.projectId)
+      .eq('forecast_date', forecastDate)
+      .eq('department', department)
+      .maybeSingle()
+
+    if (refetchResult.error) {
+      console.error('[food-beverages][forecast-refetch-failed]', JSON.stringify({
+        projectId: input.projectId,
+        forecastDate,
+        department,
+        error: serializeError(refetchResult.error),
+      }))
+      throw refetchResult.error
+    }
+
+    forecastRow = (refetchResult.data ?? null) as DbRow | null
+  }
+
+  if (!forecastRow) {
+    throw new Error('Forecast insert succeeded but no row was returned from the database.')
+  }
+
+  const forecast = mapForecastRow(forecastRow, actorUserName)
   logFoodBeverageStage('forecast_inserted', { projectId: input.projectId, forecastId: forecast.id, forecast })
 
-  await withBestEffort('activity_log', { projectId: input.projectId, forecastId: forecast.id }, async () => {
-    await logModuleActivity({
+  const activityResult = await withBestEffort('activity_log', { projectId: input.projectId, forecastId: forecast.id }, async () => {
+    return logModuleActivity({
       projectId: input.projectId,
       action: 'forecast_submitted',
       entityType: 'food_beverage_forecasts',
@@ -911,6 +1009,15 @@ export async function createFoodBeverageForecast(input: FoodBeverageForecastInpu
     })
   })
 
+  if (activityResult) {
+    logFoodBeverageStage('forecast_timeline_recorded', {
+      projectId: input.projectId,
+      forecastId: forecast.id,
+      timelineId: activityResult.timelineId,
+      activityId: activityResult.activityId,
+    })
+  }
+
   const varianceResult = await withBestEffort('recalculate_variance', { projectId: input.projectId, forecastId: forecast.id }, async () => {
     await recalculateVarianceAlerts(input.projectId)
     return true
@@ -921,6 +1028,7 @@ export async function createFoodBeverageForecast(input: FoodBeverageForecastInpu
   }
 
   invalidateFoodBeverageCache(input.projectId)
+  logFoodBeverageStage('forecast_response', { projectId: input.projectId, forecastId: forecast.id, responsePayload: { forecast } })
   return forecast
 }
 
