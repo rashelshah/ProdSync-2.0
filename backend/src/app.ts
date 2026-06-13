@@ -121,6 +121,10 @@ export function createApp() {
   })
 
   app.use((error: unknown, req: Request, res: Response, _next: NextFunction) => {
+    const dbError = error && typeof error === 'object' ? error as Record<string, unknown> : null
+    const dbCode = typeof dbError?.code === 'string' ? dbError.code : null
+    const dbConstraint = typeof dbError?.constraint === 'string' ? dbError.constraint : null
+
     console.error('[backend][error]', {
       method: req.method,
       path: req.path,
@@ -140,6 +144,26 @@ export function createApp() {
       return res.status(error.statusCode).json({
         error: error.message,
         details: error.details ?? null,
+      })
+    }
+
+    if (dbCode === '23505') {
+      return res.status(409).json({
+        error: dbConstraint === 'uq_food_beverage_forecasts_target'
+          ? 'A forecast already exists for this project, date, and department.'
+          : 'A record with the same details already exists.',
+      })
+    }
+
+    if (dbCode === '23503') {
+      return res.status(400).json({
+        error: 'One of the selected records could not be linked. Please refresh and try again.',
+      })
+    }
+
+    if (dbCode === '42703') {
+      return res.status(500).json({
+        error: 'The server database schema is missing a required column. Please run the latest migration.',
       })
     }
 

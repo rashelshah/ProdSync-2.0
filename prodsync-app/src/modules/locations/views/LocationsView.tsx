@@ -11,6 +11,7 @@ import { useResolvedProjectContext } from '@/features/projects/useResolvedProjec
 import { resolveErrorMessage, showError, showSuccess } from '@/lib/toast'
 import { formatCurrency, formatDate, timeAgo } from '@/utils'
 import { locationsService } from '@/services/locations.service'
+import type { LocationResolutionRecord } from '@/services/locations.service'
 import { LocationPreviewMap } from '../components/LocationPreviewMap'
 import type {
   CreateLocationCommentInput,
@@ -41,7 +42,7 @@ import type {
 } from '../types'
 
 type WorkspaceTab = 'overview' | 'scouting' | 'permissions' | 'amenities' | 'documents' | 'timeline'
-type CreateMode = 'menu' | 'capture' | 'upload'
+type CreateMode = 'menu' | 'capture' | 'upload' | 'drop'
 
 const WORKSPACE_TABS: Array<{
   id: WorkspaceTab
@@ -87,6 +88,13 @@ function formatRange(start?: string | null, end?: string | null) {
   if (!start && !end) return 'Shoot dates not set'
   if (start && end) return `${formatDate(start)} to ${formatDate(end)}`
   return formatDate(start ?? end ?? new Date().toISOString())
+}
+
+function isWithinProjectRange(date: string | null | undefined, start?: string | null, end?: string | null) {
+  if (!date) return true
+  if (start && date < start) return false
+  if (end && date > end) return false
+  return true
 }
 
 function normalizeLabel(value: string) {
@@ -247,7 +255,15 @@ function ActionButton({
           : 'border border-[color:var(--app-border)] bg-[color:var(--app-surface-strong)] text-[color:var(--app-text)] hover:border-orange-200 hover:bg-orange-50 hover:text-orange-600'
       } ${(disabled || loading) ? 'cursor-not-allowed opacity-60' : ''}`}
     >
-      {loading ? <span className="ui-spinner" /> : <span className="material-symbols-outlined text-[16px]">{icon}</span>}
+      {loading ? (
+        <span aria-hidden="true" className="inline-flex items-center gap-1">
+          <span className="h-2 w-2 animate-pulse rounded-full bg-current [animation-delay:-0.2s]" />
+          <span className="h-2 w-2 animate-pulse rounded-full bg-current [animation-delay:-0.1s]" />
+          <span className="h-2 w-2 animate-pulse rounded-full bg-current" />
+        </span>
+      ) : (
+        <span className="material-symbols-outlined text-[16px]">{icon}</span>
+      )}
       {label}
     </button>
   )
@@ -257,17 +273,32 @@ function Field({
   label,
   children,
   hint,
+  required = false,
 }: {
   label: string
   children: ReactNode
   hint?: string
+  required?: boolean
 }) {
   return (
     <label className="space-y-2">
-      <span className="text-[10px] font-semibold uppercase tracking-[0.22em] text-[color:var(--app-muted)]">{label}</span>
+      <span className="text-[10px] font-semibold uppercase tracking-[0.22em] text-[color:var(--app-muted)]">
+        {label}
+        {required && <span className="ml-1 text-red-500 dark:text-red-400">*</span>}
+      </span>
       {children}
       {hint && <p className="text-xs leading-5 text-[color:var(--app-muted)]">{hint}</p>}
     </label>
+  )
+}
+
+function LoadingDots() {
+  return (
+    <span aria-hidden="true" className="inline-flex items-center gap-1">
+      <span className="h-2 w-2 animate-pulse rounded-full bg-current [animation-delay:-0.2s]" />
+      <span className="h-2 w-2 animate-pulse rounded-full bg-current [animation-delay:-0.1s]" />
+      <span className="h-2 w-2 animate-pulse rounded-full bg-current" />
+    </span>
   )
 }
 
@@ -460,6 +491,10 @@ export function LocationsView() {
   const [newLocationFile, setNewLocationFile] = useState<File | null>(null)
   const [newLocationPreview, setNewLocationPreview] = useState('')
   const [newLocationSearch, setNewLocationSearch] = useState('')
+  const [dropLocationInput, setDropLocationInput] = useState('')
+  const [dropLocationResolution, setDropLocationResolution] = useState<LocationResolutionRecord | null>(null)
+  const [dropResolutionState, setDropResolutionState] = useState<'idle' | 'resolving' | 'ready' | 'error'>('idle')
+  const [dropResolutionMessage, setDropResolutionMessage] = useState('')
   const [captureState, setCaptureState] = useState<'idle' | 'fetching' | 'ready' | 'error'>('idle')
   const [captureMessage, setCaptureMessage] = useState('')
   const [locationDraft, setLocationDraft] = useState<CreateLocationInput>(() => createDefaultLocationDraft(activeProjectId ?? ''))
@@ -500,6 +535,7 @@ export function LocationsView() {
   })
 
   const selectedTab = workspaceTab
+  const debouncedDropLocationInput = useDebouncedValue(dropLocationInput, 450)
 
   useEffect(() => {
     if (!switchingTab) return
@@ -510,6 +546,7 @@ export function LocationsView() {
   const locationFileInputRef = useRef<HTMLInputElement | null>(null)
   const mediaFileInputRef = useRef<HTMLInputElement | null>(null)
   const documentFileInputRef = useRef<HTMLInputElement | null>(null)
+  const dropResolveAbortRef = useRef<AbortController | null>(null)
   let selectedDetailData: LocationDetailRecord | null = null
 
   useEffect(() => {
@@ -534,6 +571,53 @@ export function LocationsView() {
     setNewLocationPreview(previewUrl)
     return () => URL.revokeObjectURL(previewUrl)
   }, [newLocationFile])
+
+  useEffect(() => {
+    if (createMode !== 'drop' || !activeProjectId || !dropLocationInput.trim()) {
+      dropResolveAbortRef.current?.abort()
+      dropResolveAbortRef.current = null
+      setDropLocationResolution(null)
+      setDropResolutionState('idle')
+      setDropResolutionMessage('')
+      return
+    }
+
+    const controller = new AbortController()
+    dropResolveAbortRef.current?.abort()
+    dropResolveAbortRef.current = controller
+    setDropResolutionState('resolving')
+    setDropResolutionMessage('Resolving location input...')
+
+    void locationsService.resolveLocationInput(activeProjectId, debouncedDropLocationInput || dropLocationInput, controller.signal)
+      .then(result => {
+        if (controller.signal.aborted) return
+
+        setDropLocationResolution(result)
+        setLocationDraft(current => ({
+          ...current,
+          address: result.address,
+          latitude: result.latitude ?? undefined,
+          longitude: result.longitude ?? undefined,
+        }))
+        setDropResolutionState('ready')
+        setDropResolutionMessage(
+          result.source === 'coordinates'
+            ? 'Coordinates resolved successfully.'
+            : 'Location details resolved successfully.',
+        )
+      })
+      .catch(error => {
+        if (controller.signal.aborted) return
+
+        setDropLocationResolution(null)
+        setDropResolutionState('error')
+        setDropResolutionMessage(resolveErrorMessage(error, 'Could not resolve the location input.'))
+      })
+
+    return () => {
+      controller.abort()
+    }
+  }, [activeProjectId, createMode, debouncedDropLocationInput, dropLocationInput])
 
   useEffect(() => {
     if (!selectedLocationId || !activeProjectId) {
@@ -1029,7 +1113,7 @@ export function LocationsView() {
                 setMediaUploadLongitude('')
               }}
             />
-            <ActionButton label="Upload" icon="upload" loading={uploadMediaMutation.isPending} onClick={() => mediaFileInputRef.current?.click()} />
+            <ActionButton label="Upload" icon="upload" loading={uploadMediaMutation.isPending} disabled={createLocationMutation.isPending || updateLocationMutation.isPending} onClick={() => mediaFileInputRef.current?.click()} />
           </div>
         </div>
 
@@ -1796,7 +1880,7 @@ export function LocationsView() {
                     : 'bg-[color:var(--app-surface-muted)] text-[color:var(--app-muted)] hover:bg-[color:var(--app-surface)]'
                 }`}
               >
-                {switchingTab === tab.id ? <span className="ui-spinner" /> : <span className="material-symbols-outlined text-[16px]">{tab.icon}</span>}
+                {switchingTab === tab.id ? <LoadingDots /> : <span className="material-symbols-outlined text-[16px]">{tab.icon}</span>}
                 {tab.label}
               </button>
             ))}
@@ -1817,7 +1901,7 @@ export function LocationsView() {
           </div>
           {switchingTab && (
             <p className="mt-4 inline-flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-[color:var(--app-muted)]">
-              <span className="ui-spinner" />
+              <LoadingDots />
               Switching section...
             </p>
           )}
@@ -2039,7 +2123,7 @@ export function LocationsView() {
 
       <ModalShell
         open={createModalOpen}
-        title={editingLocation ? 'Edit Location' : createMode === 'menu' ? 'Create New Location' : createMode === 'capture' ? 'Capture Location' : 'Upload Image'}
+        title={editingLocation ? 'Edit Location' : createMode === 'menu' ? 'Create New Location' : createMode === 'capture' ? 'Capture Location' : createMode === 'upload' ? 'Upload Image' : 'Drop Location'}
         description={
           editingLocation
             ? 'Update the location details without changing the existing media or security rules.'
@@ -2047,7 +2131,9 @@ export function LocationsView() {
               ? 'Choose the fastest production workflow for this location.'
               : createMode === 'capture'
                 ? 'Use the phone camera, then auto-fill GPS and reverse geocode details.'
-                : 'Upload an image first, then select the exact location from intelligent Mapbox suggestions.'
+                : createMode === 'upload'
+                  ? 'Upload an image first, then select the exact location from intelligent Mapbox suggestions.'
+                  : 'Paste a Google Maps link, Mapbox URL, coordinates, or plain address and let ProdSync resolve it automatically.'
         }
         onClose={() => {
           setCreateModalOpen(false)
@@ -2055,6 +2141,10 @@ export function LocationsView() {
           setEditingLocation(null)
           setNewLocationFile(null)
           setNewLocationSearch('')
+          setDropLocationInput('')
+          setDropLocationResolution(null)
+          setDropResolutionState('idle')
+          setDropResolutionMessage('')
           setCaptureState('idle')
           setCaptureMessage('')
           setNewLocationPreview('')
@@ -2073,6 +2163,10 @@ export function LocationsView() {
                 setEditingLocation(null)
                 setNewLocationFile(null)
                 setNewLocationSearch('')
+                setDropLocationInput('')
+                setDropLocationResolution(null)
+                setDropResolutionState('idle')
+                setDropResolutionMessage('')
                 setCaptureState('idle')
                 setCaptureMessage('')
               }}
@@ -2093,8 +2187,11 @@ export function LocationsView() {
                 icon="save"
                 loading={createLocationMutation.isPending}
                 onClick={() => {
+                  const projectStartDate = activeProject?.startDate ?? null
+                  const projectEndDate = activeProject?.endDate ?? null
+
                   if (!locationDraft.name.trim()) {
-                    showError('Location name is required.')
+                    showError('Please fill the required fields before saving the location.')
                     return
                   }
 
@@ -2108,8 +2205,23 @@ export function LocationsView() {
                     return
                   }
 
-                  if (!newLocationFile) {
-                    showError('Choose a capture or upload image first.')
+                  if (createMode === 'drop' && !dropLocationInput.trim()) {
+                    showError('Please paste a supported location link or address.')
+                    return
+                  }
+
+                  if (!isWithinProjectRange(locationDraft.shootStartDate ?? null, projectStartDate, projectEndDate) || !isWithinProjectRange(locationDraft.shootEndDate ?? null, projectStartDate, projectEndDate)) {
+                    showError(`Shoot dates must stay within ${formatRange(projectStartDate, projectEndDate)}.`)
+                    return
+                  }
+
+                  if (createMode === 'drop' && dropResolutionState === 'resolving') {
+                    showError('Please wait for the location to finish resolving.')
+                    return
+                  }
+
+                  if (createMode === 'drop' && (!locationDraft.address.trim() || locationDraft.latitude == null || locationDraft.longitude == null)) {
+                    showError(dropResolutionState === 'error' ? dropResolutionMessage || 'Could not resolve the location input.' : 'Could not resolve the location input.')
                     return
                   }
 
@@ -2137,14 +2249,14 @@ export function LocationsView() {
         {editingLocation ? (
           <div className="space-y-5">
             <div className="grid gap-4 md:grid-cols-2">
-              <Field label="Location Label / Name"><Input value={locationDraft.name} onChange={event => setLocationDraft(current => ({ ...current, name: event.target.value }))} /></Field>
-              <Field label="Location Type"><Select value={locationDraft.locationType} onChange={event => setLocationDraft(current => ({ ...current, locationType: event.target.value as LocationType }))}>{LOCATION_TYPES.map(type => <option key={type} value={type}>{labelize(type)}</option>)}</Select></Field>
-              <Field label="Risk Level"><Select value={locationDraft.riskLevel} onChange={event => setLocationDraft(current => ({ ...current, riskLevel: event.target.value as LocationRiskLevel }))}>{RISK_LEVELS.map(level => <option key={level} value={level}>{labelize(level)}</option>)}</Select></Field>
-              <Field label="Status"><Select value={locationDraft.status} onChange={event => setLocationDraft(current => ({ ...current, status: event.target.value as LocationStatus }))}><option value="draft">Draft</option><option value="recce_complete">Recce Complete</option><option value="permissions_pending">Permissions Pending</option><option value="shoot_ready">Shoot Ready</option><option value="completed">Completed</option></Select></Field>
-              <Field label="Shoot Start Date"><Input type="date" value={locationDraft.shootStartDate ?? ''} onChange={event => setLocationDraft(current => ({ ...current, shootStartDate: event.target.value }))} /></Field>
-              <Field label="Shoot End Date"><Input type="date" value={locationDraft.shootEndDate ?? ''} onChange={event => setLocationDraft(current => ({ ...current, shootEndDate: event.target.value }))} /></Field>
+              <Field label="Location Label / Name" required><Input value={locationDraft.name} onChange={event => setLocationDraft(current => ({ ...current, name: event.target.value }))} /></Field>
+              <Field label="Location Type" required><Select value={locationDraft.locationType} onChange={event => setLocationDraft(current => ({ ...current, locationType: event.target.value as LocationType }))}>{LOCATION_TYPES.map(type => <option key={type} value={type}>{labelize(type)}</option>)}</Select></Field>
+              <Field label="Risk Level" required><Select value={locationDraft.riskLevel} onChange={event => setLocationDraft(current => ({ ...current, riskLevel: event.target.value as LocationRiskLevel }))}>{RISK_LEVELS.map(level => <option key={level} value={level}>{labelize(level)}</option>)}</Select></Field>
+              <Field label="Status" required><Select value={locationDraft.status} onChange={event => setLocationDraft(current => ({ ...current, status: event.target.value as LocationStatus }))}><option value="draft">Draft</option><option value="recce_complete">Recce Complete</option><option value="permissions_pending">Permissions Pending</option><option value="shoot_ready">Shoot Ready</option><option value="completed">Completed</option></Select></Field>
+              <Field label="Shoot Start Date"><Input type="date" min={activeProject?.startDate ?? undefined} max={activeProject?.endDate ?? undefined} value={locationDraft.shootStartDate ?? ''} onChange={event => setLocationDraft(current => ({ ...current, shootStartDate: event.target.value }))} /></Field>
+              <Field label="Shoot End Date"><Input type="date" min={activeProject?.startDate ?? undefined} max={activeProject?.endDate ?? undefined} value={locationDraft.shootEndDate ?? ''} onChange={event => setLocationDraft(current => ({ ...current, shootEndDate: event.target.value }))} /></Field>
             </div>
-            <Field label="Address"><Input value={locationDraft.address} onChange={event => setLocationDraft(current => ({ ...current, address: event.target.value }))} /></Field>
+            <Field label="Address" required><Input value={locationDraft.address} onChange={event => setLocationDraft(current => ({ ...current, address: event.target.value }))} /></Field>
             <div className="grid gap-4 md:grid-cols-2">
               <Field label="Latitude"><Input value={locationDraft.latitude ?? ''} onChange={event => setLocationDraft(current => ({ ...current, latitude: event.target.value ? Number(event.target.value) : undefined }))} /></Field>
               <Field label="Longitude"><Input value={locationDraft.longitude ?? ''} onChange={event => setLocationDraft(current => ({ ...current, longitude: event.target.value ? Number(event.target.value) : undefined }))} /></Field>
@@ -2152,7 +2264,7 @@ export function LocationsView() {
             <Field label="Notes"><Textarea value={locationDraft.notes ?? ''} onChange={event => setLocationDraft(current => ({ ...current, notes: event.target.value }))} /></Field>
           </div>
         ) : createMode === 'menu' ? (
-          <div className="grid gap-4 md:grid-cols-2">
+          <div className="grid gap-4 md:grid-cols-3">
             <button
               type="button"
               onClick={() => {
@@ -2186,6 +2298,25 @@ export function LocationsView() {
               <h3 className="mt-4 text-xl font-semibold text-zinc-900 dark:text-white">Upload Image</h3>
               <p className="mt-2 text-sm leading-6 text-zinc-500 dark:text-zinc-400">Upload an image, search for the location, and store exact coordinates with Mapbox suggestions.</p>
             </button>
+            <button
+              type="button"
+              onClick={() => {
+                setCreateMode('drop')
+                setNewLocationFile(null)
+                setNewLocationSearch('')
+                setDropLocationInput('')
+                setDropLocationResolution(null)
+                setDropResolutionState('idle')
+                setDropResolutionMessage('')
+              }}
+              className="group rounded-[30px] border border-zinc-200 bg-zinc-50 p-6 text-left transition hover:border-zinc-400 hover:bg-zinc-100 dark:border-zinc-800 dark:bg-zinc-900 dark:hover:border-zinc-600 dark:hover:bg-zinc-800"
+            >
+              <div className="flex h-14 w-14 items-center justify-center rounded-[20px] bg-zinc-800 text-white dark:bg-zinc-100 dark:text-zinc-950">
+                <span className="material-symbols-outlined text-[28px]">pin_drop</span>
+              </div>
+              <h3 className="mt-4 text-xl font-semibold text-zinc-900 dark:text-white">Drop Location</h3>
+              <p className="mt-2 text-sm leading-6 text-zinc-500 dark:text-zinc-400">Paste a Google Maps link, Mapbox URL, coordinates, or address text. ProdSync resolves the location for you.</p>
+            </button>
           </div>
         ) : createMode === 'capture' ? (
           <div className="space-y-5">
@@ -2214,7 +2345,7 @@ export function LocationsView() {
                   </div>
                 )}
                 <div className="flex flex-wrap gap-3">
-                  <ActionButton label="Retake" icon="cameraswitch" onClick={() => locationFileInputRef.current?.click()} />
+                    <ActionButton label="Retake" icon="cameraswitch" disabled={createLocationMutation.isPending || updateLocationMutation.isPending} onClick={() => locationFileInputRef.current?.click()} />
                   <ActionButton
                     label="Reset"
                     icon="refresh"
@@ -2235,14 +2366,14 @@ export function LocationsView() {
               </div>
               <div className="space-y-4">
                 <div className="grid gap-4 md:grid-cols-2">
-                  <Field label="Location Label / Name"><Input value={locationDraft.name} onChange={event => setLocationDraft(current => ({ ...current, name: event.target.value }))} /></Field>
-                  <Field label="Location Type"><Select value={locationDraft.locationType} onChange={event => setLocationDraft(current => ({ ...current, locationType: event.target.value as LocationType }))}>{LOCATION_TYPES.map(type => <option key={type} value={type}>{labelize(type)}</option>)}</Select></Field>
-                  <Field label="Risk Level"><Select value={locationDraft.riskLevel} onChange={event => setLocationDraft(current => ({ ...current, riskLevel: event.target.value as LocationRiskLevel }))}>{RISK_LEVELS.map(level => <option key={level} value={level}>{labelize(level)}</option>)}</Select></Field>
-                  <Field label="Shoot Start Date"><Input type="date" value={locationDraft.shootStartDate ?? ''} onChange={event => setLocationDraft(current => ({ ...current, shootStartDate: event.target.value }))} /></Field>
-                  <Field label="Shoot End Date"><Input type="date" value={locationDraft.shootEndDate ?? ''} onChange={event => setLocationDraft(current => ({ ...current, shootEndDate: event.target.value }))} /></Field>
-                  <Field label="Status"><Select value={locationDraft.status} onChange={event => setLocationDraft(current => ({ ...current, status: event.target.value as LocationStatus }))}><option value="draft">Draft</option><option value="recce_complete">Recce Complete</option><option value="permissions_pending">Permissions Pending</option><option value="shoot_ready">Shoot Ready</option><option value="completed">Completed</option></Select></Field>
+                  <Field label="Location Label / Name" required><Input value={locationDraft.name} onChange={event => setLocationDraft(current => ({ ...current, name: event.target.value }))} /></Field>
+                  <Field label="Location Type" required><Select value={locationDraft.locationType} onChange={event => setLocationDraft(current => ({ ...current, locationType: event.target.value as LocationType }))}>{LOCATION_TYPES.map(type => <option key={type} value={type}>{labelize(type)}</option>)}</Select></Field>
+                  <Field label="Risk Level" required><Select value={locationDraft.riskLevel} onChange={event => setLocationDraft(current => ({ ...current, riskLevel: event.target.value as LocationRiskLevel }))}>{RISK_LEVELS.map(level => <option key={level} value={level}>{labelize(level)}</option>)}</Select></Field>
+                  <Field label="Shoot Start Date"><Input type="date" min={activeProject?.startDate ?? undefined} max={activeProject?.endDate ?? undefined} value={locationDraft.shootStartDate ?? ''} onChange={event => setLocationDraft(current => ({ ...current, shootStartDate: event.target.value }))} /></Field>
+                  <Field label="Shoot End Date"><Input type="date" min={activeProject?.startDate ?? undefined} max={activeProject?.endDate ?? undefined} value={locationDraft.shootEndDate ?? ''} onChange={event => setLocationDraft(current => ({ ...current, shootEndDate: event.target.value }))} /></Field>
+                  <Field label="Status" required><Select value={locationDraft.status} onChange={event => setLocationDraft(current => ({ ...current, status: event.target.value as LocationStatus }))}><option value="draft">Draft</option><option value="recce_complete">Recce Complete</option><option value="permissions_pending">Permissions Pending</option><option value="shoot_ready">Shoot Ready</option><option value="completed">Completed</option></Select></Field>
                 </div>
-                <Field label="Resolved Address"><Input value={locationDraft.address} readOnly /></Field>
+                <Field label="Resolved Address" required><Input value={locationDraft.address} readOnly /></Field>
                 <div className="grid gap-4 md:grid-cols-2">
                   <Field label="Latitude"><Input value={locationDraft.latitude ?? ''} readOnly /></Field>
                   <Field label="Longitude"><Input value={locationDraft.longitude ?? ''} readOnly /></Field>
@@ -2254,7 +2385,7 @@ export function LocationsView() {
               {captureState === 'fetching' ? 'Resolving GPS now...' : 'Camera capture only. No manual coordinates needed.'}
             </p>
           </div>
-        ) : (
+        ) : createMode === 'upload' ? (
           <div className="space-y-5">
             <input
               ref={locationFileInputRef}
@@ -2280,7 +2411,7 @@ export function LocationsView() {
                   </div>
                 )}
                 <div className="flex flex-wrap gap-3">
-                  <ActionButton label="Choose Image" icon="upload" onClick={() => locationFileInputRef.current?.click()} />
+                  <ActionButton label="Choose Image" icon="upload" disabled={createLocationMutation.isPending || updateLocationMutation.isPending} onClick={() => locationFileInputRef.current?.click()} />
                   <ActionButton
                     label="Clear"
                     icon="close"
@@ -2325,6 +2456,57 @@ export function LocationsView() {
                   <Field label="Status"><Select value={locationDraft.status} onChange={event => setLocationDraft(current => ({ ...current, status: event.target.value as LocationStatus }))}><option value="draft">Draft</option><option value="recce_complete">Recce Complete</option><option value="permissions_pending">Permissions Pending</option><option value="shoot_ready">Shoot Ready</option><option value="completed">Completed</option></Select></Field>
                 </div>
                 <Field label="Resolved Address"><Input value={locationDraft.address} readOnly /></Field>
+                <div className="grid gap-4 md:grid-cols-2">
+                  <Field label="Latitude"><Input value={locationDraft.latitude ?? ''} readOnly /></Field>
+                  <Field label="Longitude"><Input value={locationDraft.longitude ?? ''} readOnly /></Field>
+                </div>
+                <Field label="Notes"><Textarea value={locationDraft.notes ?? ''} onChange={event => setLocationDraft(current => ({ ...current, notes: event.target.value }))} /></Field>
+              </div>
+            </div>
+          </div>
+        ) : (
+          <div className="space-y-5">
+            <div className="grid gap-5 lg:grid-cols-[0.95fr_1.05fr]">
+              <div className="space-y-4">
+                {dropLocationResolution?.latitude != null && dropLocationResolution?.longitude != null ? (
+                  <LocationPreviewMap
+                    latitude={dropLocationResolution.latitude}
+                    longitude={dropLocationResolution.longitude}
+                    name={locationDraft.name || 'Drop location'}
+                    address={locationDraft.address || dropLocationResolution.address}
+                  />
+                ) : (
+                  <div className="rounded-[28px] border border-dashed border-zinc-300 bg-zinc-50 p-6 dark:border-zinc-700 dark:bg-zinc-900/70">
+                    <EmptyState icon="pin_drop" title="Paste a location link" description="Google Maps, Mapbox, coordinates, or plain address text will be resolved automatically." />
+                  </div>
+                )}
+                <div className="rounded-[26px] border border-zinc-200 bg-zinc-50 p-4 text-sm text-zinc-500 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-400">
+                  <p className="font-semibold text-zinc-900 dark:text-white">Resolution Status</p>
+                  <p className="mt-2">{dropResolutionMessage || 'Waiting for pasted location data.'}</p>
+                </div>
+              </div>
+              <div className="space-y-4">
+                <Field label="Paste Maps Link or Address" required>
+                  <Textarea
+                    rows={5}
+                    value={dropLocationInput}
+                    onChange={event => {
+                      setDropLocationInput(event.target.value)
+                      setDropResolutionState('idle')
+                      setDropResolutionMessage('')
+                    }}
+                    placeholder="https://maps.app.goo.gl/... or 12.9716, 77.5946 or full address"
+                  />
+                </Field>
+                <div className="grid gap-4 md:grid-cols-2">
+                  <Field label="Location Label / Name" required><Input value={locationDraft.name} onChange={event => setLocationDraft(current => ({ ...current, name: event.target.value }))} /></Field>
+                  <Field label="Location Type" required><Select value={locationDraft.locationType} onChange={event => setLocationDraft(current => ({ ...current, locationType: event.target.value as LocationType }))}>{LOCATION_TYPES.map(type => <option key={type} value={type}>{labelize(type)}</option>)}</Select></Field>
+                  <Field label="Risk Level" required><Select value={locationDraft.riskLevel} onChange={event => setLocationDraft(current => ({ ...current, riskLevel: event.target.value as LocationRiskLevel }))}>{RISK_LEVELS.map(level => <option key={level} value={level}>{labelize(level)}</option>)}</Select></Field>
+                  <Field label="Shoot Start Date"><Input type="date" min={activeProject?.startDate ?? undefined} max={activeProject?.endDate ?? undefined} value={locationDraft.shootStartDate ?? ''} onChange={event => setLocationDraft(current => ({ ...current, shootStartDate: event.target.value }))} /></Field>
+                  <Field label="Shoot End Date"><Input type="date" min={activeProject?.startDate ?? undefined} max={activeProject?.endDate ?? undefined} value={locationDraft.shootEndDate ?? ''} onChange={event => setLocationDraft(current => ({ ...current, shootEndDate: event.target.value }))} /></Field>
+                  <Field label="Status" required><Select value={locationDraft.status} onChange={event => setLocationDraft(current => ({ ...current, status: event.target.value as LocationStatus }))}><option value="draft">Draft</option><option value="recce_complete">Recce Complete</option><option value="permissions_pending">Permissions Pending</option><option value="shoot_ready">Shoot Ready</option><option value="completed">Completed</option></Select></Field>
+                </div>
+                <Field label="Resolved Address" required><Input value={locationDraft.address} readOnly /></Field>
                 <div className="grid gap-4 md:grid-cols-2">
                   <Field label="Latitude"><Input value={locationDraft.latitude ?? ''} readOnly /></Field>
                   <Field label="Longitude"><Input value={locationDraft.longitude ?? ''} readOnly /></Field>

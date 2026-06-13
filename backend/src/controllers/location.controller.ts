@@ -1,5 +1,6 @@
 import type { Request, Response } from 'express'
-import { getLocationProviderRole, reverseGeocodeLocation, searchLocationSuggestions } from '../services/location.service'
+import { getLocationProviderRole, resolveLocationInput, reverseGeocodeLocation, searchLocationSuggestions } from '../services/location.service'
+import { locationResolveQuerySchema } from '../models/transport.schemas'
 
 export async function reverseGeocodeController(req: Request, res: Response) {
   const userRole = getLocationProviderRole(req)
@@ -71,4 +72,11 @@ export async function searchLocationSuggestionsController(req: Request, res: Res
     })
     return res.json([])
   }
+}
+
+export async function resolveLocationInputController(req: Request, res: Response) {
+  const userRole = getLocationProviderRole(req)
+  const query = locationResolveQuerySchema.parse(req.query)
+  const resolution = await resolveLocationInput(query, userRole)
+  return res.json({ resolution })
 }

@@ -85,6 +85,18 @@ const nearbyAmenitiesCache = new Map<string, NearbyAmenitySuggestion[]>()
 const inflightLocationSearches = new Map<string, Promise<LocationSearchSuggestion[]>>()
 const inflightReverseLookups = new Map<string, Promise<string>>()
 const inflightNearbyLookups = new Map<string, Promise<NearbyAmenitySuggestion[]>>()
+const resolvedLocationCache = new Map<string, LocationResolutionRecord>()
+const inflightLocationResolutions = new Map<string, Promise<LocationResolutionRecord>>()
+
+export interface LocationResolutionRecord {
+  projectId: string
+  input: string
+  address: string
+  latitude: number | null
+  longitude: number | null
+  source: 'coordinates' | 'address' | 'search' | 'url'
+  resolvedUrl: string | null
+}
 
 function normalizeCoordinate(value: number) {
   return Number(value.toFixed(5))
@@ -104,6 +116,10 @@ function getNearbySearchKey(projectId: string, location: LocationPoint) {
   }
 
   return coordinateCacheKey(projectId, location.latitude, location.longitude)
+}
+
+function getResolvedLocationCacheKey(projectId: string, input: string) {
+  return `${projectId}:${input.trim().toLowerCase().replace(/\s+/g, ' ')}`
 }
 
 function getDistanceKm(from: { latitude: number; longitude: number }, to: { latitude: number; longitude: number }) {
@@ -567,6 +583,36 @@ export const locationsService = {
     })
 
     inflightNearbyLookups.set(cacheKey, request)
+    return request
+  },
+
+  async resolveLocationInput(projectId: string, input: string, signal?: AbortSignal): Promise<LocationResolutionRecord> {
+    const trimmed = input.trim()
+    if (trimmed.length === 0) {
+      throw new Error('Paste a location link, coordinates, or an address.')
+    }
+
+    const cacheKey = getResolvedLocationCacheKey(projectId, trimmed)
+    const cached = resolvedLocationCache.get(cacheKey)
+    if (cached) {
+      return cached
+    }
+
+    const inflight = inflightLocationResolutions.get(cacheKey)
+    if (inflight) {
+      return inflight
+    }
+
+    const request = (async () => {
+      const response = await apiFetch(`/location/resolve?projectId=${encodeURIComponent(projectId)}&input=${encodeURIComponent(trimmed)}`, { signal })
+      const payload = await readApiJson<{ resolution: LocationResolutionRecord }>(response)
+      resolvedLocationCache.set(cacheKey, payload.resolution)
+      return payload.resolution
+    })().finally(() => {
+      inflightLocationResolutions.delete(cacheKey)
+    })
+
+    inflightLocationResolutions.set(cacheKey, request)
     return request
   },
 }

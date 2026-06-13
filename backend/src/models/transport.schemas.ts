@@ -115,6 +115,11 @@ export const locationSearchQuerySchema = z.object({
     query: value.query ?? value.q ?? '',
   }))
 
+export const locationResolveQuerySchema = z.object({
+  projectId: uuidSchema,
+  input: z.string().trim().min(1).max(500),
+})
+
 export const trackingLiveQuerySchema = paginationSchema.extend({
   projectId: uuidSchema,
 })
@@ -191,6 +196,7 @@ export type TripStartInput = z.infer<typeof tripStartSchema>
 export type TripEndInput = z.infer<typeof tripEndSchema>
 export type LocationReverseGeocodeQuery = z.infer<typeof locationReverseGeocodeQuerySchema>
 export type LocationSearchQuery = z.infer<typeof locationSearchQuerySchema>
+export type LocationResolveQuery = z.infer<typeof locationResolveQuerySchema>
 export type TrackingLiveQuery = z.infer<typeof trackingLiveQuerySchema>
 export type TrackingMapQuery = z.infer<typeof trackingMapQuerySchema>
 export type LiveLocationUpdateInput = z.infer<typeof liveLocationUpdateSchema>

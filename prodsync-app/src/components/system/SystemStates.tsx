@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { Surface } from '@/components/shared/Surface'
+import { useAuthStore } from '@/features/auth/auth.store'
 import { cn } from '@/utils'
 
 const TUBE_LIGHT_LOADER_SRC = '/video/tubelight%20loader.webm'
@@ -8,8 +9,13 @@ const EXIT_FADE_MS = 180
 export function LoadingState({ message = 'Loading...' }: { message?: string }) {
   return (
     <Surface variant="muted" className="mx-auto mt-8 max-w-xl" padding="lg">
-      <div className="flex h-56 flex-col items-center justify-center gap-5 text-center">
-        <div className="h-8 w-8 rounded-full border-2 border-zinc-200 border-t-orange-500 animate-spin dark:border-zinc-800 dark:border-t-orange-500" />
+      <div className="space-y-4">
+        <div className="h-4 w-40 animate-pulse rounded-full bg-zinc-200/80 dark:bg-zinc-800/80" />
+        <div className="space-y-3">
+          <div className="h-4 w-full animate-pulse rounded-full bg-zinc-200/70 dark:bg-zinc-800/70" />
+          <div className="h-4 w-11/12 animate-pulse rounded-full bg-zinc-200/70 dark:bg-zinc-800/70" />
+          <div className="h-4 w-8/12 animate-pulse rounded-full bg-zinc-200/70 dark:bg-zinc-800/70" />
+        </div>
         <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-zinc-500 dark:text-zinc-400">{message}</p>
       </div>
     </Surface>
@@ -23,11 +29,14 @@ export function TubeLightLoaderOverlay({
   open: boolean
   message?: string
 }) {
+  const isAuthReady = useAuthStore(state => state.isAuthReady)
+  const isAuthenticated = useAuthStore(state => state.isAuthenticated)
   const [isMounted, setIsMounted] = useState(open)
   const [isExiting, setIsExiting] = useState(false)
   const videoRef = useRef<HTMLVideoElement | null>(null)
   const exitTimerRef = useRef<number | null>(null)
   const [dotCount, setDotCount] = useState(1)
+  const showAuthLoader = !isAuthReady || !isAuthenticated
 
   const clearTimers = () => {
     if (exitTimerRef.current != null) {
@@ -86,6 +95,36 @@ export function TubeLightLoaderOverlay({
 
   if (!isMounted) {
     return null
+  }
+
+  if (!showAuthLoader) {
+    return (
+      <div
+        aria-hidden="true"
+        className="fixed inset-0 z-[220] flex items-center justify-center overflow-hidden px-4 py-8"
+      >
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(249,115,22,0.05),transparent_28%),linear-gradient(180deg,color-mix(in_srgb,var(--app-bg)_92%,transparent),color-mix(in_srgb,var(--app-bg)_86%,transparent))] backdrop-blur-[1px] dark:bg-[radial-gradient(circle_at_center,rgba(249,115,22,0.05),transparent_28%),linear-gradient(180deg,rgba(9,9,11,0.82),rgba(9,9,11,0.76))]" />
+        <Surface variant="muted" className="relative w-full max-w-4xl" padding="lg">
+          <div className="space-y-6">
+            <div className="space-y-3">
+              <div className="h-5 w-56 animate-pulse rounded-full bg-zinc-200/80 dark:bg-zinc-800/80" />
+              <div className="h-4 w-80 max-w-full animate-pulse rounded-full bg-zinc-200/70 dark:bg-zinc-800/70" />
+            </div>
+            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+              <div className="h-28 animate-pulse rounded-[24px] bg-zinc-100 dark:bg-zinc-900" />
+              <div className="h-28 animate-pulse rounded-[24px] bg-zinc-100 dark:bg-zinc-900" />
+              <div className="h-28 animate-pulse rounded-[24px] bg-zinc-100 dark:bg-zinc-900 md:col-span-2 xl:col-span-1" />
+            </div>
+            <div className="space-y-3">
+              <div className="h-4 w-full animate-pulse rounded-full bg-zinc-200/70 dark:bg-zinc-800/70" />
+              <div className="h-4 w-11/12 animate-pulse rounded-full bg-zinc-200/70 dark:bg-zinc-800/70" />
+              <div className="h-4 w-3/4 animate-pulse rounded-full bg-zinc-200/70 dark:bg-zinc-800/70" />
+            </div>
+            <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-zinc-500 dark:text-zinc-400">{message}</p>
+          </div>
+        </Surface>
+      </div>
+    )
   }
 
   return (

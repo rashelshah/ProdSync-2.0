@@ -105,6 +105,7 @@ export const foodBeverageMealLogSchema = z.object({
   wasteCount: z.coerce.number().int().min(0).max(100_000).default(0),
   wastedMeals: z.coerce.number().int().min(0).max(100_000).default(0),
   plateCost: z.coerce.number().min(0).max(1_000_000_000).default(0),
+  teaCoffeeExpense: z.coerce.number().min(0).max(1_000_000_000).optional(),
   extraExpense: z.coerce.number().min(0).max(1_000_000_000).default(0),
   vendorId: z.string().uuid().nullable().optional(),
   vendorName: optionalText(160),

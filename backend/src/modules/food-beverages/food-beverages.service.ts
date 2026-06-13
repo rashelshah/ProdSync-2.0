@@ -131,7 +131,7 @@ function resolveForecastCrewCount(input: Partial<FoodBeverageForecastInput>) {
 
 function resolveMealCost(input: Partial<FoodBeverageMealLogInput>) {
   const plateCost = toMoney(input.plateCost ?? 0)
-  const extraExpense = toMoney(input.extraExpense ?? 0)
+  const extraExpense = toMoney(input.teaCoffeeExpense ?? input.extraExpense ?? 0)
   const actualPeopleServed = Math.max(0, Math.round(input.actualPeopleServed ?? input.mealsServed ?? 0))
   const forecastCount = Math.max(0, Math.round(input.forecastCount ?? 0))
   const unusedPlates = Math.max(0, Math.round(input.unusedPlates ?? 0))
@@ -391,6 +391,9 @@ function mapVendorRow(row: DbRow): FoodBeverageVendorRecord {
 
 function mapForecastRow(row: DbRow, submittedByName?: string | null): FoodBeverageForecastRecord {
   const mealCount = Math.max(0, Math.round(asNumber(row.meal_count) ?? asNumber(row.expected_crew_count) ?? 0))
+  const jainCount = Math.max(0, Math.round(asNumber(row.jain_count) ?? asNumber(row.jain_split_count) ?? 0))
+  const veganCount = Math.max(0, Math.round(asNumber(row.vegan_count) ?? asNumber(row.vegan_split_count) ?? 0))
+  const medicalCount = Math.max(0, Math.round(asNumber(row.medical_count) ?? asNumber(row.medical_split_count) ?? 0))
   return {
     id: String(row.id ?? ''),
     projectId: String(row.project_id ?? ''),
@@ -401,9 +404,9 @@ function mapForecastRow(row: DbRow, submittedByName?: string | null): FoodBevera
     vegCount: Math.max(0, Math.round(asNumber(row.veg_count) ?? 0)),
     nonVegCount: Math.max(0, Math.round(asNumber(row.non_veg_count) ?? 0)),
     eggCount: Math.max(0, Math.round(asNumber(row.egg_count) ?? 0)),
-    jainCount: Math.max(0, Math.round(asNumber(row.jain_count) ?? 0)),
-    veganCount: Math.max(0, Math.round(asNumber(row.vegan_count) ?? 0)),
-    medicalCount: Math.max(0, Math.round(asNumber(row.medical_count) ?? 0)),
+    jainCount,
+    veganCount,
+    medicalCount,
     vendorName: asString(row.vendor_name),
     vendorContactNumber: asString(row.vendor_contact_number),
     mealPeriod: (asString(row.meal_period) as FoodBeverageForecastRecord['mealPeriod']) ?? null,
@@ -928,41 +931,76 @@ export async function listFoodBeverageForecasts(projectId: string, date?: string
 export async function createFoodBeverageForecast(input: FoodBeverageForecastInput, actorUserId: string | null, actorUserName: string | null) {
   logFoodBeverageStage('forecast_request', { projectId: input.projectId, payload: input, actorUserId })
 
+  await ensureProjectRecord(input.projectId)
   const crewCount = resolveForecastCrewCount(input)
   const department = normalizeDepartment(input.department)
   const forecastDate = input.forecastDate
-  const { data, error } = await adminClient
+  const resolvedForecastCounts = {
+    veg_count: Math.max(0, Math.round(input.vegCount ?? 0)),
+    non_veg_count: Math.max(0, Math.round(input.nonVegCount ?? 0)),
+    egg_count: Math.max(0, Math.round(input.eggCount ?? 0)),
+    jain_count: Math.max(0, Math.round(input.jainCount ?? 0)),
+    jain_split_count: Math.max(0, Math.round(input.jainCount ?? 0)),
+    vegan_count: Math.max(0, Math.round(input.veganCount ?? 0)),
+    vegan_split_count: Math.max(0, Math.round(input.veganCount ?? 0)),
+    medical_count: Math.max(0, Math.round(input.medicalCount ?? 0)),
+    medical_split_count: Math.max(0, Math.round(input.medicalCount ?? 0)),
+  }
+
+  const basePayload = {
+    project_id: input.projectId,
+    forecast_date: forecastDate,
+    department,
+    meal_count: crewCount,
+    expected_crew_count: crewCount,
+    ...resolvedForecastCounts,
+    vendor_name: input.vendorName ?? null,
+    vendor_contact_number: input.vendorContactNumber ?? null,
+    meal_period: input.mealPeriod ?? null,
+    is_estimated: false,
+    status: 'submitted',
+    submitted_by: actorUserId,
+    submitted_at: new Date().toISOString(),
+    notes: input.notes ?? null,
+    updated_at: new Date().toISOString(),
+  }
+
+  const existingForecast = await adminClient
     .from('food_beverage_forecasts')
-    .upsert({
-      id: randomUUID(),
-      project_id: input.projectId,
-      forecast_date: forecastDate,
-      department,
-      meal_count: crewCount,
-      expected_crew_count: crewCount,
-      veg_count: Math.max(0, Math.round(input.vegCount ?? 0)),
-      non_veg_count: Math.max(0, Math.round(input.nonVegCount ?? 0)),
-      egg_count: Math.max(0, Math.round(input.eggCount ?? 0)),
-      jain_count: Math.max(0, Math.round(input.jainCount ?? 0)),
-      vegan_count: Math.max(0, Math.round(input.veganCount ?? 0)),
-      medical_count: Math.max(0, Math.round(input.medicalCount ?? 0)),
-      vendor_name: input.vendorName ?? null,
-      vendor_contact_number: input.vendorContactNumber ?? null,
-      meal_period: input.mealPeriod ?? null,
-      is_estimated: false,
-      status: 'submitted',
-      submitted_by: actorUserId,
-      submitted_at: new Date().toISOString(),
-      notes: input.notes ?? null,
-      updated_at: new Date().toISOString(),
-    }, {
-      onConflict: 'project_id,forecast_date,department',
-    })
-    .select('*')
-    .single()
+    .select('id')
+    .eq('project_id', input.projectId)
+    .eq('forecast_date', forecastDate)
+    .eq('department', department)
+    .maybeSingle()
+
+  if (existingForecast.error) {
+    throw existingForecast.error
+  }
+
+  const mutationResult = existingForecast.data
+    ? await adminClient
+        .from('food_beverage_forecasts')
+        .update(basePayload)
+        .eq('id', String((existingForecast.data as DbRow).id ?? ''))
+        .select('*')
+        .single()
+    : await adminClient
+        .from('food_beverage_forecasts')
+        .insert({
+          id: randomUUID(),
+          ...basePayload,
+        })
+        .select('*')
+        .single()
+
+  const { data, error } = mutationResult
 
   if (error) {
-    logFoodBeverageStage('forecast_insert_failed', { projectId: input.projectId, actorUserId, error: error.message })
+    logFoodBeverageStage('forecast_insert_failed', {
+      projectId: input.projectId,
+      actorUserId,
+      error: serializeError(error),
+    })
     throw error
   }
 

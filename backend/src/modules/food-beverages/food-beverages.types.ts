@@ -243,6 +243,7 @@ export interface FoodBeverageMealLogInput {
   wasteCount?: number
   wastedMeals?: number
   plateCost?: number
+  teaCoffeeExpense?: number
   extraExpense?: number
   expenseNotes?: string | null
   vendorId?: string | null

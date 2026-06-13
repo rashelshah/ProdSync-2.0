@@ -14,6 +14,7 @@ import type { ProjectCurrency } from '@/types'
 import { foodBeveragesService } from '../service'
 import type {
   FoodBeverageForecastInput,
+  FoodBeverageForecastRecord,
   FoodBeverageInvoiceInput,
   FoodBeverageMealLogInput,
   FoodBeveragesTabId,
@@ -94,17 +95,32 @@ function Field({
   label,
   children,
   hint,
+  required = false,
 }: {
   label: string
   children: ReactNode
   hint?: string
+  required?: boolean
 }) {
   return (
     <label className="space-y-2">
-      <span className="text-[10px] font-semibold uppercase tracking-[0.22em] text-[color:var(--app-muted)]">{label}</span>
+      <span className="text-[10px] font-semibold uppercase tracking-[0.22em] text-[color:var(--app-muted)]">
+        {label}
+        {required && <span className="ml-1 text-red-500 dark:text-red-400">*</span>}
+      </span>
       {children}
       {hint && <p className="text-xs leading-5 text-[color:var(--app-muted)]">{hint}</p>}
     </label>
+  )
+}
+
+function LoadingDots() {
+  return (
+    <span aria-hidden="true" className="inline-flex items-center gap-1">
+      <span className="h-2 w-2 animate-pulse rounded-full bg-current [animation-delay:-0.2s]" />
+      <span className="h-2 w-2 animate-pulse rounded-full bg-current [animation-delay:-0.1s]" />
+      <span className="h-2 w-2 animate-pulse rounded-full bg-current" />
+    </span>
   )
 }
 
@@ -148,7 +164,11 @@ function ActionButton({
           : 'border border-[color:var(--app-border)] bg-[color:var(--app-surface-strong)] text-[color:var(--app-text)] hover:border-orange-200 hover:bg-orange-50 dark:hover:bg-zinc-900'
       } ${(disabled || loading) ? 'cursor-not-allowed opacity-60' : ''}`}
     >
-      {loading ? <span className="ui-spinner" /> : <span className="material-symbols-outlined text-[16px]">{icon}</span>}
+      {loading ? (
+        <LoadingDots />
+      ) : (
+        <span className="material-symbols-outlined text-[16px]">{icon}</span>
+      )}
       {label}
     </button>
   )
@@ -332,8 +352,16 @@ export function FoodBeveragesView() {
 
   const createForecastMutation = useMutation({
     mutationFn: (payload: FoodBeverageForecastInput) => foodBeveragesService.createForecast(payload),
-    onSuccess: async () => {
+    onSuccess: async forecast => {
       showSuccess('Forecast submitted.')
+      queryClient.setQueryData<FoodBeverageForecastRecord[]>(
+        ['food-beverages-forecasts', activeProjectId, forecast.forecastDate],
+        current => {
+          const next = (current ?? []).filter(row => row.id !== forecast.id)
+          next.push(forecast)
+          return next.sort((left, right) => left.department.localeCompare(right.department))
+        },
+      )
       await queryClient.invalidateQueries({ queryKey: ['food-beverages-forecasts', activeProjectId] })
       await queryClient.invalidateQueries({ queryKey: ['food-beverages-overview', activeProjectId] })
       await queryClient.invalidateQueries({ queryKey: ['food-beverages-analytics', activeProjectId] })
@@ -481,7 +509,7 @@ export function FoodBeveragesView() {
                   }`}
                   disabled={switchingTab !== null || isRequestPending}
                 >
-                  {switchingTab === tab.id ? <span className="ui-spinner" /> : <span className="material-symbols-outlined text-[16px]">{tab.icon}</span>}
+                  {switchingTab === tab.id ? <LoadingDots /> : <span className="material-symbols-outlined text-[16px]">{tab.icon}</span>}
                   {tab.label}
                 </button>
               ))}
@@ -489,7 +517,7 @@ export function FoodBeveragesView() {
 
             {loadingTabs && (
               <div className="inline-flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-zinc-500 dark:text-zinc-400">
-                <span className="ui-spinner" />
+                <LoadingDots />
                 Loading section...
               </div>
             )}
@@ -553,10 +581,10 @@ export function FoodBeveragesView() {
           <div className="mt-6 space-y-6">
             <SectionCard title="Next-Day Forecast" subtitle="Department heads should be able to submit in under 10 seconds.">
               <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-                <Field label="Forecast Date">
+                <Field label="Forecast Date" required>
                   <Input type="date" value={forecastDraft.forecastDate} onChange={event => setForecastDraft(current => ({ ...current, forecastDate: event.target.value }))} />
                 </Field>
-                <Field label="Department">
+                <Field label="Department" required>
                   <Select value={forecastDraft.department} onChange={event => setForecastDraft(current => ({ ...current, department: event.target.value }))}>
                     {DEPARTMENT_OPTIONS.map(option => <option key={option} value={option}>{labelize(option)}</option>)}
                   </Select>
@@ -564,7 +592,7 @@ export function FoodBeveragesView() {
                 <Field label="Expected Crew Count">
                   <Input type="number" min="0" value={forecastDraft.expectedCrewCount ?? 0} onChange={event => setForecastDraft(current => ({ ...current, expectedCrewCount: Number(event.target.value) }))} />
                 </Field>
-                <Field label="Forecast Total">
+                <Field label="Forecast Total" required>
                   <Input type="number" min="0" value={forecastDraft.mealCount} onChange={event => setForecastDraft(current => ({ ...current, mealCount: Number(event.target.value) }))} />
                 </Field>
               </div>
@@ -594,8 +622,9 @@ export function FoodBeveragesView() {
                     loading={createForecastMutation.isPending}
                     disabled={forecastOverflow > 0}
                     onClick={() => {
-                      if (!forecastDraft.department.trim()) {
-                        showError('Please select a department.')
+                      const mealCount = Number(forecastDraft.mealCount)
+                      if (!forecastDraft.forecastDate.trim() || !forecastDraft.department.trim() || !Number.isFinite(mealCount) || mealCount <= 0) {
+                        showError('Please fill the required fields before submitting the forecast.')
                         return
                       }
                       if (forecastOverflow > 0) {
@@ -678,9 +707,9 @@ export function FoodBeveragesView() {
           <div className="mt-6 space-y-6">
             <SectionCard title="Meal Log Entry" subtitle="Record what was actually served and how much was wasted.">
               <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-                <Field label="Meal Date"><Input type="date" value={mealDraft.mealDate} onChange={event => setMealDraft(current => ({ ...current, mealDate: event.target.value }))} /></Field>
-                <Field label="Department"><Select value={mealDraft.department} onChange={event => setMealDraft(current => ({ ...current, department: event.target.value }))}>{DEPARTMENT_OPTIONS.map(option => <option key={option} value={option}>{labelize(option)}</option>)}</Select></Field>
-                <Field label="Meal Period"><Select value={mealDraft.mealPeriod} onChange={event => setMealDraft(current => ({ ...current, mealPeriod: event.target.value as FoodBeverageMealLogInput['mealPeriod'] }))}>{MEAL_PERIOD_OPTIONS.map(option => <option key={option} value={option}>{mealPeriodLabel(option)}</option>)}</Select></Field>
+                <Field label="Meal Date" required><Input type="date" value={mealDraft.mealDate} onChange={event => setMealDraft(current => ({ ...current, mealDate: event.target.value }))} /></Field>
+                <Field label="Department" required><Select value={mealDraft.department} onChange={event => setMealDraft(current => ({ ...current, department: event.target.value }))}>{DEPARTMENT_OPTIONS.map(option => <option key={option} value={option}>{labelize(option)}</option>)}</Select></Field>
+                <Field label="Meal Period" required><Select value={mealDraft.mealPeriod} onChange={event => setMealDraft(current => ({ ...current, mealPeriod: event.target.value as FoodBeverageMealLogInput['mealPeriod'] }))}>{MEAL_PERIOD_OPTIONS.map(option => <option key={option} value={option}>{mealPeriodLabel(option)}</option>)}</Select></Field>
                 <Field label="Forecast Link">
                   <Select value={mealDraft.forecastId ?? ''} onChange={event => setMealDraft(current => ({ ...current, forecastId: event.target.value || null }))}>
                     <option value="">Auto-link matching forecast</option>
@@ -691,12 +720,12 @@ export function FoodBeveragesView() {
                     ))}
                   </Select>
                 </Field>
-                <Field label="Forecast Count"><Input type="number" min="0" value={mealDraft.forecastCount ?? 0} onChange={event => setMealDraft(current => ({ ...current, forecastCount: Number(event.target.value) }))} /></Field>
-                <Field label="Actual People Served"><Input type="number" min="0" value={mealDraft.actualPeopleServed} onChange={event => setMealDraft(current => ({ ...current, actualPeopleServed: Number(event.target.value), mealsServed: Number(event.target.value) }))} /></Field>
+                <Field label="Forecast Count" required><Input type="number" min="0" value={mealDraft.forecastCount ?? 0} onChange={event => setMealDraft(current => ({ ...current, forecastCount: Number(event.target.value) }))} /></Field>
+                <Field label="Actual People Served" required><Input type="number" min="0" value={mealDraft.actualPeopleServed} onChange={event => setMealDraft(current => ({ ...current, actualPeopleServed: Number(event.target.value), mealsServed: Number(event.target.value) }))} /></Field>
                 <Field label="Unused Plates"><Input type="number" min="0" value={mealDraft.unusedPlates ?? 0} onChange={event => setMealDraft(current => ({ ...current, unusedPlates: Number(event.target.value) }))} /></Field>
                 <Field label="Wasted Meals"><Input type="number" min="0" value={mealDraft.wastedMeals ?? 0} onChange={event => setMealDraft(current => ({ ...current, wastedMeals: Number(event.target.value), wasteCount: Number(event.target.value) }))} /></Field>
                 <Field label="Plate Cost"><Input type="number" min="0" value={mealDraft.plateCost ?? 0} onChange={event => setMealDraft(current => ({ ...current, plateCost: Number(event.target.value) }))} /></Field>
-                <Field label="Extra Expense"><Input type="number" min="0" value={mealDraft.extraExpense ?? 0} onChange={event => setMealDraft(current => ({ ...current, extraExpense: Number(event.target.value) }))} /></Field>
+                <Field label="Tea / Coffee Expense"><Input type="number" min="0" value={mealDraft.extraExpense ?? 0} onChange={event => setMealDraft(current => ({ ...current, extraExpense: Number(event.target.value) }))} /></Field>
                 <Field label="Vendor Name"><Input value={mealDraft.vendorName ?? ''} onChange={event => setMealDraft(current => ({ ...current, vendorName: event.target.value }))} /></Field>
                 <Field label="Vendor Contact Number"><Input value={mealDraft.vendorContactNumber ?? ''} onChange={event => setMealDraft(current => ({ ...current, vendorContactNumber: event.target.value }))} /></Field>
               </div>
@@ -733,20 +762,32 @@ export function FoodBeveragesView() {
                     label="Save Meal Log"
                     icon="save"
                     loading={createMealLogMutation.isPending}
-                    onClick={() => createMealLogMutation.mutate({
-                      ...mealDraft,
-                      projectId: activeProjectId,
-                      forecastCount: Number(mealDraft.forecastCount) || 0,
-                      actualPeopleServed: Number(mealDraft.actualPeopleServed) || 0,
-                      mealsServed: Number(mealDraft.actualPeopleServed) || 0,
-                      unusedPlates: Number(mealDraft.unusedPlates) || 0,
-                      wasteCount: Number(mealDraft.wastedMeals) || 0,
-                      wastedMeals: Number(mealDraft.wastedMeals) || 0,
-                      plateCost: Number(mealDraft.plateCost) || 0,
-                      extraExpense: Number(mealDraft.extraExpense) || 0,
-                      expenseNotes: mealDraft.expenseNotes?.trim() || undefined,
-                      notes: mealDraft.notes?.trim() || undefined,
-                    })}
+                    onClick={() => {
+                      const actualPeopleServed = Number(mealDraft.actualPeopleServed)
+                      if (!mealDraft.mealDate.trim() || !mealDraft.department.trim() || !mealDraft.mealPeriod || !Number.isFinite(actualPeopleServed) || actualPeopleServed <= 0) {
+                        showError('Please fill the required fields before saving the meal log.')
+                        return
+                      }
+
+                      createMealLogMutation.mutate({
+                        ...mealDraft,
+                        projectId: activeProjectId,
+                        mealDate: mealDraft.mealDate,
+                        department: mealDraft.department,
+                        mealPeriod: mealDraft.mealPeriod,
+                        forecastId: mealDraft.forecastId ?? null,
+                        forecastCount: Number(mealDraft.forecastCount) || 0,
+                        actualPeopleServed: Number(mealDraft.actualPeopleServed) || 0,
+                        mealsServed: Number(mealDraft.actualPeopleServed) || 0,
+                        unusedPlates: Number(mealDraft.unusedPlates) || 0,
+                        wasteCount: Number(mealDraft.wastedMeals) || 0,
+                        wastedMeals: Number(mealDraft.wastedMeals) || 0,
+                        plateCost: Number(mealDraft.plateCost) || 0,
+                        extraExpense: Number(mealDraft.extraExpense) || 0,
+                        expenseNotes: mealDraft.expenseNotes?.trim() || undefined,
+                        notes: mealDraft.notes?.trim() || undefined,
+                      })
+                    }}
                   />
                 </div>
               </div>
@@ -818,9 +859,9 @@ export function FoodBeveragesView() {
                     ))}
                   </Select>
                 </Field>
-                <Field label="Invoice Number"><Input value={invoiceDraft.invoiceNumber} onChange={event => setInvoiceDraft(current => ({ ...current, invoiceNumber: event.target.value }))} /></Field>
-                <Field label="Invoice Date"><Input type="date" value={invoiceDraft.invoiceDate} onChange={event => setInvoiceDraft(current => ({ ...current, invoiceDate: event.target.value }))} /></Field>
-                <Field label="Amount"><Input type="number" min="0" value={invoiceDraft.amount} onChange={event => setInvoiceDraft(current => ({ ...current, amount: Number(event.target.value) }))} /></Field>
+                <Field label="Invoice Number" required><Input value={invoiceDraft.invoiceNumber} onChange={event => setInvoiceDraft(current => ({ ...current, invoiceNumber: event.target.value }))} /></Field>
+                <Field label="Invoice Date" required><Input type="date" value={invoiceDraft.invoiceDate} onChange={event => setInvoiceDraft(current => ({ ...current, invoiceDate: event.target.value }))} /></Field>
+                <Field label="Amount" required><Input type="number" min="0" value={invoiceDraft.amount} onChange={event => setInvoiceDraft(current => ({ ...current, amount: Number(event.target.value) }))} /></Field>
                 <Field label="Currency"><Input value={invoiceDraft.currencyCode ?? 'INR'} onChange={event => setInvoiceDraft(current => ({ ...current, currencyCode: event.target.value.toUpperCase() }))} /></Field>
                 <Field label="Approval Requested">
                   <Select value={invoiceDraft.approvalRequested ? 'true' : 'false'} onChange={event => setInvoiceDraft(current => ({ ...current, approvalRequested: event.target.value === 'true' }))}>
@@ -843,8 +884,9 @@ export function FoodBeveragesView() {
                     icon={invoiceEditingId ? 'save' : 'send'}
                     loading={createInvoiceMutation.isPending}
                     onClick={() => {
-                      if (!invoiceDraft.invoiceNumber.trim()) {
-                        showError('Invoice number is required.')
+                      const amount = Number(invoiceDraft.amount)
+                      if (!invoiceDraft.invoiceNumber.trim() || !invoiceDraft.invoiceDate.trim() || !Number.isFinite(amount) || amount < 0) {
+                        showError('Please fill the required fields before submitting the invoice.')
                         return
                       }
 
