@@ -5,7 +5,7 @@ import { ModuleBudgetBadge } from '@/components/project/ModuleBudgetBadge'
 import { KpiCard } from '@/components/shared/KpiCard'
 import { StatusBadge } from '@/components/shared/StatusBadge'
 import { Surface } from '@/components/shared/Surface'
-import { EmptyState, ErrorState, TubeLightLoaderOverlay } from '@/components/system/SystemStates'
+import { EmptyState, ErrorState, PageLoader } from '@/components/system/SystemStates'
 import { invalidateProjectData } from '@/context/project-sync'
 import { useAuthStore } from '@/features/auth/auth.store'
 import {
@@ -1243,7 +1243,7 @@ export function ExpensesView() {
   }
 
   if (isLoadingProjectContext) {
-    return <TubeLightLoaderOverlay open message="Resolving project access..." />
+    return <PageLoader open message="Resolving project access..." />
   }
 
   if (!activeProjectId || !activeProject) {
@@ -1260,7 +1260,7 @@ export function ExpensesView() {
     )
   }
 
-  if (isLoading) return <TubeLightLoaderOverlay open message="Loading art operations..." />
+  if (isLoading) return <PageLoader open message="Loading art operations..." />
   if (isError || (canViewBudgetAccess && !budget)) return <ErrorState message="Failed to load art module data" />
 
   return (

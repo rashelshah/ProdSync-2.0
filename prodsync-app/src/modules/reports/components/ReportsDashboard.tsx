@@ -1,7 +1,7 @@
 import { useMutation } from '@tanstack/react-query'
 import { KpiCard } from '@/components/shared/KpiCard'
 import { Surface } from '@/components/shared/Surface'
-import { EmptyState, ErrorState, TubeLightLoaderOverlay } from '@/components/system/SystemStates'
+import { EmptyState, ErrorState, PageLoader } from '@/components/system/SystemStates'
 import { showError, showLoading, showSuccess } from '@/lib/toast'
 import { reportsService } from '@/services/reports.service'
 import { formatCurrency, formatDate, formatTime } from '@/utils'
@@ -51,7 +51,7 @@ export function ReportsDashboard() {
     }
   }
 
-  if (isLoading) return <TubeLightLoaderOverlay open message="Loading reports and insights..." />
+  if (isLoading) return <PageLoader open message="Loading reports and insights..." />
   if (isError || !summary) return <ErrorState message="Failed to load reports" />
 
   const hasData = burnChart.length > 0 || departments.some(row => row.spent > 0 || row.pendingApprovals > 0 || row.overtimeLiability > 0)

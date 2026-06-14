@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useQueryClient } from '@tanstack/react-query'
-import { EmptyState, TubeLightLoaderOverlay } from '@/components/system/SystemStates'
+import { EmptyState, PageLoader } from '@/components/system/SystemStates'
 import { useAuthStore } from '@/features/auth/auth.store'
 import { useProjectsStore } from '@/features/projects/projects.store'
 import { projectsService, type ProjectPreview } from '@/services/projects.service'
@@ -175,7 +175,7 @@ export function JoinRedirect() {
   }
 
   if (isLoading) {
-    return <TubeLightLoaderOverlay open message="Verifying context..." />
+    return <PageLoader open message="Verifying context..." />
   }
 
   if (errorMsg || !projectPreview) {

@@ -1,7 +1,7 @@
 import { useDashboardData } from '../hooks/useDashboardData'
 import { KpiCard } from '@/components/shared/KpiCard'
 import { Surface } from '@/components/shared/Surface'
-import { EmptyState, ErrorState, TubeLightLoaderOverlay } from '@/components/system/SystemStates'
+import { EmptyState, ErrorState, PageLoader } from '@/components/system/SystemStates'
 import { useResolvedProjectContext } from '@/features/projects/useResolvedProjectContext'
 import { formatCurrency, formatDate } from '@/utils'
 import { MissionControlMobile } from '../components/mission_control_mobile'
@@ -30,7 +30,7 @@ export function DashboardView() {
     kpis.activeFleet > 0 ||
     kpis.otCostTodayUSD > 0
 
-  if (isLoading) return <TubeLightLoaderOverlay open message="Loading mission control..." />
+  if (isLoading) return <PageLoader open message="Loading mission control..." />
   if (isError) return <ErrorState message="Failed to load dashboard data" />
 
   return (

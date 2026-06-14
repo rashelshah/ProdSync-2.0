@@ -4,7 +4,7 @@ import { useSearchParams } from 'react-router-dom'
 import { KpiCard } from '@/components/shared/KpiCard'
 import { StatusBadge } from '@/components/shared/StatusBadge'
 import { Surface } from '@/components/shared/Surface'
-import { EmptyState, ErrorState, TubeLightLoaderOverlay } from '@/components/system/SystemStates'
+import { EmptyState, ErrorState, PageLoader } from '@/components/system/SystemStates'
 import { SectionSelectorSheet } from '@/components/shared/SectionSelectorSheet'
 import { useAuthStore } from '@/features/auth/auth.store'
 import { useResolvedProjectContext } from '@/features/projects/useResolvedProjectContext'
@@ -453,7 +453,7 @@ export function FoodBeveragesView() {
   const isRequestPending = createForecastMutation.isPending || createMealLogMutation.isPending || createInvoiceMutation.isPending
 
   if (isLoadingProjectContext) {
-    return <TubeLightLoaderOverlay open message="Loading food and beverages workspace..." />
+    return <PageLoader open message="Loading food and beverages workspace..." />
   }
 
   if (isErrorProjectContext || !activeProjectId) {

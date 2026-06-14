@@ -5,7 +5,7 @@ import { KpiCard } from '@/components/shared/KpiCard'
 import { StatusBadge } from '@/components/shared/StatusBadge'
 import { Surface } from '@/components/shared/Surface'
 import { SectionSelectorSheet } from '@/components/shared/SectionSelectorSheet'
-import { EmptyState, ErrorState, TubeLightLoaderOverlay } from '@/components/system/SystemStates'
+import { EmptyState, ErrorState, PageLoader } from '@/components/system/SystemStates'
 import { useAuthStore } from '@/features/auth/auth.store'
 import { useResolvedProjectContext } from '@/features/projects/useResolvedProjectContext'
 import { resolveErrorMessage, showError, showSuccess } from '@/lib/toast'
@@ -1806,7 +1806,7 @@ export function LocationsView() {
 
   const renderWorkspace = () => {
     if (selectedDetailQuery.isLoading) {
-      return <TubeLightLoaderOverlay open message="Loading location workspace..." />
+      return <PageLoader open message="Loading location workspace..." />
     }
 
     if (selectedDetailQuery.isError) {
@@ -1919,7 +1919,7 @@ export function LocationsView() {
 
   const renderLocationList = () => {
     if (locationsQuery.isLoading) {
-      return <TubeLightLoaderOverlay open message="Loading locations..." />
+      return <PageLoader open message="Loading locations..." />
     }
 
     if (locationsQuery.isError) {
@@ -2079,7 +2079,7 @@ export function LocationsView() {
   }, [newLocationPreview])
 
   if (isLoadingProjectContext) {
-    return <TubeLightLoaderOverlay open message="Loading locations workspace..." />
+    return <PageLoader open message="Loading locations workspace..." />
   }
 
   if (isErrorProjectContext || !activeProjectId) {

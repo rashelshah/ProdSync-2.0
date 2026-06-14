@@ -3,45 +3,18 @@ import { Surface } from '@/components/shared/Surface'
 import { cn } from '@/utils'
 const EXIT_FADE_MS = 180
 
-function LoaderSkeleton({ message = 'Loading...' }: { message?: string }) {
-  return (
-    <Surface variant="muted" className="relative w-full max-w-2xl overflow-hidden border border-zinc-200/60 dark:border-zinc-800/60" padding="md">
-      <div className="space-y-4">
-        <div className="space-y-2">
-          <div className="h-4 w-40 animate-pulse rounded-full bg-zinc-200/70 dark:bg-zinc-800/70" />
-          <div className="h-3.5 w-72 max-w-full animate-pulse rounded-full bg-zinc-200/55 dark:bg-zinc-800/55" />
-        </div>
-        <div className="grid gap-3 sm:grid-cols-2">
-          <div className="h-16 animate-pulse rounded-[18px] bg-zinc-100/90 dark:bg-zinc-900/90" />
-          <div className="h-16 animate-pulse rounded-[18px] bg-zinc-100/90 dark:bg-zinc-900/90" />
-        </div>
-        <div className="space-y-2">
-          <div className="h-3.5 w-full animate-pulse rounded-full bg-zinc-200/55 dark:bg-zinc-800/55" />
-          <div className="h-3.5 w-10/12 animate-pulse rounded-full bg-zinc-200/55 dark:bg-zinc-800/55" />
-          <div className="h-3.5 w-8/12 animate-pulse rounded-full bg-zinc-200/55 dark:bg-zinc-800/55" />
-        </div>
-        <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-zinc-500 dark:text-zinc-400">{message}</p>
-      </div>
-    </Surface>
-  )
-}
-
 export function LoadingState({ message = 'Loading...' }: { message?: string }) {
-  return (
-    <div className="mx-auto mt-6 w-full max-w-2xl px-4">
-      <LoaderSkeleton message={message} />
-    </div>
-  )
+  return <PageLoader open message={message} />
 }
 
-export function TubeLightLoaderOverlay({
+export function PageLoader({
   open,
   message = 'Loading...',
 }: {
-  open: boolean
+  open?: boolean
   message?: string
 }) {
-  const [isMounted, setIsMounted] = useState(open)
+  const [isMounted, setIsMounted] = useState(open !== false)
   const [isExiting, setIsExiting] = useState(false)
   const exitTimerRef = useRef<number | null>(null)
 
@@ -66,7 +39,7 @@ export function TubeLightLoaderOverlay({
   }
 
   useEffect(() => {
-    if (open) {
+    if (open !== false) {
       clearTimers()
       setIsMounted(true)
       setIsExiting(false)
@@ -74,7 +47,7 @@ export function TubeLightLoaderOverlay({
   }, [open])
 
   useEffect(() => {
-    if (!open && isMounted) {
+    if (open === false && isMounted) {
       beginExit()
     }
   }, [isMounted, open])
@@ -89,14 +62,39 @@ export function TubeLightLoaderOverlay({
     <div
       aria-hidden="true"
       className={cn(
-        'fixed inset-0 z-[220] flex items-start justify-center overflow-auto px-4 py-6 transition-opacity duration-200 ease-[cubic-bezier(0.22,1,0.36,1)]',
+        'page-shell space-y-6 animate-pulse transition-opacity duration-200 ease-[cubic-bezier(0.22,1,0.36,1)]',
         isExiting ? 'opacity-0' : 'opacity-100',
       )}
     >
-      <div className="absolute inset-0 bg-[linear-gradient(180deg,color-mix(in_srgb,var(--app-bg)_90%,transparent),color-mix(in_srgb,var(--app-bg)_95%,transparent))] dark:bg-[linear-gradient(180deg,rgba(9,9,11,0.72),rgba(9,9,11,0.78))]" />
+      <header className="page-header flex justify-between items-start">
+        <div>
+          <div className="h-3 w-24 rounded-full bg-zinc-200/80 dark:bg-zinc-800/80 mb-3" />
+          <div className="h-8 w-64 rounded-full bg-zinc-200/80 dark:bg-zinc-800/80 mb-3" />
+          <div className="h-4 w-96 max-w-full rounded-full bg-zinc-200/80 dark:bg-zinc-800/80" />
+        </div>
+        <div className="hidden flex-col items-end gap-3 md:flex">
+          <div className="h-8 w-32 rounded-full bg-zinc-200/80 dark:bg-zinc-800/80" />
+          <div className="mt-2 flex gap-3">
+            <div className="h-9 w-28 rounded-full bg-zinc-200/80 dark:bg-zinc-800/80" />
+            <div className="h-9 w-32 rounded-full bg-zinc-200/80 dark:bg-zinc-800/80" />
+          </div>
+        </div>
+      </header>
 
-      <div className="relative flex w-full justify-center pt-8">
-        <LoaderSkeleton message={message} />
+      <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+        {[1, 2, 3, 4].map(i => (
+          <Surface key={i} variant="muted" className="h-[104px]" padding="none" />
+        ))}
+      </section>
+
+      <div className="grid gap-6 xl:grid-cols-[1.55fr_1fr]">
+        <div className="space-y-6">
+          <Surface variant="table" className="h-[400px]" padding="none" />
+        </div>
+        <div className="space-y-6">
+          <Surface variant="table" className="h-[280px]" padding="none" />
+          <Surface variant="table" className="h-[280px]" padding="none" />
+        </div>
       </div>
     </div>
   )

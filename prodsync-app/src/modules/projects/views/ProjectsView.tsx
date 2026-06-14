@@ -3,7 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
 import { BriefcaseBusiness, CheckCircle2, Clock3, MapPin, Plus, ShieldCheck, Users } from 'lucide-react'
 import { Surface } from '@/components/shared/Surface'
-import { EmptyState, TubeLightLoaderOverlay } from '@/components/system/SystemStates'
+import { EmptyState, PageLoader } from '@/components/system/SystemStates'
 import { invalidateProjectData } from '@/context/project-sync'
 import { getDefaultWorkspacePath, isProducerRole } from '@/features/auth/access-rules'
 import { getProjectRoleTitle, getRoleOptionsForDepartment } from '@/features/auth/onboarding'
@@ -295,7 +295,7 @@ export function ProjectsView() {
   }
 
   if (isLoadingProjectContext) {
-    return <TubeLightLoaderOverlay open message="Loading project access..." />
+    return <PageLoader open message="Loading project access..." />
   }
 
   return (

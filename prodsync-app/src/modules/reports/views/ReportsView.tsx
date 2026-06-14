@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query'
 import { Surface } from '@/components/shared/Surface'
-import { TubeLightLoaderOverlay } from '@/components/system/SystemStates'
+import { PageLoader } from '@/components/system/SystemStates'
 import { useResolvedProjectContext } from '@/features/projects/useResolvedProjectContext'
 import { locationsService } from '@/services/locations.service'
 import { formatCurrency } from '@/utils'
@@ -16,7 +16,7 @@ export function ReportsView() {
   })
 
   if (locationsReportsQ.isLoading && activeProjectId) {
-    return <TubeLightLoaderOverlay open message="Loading reports..." />
+    return <PageLoader open message="Loading reports..." />
   }
 
   return (
