@@ -18,9 +18,14 @@ export interface ActorCallSheet {
   projectId: string
   shootDate: string
   location: string
+  locationId: string | null
+  callType: ActorCallSheetType
+  timeIn: string
+  timeOut: string
   callTime: string
   actorName: string
   characterName: string | null
+  assignments: ActorCallSheetAssignment[]
   notes: string | null
   createdAt: string
 }
@@ -57,6 +62,32 @@ export interface ActorAlert {
   timestamp: string
 }
 
+export type ActorCallSheetType = 'standard' | 'one_and_half' | 'double' | 'custom'
+export type ActorCallSheetAssignmentType = 'actor' | 'crew'
+
+export interface ActorCallSheetAssignment {
+  id?: string
+  assignmentType: ActorCallSheetAssignmentType
+  actorName?: string | null
+  characterName?: string | null
+  crewMemberId?: string | null
+  crewName?: string | null
+  department?: string | null
+  designation?: string | null
+}
+
+export interface ActorProjectLocation {
+  id: string
+  name: string
+}
+
+export interface ActorCrewMemberOption {
+  id: string
+  name: string
+  department: string
+  designation: string
+}
+
 export interface CreateJuniorArtistLogInput {
   projectId: string
   shootDate: string
@@ -68,9 +99,15 @@ export interface CreateJuniorArtistLogInput {
 export interface CreateActorCallSheetInput {
   projectId: string
   shootDate: string
-  location: string
-  callTime: string
-  actorName: string
+  locationId: string
+  location?: string
+  callType: ActorCallSheetType
+  timeIn: string
+  timeOut: string
+  callTime?: string
+  assignmentType: ActorCallSheetAssignmentType
+  assignments: ActorCallSheetAssignment[]
+  actorName?: string
   characterName?: string
   notes?: string
 }

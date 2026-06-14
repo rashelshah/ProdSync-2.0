@@ -13,6 +13,7 @@ import {
   actorRecordParamSchema,
   actorsProjectQuerySchema,
   callSheetCreateSchema,
+  callSheetUpdateSchema,
   juniorArtistCreateSchema,
   juniorArtistQuerySchema,
 } from './actors.schemas'
@@ -22,6 +23,7 @@ import {
   createCallSheet,
   createJuniorArtistLog,
   deleteActorLook,
+  deleteCallSheet,
   deleteJuniorArtistLog,
   getCallSheetById,
   listActorAlerts,
@@ -29,7 +31,10 @@ import {
   listActorPayments,
   listCallSheets,
   listJuniorArtistLogs,
+  listProjectCrewMembers,
+  listProjectLocations,
   updateActorPaymentStatus,
+  updateCallSheet,
 } from './actors.service'
 
 export async function createJuniorArtistController(req: Request, res: Response) {
@@ -66,7 +71,7 @@ export async function deleteJuniorArtistController(req: Request, res: Response) 
 
 export async function createCallSheetController(req: Request, res: Response) {
   if (!canManageActorsModule(req)) {
-    throw new HttpError(403, 'This role cannot create actor call sheets for this project.')
+    throw new HttpError(403, 'This role cannot create call sheets for this project.')
   }
 
   const payload = callSheetCreateSchema.parse(req.body)
@@ -94,6 +99,49 @@ export async function getCallSheetByIdController(req: Request, res: Response) {
   const params = actorRecordParamSchema.parse(req.params)
   const callSheet = await getCallSheetById(query.projectId, params.id)
   res.json({ callSheet })
+}
+
+export async function updateCallSheetController(req: Request, res: Response) {
+  if (!canManageActorsModule(req)) {
+    throw new HttpError(403, 'This role cannot update call sheets for this project.')
+  }
+
+  const params = actorRecordParamSchema.parse(req.params)
+  const payload = callSheetUpdateSchema.parse(req.body)
+  const callSheet = await updateCallSheet(params.id, payload)
+  res.json({ callSheet })
+}
+
+export async function deleteCallSheetController(req: Request, res: Response) {
+  if (!canManageActorsModule(req)) {
+    throw new HttpError(403, 'This role cannot delete call sheets for this project.')
+  }
+
+  const projectId = String(req.query?.projectId ?? req.body?.projectId ?? '')
+  const query = actorsProjectQuerySchema.parse({ projectId })
+  const params = actorRecordParamSchema.parse(req.params)
+  await deleteCallSheet(query.projectId, params.id)
+  res.json({ ok: true })
+}
+
+export async function getProjectLocationsController(req: Request, res: Response) {
+  if (!canAccessActorsModule(req)) {
+    throw new HttpError(403, 'You do not have actor workspace access for this project.')
+  }
+
+  const query = actorsProjectQuerySchema.parse(req.query)
+  const locations = await listProjectLocations(query.projectId)
+  res.json(locations)
+}
+
+export async function getProjectCrewMembersController(req: Request, res: Response) {
+  if (!canAccessActorsModule(req)) {
+    throw new HttpError(403, 'You do not have actor workspace access for this project.')
+  }
+
+  const query = actorsProjectQuerySchema.parse(req.query)
+  const crewMembers = await listProjectCrewMembers(query.projectId)
+  res.json({ crewMembers })
 }
 
 export async function createActorPaymentController(req: Request, res: Response) {

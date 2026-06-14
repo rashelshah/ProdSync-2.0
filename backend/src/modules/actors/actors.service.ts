@@ -7,6 +7,7 @@ import type {
   ActorPaymentCreateInput,
   ActorPaymentUpdateInput,
   CallSheetCreateInput,
+  CallSheetUpdateInput,
   JuniorArtistCreateInput,
   JuniorArtistQueryInput,
 } from './actors.schemas'
@@ -19,6 +20,16 @@ const FALLBACK_LOOK_ENTITY = 'actors_look'
 
 type DbRow = Record<string, unknown>
 type ActorAlertType = 'warning' | 'critical'
+type CallSheetType = 'standard' | 'one_and_half' | 'double' | 'custom'
+type CallSheetAssignment = {
+  assignmentType: 'actor' | 'crew'
+  actorName?: string | null
+  characterName?: string | null
+  crewMemberId?: string | null
+  crewName?: string | null
+  department?: string | null
+  designation?: string | null
+}
 
 let lookBucketReadyPromise: Promise<void> | null = null
 
@@ -54,6 +65,13 @@ function isMissingRelationError(error: unknown, relationName?: string) {
       )
       && (!relationName || message.includes(relationName.toLowerCase()))
     )
+}
+
+function isMissingColumnError(error: unknown) {
+  const message = errorMessage(error)
+  return errorCode(error) === '42703'
+    || errorCode(error) === 'PGRST204'
+    || message.includes('column')
 }
 
 function throwActorsModuleNotReady(error: unknown) {
@@ -142,6 +160,57 @@ function normalizeTimeForDb(time: string) {
   return /^\d{2}:\d{2}$/.test(time) ? `${time}:00` : time
 }
 
+function normalizeTimeForApi(time: string) {
+  return time.slice(0, 5)
+}
+
+function minutesFromTime(time: string) {
+  const [hours, minutes] = normalizeTimeForApi(time).split(':').map(Number)
+  return (hours * 60) + minutes
+}
+
+function durationMinutes(timeIn: string, timeOut: string) {
+  const start = minutesFromTime(timeIn)
+  const end = minutesFromTime(timeOut)
+  const delta = end - start
+  return delta > 0 ? delta : delta + (24 * 60)
+}
+
+const CALL_SHEET_PRESETS: Record<Exclude<CallSheetType, 'custom'>, Array<[string, string]>> = {
+  standard: [
+    ['09:00', '18:00'],
+    ['14:00', '22:00'],
+    ['18:00', '02:00'],
+  ],
+  one_and_half: [
+    ['09:00', '21:00'],
+    ['14:00', '02:00'],
+  ],
+  double: [
+    ['09:00', '02:00'],
+    ['14:00', '06:00'],
+  ],
+}
+
+function validateCallSheetTiming(callType: CallSheetType, timeIn: string, timeOut: string) {
+  const normalizedTimeIn = normalizeTimeForApi(timeIn)
+  const normalizedTimeOut = normalizeTimeForApi(timeOut)
+
+  if (normalizedTimeIn === normalizedTimeOut || durationMinutes(normalizedTimeIn, normalizedTimeOut) <= 0) {
+    throw new HttpError(400, 'Invalid time range.')
+  }
+
+  if (callType !== 'custom') {
+    const isPreset = CALL_SHEET_PRESETS[callType].some(([presetIn, presetOut]) => {
+      return presetIn === normalizedTimeIn && presetOut === normalizedTimeOut
+    })
+
+    if (!isPreset) {
+      throw new HttpError(400, 'Selected call sheet timing does not match the call sheet type.')
+    }
+  }
+}
+
 function safeFileName(name: string) {
   return name.replace(/[^a-zA-Z0-9._-]+/g, '-')
 }
@@ -207,6 +276,202 @@ function normalizeActorKey(value: string | null) {
   return value?.trim().toLowerCase() ?? ''
 }
 
+function normalizeAssignment(input: CallSheetAssignment): CallSheetAssignment {
+  if (input.assignmentType === 'actor') {
+    return {
+      assignmentType: 'actor',
+      actorName: input.actorName?.trim() || null,
+      characterName: input.characterName?.trim() || null,
+    }
+  }
+
+  return {
+    assignmentType: 'crew',
+    crewMemberId: input.crewMemberId ?? null,
+    crewName: input.crewName?.trim() || null,
+    department: input.department?.trim() || null,
+    designation: input.designation?.trim() || null,
+  }
+}
+
+function buildCallSheetAssignments(input: {
+  assignmentType?: 'actor' | 'crew'
+  assignments?: CallSheetAssignment[]
+  actors?: Array<{ actorName: string; characterName?: string }>
+  crew?: Array<{ crewMemberId?: string; crewName: string; department: string; designation: string }>
+  actorName?: string
+  characterName?: string
+}) {
+  const assignments: CallSheetAssignment[] = []
+
+  for (const assignment of input.assignments ?? []) {
+    assignments.push(normalizeAssignment(assignment))
+  }
+
+  for (const actor of input.actors ?? []) {
+    assignments.push(normalizeAssignment({
+      assignmentType: 'actor',
+      actorName: actor.actorName,
+      characterName: actor.characterName,
+    }))
+  }
+
+  for (const crewMember of input.crew ?? []) {
+    assignments.push(normalizeAssignment({
+      assignmentType: 'crew',
+      crewMemberId: crewMember.crewMemberId,
+      crewName: crewMember.crewName,
+      department: crewMember.department,
+      designation: crewMember.designation,
+    }))
+  }
+
+  if (input.actorName?.trim()) {
+    assignments.push(normalizeAssignment({
+      assignmentType: 'actor',
+      actorName: input.actorName,
+      characterName: input.characterName,
+    }))
+  }
+
+  const validAssignments = assignments.filter(assignment => {
+    if (assignment.assignmentType === 'actor') {
+      return Boolean(assignment.actorName)
+    }
+
+    return Boolean(assignment.crewName && assignment.department && assignment.designation)
+  })
+
+  if (validAssignments.length === 0) {
+    throw new HttpError(400, 'Missing assignee.')
+  }
+
+  if (input.assignmentType === 'actor' && !validAssignments.some(assignment => assignment.assignmentType === 'actor')) {
+    throw new HttpError(400, 'Missing actor assignment.')
+  }
+
+  if (input.assignmentType === 'crew' && !validAssignments.some(assignment => assignment.assignmentType === 'crew')) {
+    throw new HttpError(400, 'Missing crew assignment.')
+  }
+
+  return validAssignments
+}
+
+async function getProjectTimeline(projectId: string) {
+  const { data, error } = await adminClient
+    .from('projects')
+    .select('id, start_date, end_date')
+    .eq('id', projectId)
+    .maybeSingle()
+
+  if (error) {
+    throw error
+  }
+
+  if (!data) {
+    throw new HttpError(404, 'Project not found.')
+  }
+
+  return data as DbRow
+}
+
+function validateShootDateWithinProject(shootDate: string, project: DbRow) {
+  const startDate = asString(project.start_date)
+  const endDate = asString(project.end_date)
+
+  if ((startDate && shootDate < startDate) || (endDate && shootDate > endDate)) {
+    throw new HttpError(400, 'Call sheet date must be within project timeline.')
+  }
+}
+
+async function resolveProjectLocation(projectId: string, locationId?: string | null, locationName?: string | null) {
+  if (!locationId && !locationName?.trim()) {
+    throw new HttpError(400, 'Missing location.')
+  }
+
+  let query = adminClient
+    .from('locations')
+    .select('id, name')
+    .eq('project_id', projectId)
+
+  if (locationId) {
+    query = query.eq('id', locationId)
+  } else {
+    query = query.ilike('name', locationName!.trim())
+  }
+
+  const { data, error } = await query.limit(1).maybeSingle()
+
+  if (error) {
+    if (isMissingRelationError(error, 'locations')) {
+      throwActorsModuleNotReady(error)
+    }
+
+    throw error
+  }
+
+  if (!data) {
+    throw new HttpError(400, 'Location must belong to the selected project.')
+  }
+
+  return data as DbRow
+}
+
+async function validateCrewAssignments(projectId: string, assignments: CallSheetAssignment[]) {
+  const crewIds = Array.from(new Set(
+    assignments
+      .filter(assignment => assignment.assignmentType === 'crew' && assignment.crewMemberId)
+      .map(assignment => assignment.crewMemberId!),
+  ))
+
+  if (crewIds.length === 0) {
+    return
+  }
+
+  const { data, error } = await adminClient
+    .from('crew_members')
+    .select('id')
+    .eq('project_id', projectId)
+    .in('id', crewIds)
+
+  if (error) {
+    if (isMissingRelationError(error, 'crew_members')) {
+      throwActorsModuleNotReady(error)
+    }
+
+    throw error
+  }
+
+  const validCrewIds = new Set(((data ?? []) as DbRow[]).map(row => String(row.id)))
+  if (crewIds.some(id => !validCrewIds.has(id))) {
+    throw new HttpError(400, 'Crew assignment must belong to the selected project.')
+  }
+}
+
+function mapAssignmentRow(row: DbRow): CallSheetAssignment & { id: string } {
+  const assignmentType: 'actor' | 'crew' = asString(row.assignment_type) === 'crew' ? 'crew' : 'actor'
+  return {
+    id: String(row.id ?? ''),
+    assignmentType,
+    actorName: asString(row.actor_name),
+    characterName: asString(row.character_name),
+    crewMemberId: asString(row.crew_member_id),
+    crewName: asString(row.crew_name),
+    department: asString(row.department),
+    designation: asString(row.designation),
+  }
+}
+
+function mapCallSheetRowWithAssignments(row: DbRow, assignments: Array<CallSheetAssignment & { id: string }>) {
+  const firstActor = assignments.find(assignment => assignment.assignmentType === 'actor')
+  return {
+    ...mapCallSheetRow(row),
+    assignments,
+    actorName: firstActor?.actorName ?? asString(row.actor_name) ?? '',
+    characterName: firstActor?.characterName ?? asString(row.character_name),
+  }
+}
+
 function mapJuniorArtistRow(row: DbRow) {
   return {
     id: String(row.id ?? ''),
@@ -242,10 +507,15 @@ function mapCallSheetRow(row: DbRow) {
     projectId: String(row.project_id ?? ''),
     shootDate: asDateOnly(row.shoot_date),
     location: asString(row.location) ?? '',
-    callTime: asTime(row.call_time) ?? '',
+    locationId: asString(row.location_id),
+    callType: (asString(row.call_type) ?? 'custom') as CallSheetType,
+    timeIn: asTime(row.time_in) ?? asTime(row.call_time) ?? '',
+    timeOut: asTime(row.time_out) ?? asTime(row.call_time) ?? '',
+    callTime: asTime(row.call_time) ?? asTime(row.time_in) ?? '',
     actorName: asString(row.actor_name) ?? '',
     characterName: asString(row.character_name),
     notes: asString(row.notes),
+    assignments: [] as Array<CallSheetAssignment & { id: string }>,
     createdAt: asIsoTimestamp(row.created_at),
   }
 }
@@ -257,10 +527,26 @@ function mapCallSheetFallbackRow(row: DbRow) {
     projectId: asString(payload.projectId) ?? asString(row.project_id) ?? '',
     shootDate: asDateOnly(payload.shootDate),
     location: asString(payload.location) ?? '',
-    callTime: asTime(payload.callTime) ?? '',
+    locationId: asString(payload.locationId),
+    callType: (asString(payload.callType) ?? 'custom') as CallSheetType,
+    timeIn: asTime(payload.timeIn) ?? asTime(payload.callTime) ?? '',
+    timeOut: asTime(payload.timeOut) ?? asTime(payload.callTime) ?? '',
+    callTime: asTime(payload.callTime) ?? asTime(payload.timeIn) ?? '',
     actorName: asString(payload.actorName) ?? '',
     characterName: asString(payload.characterName),
     notes: asString(payload.notes),
+    assignments: Array.isArray(payload.assignments)
+      ? (payload.assignments as DbRow[]).map((assignment, index) => ({
+        id: asString(assignment.id) ?? `${asString(row.entity_id) ?? String(row.id ?? '')}-${index}`,
+        assignmentType: (asString(assignment.assignmentType) === 'crew' ? 'crew' : 'actor') as 'actor' | 'crew',
+        actorName: asString(assignment.actorName),
+        characterName: asString(assignment.characterName),
+        crewMemberId: asString(assignment.crewMemberId),
+        crewName: asString(assignment.crewName),
+        department: asString(assignment.department),
+        designation: asString(assignment.designation),
+      }))
+      : [] as Array<CallSheetAssignment & { id: string }>,
     createdAt: asIsoTimestamp(row.created_at),
   }
 }
@@ -569,34 +855,139 @@ export async function deleteJuniorArtistLog(projectId: string, id: string) {
   }
 }
 
+const callSheetSelect = 'id, project_id, shoot_date, location, location_id, call_time, call_type, time_in, time_out, actor_name, character_name, notes, created_at'
+const assignmentSelect = 'id, call_sheet_id, project_id, assignment_type, actor_name, character_name, crew_member_id, crew_name, department, designation, created_at'
+
+async function insertCallSheetAssignments(callSheetId: string, projectId: string, assignments: CallSheetAssignment[]) {
+  const rows = assignments.map(assignment => ({
+    call_sheet_id: callSheetId,
+    project_id: projectId,
+    assignment_type: assignment.assignmentType,
+    actor_name: assignment.assignmentType === 'actor' ? assignment.actorName : null,
+    character_name: assignment.assignmentType === 'actor' ? assignment.characterName ?? null : null,
+    crew_member_id: assignment.assignmentType === 'crew' ? assignment.crewMemberId ?? null : null,
+    crew_name: assignment.assignmentType === 'crew' ? assignment.crewName : null,
+    department: assignment.assignmentType === 'crew' ? assignment.department : null,
+    designation: assignment.assignmentType === 'crew' ? assignment.designation : null,
+  }))
+
+  const { data, error } = await adminClient
+    .from('call_sheet_assignments')
+    .insert(rows)
+    .select(assignmentSelect)
+
+  if (error) {
+    if (isMissingRelationError(error, 'call_sheet_assignments') || isMissingColumnError(error)) {
+      throwActorsModuleNotReady(error)
+    }
+
+    throw error
+  }
+
+  return ((data ?? []) as DbRow[]).map(mapAssignmentRow)
+}
+
+async function listAssignmentsForCallSheets(callSheetIds: string[]) {
+  if (callSheetIds.length === 0) {
+    return new Map<string, Array<CallSheetAssignment & { id: string }>>()
+  }
+
+  const { data, error } = await adminClient
+    .from('call_sheet_assignments')
+    .select(assignmentSelect)
+    .in('call_sheet_id', callSheetIds)
+    .order('created_at', { ascending: true })
+
+  if (error) {
+    if (isMissingRelationError(error, 'call_sheet_assignments') || isMissingColumnError(error)) {
+      throwActorsModuleNotReady(error)
+    }
+
+    throw error
+  }
+
+  return ((data ?? []) as DbRow[]).reduce((map, row) => {
+    const callSheetId = String(row.call_sheet_id ?? '')
+    const current = map.get(callSheetId) ?? []
+    current.push(mapAssignmentRow(row))
+    map.set(callSheetId, current)
+    return map
+  }, new Map<string, Array<CallSheetAssignment & { id: string }>>())
+}
+
+async function validateCallSheetInput(input: CallSheetCreateInput | CallSheetUpdateInput, existing?: ReturnType<typeof mapCallSheetRow>) {
+  const project = await getProjectTimeline(input.projectId)
+  const shootDate = input.shootDate ?? existing?.shootDate
+  const callType = (input.callType ?? existing?.callType ?? 'custom') as CallSheetType
+  const timeIn = input.timeIn ?? existing?.timeIn
+  const timeOut = input.timeOut ?? existing?.timeOut
+  const locationId = input.locationId ?? existing?.locationId
+  const locationName = input.location ?? existing?.location
+
+  if (!shootDate) {
+    throw new HttpError(400, 'Call sheet date is required.')
+  }
+
+  if (!timeIn || !timeOut) {
+    throw new HttpError(400, 'Invalid time range.')
+  }
+
+  validateShootDateWithinProject(shootDate, project)
+  validateCallSheetTiming(callType, timeIn, timeOut)
+
+  const location = await resolveProjectLocation(input.projectId, locationId, locationName)
+
+  return {
+    shootDate,
+    callType,
+    timeIn: normalizeTimeForApi(timeIn),
+    timeOut: normalizeTimeForApi(timeOut),
+    location,
+  }
+}
+
 export async function createCallSheet(input: CallSheetCreateInput) {
+  const assignments = buildCallSheetAssignments(input)
+  await validateCrewAssignments(input.projectId, assignments)
+  const validated = await validateCallSheetInput(input)
+  const firstActor = assignments.find(assignment => assignment.assignmentType === 'actor')
+
   const { data, error } = await adminClient
     .from('call_sheets')
     .insert({
       project_id: input.projectId,
-      shoot_date: input.shootDate,
-      location: input.location,
-      call_time: normalizeTimeForDb(input.callTime),
-      actor_name: input.actorName,
-      character_name: input.characterName ?? null,
+      shoot_date: validated.shootDate,
+      location: asString(validated.location.name) ?? '',
+      location_id: String(validated.location.id),
+      call_time: normalizeTimeForDb(validated.timeIn),
+      call_type: validated.callType,
+      time_in: normalizeTimeForDb(validated.timeIn),
+      time_out: normalizeTimeForDb(validated.timeOut),
+      actor_name: firstActor?.actorName ?? null,
+      character_name: firstActor?.characterName ?? null,
       notes: input.notes ?? null,
     })
-    .select('id, project_id, shoot_date, location, call_time, actor_name, character_name, notes, created_at')
+    .select(callSheetSelect)
     .single()
 
   if (error) {
-    if (isMissingRelationError(error, 'call_sheets')) {
+    if (isMissingRelationError(error, 'call_sheets') || isMissingColumnError(error)) {
       const fallback = await insertActorsFallbackRecord({
         projectId: input.projectId,
         entity: FALLBACK_CALL_SHEET_ENTITY,
-        entityLabel: input.actorName,
+        entityLabel: firstActor?.actorName ?? asString(validated.location.name),
         payload: {
           projectId: input.projectId,
-          shootDate: input.shootDate,
-          location: input.location,
-          callTime: input.callTime,
-          actorName: input.actorName,
-          characterName: input.characterName ?? null,
+          shootDate: validated.shootDate,
+          locationId: String(validated.location.id),
+          location: asString(validated.location.name) ?? '',
+          callType: validated.callType,
+          timeIn: validated.timeIn,
+          timeOut: validated.timeOut,
+          callTime: validated.timeIn,
+          actorName: firstActor?.actorName ?? null,
+          characterName: firstActor?.characterName ?? null,
+          assignments,
           notes: input.notes ?? null,
         },
       })
@@ -607,20 +998,30 @@ export async function createCallSheet(input: CallSheetCreateInput) {
     throw error
   }
 
-  return mapCallSheetRow(data as DbRow)
+  try {
+    const createdAssignments = await insertCallSheetAssignments(String((data as DbRow).id), input.projectId, assignments)
+    return mapCallSheetRowWithAssignments(data as DbRow, createdAssignments)
+  } catch (assignmentError) {
+    await adminClient
+      .from('call_sheets')
+      .delete()
+      .eq('project_id', input.projectId)
+      .eq('id', String((data as DbRow).id))
+    throw assignmentError
+  }
 }
 
 export async function listCallSheets(projectId: string) {
   const { data, error } = await adminClient
     .from('call_sheets')
-    .select('id, project_id, shoot_date, location, call_time, actor_name, character_name, notes, created_at')
+    .select(callSheetSelect)
     .eq('project_id', projectId)
     .order('shoot_date', { ascending: true })
     .order('call_time', { ascending: true })
     .order('created_at', { ascending: true })
 
   if (error) {
-    if (isMissingRelationError(error, 'call_sheets')) {
+    if (isMissingRelationError(error, 'call_sheets') || isMissingColumnError(error)) {
       const fallbackRows = await listActorsFallbackRecords(projectId, FALLBACK_CALL_SHEET_ENTITY)
       const callSheets = fallbackRows
         .map(mapCallSheetFallbackRow)
@@ -647,7 +1048,9 @@ export async function listCallSheets(projectId: string) {
     throw error
   }
 
-  const callSheets = ((data ?? []) as DbRow[]).map(mapCallSheetRow)
+  const rows = (data ?? []) as DbRow[]
+  const assignmentMap = await listAssignmentsForCallSheets(rows.map(row => String(row.id ?? '')).filter(Boolean))
+  const callSheets = rows.map(row => mapCallSheetRowWithAssignments(row, assignmentMap.get(String(row.id ?? '')) ?? []))
   const groupedByDate = groupCallSheetsByDate(callSheets)
 
   return {
@@ -659,13 +1062,13 @@ export async function listCallSheets(projectId: string) {
 export async function getCallSheetById(projectId: string, id: string) {
   const { data, error } = await adminClient
     .from('call_sheets')
-    .select('id, project_id, shoot_date, location, call_time, actor_name, character_name, notes, created_at')
+    .select(callSheetSelect)
     .eq('project_id', projectId)
     .eq('id', id)
     .maybeSingle()
 
   if (error) {
-    if (isMissingRelationError(error, 'call_sheets')) {
+    if (isMissingRelationError(error, 'call_sheets') || isMissingColumnError(error)) {
       const fallback = await getActorsFallbackRecord(projectId, FALLBACK_CALL_SHEET_ENTITY, id)
       if (!fallback) {
         throw new HttpError(404, 'Call sheet not found.')
@@ -681,7 +1084,177 @@ export async function getCallSheetById(projectId: string, id: string) {
     throw new HttpError(404, 'Call sheet not found.')
   }
 
-  return mapCallSheetRow(data as DbRow)
+  const assignmentMap = await listAssignmentsForCallSheets([id])
+  return mapCallSheetRowWithAssignments(data as DbRow, assignmentMap.get(id) ?? [])
+}
+
+export async function updateCallSheet(id: string, input: CallSheetUpdateInput) {
+  const existing = await getCallSheetById(input.projectId, id)
+  const shouldReplaceAssignments = Boolean(input.assignments || input.actors || input.crew || input.actorName || input.assignmentType)
+  const assignments = shouldReplaceAssignments ? buildCallSheetAssignments(input) : existing.assignments
+  await validateCrewAssignments(input.projectId, assignments)
+  const validated = await validateCallSheetInput(input, existing)
+  const firstActor = assignments.find(assignment => assignment.assignmentType === 'actor')
+
+  const { data, error } = await adminClient
+    .from('call_sheets')
+    .update({
+      shoot_date: validated.shootDate,
+      location: asString(validated.location.name) ?? '',
+      location_id: String(validated.location.id),
+      call_time: normalizeTimeForDb(validated.timeIn),
+      call_type: validated.callType,
+      time_in: normalizeTimeForDb(validated.timeIn),
+      time_out: normalizeTimeForDb(validated.timeOut),
+      actor_name: firstActor?.actorName ?? null,
+      character_name: firstActor?.characterName ?? null,
+      notes: input.notes === undefined ? existing.notes : input.notes ?? null,
+    })
+    .eq('project_id', input.projectId)
+    .eq('id', id)
+    .select(callSheetSelect)
+    .maybeSingle()
+
+  if (error) {
+    if (isMissingRelationError(error, 'call_sheets') || isMissingColumnError(error)) {
+      const fallback = await updateActorsFallbackRecord({
+        projectId: input.projectId,
+        entity: FALLBACK_CALL_SHEET_ENTITY,
+        id,
+        entityLabel: firstActor?.actorName ?? asString(validated.location.name),
+        payload: {
+          projectId: input.projectId,
+          shootDate: validated.shootDate,
+          locationId: String(validated.location.id),
+          location: asString(validated.location.name) ?? '',
+          callType: validated.callType,
+          timeIn: validated.timeIn,
+          timeOut: validated.timeOut,
+          callTime: validated.timeIn,
+          actorName: firstActor?.actorName ?? null,
+          characterName: firstActor?.characterName ?? null,
+          assignments,
+          notes: input.notes === undefined ? existing.notes : input.notes ?? null,
+        },
+      })
+
+      return mapCallSheetFallbackRow(fallback)
+    }
+
+    throw error
+  }
+
+  if (!data) {
+    throw new HttpError(404, 'Call sheet not found.')
+  }
+
+  if (shouldReplaceAssignments) {
+    const deleted = await adminClient
+      .from('call_sheet_assignments')
+      .delete()
+      .eq('call_sheet_id', id)
+      .eq('project_id', input.projectId)
+
+    if (deleted.error) {
+      if (isMissingRelationError(deleted.error, 'call_sheet_assignments') || isMissingColumnError(deleted.error)) {
+        throwActorsModuleNotReady(deleted.error)
+      }
+
+      throw deleted.error
+    }
+
+    const createdAssignments = await insertCallSheetAssignments(id, input.projectId, assignments)
+    return mapCallSheetRowWithAssignments(data as DbRow, createdAssignments)
+  }
+
+  return mapCallSheetRowWithAssignments(data as DbRow, existing.assignments)
+}
+
+export async function deleteCallSheet(projectId: string, id: string) {
+  const deleted = await adminClient
+    .from('call_sheets')
+    .delete()
+    .eq('project_id', projectId)
+    .eq('id', id)
+    .select('id')
+    .maybeSingle()
+
+  if (deleted.error) {
+    if (isMissingRelationError(deleted.error, 'call_sheets')) {
+      await deleteActorsFallbackRecord(projectId, FALLBACK_CALL_SHEET_ENTITY, id)
+      return
+    }
+
+    throw deleted.error
+  }
+
+  if (!deleted.data) {
+    throw new HttpError(404, 'Call sheet not found.')
+  }
+}
+
+export async function listProjectLocations(projectId: string) {
+  const { data, error } = await adminClient
+    .from('locations')
+    .select('id, name')
+    .eq('project_id', projectId)
+    .order('name', { ascending: true })
+
+  if (error) {
+    if (isMissingRelationError(error, 'locations')) {
+      throwActorsModuleNotReady(error)
+    }
+
+    throw error
+  }
+
+  return ((data ?? []) as DbRow[]).map(row => ({
+    id: String(row.id ?? ''),
+    name: asString(row.name) ?? '',
+  })).filter(location => location.id && location.name)
+}
+
+export async function listProjectCrewMembers(projectId: string) {
+  const { data, error } = await adminClient
+    .from('crew_members')
+    .select('id, user_id, department, role_title')
+    .eq('project_id', projectId)
+    .order('department', { ascending: true })
+    .order('role_title', { ascending: true })
+
+  if (error) {
+    if (isMissingRelationError(error, 'crew_members')) {
+      throwActorsModuleNotReady(error)
+    }
+
+    throw error
+  }
+
+  const rows = (data ?? []) as DbRow[]
+  const userIds = Array.from(new Set(rows.map(row => asString(row.user_id)).filter(Boolean) as string[]))
+  const userMap = new Map<string, string>()
+
+  if (userIds.length > 0) {
+    const users = await adminClient
+      .from('users')
+      .select('id, full_name')
+      .in('id', userIds)
+
+    if (users.error) {
+      throw users.error
+    }
+
+    for (const user of (users.data ?? []) as DbRow[]) {
+      userMap.set(String(user.id ?? ''), asString(user.full_name) ?? 'Crew Member')
+    }
+  }
+
+  return rows.map(row => ({
+    id: String(row.id ?? ''),
+    name: userMap.get(asString(row.user_id) ?? '') ?? 'Crew Member',
+    department: asString(row.department) ?? '',
+    designation: asString(row.role_title) ?? 'Crew Member',
+  })).filter(member => member.id)
 }
 
 export async function createActorPayment(input: ActorPaymentCreateInput) {
@@ -945,11 +1518,12 @@ export async function deleteActorLook(projectId: string, id: string) {
 }
 
 export async function listActorAlerts(projectId: string) {
-  const [juniors, callSheetsResponse, payments, looks] = await Promise.all([
+  const [juniors, callSheetsResponse, payments, looks, project] = await Promise.all([
     listJuniorArtistLogs(projectId),
     listCallSheets(projectId),
     listActorPayments(projectId),
     listActorLooks(projectId),
+    getProjectTimeline(projectId),
   ])
 
   const callSheets = callSheetsResponse.callSheets
@@ -977,6 +1551,45 @@ export async function listActorAlerts(projectId: string) {
     ))
   }
 
+  for (const sheet of callSheets) {
+    const timestamp = sheet.createdAt
+    const assignmentCount = sheet.assignments.length
+    const hasActorAssignment = sheet.assignments.some(assignment => assignment.assignmentType === 'actor')
+    const hasCrewAssignment = sheet.assignments.some(assignment => assignment.assignmentType === 'crew')
+
+    if (!sheet.locationId || !sheet.location.trim()) {
+      alerts.push(buildAlert('critical', `Missing location for call sheet on ${sheet.shootDate}.`, timestamp))
+    }
+
+    try {
+      validateShootDateWithinProject(sheet.shootDate, project)
+    } catch {
+      alerts.push(buildAlert('critical', 'Call sheet outside project timeline.', timestamp))
+    }
+
+    try {
+      validateCallSheetTiming(sheet.callType as CallSheetType, sheet.timeIn, sheet.timeOut)
+    } catch {
+      alerts.push(buildAlert('critical', `Invalid time range for call sheet on ${sheet.shootDate}.`, timestamp))
+    }
+
+    if (assignmentCount === 0) {
+      alerts.push(buildAlert('critical', `Missing assignee for call sheet on ${sheet.shootDate}.`, timestamp))
+    }
+
+    if (sheet.assignments.some(assignment => assignment.assignmentType === 'actor' && !assignment.actorName)) {
+      alerts.push(buildAlert('critical', `Missing actor assignment for call sheet on ${sheet.shootDate}.`, timestamp))
+    }
+
+    if (sheet.assignments.some(assignment => assignment.assignmentType === 'crew' && (!assignment.crewName || !assignment.department || !assignment.designation))) {
+      alerts.push(buildAlert('critical', `Missing crew assignment for call sheet on ${sheet.shootDate}.`, timestamp))
+    }
+
+    if (!hasActorAssignment && !hasCrewAssignment && assignmentCount > 0) {
+      alerts.push(buildAlert('critical', `Missing assignee for call sheet on ${sheet.shootDate}.`, timestamp))
+    }
+  }
+
   for (const payment of payments.filter(entry => entry.paymentType === 'batta' && entry.status === 'pending')) {
     alerts.push(buildAlert(
       payment.paymentDate < today ? 'critical' : 'warning',
@@ -992,7 +1605,11 @@ export async function listActorAlerts(projectId: string) {
   )
   const missingLookActors = Array.from(new Set(
     callSheets
-      .map(sheet => sheet.actorName)
+      .flatMap(sheet => sheet.assignments.length > 0
+        ? sheet.assignments
+          .filter(assignment => assignment.assignmentType === 'actor')
+          .map(assignment => assignment.actorName ?? '')
+        : [sheet.actorName])
       .filter(name => !lookCoverage.has(normalizeActorKey(name))),
   ))
 

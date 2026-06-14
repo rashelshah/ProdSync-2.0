@@ -141,7 +141,11 @@ export function canAccessActorsModule(req: Request) {
 }
 
 export function canManageActorsModule(req: Request) {
-  return canAccessActorsModule(req)
+  return Boolean(
+    isProducerRequest(req)
+      || projectRole(req) === 'ACTOR_COORDINATOR'
+      || (department(req) === 'ACTORS' && membershipRole(req) === 'HOD')
+  )
 }
 
 export function canDeleteActorLooks(req: Request) {

@@ -9,6 +9,7 @@ import {
   createCallSheetController,
   createJuniorArtistController,
   deleteActorLookController,
+  deleteCallSheetController,
   deleteJuniorArtistController,
   getActorAlertsController,
   getActorLooksController,
@@ -16,7 +17,10 @@ import {
   getCallSheetByIdController,
   getCallSheetsController,
   getJuniorArtistLogsController,
+  getProjectCrewMembersController,
+  getProjectLocationsController,
   updateActorPaymentController,
+  updateCallSheetController,
 } from './actors.controller'
 
 export const actorsRouter = Router()
@@ -28,6 +32,14 @@ actorsRouter.delete('/juniors/:id', authMiddleware, projectAccessMiddleware, asy
 actorsRouter.post('/call-sheet', authMiddleware, projectAccessMiddleware, asyncHandler(createCallSheetController))
 actorsRouter.get('/call-sheet', authMiddleware, projectAccessMiddleware, asyncHandler(getCallSheetsController))
 actorsRouter.get('/call-sheet/:id', authMiddleware, projectAccessMiddleware, asyncHandler(getCallSheetByIdController))
+
+actorsRouter.get('/project-locations', authMiddleware, projectAccessMiddleware, asyncHandler(getProjectLocationsController))
+actorsRouter.get('/crew-members', authMiddleware, projectAccessMiddleware, asyncHandler(getProjectCrewMembersController))
+actorsRouter.get('/call-sheets', authMiddleware, projectAccessMiddleware, asyncHandler(getCallSheetsController))
+actorsRouter.post('/call-sheets', authMiddleware, projectAccessMiddleware, asyncHandler(createCallSheetController))
+actorsRouter.get('/call-sheets/:id', authMiddleware, projectAccessMiddleware, asyncHandler(getCallSheetByIdController))
+actorsRouter.patch('/call-sheets/:id', authMiddleware, projectAccessMiddleware, asyncHandler(updateCallSheetController))
+actorsRouter.delete('/call-sheets/:id', authMiddleware, projectAccessMiddleware, asyncHandler(deleteCallSheetController))
 
 actorsRouter.post('/payments', authMiddleware, projectAccessMiddleware, asyncHandler(createActorPaymentController))
 actorsRouter.get('/payments', authMiddleware, projectAccessMiddleware, asyncHandler(getActorPaymentsController))

@@ -4,11 +4,14 @@ import { Surface } from '@/components/shared/Surface'
 import { EmptyState, ErrorState, TubeLightLoaderOverlay } from '@/components/system/SystemStates'
 import { invalidateProjectData } from '@/context/project-sync'
 import { useAuthStore } from '@/features/auth/auth.store'
-import { canAccessActorsWorkspace } from '@/features/auth/role-capabilities'
+import { canAccessActorsWorkspace, canManageActorsOperations } from '@/features/auth/role-capabilities'
 import { useResolvedProjectContext } from '@/features/projects/useResolvedProjectContext'
 import { resolveErrorMessage, showError, showSuccess } from '@/lib/toast'
 import { useActorsData } from '@/modules/actors/hooks/useActorsData'
 import type {
+  ActorCallSheetAssignment,
+  ActorCallSheetAssignmentType,
+  ActorCallSheetType,
   ActorPaymentStatus,
   CreateActorCallSheetInput,
   CreateActorPaymentInput,
@@ -36,6 +39,42 @@ function PanelStat({ label, value }: { label: string; value: string }) {
 }
 
 const fieldClassName = 'rounded-2xl border border-zinc-200 bg-white px-4 py-3 text-sm text-zinc-900 outline-none transition focus:border-orange-400 dark:border-zinc-800 dark:bg-zinc-950 dark:text-white'
+
+const callSheetPresets: Record<ActorCallSheetType, Array<{ label: string; timeIn: string; timeOut: string }>> = {
+  standard: [
+    { label: '9:00 AM - 6:00 PM', timeIn: '09:00', timeOut: '18:00' },
+    { label: '2:00 PM - 10:00 PM', timeIn: '14:00', timeOut: '22:00' },
+    { label: '6:00 PM - 2:00 AM', timeIn: '18:00', timeOut: '02:00' },
+  ],
+  one_and_half: [
+    { label: '9:00 AM - 9:00 PM', timeIn: '09:00', timeOut: '21:00' },
+    { label: '2:00 PM - 2:00 AM', timeIn: '14:00', timeOut: '02:00' },
+  ],
+  double: [
+    { label: '9:00 AM - 2:00 AM', timeIn: '09:00', timeOut: '02:00' },
+    { label: '2:00 PM - 6:00 AM', timeIn: '14:00', timeOut: '06:00' },
+  ],
+  custom: [],
+}
+
+function isDateWithinProject(date: string, startDate?: string, endDate?: string) {
+  if (!date) return false
+  if (startDate && date < startDate) return false
+  if (endDate && date > endDate) return false
+  return true
+}
+
+function hasValidTimeRange(timeIn: string, timeOut: string) {
+  return Boolean(timeIn && timeOut && timeIn !== timeOut)
+}
+
+function describeAssignment(assignment: ActorCallSheetAssignment) {
+  if (assignment.assignmentType === 'crew') {
+    return [assignment.crewName, assignment.department, assignment.designation].filter(Boolean).join(' • ')
+  }
+
+  return [assignment.actorName, assignment.characterName].filter(Boolean).join(' • ')
+}
 
 function resolveActorsActionError(error: unknown, fallback: string) {
   const message = resolveErrorMessage(error, fallback)
@@ -75,6 +114,7 @@ export function ActorsView() {
   const queryClient = useQueryClient()
   const user = useAuthStore(state => state.user)
   const { activeProjectId, activeProject, isLoadingProjectContext } = useResolvedProjectContext()
+  const canManageActors = canManageActorsOperations(user)
   const [lookActorFilter, setLookActorFilter] = useState('')
   const [lookCharacterFilter, setLookCharacterFilter] = useState('')
 
@@ -88,12 +128,20 @@ export function ActorsView() {
   const [callSheetForm, setCallSheetForm] = useState<CreateActorCallSheetInput>({
     projectId: activeProjectId ?? '',
     shootDate: '',
+    locationId: '',
     location: '',
-    callTime: '',
-    actorName: '',
-    characterName: '',
+    callType: 'standard',
+    timeIn: '09:00',
+    timeOut: '18:00',
+    callTime: '09:00',
+    assignmentType: 'actor',
+    assignments: [],
     notes: '',
   })
+  const [callSheetPresetIndex, setCallSheetPresetIndex] = useState(0)
+  const [callSheetAssignmentType, setCallSheetAssignmentType] = useState<ActorCallSheetAssignmentType>('actor')
+  const [actorAssignmentDraft, setActorAssignmentDraft] = useState({ actorName: '', characterName: '' })
+  const [crewAssignmentDraft, setCrewAssignmentDraft] = useState({ crewMemberId: '' })
   const [paymentForm, setPaymentForm] = useState<CreateActorPaymentInput>({
     projectId: activeProjectId ?? '',
     actorName: '',
@@ -109,7 +157,7 @@ export function ActorsView() {
     image: null as File | null,
   })
 
-  const { juniorLogs, callSheetGroups, payments, looks, alerts, error, isLoading, isError, refetch } = useActorsData(
+  const { juniorLogs, callSheetGroups, projectLocations, crewMembers, payments, looks, alerts, error, isLoading, isError, refetch } = useActorsData(
     activeProjectId,
     {
       actor: lookActorFilter.trim() || undefined,
@@ -135,6 +183,90 @@ export function ActorsView() {
     })
   }
 
+  const activeCallSheetPresets = callSheetPresets[callSheetForm.callType]
+  const selectedCrewMember = crewMembers.find(member => member.id === crewAssignmentDraft.crewMemberId) ?? null
+
+  function updateCallSheetType(callType: ActorCallSheetType) {
+    const preset = callSheetPresets[callType][0]
+    setCallSheetPresetIndex(0)
+    setCallSheetForm(current => ({
+      ...current,
+      projectId: activeProjectId ?? current.projectId,
+      callType,
+      timeIn: preset?.timeIn ?? current.timeIn,
+      timeOut: preset?.timeOut ?? current.timeOut,
+      callTime: preset?.timeIn ?? current.timeIn,
+    }))
+  }
+
+  function updateCallSheetPreset(index: number) {
+    const preset = activeCallSheetPresets[index]
+    if (!preset) return
+    setCallSheetPresetIndex(index)
+    setCallSheetForm(current => ({
+      ...current,
+      projectId: activeProjectId ?? current.projectId,
+      timeIn: preset.timeIn,
+      timeOut: preset.timeOut,
+      callTime: preset.timeIn,
+    }))
+  }
+
+  function addCallSheetAssignment() {
+    if (callSheetAssignmentType === 'actor') {
+      const actorName = actorAssignmentDraft.actorName.trim()
+      if (!actorName) {
+        showError('Missing actor assignment.')
+        return
+      }
+
+      setCallSheetForm(current => ({
+        ...current,
+        projectId: activeProjectId ?? current.projectId,
+        assignmentType: 'actor',
+        assignments: [
+          ...current.assignments,
+          {
+            assignmentType: 'actor',
+            actorName,
+            characterName: actorAssignmentDraft.characterName.trim() || null,
+          },
+        ],
+      }))
+      setActorAssignmentDraft({ actorName: '', characterName: '' })
+      return
+    }
+
+    if (!selectedCrewMember) {
+      showError('Missing crew assignment.')
+      return
+    }
+
+    setCallSheetForm(current => ({
+      ...current,
+      projectId: activeProjectId ?? current.projectId,
+      assignmentType: 'crew',
+      assignments: [
+        ...current.assignments,
+        {
+          assignmentType: 'crew',
+          crewMemberId: selectedCrewMember.id,
+          crewName: selectedCrewMember.name,
+          department: selectedCrewMember.department,
+          designation: selectedCrewMember.designation,
+        },
+      ],
+    }))
+    setCrewAssignmentDraft({ crewMemberId: '' })
+  }
+
+  function removeCallSheetAssignment(index: number) {
+    setCallSheetForm(current => ({
+      ...current,
+      assignments: current.assignments.filter((_, currentIndex) => currentIndex !== index),
+    }))
+  }
+
   const createJuniorMutation = useMutation({
     mutationFn: actorsService.createJuniorLog,
     onSuccess: async () => {
@@ -158,7 +290,23 @@ export function ActorsView() {
     mutationFn: actorsService.createCallSheet,
     onSuccess: async () => {
       showSuccess('Call sheet created.')
-      setCallSheetForm(current => ({ ...current, shootDate: '', location: '', callTime: '', actorName: '', characterName: '', notes: '' }))
+      setCallSheetForm(current => ({
+        ...current,
+        shootDate: '',
+        locationId: '',
+        location: '',
+        callType: 'standard',
+        timeIn: '09:00',
+        timeOut: '18:00',
+        callTime: '09:00',
+        assignmentType: 'actor',
+        assignments: [],
+        notes: '',
+      }))
+      setCallSheetPresetIndex(0)
+      setCallSheetAssignmentType('actor')
+      setActorAssignmentDraft({ actorName: '', characterName: '' })
+      setCrewAssignmentDraft({ crewMemberId: '' })
       await refreshProject()
     },
     onError: error => showError(resolveActorsActionError(error, 'Could not create call sheet.')),
@@ -330,6 +478,10 @@ export function ActorsView() {
             </p>
             <button
               onClick={() => {
+                if (!canManageActors) {
+                  showError('You do not have permission to create junior artist logs.')
+                  return
+                }
                 if (!juniorForm.shootDate || !juniorForm.agentName.trim()) {
                   showError('Shoot date and agent name are required.')
                   return
@@ -344,7 +496,7 @@ export function ActorsView() {
                 }
                 createJuniorMutation.mutate({ ...juniorForm, projectId: activeProjectId })
               }}
-              disabled={createJuniorMutation.isPending}
+              disabled={createJuniorMutation.isPending || !canManageActors}
               className="btn-primary"
             >
               Add Entry
@@ -365,7 +517,7 @@ export function ActorsView() {
                     </div>
                     <div className="text-right">
                       <p className="text-sm font-semibold text-zinc-900 dark:text-white">{formatCurrency(log.totalCost, activeProject?.currency ?? 'INR')}</p>
-                      <button onClick={() => deleteJuniorMutation.mutate({ projectId: activeProjectId, id: log.id })} disabled={deleteJuniorMutation.isPending} className="mt-2 text-xs font-semibold uppercase tracking-[0.18em] text-red-500 transition hover:text-red-600 dark:text-red-400 dark:hover:text-red-300">
+                      <button onClick={() => deleteJuniorMutation.mutate({ projectId: activeProjectId, id: log.id })} disabled={deleteJuniorMutation.isPending || !canManageActors} className="mt-2 text-xs font-semibold uppercase tracking-[0.18em] text-red-500 transition hover:text-red-600 dark:text-red-400 dark:hover:text-red-300">
                         Remove
                       </button>
                     </div>
@@ -377,25 +529,129 @@ export function ActorsView() {
         </Surface>
 
         <Surface variant="raised" padding="lg">
-          <SectionHeader title="Call Sheet Generation" subtitle="Create daily actor call sheets and review them grouped by shoot date." />
+          <SectionHeader title="Call Sheet Generation" subtitle="Create production-aware actor and crew call sheets grouped by shoot date." />
           <div className="grid gap-3 md:grid-cols-2">
-            <input type="date" value={callSheetForm.shootDate} onChange={event => setCallSheetForm(current => ({ ...current, projectId: activeProjectId, shootDate: event.target.value }))} className={fieldClassName} />
-            <input type="time" value={callSheetForm.callTime} onChange={event => setCallSheetForm(current => ({ ...current, projectId: activeProjectId, callTime: event.target.value }))} className={fieldClassName} />
-            <input type="text" value={callSheetForm.location} onChange={event => setCallSheetForm(current => ({ ...current, projectId: activeProjectId, location: event.target.value }))} placeholder="Location" className={fieldClassName} />
-            <input type="text" value={callSheetForm.actorName} onChange={event => setCallSheetForm(current => ({ ...current, projectId: activeProjectId, actorName: event.target.value }))} placeholder="Actor name" className={fieldClassName} />
-            <input type="text" value={callSheetForm.characterName ?? ''} onChange={event => setCallSheetForm(current => ({ ...current, projectId: activeProjectId, characterName: event.target.value }))} placeholder="Character name" className={fieldClassName} />
+            <input
+              type="date"
+              value={callSheetForm.shootDate}
+              min={activeProject?.startDate || undefined}
+              max={activeProject?.endDate || undefined}
+              onChange={event => setCallSheetForm(current => ({ ...current, projectId: activeProjectId, shootDate: event.target.value }))}
+              className={fieldClassName}
+            />
+            <select
+              value={callSheetForm.locationId}
+              onChange={event => {
+                const location = projectLocations.find(item => item.id === event.target.value)
+                setCallSheetForm(current => ({
+                  ...current,
+                  projectId: activeProjectId,
+                  locationId: location?.id ?? '',
+                  location: location?.name ?? '',
+                }))
+              }}
+              className={fieldClassName}
+            >
+              <option value="">Select project location</option>
+              {projectLocations.map(location => (
+                <option key={location.id} value={location.id}>{location.name}</option>
+              ))}
+            </select>
+            <select value={callSheetForm.callType} onChange={event => updateCallSheetType(event.target.value as ActorCallSheetType)} className={fieldClassName}>
+              <option value="standard">Standard</option>
+              <option value="one_and_half">1.5 Call Sheet</option>
+              <option value="double">Double Call Sheet</option>
+              <option value="custom">Custom</option>
+            </select>
+            {callSheetForm.callType === 'custom' ? (
+              <>
+                <input type="time" value={callSheetForm.timeIn} onChange={event => setCallSheetForm(current => ({ ...current, projectId: activeProjectId, timeIn: event.target.value, callTime: event.target.value }))} className={fieldClassName} />
+                <input type="time" value={callSheetForm.timeOut} onChange={event => setCallSheetForm(current => ({ ...current, projectId: activeProjectId, timeOut: event.target.value }))} className={fieldClassName} />
+              </>
+            ) : (
+              <select value={callSheetPresetIndex} onChange={event => updateCallSheetPreset(Number(event.target.value))} className={fieldClassName}>
+                {activeCallSheetPresets.map((preset, index) => (
+                  <option key={preset.label} value={index}>{preset.label}</option>
+                ))}
+              </select>
+            )}
+            <select value={callSheetAssignmentType} onChange={event => setCallSheetAssignmentType(event.target.value as ActorCallSheetAssignmentType)} className={fieldClassName}>
+              <option value="actor">Actor</option>
+              <option value="crew">Crew</option>
+            </select>
+            {callSheetAssignmentType === 'actor' ? (
+              <>
+                <input type="text" value={actorAssignmentDraft.actorName} onChange={event => setActorAssignmentDraft(current => ({ ...current, actorName: event.target.value }))} placeholder="Actor name" className={fieldClassName} />
+                <input type="text" value={actorAssignmentDraft.characterName} onChange={event => setActorAssignmentDraft(current => ({ ...current, characterName: event.target.value }))} placeholder="Character name" className={fieldClassName} />
+              </>
+            ) : (
+              <>
+                <select value={crewAssignmentDraft.crewMemberId} onChange={event => setCrewAssignmentDraft({ crewMemberId: event.target.value })} className={fieldClassName}>
+                  <option value="">Select crew member</option>
+                  {crewMembers.map(member => (
+                    <option key={member.id} value={member.id}>{member.name} - {member.department} - {member.designation}</option>
+                  ))}
+                </select>
+                <input type="text" value={selectedCrewMember ? `${selectedCrewMember.department} - ${selectedCrewMember.designation}` : ''} readOnly placeholder="Department - designation" className={fieldClassName} />
+              </>
+            )}
             <input type="text" value={callSheetForm.notes ?? ''} onChange={event => setCallSheetForm(current => ({ ...current, projectId: activeProjectId, notes: event.target.value }))} placeholder="Notes" className={fieldClassName} />
+          </div>
+          <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
+            <div className="flex flex-wrap gap-2">
+              {callSheetForm.assignments.length === 0 ? (
+                <span className="text-sm text-zinc-500 dark:text-zinc-400">No assignees added.</span>
+              ) : (
+                callSheetForm.assignments.map((assignment, index) => (
+                  <button
+                    key={`${assignment.assignmentType}-${index}-${describeAssignment(assignment)}`}
+                    type="button"
+                    onClick={() => removeCallSheetAssignment(index)}
+                    className="rounded-full border border-zinc-200 px-3 py-1 text-xs font-semibold text-zinc-600 transition hover:border-red-300 hover:text-red-500 dark:border-zinc-800 dark:text-zinc-300"
+                  >
+                    {describeAssignment(assignment)} x
+                  </button>
+                ))
+              )}
+            </div>
+            <button type="button" onClick={addCallSheetAssignment} disabled={!canManageActors} className="btn-soft">
+              Add Assignee
+            </button>
           </div>
           <div className="mt-4 flex justify-end">
             <button
               onClick={() => {
-                if (!callSheetForm.shootDate || !callSheetForm.location.trim() || !callSheetForm.callTime || !callSheetForm.actorName.trim()) {
-                  showError('Shoot date, call time, location, and actor name are required.')
+                if (!canManageActors) {
+                  showError('You do not have permission to create call sheets.')
                   return
                 }
-                createCallSheetMutation.mutate({ ...callSheetForm, projectId: activeProjectId })
+                if (!callSheetForm.shootDate) {
+                  showError('Call sheet date must be within project timeline.')
+                  return
+                }
+                if (!isDateWithinProject(callSheetForm.shootDate, activeProject?.startDate, activeProject?.endDate)) {
+                  showError('Call sheet date must be within project timeline.')
+                  return
+                }
+                if (!callSheetForm.locationId) {
+                  showError('Missing location.')
+                  return
+                }
+                if (!hasValidTimeRange(callSheetForm.timeIn, callSheetForm.timeOut)) {
+                  showError('Invalid time range.')
+                  return
+                }
+                if (callSheetForm.assignments.length === 0) {
+                  showError('Missing assignee.')
+                  return
+                }
+                createCallSheetMutation.mutate({
+                  ...callSheetForm,
+                  projectId: activeProjectId,
+                  callTime: callSheetForm.timeIn,
+                })
               }}
-              disabled={createCallSheetMutation.isPending}
+              disabled={createCallSheetMutation.isPending || projectLocations.length === 0 || !canManageActors}
               className="btn-primary"
             >
               Create Call Sheet
@@ -409,13 +665,15 @@ export function ActorsView() {
                 <div key={group.shootDate} className="rounded-[24px] border border-zinc-200 bg-zinc-50 px-4 py-4 dark:border-zinc-800 dark:bg-zinc-950">
                   <div className="mb-3 flex items-center justify-between gap-4">
                     <p className="text-sm font-semibold text-zinc-900 dark:text-white">{formatDate(group.shootDate)}</p>
-                    <span className="text-xs uppercase tracking-[0.18em] text-zinc-500 dark:text-zinc-400">{group.entries.length} actors</span>
+                    <span className="text-xs uppercase tracking-[0.18em] text-zinc-500 dark:text-zinc-400">{group.entries.reduce((sum, entry) => sum + Math.max(entry.assignments?.length ?? 0, 1), 0)} assignees</span>
                   </div>
                   <div className="space-y-3">
                     {group.entries.map(entry => (
                       <div key={entry.id} className="rounded-2xl border border-zinc-200 bg-white px-4 py-3 dark:border-zinc-800 dark:bg-zinc-900">
-                        <p className="text-sm font-semibold text-zinc-900 dark:text-white">{entry.actorName}{entry.characterName ? ` • ${entry.characterName}` : ''}</p>
-                        <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">{entry.location} • {entry.callTime}</p>
+                        <p className="text-sm font-semibold text-zinc-900 dark:text-white">
+                          {(entry.assignments?.length ? entry.assignments.map(describeAssignment).join(', ') : entry.actorName) || 'Unassigned'}
+                        </p>
+                        <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">{entry.location} • {entry.timeIn ?? entry.callTime} - {entry.timeOut ?? entry.callTime}</p>
                         {entry.notes && <p className="mt-2 text-sm text-zinc-600 dark:text-zinc-300">{entry.notes}</p>}
                       </div>
                     ))}
@@ -465,6 +723,10 @@ export function ActorsView() {
           <div className="mt-4 flex justify-end">
             <button
               onClick={() => {
+                if (!canManageActors) {
+                  showError('You do not have permission to create actor payments.')
+                  return
+                }
                 if (!paymentForm.actorName.trim() || !paymentForm.paymentDate) {
                   showError('Actor name and payment date are required.')
                   return
@@ -475,7 +737,7 @@ export function ActorsView() {
                 }
                 createPaymentMutation.mutate({ ...paymentForm, projectId: activeProjectId })
               }}
-              disabled={createPaymentMutation.isPending}
+              disabled={createPaymentMutation.isPending || !canManageActors}
               className="btn-primary"
             >
               Add Payment
@@ -505,7 +767,7 @@ export function ActorsView() {
                       <td className="py-3">
                         <button
                           onClick={() => updatePaymentMutation.mutate({ id: payment.id, status: payment.status === 'paid' ? 'pending' : 'paid' })}
-                          disabled={updatePaymentMutation.isPending}
+                          disabled={updatePaymentMutation.isPending || !canManageActors}
                           className={`rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] ${
                             payment.status === 'paid'
                               ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/12 dark:text-emerald-300'
@@ -534,13 +796,17 @@ export function ActorsView() {
           <div className="mt-4 flex justify-end">
             <button
               onClick={() => {
+                if (!canManageActors) {
+                  showError('You do not have permission to upload look tests.')
+                  return
+                }
                 if (!lookForm.actorName.trim() || !lookForm.image) {
                   showError('Actor name and image are required.')
                   return
                 }
                 createLookMutation.mutate()
               }}
-              disabled={createLookMutation.isPending}
+              disabled={createLookMutation.isPending || !canManageActors}
               className="btn-primary"
             >
               Upload Look Test
@@ -570,7 +836,7 @@ export function ActorsView() {
                         <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">{look.characterName || 'Character not set'} • {formatDate(look.createdAt)}</p>
                         {look.notes && <p className="mt-2 text-sm text-zinc-600 dark:text-zinc-300">{look.notes}</p>}
                       </div>
-                      <button onClick={() => deleteLookMutation.mutate({ projectId: activeProjectId, id: look.id })} disabled={deleteLookMutation.isPending} className="text-xs font-semibold uppercase tracking-[0.18em] text-red-500 transition hover:text-red-600 dark:text-red-400 dark:hover:text-red-300">
+                      <button onClick={() => deleteLookMutation.mutate({ projectId: activeProjectId, id: look.id })} disabled={deleteLookMutation.isPending || !canManageActors} className="text-xs font-semibold uppercase tracking-[0.18em] text-red-500 transition hover:text-red-600 dark:text-red-400 dark:hover:text-red-300">
                         Remove
                       </button>
                     </div>

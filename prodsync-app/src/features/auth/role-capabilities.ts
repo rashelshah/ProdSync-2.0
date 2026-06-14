@@ -136,7 +136,7 @@ export function canAccessActorsWorkspace(user: UserLike) {
 }
 
 export function canManageActorsOperations(user: UserLike) {
-  return canAccessActorsWorkspace(user)
+  return isProducerUser(user) || isActorCoordinator(user)
 }
 
 export function canDeleteActorLooks(user: UserLike) {

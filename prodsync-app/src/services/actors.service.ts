@@ -3,8 +3,10 @@ import type {
   ActorAlert,
   ActorCallSheet,
   ActorCallSheetGroup,
+  ActorCrewMemberOption,
   ActorLook,
   ActorPayment,
+  ActorProjectLocation,
   CreateActorCallSheetInput,
   CreateActorLookInput,
   CreateActorPaymentInput,
@@ -41,23 +43,34 @@ export const actorsService = {
   },
 
   async getCallSheets(projectId: string): Promise<{ callSheets: ActorCallSheet[]; groupedByDate: ActorCallSheetGroup[] }> {
-    const response = await apiFetch(`/actors/call-sheet?${withProjectId(projectId)}`)
+    const response = await apiFetch(`/actors/call-sheets?${withProjectId(projectId)}`)
     return readApiJson<{ callSheets: ActorCallSheet[]; groupedByDate: ActorCallSheetGroup[] }>(response)
   },
 
   async getCallSheet(projectId: string, id: string): Promise<ActorCallSheet> {
-    const response = await apiFetch(`/actors/call-sheet/${encodeURIComponent(id)}?${withProjectId(projectId)}`)
+    const response = await apiFetch(`/actors/call-sheets/${encodeURIComponent(id)}?${withProjectId(projectId)}`)
     const payload = await readApiJson<{ callSheet: ActorCallSheet }>(response)
     return payload.callSheet
   },
 
   async createCallSheet(input: CreateActorCallSheetInput): Promise<ActorCallSheet> {
-    const response = await apiFetch('/actors/call-sheet', {
+    const response = await apiFetch('/actors/call-sheets', {
       method: 'POST',
       body: JSON.stringify(input),
     })
     const payload = await readApiJson<{ callSheet: ActorCallSheet }>(response)
     return payload.callSheet
+  },
+
+  async getProjectLocations(projectId: string): Promise<ActorProjectLocation[]> {
+    const response = await apiFetch(`/actors/project-locations?${withProjectId(projectId)}`)
+    return readApiJson<ActorProjectLocation[]>(response)
+  },
+
+  async getCrewMembers(projectId: string): Promise<ActorCrewMemberOption[]> {
+    const response = await apiFetch(`/actors/crew-members?${withProjectId(projectId)}`)
+    const payload = await readApiJson<{ crewMembers: ActorCrewMemberOption[] }>(response)
+    return payload.crewMembers ?? []
   },
 
   async getPayments(projectId: string): Promise<ActorPayment[]> {

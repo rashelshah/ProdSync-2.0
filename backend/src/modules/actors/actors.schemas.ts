@@ -24,14 +24,47 @@ export const actorRecordParamSchema = z.object({
   id: uuidSchema,
 })
 
+const callSheetTypeSchema = z.enum(['standard', 'one_and_half', 'double', 'custom'])
+const callSheetAssignmentTypeSchema = z.enum(['actor', 'crew'])
+
+const callSheetAssignmentSchema = z.object({
+  assignmentType: callSheetAssignmentTypeSchema,
+  actorName: z.string().trim().max(160).optional(),
+  characterName: z.string().trim().max(160).optional(),
+  crewMemberId: uuidSchema.optional(),
+  crewName: z.string().trim().max(160).optional(),
+  department: z.string().trim().max(120).optional(),
+  designation: z.string().trim().max(160).optional(),
+})
+
 export const callSheetCreateSchema = z.object({
   projectId: uuidSchema,
   shootDate: dateSchema,
-  location: z.string().trim().min(1).max(300),
-  callTime: timeSchema,
-  actorName: z.string().trim().min(1).max(160),
+  locationId: uuidSchema.optional(),
+  location: z.string().trim().max(300).optional(),
+  callType: callSheetTypeSchema.default('standard'),
+  timeIn: timeSchema,
+  timeOut: timeSchema,
+  callTime: timeSchema.optional(),
+  assignmentType: callSheetAssignmentTypeSchema.optional(),
+  assignments: z.array(callSheetAssignmentSchema).max(200).optional(),
+  actors: z.array(z.object({
+    actorName: z.string().trim().min(1).max(160),
+    characterName: z.string().trim().max(160).optional(),
+  })).max(200).optional(),
+  crew: z.array(z.object({
+    crewMemberId: uuidSchema.optional(),
+    crewName: z.string().trim().min(1).max(160),
+    department: z.string().trim().min(1).max(120),
+    designation: z.string().trim().min(1).max(160),
+  })).max(200).optional(),
+  actorName: z.string().trim().max(160).optional(),
   characterName: z.string().trim().max(160).optional(),
   notes: z.string().trim().max(2_000).optional(),
+})
+
+export const callSheetUpdateSchema = callSheetCreateSchema.partial().extend({
+  projectId: uuidSchema,
 })
 
 export const actorLookQuerySchema = actorsProjectQuerySchema.extend({
@@ -63,6 +96,7 @@ export const actorPaymentUpdateSchema = z.object({
 export type JuniorArtistCreateInput = z.infer<typeof juniorArtistCreateSchema>
 export type JuniorArtistQueryInput = z.infer<typeof juniorArtistQuerySchema>
 export type CallSheetCreateInput = z.infer<typeof callSheetCreateSchema>
+export type CallSheetUpdateInput = z.infer<typeof callSheetUpdateSchema>
 export type ActorLookQueryInput = z.infer<typeof actorLookQuerySchema>
 export type ActorLookCreateInput = z.infer<typeof actorLookCreateSchema>
 export type ActorPaymentCreateInput = z.infer<typeof actorPaymentCreateSchema>
