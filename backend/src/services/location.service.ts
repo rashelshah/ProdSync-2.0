@@ -34,8 +34,21 @@ type ResolvedLocationInput = {
 
 const resolvedLocationCache = new Map<string, { expiresAt: number; value: ResolvedLocationInput }>()
 
+function dropLocationDebug(message: string, payload?: Record<string, unknown>) {
+  if (process.env.NODE_ENV !== 'production') {
+    console.debug(message, payload ?? {})
+  }
+}
+
 function normalizeResolveKey(projectId: string, input: string) {
   return `${projectId}:${input.trim().toLowerCase().replace(/\s+/g, ' ')}`
+}
+
+function normalizeLocationInput(rawInput: string) {
+  return rawInput
+    .replace(/[\r\n]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
 }
 
 function parseCoordinates(value: string) {
@@ -67,6 +80,46 @@ function parseCoordinates(value: string) {
   }
 
   return null
+}
+
+function isGoogleMapsUrlCandidate(value: string) {
+  return /^(?:https?:\/\/)?(?:maps\.app\.goo\.gl|goo\.gl\/maps|(?:www\.)?(?:google|maps\.google)\.com\/maps)/i.test(value.trim())
+}
+
+function isGoogleMapsShortUrl(url: URL) {
+  return /^(?:maps\.app\.goo\.gl|goo\.gl)$/i.test(url.hostname)
+}
+
+function extractPathSegment(pathname: string, segment: 'place' | 'search' | 'dir') {
+  const match = pathname.match(new RegExp(`\\/${segment}\\/([^/]+)`, 'i'))
+  if (!match?.[1]) return null
+  return decodeURIComponent(match[1]).replace(/\+/g, ' ').trim()
+}
+
+function extractGoogleMapsSearchText(url: URL) {
+  const queryCandidates = [
+    url.searchParams.get('q'),
+    url.searchParams.get('query'),
+    url.searchParams.get('destination'),
+    url.searchParams.get('daddr'),
+    url.searchParams.get('address'),
+    url.searchParams.get('ll'),
+    url.searchParams.get('place'),
+  ].filter((value): value is string => Boolean(value && value.trim()))
+
+  if (queryCandidates.length > 0) {
+    return queryCandidates[0].trim()
+  }
+
+  return (
+    extractPathSegment(url.pathname, 'place') ??
+    extractPathSegment(url.pathname, 'search') ??
+    extractPathSegment(url.pathname, 'dir')
+  )
+}
+
+function extractGoogleMapsCoordinates(url: URL, originalInput: string) {
+  return parseCoordinates(`${originalInput} ${url.href} ${url.pathname} ${url.search} ${url.hash}`)
 }
 
 function candidateUrl(rawInput: string) {
@@ -120,6 +173,50 @@ async function followRedirects(url: string) {
   }
 }
 
+async function resolveGoogleMapsUrl(urlCandidate: string, originalInput: string) {
+  const firstPassUrl = new URL(urlCandidate)
+  dropLocationDebug('[drop-location] google maps url detected', {
+    hostname: firstPassUrl.hostname,
+    pathname: firstPassUrl.pathname,
+  })
+
+  const resolveFromUrl = (url: URL) => {
+    const coordinates = extractGoogleMapsCoordinates(url, originalInput)
+    if (coordinates) {
+      return { coordinates, searchText: null, resolvedUrl: url.toString() }
+    }
+
+    const searchText = extractGoogleMapsSearchText(url)
+    if (searchText) {
+      return { coordinates: null, searchText, resolvedUrl: url.toString() }
+    }
+
+    return null
+  }
+
+  const directResolution = resolveFromUrl(firstPassUrl)
+  if (directResolution) {
+    return directResolution
+  }
+
+  if (isGoogleMapsShortUrl(firstPassUrl)) {
+    const resolvedUrl = await followRedirects(firstPassUrl.toString())
+    const resolvedUrlObject = new URL(resolvedUrl)
+    dropLocationDebug('[drop-location] normalized url', {
+      resolvedUrl,
+      hostname: resolvedUrlObject.hostname,
+      pathname: resolvedUrlObject.pathname,
+    })
+
+    const expandedResolution = resolveFromUrl(resolvedUrlObject)
+    if (expandedResolution) {
+      return expandedResolution
+    }
+  }
+
+  return null
+}
+
 export function getLocationAudience(req: Pick<Request, 'authUser' | 'projectAccess'>): LocationAudience {
   const roles = getTransportAccessRoles(req as Request)
   if (req.projectAccess?.isOwner || roles.has('LINE_PRODUCER') || roles.has('TRANSPORT_CAPTAIN')) {
@@ -164,10 +261,15 @@ export async function searchLocationSuggestions(query: LocationSearchQuery, user
 }
 
 export async function resolveLocationInput(query: LocationResolveQuery, userRole: MapProviderRole): Promise<ResolvedLocationInput> {
-  const normalizedInput = query.input.trim()
+  const normalizedInput = normalizeLocationInput(query.input)
   if (!normalizedInput) {
     throw new HttpError(400, 'Paste a Google Maps link, coordinates, or an address to resolve the location.')
   }
+
+  dropLocationDebug('[drop-location] input received', {
+    input: normalizedInput,
+    type: isGoogleMapsUrlCandidate(normalizedInput) ? 'google-maps-url' : parseCoordinates(normalizedInput) ? 'coordinates' : candidateUrl(normalizedInput) ? 'url' : 'address',
+  })
 
   const cacheKey = normalizeResolveKey(query.projectId, normalizedInput)
   const cached = resolvedLocationCache.get(cacheKey)
@@ -198,6 +300,63 @@ export async function resolveLocationInput(query: LocationResolveQuery, userRole
 
   const urlCandidate = candidateUrl(normalizedInput)
   if (urlCandidate) {
+    if (isGoogleMapsUrlCandidate(urlCandidate)) {
+      const googleResolution = await resolveGoogleMapsUrl(urlCandidate, normalizedInput)
+      if (googleResolution?.coordinates) {
+        const addressResult = await reverseGeocodeLocation({
+          projectId: query.projectId,
+          latitude: googleResolution.coordinates.latitude,
+          longitude: googleResolution.coordinates.longitude,
+        }, userRole)
+
+        const resolved = {
+          projectId: query.projectId,
+          input: normalizedInput,
+          address: addressResult.address || 'Location unavailable',
+          latitude: googleResolution.coordinates.latitude,
+          longitude: googleResolution.coordinates.longitude,
+          source: 'url' as const,
+          resolvedUrl: googleResolution.resolvedUrl,
+        }
+        resolvedLocationCache.set(cacheKey, { expiresAt: Date.now() + 5 * 60 * 1000, value: resolved })
+        dropLocationDebug('[drop-location] resolution success', {
+          source: 'coordinates',
+          latitude: resolved.latitude,
+          longitude: resolved.longitude,
+        })
+        return resolved
+      }
+
+      if (googleResolution?.searchText) {
+        const searchResult = await searchLocationSuggestions({
+          projectId: query.projectId,
+          query: googleResolution.searchText,
+        }, userRole)
+
+        const suggestion = searchResult.suggestions?.[0]
+        if (suggestion?.location.latitude != null && suggestion?.location.longitude != null) {
+          const resolved = {
+            projectId: query.projectId,
+            input: normalizedInput,
+            address: suggestion.label || suggestion.address || googleResolution.searchText,
+            latitude: suggestion.location.latitude,
+            longitude: suggestion.location.longitude,
+            source: 'search' as const,
+            resolvedUrl: googleResolution.resolvedUrl,
+          }
+          resolvedLocationCache.set(cacheKey, { expiresAt: Date.now() + 5 * 60 * 1000, value: resolved })
+          dropLocationDebug('[drop-location] resolution success', {
+            source: 'search',
+            latitude: resolved.latitude,
+            longitude: resolved.longitude,
+          })
+          return resolved
+        }
+      }
+
+      throw new HttpError(400, 'Unable to resolve this Google Maps link. Location could not be extracted from the provided URL.')
+    }
+
     const resolvedUrl = await followRedirects(urlCandidate)
     const resolvedUrlObject = new URL(resolvedUrl)
     const urlCoordinates = parseCoordinates(`${resolvedUrlObject.href} ${resolvedUrlObject.pathname} ${resolvedUrlObject.search}`)
@@ -219,6 +378,11 @@ export async function resolveLocationInput(query: LocationResolveQuery, userRole
         resolvedUrl,
       }
       resolvedLocationCache.set(cacheKey, { expiresAt: Date.now() + 5 * 60 * 1000, value: resolved })
+      dropLocationDebug('[drop-location] resolution success', {
+        source: 'url',
+        latitude: resolved.latitude,
+        longitude: resolved.longitude,
+      })
       return resolved
     }
 
@@ -241,6 +405,11 @@ export async function resolveLocationInput(query: LocationResolveQuery, userRole
           resolvedUrl,
         }
         resolvedLocationCache.set(cacheKey, { expiresAt: Date.now() + 5 * 60 * 1000, value: resolved })
+        dropLocationDebug('[drop-location] resolution success', {
+          source: 'search',
+          latitude: resolved.latitude,
+          longitude: resolved.longitude,
+        })
         return resolved
       }
     }
@@ -263,8 +432,14 @@ export async function resolveLocationInput(query: LocationResolveQuery, userRole
       resolvedUrl: null,
     }
     resolvedLocationCache.set(cacheKey, { expiresAt: Date.now() + 5 * 60 * 1000, value: resolved })
+    dropLocationDebug('[drop-location] resolution success', {
+      source: 'address',
+      latitude: resolved.latitude,
+      longitude: resolved.longitude,
+    })
     return resolved
   }
 
+  dropLocationDebug('[drop-location] resolution failed', { input: normalizedInput })
   throw new HttpError(400, 'Unsupported location input. Paste a Google Maps link, Mapbox URL, coordinates, or a readable address.')
 }

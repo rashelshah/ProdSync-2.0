@@ -15,7 +15,30 @@ function normalizeApiBaseUrl(value: string | undefined) {
   return trimmed || '/api'
 }
 
-export const apiBaseUrl = normalizeApiBaseUrl(import.meta.env.VITE_API_BASE_URL)
+function isLoopbackHostname(hostname: string) {
+  return hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '::1'
+}
+
+function resolveApiBaseUrl(value: string | undefined) {
+  const normalized = normalizeApiBaseUrl(value)
+
+  if (typeof window === 'undefined') {
+    return normalized
+  }
+
+  try {
+    const resolved = new URL(normalized, window.location.origin)
+    if (isLoopbackHostname(resolved.hostname) && !isLoopbackHostname(window.location.hostname)) {
+      return '/api'
+    }
+  } catch {
+    return normalized
+  }
+
+  return normalized
+}
+
+export const apiBaseUrl = resolveApiBaseUrl(import.meta.env.VITE_API_BASE_URL)
 
 export function apiOrigin() {
   if (typeof window === 'undefined') {
@@ -71,6 +94,9 @@ export async function apiFetch(path: string, init: RequestInit = {}) {
       headers,
     })
   } catch (error) {
+    if (error instanceof Error && (error.name === 'AbortError' || (init.signal?.aborted ?? false))) {
+      throw error
+    }
     const message = error instanceof Error ? error.message : 'Unable to reach the server.'
     showError('Unable to reach the server. Please try again.', { id: 'network-error' })
     throw annotateError(message, { feedbackShown: true })

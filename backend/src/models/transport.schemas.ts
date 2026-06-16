@@ -117,7 +117,7 @@ export const locationSearchQuerySchema = z.object({
 
 export const locationResolveQuerySchema = z.object({
   projectId: uuidSchema,
-  input: z.string().trim().min(1).max(500),
+  input: z.string().trim().min(1).max(2048),
 })
 
 export const trackingLiveQuerySchema = paginationSchema.extend({

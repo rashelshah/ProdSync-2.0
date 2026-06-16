@@ -172,6 +172,12 @@ function clearAuthState() {
   }
 }
 
+function authDebug(message: string, payload?: Record<string, unknown>) {
+  if (import.meta.env.DEV) {
+    console.debug(message, payload ?? {})
+  }
+}
+
 async function readAuthenticatedJson<T>(path: string, accessToken: string, init: RequestInit = {}): Promise<T> {
   const headers = new Headers(init.headers)
 
@@ -181,6 +187,8 @@ async function readAuthenticatedJson<T>(path: string, accessToken: string, init:
     headers.set('Content-Type', 'application/json')
   }
 
+  authDebug('[auth] verify request started', { path })
+
   const response = await fetch(`${apiBaseUrl}${path}`, {
     ...init,
     headers,
@@ -188,9 +196,11 @@ async function readAuthenticatedJson<T>(path: string, accessToken: string, init:
 
   if (!response.ok) {
     const payload = await response.json().catch(() => null) as { error?: string; message?: string } | null
+    authDebug('[auth] verify request failed', { path, status: response.status })
     throw new Error(payload?.error ?? payload?.message ?? `Request failed with status ${response.status}`)
   }
 
+  authDebug('[auth] verify request completed', { path })
   return response.json() as Promise<T>
 }
 
@@ -224,6 +234,12 @@ export const useAuthStore = create<AuthStore>()((set, get) => ({
 
     if (!isGoogleCallbackRoute) {
       const { data } = await supabase.auth.getSession()
+      if (data.session) {
+        authDebug('[auth] session detected', {
+          expiresAt: data.session.expires_at ?? null,
+          userId: data.session.user.id,
+        })
+      }
       await get().setSession(data.session)
     } else {
       set(state => ({ ...state, isAuthReady: true }))
@@ -248,12 +264,19 @@ export const useAuthStore = create<AuthStore>()((set, get) => ({
 
     try {
       const hydratedState = await hydrateFromSession(session)
+      authDebug('[auth] session hydrated', {
+        userId: hydratedState.user.id,
+        provider: hydratedState.sessionProvider,
+      })
       set({
         ...hydratedState,
         isAuthReady: true,
       })
       return
     } catch (error) {
+      authDebug('[auth] session hydration failed', {
+        message: error instanceof Error ? error.message : String(error),
+      })
       console.error('[authStore] backend auth hydration failed', error)
     }
 

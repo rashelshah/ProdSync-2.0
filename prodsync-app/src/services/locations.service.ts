@@ -94,8 +94,9 @@ const inflightLocationSearches = new Map<string, Promise<LocationSearchSuggestio
 const inflightReverseLookups = new Map<string, Promise<string>>()
 const inflightNearbyLookups = new Map<string, Promise<NearbyAmenitySuggestion[]>>()
 const inflightHotelLookups = new Map<string, Promise<NearbyHotelSuggestion[]>>()
-const resolvedLocationCache = new Map<string, LocationResolutionRecord>()
+const resolvedLocationCache = new Map<string, { expiresAt: number; value: LocationResolutionRecord }>()
 const inflightLocationResolutions = new Map<string, Promise<LocationResolutionRecord>>()
+const RESOLVED_LOCATION_CACHE_TTL_MS = 20 * 60 * 1000
 
 export interface LocationResolutionRecord {
   projectId: string
@@ -128,7 +129,17 @@ function getNearbySearchKey(projectId: string, location: LocationPoint) {
 }
 
 function getResolvedLocationCacheKey(projectId: string, input: string) {
-  return `${projectId}:${input.trim().toLowerCase().replace(/\s+/g, ' ')}`
+  const normalized = input.trim().replace(/\s+/g, ' ')
+  const coordinateMatch = normalized.match(/^(-?\d+(?:\.\d+)?)\s*,\s*(-?\d+(?:\.\d+)?)$/)
+  if (coordinateMatch) {
+    const latitude = Number(coordinateMatch[1])
+    const longitude = Number(coordinateMatch[2])
+    if (Number.isFinite(latitude) && Number.isFinite(longitude)) {
+      return `${projectId}:coords:${normalizeCoordinate(latitude)},${normalizeCoordinate(longitude)}`
+    }
+  }
+
+  return `${projectId}:text:${normalized.toLowerCase()}`
 }
 
 function getDistanceKm(from: { latitude: number; longitude: number }, to: { latitude: number; longitude: number }) {
@@ -687,8 +698,12 @@ export const locationsService = {
 
     const cacheKey = getResolvedLocationCacheKey(projectId, trimmed)
     const cached = resolvedLocationCache.get(cacheKey)
+    if (cached && cached.expiresAt > Date.now()) {
+      return cached.value
+    }
+
     if (cached) {
-      return cached
+      resolvedLocationCache.delete(cacheKey)
     }
 
     const inflight = inflightLocationResolutions.get(cacheKey)
@@ -699,7 +714,10 @@ export const locationsService = {
     const request = (async () => {
       const response = await apiFetch(`/location/resolve?projectId=${encodeURIComponent(projectId)}&input=${encodeURIComponent(trimmed)}`, { signal })
       const payload = await readApiJson<{ resolution: LocationResolutionRecord }>(response)
-      resolvedLocationCache.set(cacheKey, payload.resolution)
+      resolvedLocationCache.set(cacheKey, {
+        value: payload.resolution,
+        expiresAt: Date.now() + RESOLVED_LOCATION_CACHE_TTL_MS,
+      })
       return payload.resolution
     })().finally(() => {
       inflightLocationResolutions.delete(cacheKey)

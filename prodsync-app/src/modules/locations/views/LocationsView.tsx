@@ -171,6 +171,10 @@ function buildDirectionsUrl(latitude: number | null, longitude: number | null) {
   return `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(`${latitude},${longitude}`)}`
 }
 
+function isAbortError(error: unknown) {
+  return error instanceof Error && (error.name === 'AbortError' || error.message.toLowerCase().includes('aborted'))
+}
+
 function useDebouncedValue<T>(value: T, delayMs: number) {
   const [debouncedValue, setDebouncedValue] = useState(value)
 
@@ -504,6 +508,7 @@ export function LocationsView() {
   const [newLocationPreview, setNewLocationPreview] = useState('')
   const [newLocationSearch, setNewLocationSearch] = useState('')
   const [dropLocationInput, setDropLocationInput] = useState('')
+  const [dropInputMode, setDropInputMode] = useState<'typing' | 'paste'>('typing')
   const [dropLocationResolution, setDropLocationResolution] = useState<LocationResolutionRecord | null>(null)
   const [dropResolutionState, setDropResolutionState] = useState<'idle' | 'resolving' | 'ready' | 'error'>('idle')
   const [dropResolutionMessage, setDropResolutionMessage] = useState('')
@@ -548,7 +553,6 @@ export function LocationsView() {
   })
 
   const selectedTab = workspaceTab
-  const debouncedDropLocationInput = useDebouncedValue(dropLocationInput, 450)
 
   useEffect(() => {
     if (!switchingTab) return
@@ -617,7 +621,7 @@ export function LocationsView() {
         )
       })
       .catch(error => {
-        if (controller.signal.aborted) return
+        if (controller.signal.aborted || isAbortError(error)) return
 
         setDropLocationResolution(null)
         setDropResolutionState('error')
@@ -635,8 +639,13 @@ export function LocationsView() {
       return
     }
 
-    resolveDropLocationInput(debouncedDropLocationInput || dropLocationInput)
-  }, [activeProjectId, createMode, debouncedDropLocationInput, dropLocationInput])
+    const delayMs = dropInputMode === 'paste' ? 400 : 700
+    const timer = window.setTimeout(() => {
+      resolveDropLocationInput(dropLocationInput)
+    }, delayMs)
+
+    return () => window.clearTimeout(timer)
+  }, [activeProjectId, createMode, dropInputMode, dropLocationInput])
 
   useEffect(() => () => dropResolveAbortRef.current?.abort(), [])
 
@@ -2284,6 +2293,7 @@ export function LocationsView() {
           setNewLocationFile(null)
           setNewLocationSearch('')
           setDropLocationInput('')
+          setDropInputMode('typing')
           setDropLocationResolution(null)
           setDropResolutionState('idle')
           setDropResolutionMessage('')
@@ -2306,6 +2316,7 @@ export function LocationsView() {
                 setNewLocationFile(null)
                 setNewLocationSearch('')
                 setDropLocationInput('')
+                setDropInputMode('typing')
                 setDropLocationResolution(null)
                 setDropResolutionState('idle')
                 setDropResolutionMessage('')
@@ -2447,6 +2458,7 @@ export function LocationsView() {
                 setNewLocationFile(null)
                 setNewLocationSearch('')
                 setDropLocationInput('')
+                setDropInputMode('typing')
                 setDropLocationResolution(null)
                 setDropResolutionState('idle')
                 setDropResolutionMessage('')
@@ -2633,17 +2645,23 @@ export function LocationsView() {
                     rows={5}
                     value={dropLocationInput}
                     onChange={event => {
+                      setDropInputMode('typing')
                       setDropLocationInput(event.target.value)
                       setDropResolutionState('idle')
                       setDropResolutionMessage('')
                     }}
                     onPaste={event => {
+                      event.preventDefault()
                       const pastedText = event.clipboardData.getData('text')
                       if (!pastedText.trim()) return
-                      setDropLocationInput(pastedText)
+                      const target = event.currentTarget
+                      const start = target.selectionStart ?? target.value.length
+                      const end = target.selectionEnd ?? start
+                      const nextValue = `${target.value.slice(0, start)}${pastedText}${target.value.slice(end)}`
+                      setDropInputMode('paste')
+                      setDropLocationInput(nextValue)
                       setDropResolutionState('idle')
                       setDropResolutionMessage('')
-                      resolveDropLocationInput(pastedText)
                     }}
                     placeholder="https://maps.app.goo.gl/... or 12.9716, 77.5946 or full address"
                   />
