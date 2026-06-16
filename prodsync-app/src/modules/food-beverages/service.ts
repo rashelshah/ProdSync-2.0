@@ -1,4 +1,4 @@
-import { apiFetch, readApiJson } from '@/lib/api'
+import { apiFetch, apiOrigin, readApiJson } from '@/lib/api'
 import type {
   FoodBeverageAnalyticsRecord,
   FoodBeverageActivityLogRecord,
@@ -38,6 +38,23 @@ function buildFormData(input: object, file?: File | null) {
     formData.append('file', file)
   }
   return formData
+}
+
+function toAbsoluteApiUrl(url: string | null | undefined) {
+  if (!url) {
+    return null
+  }
+
+  if (/^https?:\/\//i.test(url)) {
+    return url
+  }
+
+  return new URL(url, apiOrigin()).toString()
+}
+
+function extractFilename(disposition: string | null, fallback: string) {
+  const match = disposition?.match(/filename="?([^"]+)"?/)
+  return match?.[1] ?? fallback
 }
 
 export const foodBeveragesService = {
@@ -137,7 +154,10 @@ export const foodBeveragesService = {
   async getInvoices(projectId: string): Promise<FoodBeverageInvoiceRecord[]> {
     const response = await apiFetch(`/food-beverages/invoices?${withProjectId(projectId)}`)
     const payload = await readApiJson<{ invoices: FoodBeverageInvoiceRecord[] }>(response)
-    return payload.invoices
+    return (payload.invoices ?? []).map(invoice => ({
+      ...invoice,
+      fileUrl: toAbsoluteApiUrl(invoice.fileUrl),
+    }))
   },
 
   async createInvoice(input: FoodBeverageInvoiceInput, file?: File | null): Promise<FoodBeverageInvoiceRecord> {
@@ -146,7 +166,10 @@ export const foodBeveragesService = {
       body: buildFormData(input, file ?? null),
     })
     const payload = await readApiJson<{ invoice: FoodBeverageInvoiceRecord }>(response)
-    return payload.invoice
+    return {
+      ...payload.invoice,
+      fileUrl: toAbsoluteApiUrl(payload.invoice.fileUrl),
+    }
   },
 
   async updateInvoice(invoiceId: string, input: FoodBeverageInvoiceInput, file?: File | null): Promise<FoodBeverageInvoiceRecord> {
@@ -155,6 +178,36 @@ export const foodBeveragesService = {
       body: buildFormData(input, file ?? null),
     })
     const payload = await readApiJson<{ invoice: FoodBeverageInvoiceRecord }>(response)
-    return payload.invoice
+    return {
+      ...payload.invoice,
+      fileUrl: toAbsoluteApiUrl(payload.invoice.fileUrl),
+    }
+  },
+
+  async getInvoicePdf(invoiceId: string, projectId: string, download = false) {
+    const response = await apiFetch(`/food-beverages/invoices/${encodeURIComponent(invoiceId)}/pdf?projectId=${encodeURIComponent(projectId)}&download=${download ? 'true' : 'false'}`)
+
+    if (!response.ok) {
+      const errorPayload = await response.json().catch(() => null) as { error?: string; message?: string } | null
+      throw new Error(errorPayload?.error ?? errorPayload?.message ?? 'Could not generate the invoice PDF.')
+    }
+
+    const blob = await response.blob()
+    return {
+      blob,
+      filename: extractFilename(response.headers.get('content-disposition'), 'invoice.pdf'),
+    }
+  },
+
+  async downloadInvoicePdf(invoiceId: string, projectId: string) {
+    const { blob, filename } = await foodBeveragesService.getInvoicePdf(invoiceId, projectId, true)
+    const url = window.URL.createObjectURL(blob)
+    const anchor = document.createElement('a')
+    anchor.href = url
+    anchor.download = filename
+    document.body.appendChild(anchor)
+    anchor.click()
+    anchor.remove()
+    window.URL.revokeObjectURL(url)
   },
 }

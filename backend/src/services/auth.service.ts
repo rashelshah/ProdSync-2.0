@@ -42,6 +42,9 @@ export interface CompleteGoogleOnboardingInput {
   projectRoleTitle: string
 }
 
+const AUTH_CONTEXT_CACHE_TTL_MS = 30_000
+const authContextCache = new Map<string, { expiresAt: number; value: AuthenticatedUserContext }>()
+
 function asMetadata(value: unknown): Record<string, unknown> {
   if (value && typeof value === 'object' && !Array.isArray(value)) {
     return value as Record<string, unknown>
@@ -120,6 +123,58 @@ function mapAuthenticatedUser(authUser: User, row: UserProfileRow): Authenticate
   }
 }
 
+function mapAuthenticatedUserFromExistingContext(user: AuthenticatedUserContext, row: UserProfileRow): AuthenticatedUserContext {
+  const profileMetadata = asMetadata(row.metadata)
+  const authProvider = normalizeAuthProvider(row.auth_provider, user.sessionProvider)
+  const fullName =
+    row.full_name ??
+    (typeof user.userMetadata.full_name === 'string' ? user.userMetadata.full_name : null) ??
+    (typeof user.userMetadata.name === 'string' ? user.userMetadata.name : null) ??
+    user.email ??
+    null
+
+  return {
+    id: row.id,
+    authUserId: user.authUserId,
+    email: row.email ?? user.email ?? null,
+    fullName,
+    role: row.role ?? null,
+    department: row.department ?? null,
+    projectRoleTitle: typeof profileMetadata.project_role_title === 'string' ? profileMetadata.project_role_title : null,
+    avatarUrl:
+      row.avatar_url ??
+      (typeof user.userMetadata.avatar_url === 'string' ? user.userMetadata.avatar_url : null),
+    authProvider,
+    isGoogleLinked: Boolean(row.is_google_linked || authProvider === 'google' || authProvider === 'both'),
+    onboardingCompletedAt: row.onboarding_completed_at ?? null,
+    needsOnboarding: !hasOnboardingMetadata(profileMetadata),
+    sessionProvider: user.sessionProvider,
+    userMetadata: user.userMetadata,
+    profileMetadata,
+  }
+}
+
+function getCachedAuthContext(accessToken: string) {
+  const cached = authContextCache.get(accessToken)
+  if (!cached) {
+    return null
+  }
+
+  if (cached.expiresAt <= Date.now()) {
+    authContextCache.delete(accessToken)
+    return null
+  }
+
+  return cached.value
+}
+
+function setCachedAuthContext(accessToken: string, value: AuthenticatedUserContext) {
+  authContextCache.set(accessToken, {
+    expiresAt: Date.now() + AUTH_CONTEXT_CACHE_TTL_MS,
+    value,
+  })
+}
+
 async function getSupabaseUser(accessToken: string) {
   const { data, error } = await adminClient.auth.getUser(accessToken)
 
@@ -173,14 +228,18 @@ async function findUserByEmail(email: string) {
 }
 
 async function findCanonicalUser(authUser: User) {
-  const byId = await findUserById(authUser.id)
-  if (byId) {
-    return byId
+  const { data, error } = await adminClient
+    .from('users')
+    .select('id, full_name, email, role, department, avatar_url, auth_provider, supabase_user_id, is_google_linked, onboarding_completed_at, metadata')
+    .or(`id.eq.${authUser.id},supabase_user_id.eq.${authUser.id}`)
+    .maybeSingle()
+
+  if (error) {
+    throw error
   }
 
-  const bySupabaseUserId = await findUserBySupabaseUserId(authUser.id)
-  if (bySupabaseUserId) {
-    return bySupabaseUserId
+  if (data) {
+    return data as UserProfileRow
   }
 
   if (authUser.email) {
@@ -266,7 +325,14 @@ function assertGoogleSession(user: AuthenticatedUserContext) {
   }
 }
 
-export async function getUserFromAccessToken(accessToken: string) {
+export async function getUserFromAccessToken(accessToken: string, options?: { forceRefresh?: boolean }) {
+  if (!options?.forceRefresh) {
+    const cached = getCachedAuthContext(accessToken)
+    if (cached) {
+      return cached
+    }
+  }
+
   const authUser = await getSupabaseUser(accessToken)
   const canonicalUser = await findCanonicalUser(authUser)
 
@@ -274,10 +340,12 @@ export async function getUserFromAccessToken(accessToken: string) {
     throw new HttpError(404, 'Authenticated user profile could not be resolved.')
   }
 
-  return mapAuthenticatedUser(authUser, canonicalUser)
+  const context = mapAuthenticatedUser(authUser, canonicalUser)
+  setCachedAuthContext(accessToken, context)
+  return context
 }
 
-export async function syncGoogleLogin(user: AuthenticatedUserContext) {
+export async function syncGoogleLogin(user: AuthenticatedUserContext, accessToken?: string) {
   assertGoogleSession(user)
 
   const metadata = {
@@ -287,7 +355,7 @@ export async function syncGoogleLogin(user: AuthenticatedUserContext) {
     avatar_url: user.avatarUrl ?? user.profileMetadata.avatar_url ?? user.userMetadata.avatar_url ?? null,
   }
 
-  const { error } = await adminClient
+  const { data, error } = await adminClient
     .from('users')
     .update({
       full_name: user.fullName ?? 'ProdSync User',
@@ -298,13 +366,21 @@ export async function syncGoogleLogin(user: AuthenticatedUserContext) {
       metadata,
     })
     .eq('id', user.id)
+    .select('id, full_name, email, role, department, avatar_url, auth_provider, supabase_user_id, is_google_linked, onboarding_completed_at, metadata')
+    .single()
 
   if (error) {
     throw error
   }
+
+  const refreshedUser = mapAuthenticatedUserFromExistingContext(user, data as UserProfileRow)
+  if (accessToken) {
+    setCachedAuthContext(accessToken, refreshedUser)
+  }
+  return refreshedUser
 }
 
-export async function completeGoogleOnboarding(user: AuthenticatedUserContext, input: CompleteGoogleOnboardingInput) {
+export async function completeGoogleOnboarding(user: AuthenticatedUserContext, input: CompleteGoogleOnboardingInput, accessToken?: string) {
   assertGoogleSession(user)
 
   const accessRole = projectRoleToAccessRole[input.projectRoleTitle]
@@ -329,7 +405,7 @@ export async function completeGoogleOnboarding(user: AuthenticatedUserContext, i
     avatar_url: user.avatarUrl ?? null,
   }
 
-  const { error } = await adminClient
+  const { data, error } = await adminClient
     .from('users')
     .update({
       full_name: user.fullName ?? 'ProdSync User',
@@ -343,8 +419,16 @@ export async function completeGoogleOnboarding(user: AuthenticatedUserContext, i
       metadata,
     })
     .eq('id', user.id)
+    .select('id, full_name, email, role, department, avatar_url, auth_provider, supabase_user_id, is_google_linked, onboarding_completed_at, metadata')
+    .single()
 
   if (error) {
     throw error
   }
+
+  const refreshedUser = mapAuthenticatedUserFromExistingContext(user, data as UserProfileRow)
+  if (accessToken) {
+    setCachedAuthContext(accessToken, refreshedUser)
+  }
+  return refreshedUser
 }

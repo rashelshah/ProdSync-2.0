@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type InputHTMLAttributes, type KeyboardEvent, type ReactNode, type SelectHTMLAttributes, type TextareaHTMLAttributes } from 'react'
+import { useEffect, useMemo, useRef, useState, type InputHTMLAttributes, type KeyboardEvent, type PointerEvent, type ReactNode, type SelectHTMLAttributes, type TextareaHTMLAttributes } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useSearchParams } from 'react-router-dom'
 import { KpiCard } from '@/components/shared/KpiCard'
@@ -35,6 +35,7 @@ import type {
   LocationTimelineRecord,
   LocationType,
   NearbyAmenitySuggestion,
+  NearbyHotelSuggestion,
   PaginatedLocationDocuments,
   PaginatedLocationMedia,
   UpdateLocationInput,
@@ -43,6 +44,12 @@ import type {
 
 type WorkspaceTab = 'overview' | 'scouting' | 'permissions' | 'amenities' | 'documents' | 'timeline'
 type CreateMode = 'menu' | 'capture' | 'upload' | 'drop'
+type MediaViewerState = {
+  item: LocationMediaRecord
+  scale: number
+  offsetX: number
+  offsetY: number
+}
 
 const WORKSPACE_TABS: Array<{
   id: WorkspaceTab
@@ -157,6 +164,11 @@ function createDefaultLocationDraft(projectId: string): CreateLocationInput {
 function fileToPreviewUrl(file: File | null) {
   if (!file) return ''
   return URL.createObjectURL(file)
+}
+
+function buildDirectionsUrl(latitude: number | null, longitude: number | null) {
+  if (latitude == null || longitude == null) return null
+  return `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(`${latitude},${longitude}`)}`
 }
 
 function useDebouncedValue<T>(value: T, delayMs: number) {
@@ -506,6 +518,7 @@ export function LocationsView() {
   const [documentUploadFile, setDocumentUploadFile] = useState<File | null>(null)
   const [documentUploadCategory, setDocumentUploadCategory] = useState('noc')
   const [documentUploadNotes, setDocumentUploadNotes] = useState('')
+  const [mediaViewer, setMediaViewer] = useState<MediaViewerState | null>(null)
   const [timelineForm, setTimelineForm] = useState<CreateLocationTimelineInput>({
     projectId: activeProjectId ?? '',
     title: '',
@@ -547,6 +560,7 @@ export function LocationsView() {
   const mediaFileInputRef = useRef<HTMLInputElement | null>(null)
   const documentFileInputRef = useRef<HTMLInputElement | null>(null)
   const dropResolveAbortRef = useRef<AbortController | null>(null)
+  const mediaViewerDragRef = useRef<{ startX: number; startY: number; originX: number; originY: number } | null>(null)
   let selectedDetailData: LocationDetailRecord | null = null
 
   useEffect(() => {
@@ -572,13 +586,9 @@ export function LocationsView() {
     return () => URL.revokeObjectURL(previewUrl)
   }, [newLocationFile])
 
-  useEffect(() => {
-    if (createMode !== 'drop' || !activeProjectId || !dropLocationInput.trim()) {
-      dropResolveAbortRef.current?.abort()
-      dropResolveAbortRef.current = null
-      setDropLocationResolution(null)
-      setDropResolutionState('idle')
-      setDropResolutionMessage('')
+  const resolveDropLocationInput = (rawInput: string) => {
+    const trimmed = rawInput.trim()
+    if (createMode !== 'drop' || !activeProjectId || trimmed.length < 3) {
       return
     }
 
@@ -588,7 +598,7 @@ export function LocationsView() {
     setDropResolutionState('resolving')
     setDropResolutionMessage('Resolving location input...')
 
-    void locationsService.resolveLocationInput(activeProjectId, debouncedDropLocationInput || dropLocationInput, controller.signal)
+    void locationsService.resolveLocationInput(activeProjectId, trimmed, controller.signal)
       .then(result => {
         if (controller.signal.aborted) return
 
@@ -613,11 +623,22 @@ export function LocationsView() {
         setDropResolutionState('error')
         setDropResolutionMessage(resolveErrorMessage(error, 'Could not resolve the location input.'))
       })
+  }
 
-    return () => {
-      controller.abort()
+  useEffect(() => {
+    if (createMode !== 'drop' || !activeProjectId || dropLocationInput.trim().length < 3) {
+      dropResolveAbortRef.current?.abort()
+      dropResolveAbortRef.current = null
+      setDropLocationResolution(null)
+      setDropResolutionState('idle')
+      setDropResolutionMessage('')
+      return
     }
+
+    resolveDropLocationInput(debouncedDropLocationInput || dropLocationInput)
   }, [activeProjectId, createMode, debouncedDropLocationInput, dropLocationInput])
+
+  useEffect(() => () => dropResolveAbortRef.current?.abort(), [])
 
   useEffect(() => {
     if (!selectedLocationId || !activeProjectId) {
@@ -732,6 +753,15 @@ export function LocationsView() {
     enabled: Boolean(activeProjectId && selectedLocationId && selectedTab === 'amenities' && selectedDetailQuery.data?.location.latitude != null && selectedDetailQuery.data?.location.longitude != null),
     staleTime: 5 * 60 * 1000,
   })
+  const nearbyHotelsQuery = useQuery<NearbyHotelSuggestion[]>({
+    queryKey: ['location-nearby-hotels', activeProjectId, selectedLocationId, selectedDetailQuery.data?.location.latitude, selectedDetailQuery.data?.location.longitude],
+    queryFn: () => locationsService.getNearbyHotels(activeProjectId!, {
+      latitude: selectedDetailQuery.data?.location.latitude ?? undefined,
+      longitude: selectedDetailQuery.data?.location.longitude ?? undefined,
+    }),
+    enabled: Boolean(activeProjectId && selectedLocationId && selectedTab === 'amenities' && selectedDetailQuery.data?.location.latitude != null && selectedDetailQuery.data?.location.longitude != null),
+    staleTime: 5 * 60 * 1000,
+  })
 
   selectedDetailData = selectedDetailQuery.data ?? null
   const selectedLocation = selectedDetailData?.location ?? null
@@ -756,16 +786,16 @@ export function LocationsView() {
     setLocationDraft(current => ({ ...createDefaultLocationDraft(activeProjectId), ...current, projectId: activeProjectId }))
   }, [activeProjectId])
 
-  const invalidateLocationData = (locationId?: string | null) => {
-    void queryClient.invalidateQueries({ queryKey: ['locations', activeProjectId] })
-    void queryClient.invalidateQueries({ queryKey: ['location-detail', activeProjectId, locationId ?? selectedLocationId] })
-    void queryClient.invalidateQueries({ queryKey: ['location-media', activeProjectId, locationId ?? selectedLocationId] })
-    void queryClient.invalidateQueries({ queryKey: ['location-documents', activeProjectId, locationId ?? selectedLocationId] })
-    void queryClient.invalidateQueries({ queryKey: ['locations-dashboard', activeProjectId] })
-    void queryClient.invalidateQueries({ queryKey: ['locations-reports', activeProjectId] })
-    void queryClient.invalidateQueries({ queryKey: ['activity', activeProjectId] })
-    void queryClient.invalidateQueries({ queryKey: ['alerts', activeProjectId] })
-  }
+  const invalidateLocationData = async (locationId?: string | null) => Promise.all([
+    queryClient.invalidateQueries({ queryKey: ['locations', activeProjectId] }),
+    queryClient.invalidateQueries({ queryKey: ['location-detail', activeProjectId, locationId ?? selectedLocationId] }),
+    queryClient.invalidateQueries({ queryKey: ['location-media', activeProjectId, locationId ?? selectedLocationId] }),
+    queryClient.invalidateQueries({ queryKey: ['location-documents', activeProjectId, locationId ?? selectedLocationId] }),
+    queryClient.invalidateQueries({ queryKey: ['locations-dashboard', activeProjectId] }),
+    queryClient.invalidateQueries({ queryKey: ['locations-reports', activeProjectId] }),
+    queryClient.invalidateQueries({ queryKey: ['activity', activeProjectId] }),
+    queryClient.invalidateQueries({ queryKey: ['alerts', activeProjectId] }),
+  ])
 
   const createLocationMutation = useMutation({
     mutationFn: async (payload: { values: CreateLocationInput; imageFile?: File | null; imageLatitude?: number; imageLongitude?: number; imageNotes?: string }) => {
@@ -785,9 +815,8 @@ export function LocationsView() {
       }
       return created
     },
-    onSuccess: result => {
-      showSuccess('Location created.')
-      invalidateLocationData(result.location.id)
+    onSuccess: async result => {
+      await invalidateLocationData(result.location.id)
       setCreateModalOpen(false)
       setCreateMode('menu')
       setNewLocationFile(null)
@@ -801,33 +830,34 @@ export function LocationsView() {
         params.set('tab', 'overview')
         return params
       })
+      showSuccess('Location created.')
     },
     onError: error => showError(resolveErrorMessage(error, 'Could not create location.')),
   })
 
   const updateLocationMutation = useMutation({
     mutationFn: async ({ id, values }: { id: string; values: UpdateLocationInput }) => locationsService.updateLocation(id, values),
-    onSuccess: result => {
-      showSuccess('Location updated.')
-      invalidateLocationData(result.location.id)
+    onSuccess: async result => {
+      await invalidateLocationData(result.location.id)
       setCreateModalOpen(false)
       setEditingLocation(null)
       setLocationDraft(createDefaultLocationDraft(activeProjectId ?? ''))
+      showSuccess('Location updated.')
     },
     onError: error => showError(resolveErrorMessage(error, 'Could not update location.')),
   })
 
   const deleteLocationMutation = useMutation({
     mutationFn: ({ projectId, id }: { projectId: string; id: string }) => locationsService.deleteLocation(projectId, id),
-    onSuccess: () => {
-      showSuccess('Location deleted.')
-      invalidateLocationData(deleteTarget?.id)
+    onSuccess: async () => {
+      await invalidateLocationData(deleteTarget?.id)
       setDeleteTarget(null)
       setSearchParams(params => {
         params.delete('locationId')
         params.delete('tab')
         return params
       })
+      showSuccess('Location deleted.')
     },
     onError: error => showError(resolveErrorMessage(error, 'Could not delete location.')),
   })
@@ -841,22 +871,22 @@ export function LocationsView() {
         longitude,
         uploadTime: new Date().toISOString(),
       }, file),
-    onSuccess: () => {
-      showSuccess('Image uploaded.')
+    onSuccess: async () => {
       setMediaUploadFile(null)
       setMediaUploadNotes('')
       setMediaUploadLatitude('')
       setMediaUploadLongitude('')
-      invalidateLocationData()
+      await invalidateLocationData()
+      showSuccess('Image uploaded.')
     },
     onError: error => showError(resolveErrorMessage(error, 'Could not upload media.')),
   })
 
   const deleteMediaMutation = useMutation({
     mutationFn: ({ projectId, locationId, mediaId }: { projectId: string; locationId: string; mediaId: string }) => locationsService.deleteMedia(projectId, locationId, mediaId),
-    onSuccess: () => {
+    onSuccess: async () => {
+      await invalidateLocationData()
       showSuccess('Media deleted.')
-      invalidateLocationData()
     },
     onError: error => showError(resolveErrorMessage(error, 'Could not delete media.')),
   })
@@ -864,32 +894,31 @@ export function LocationsView() {
   const uploadDocumentMutation = useMutation({
     mutationFn: ({ locationId, projectId, file, category, permissionId, notes }: { locationId: string; projectId: string; file: File; category: string; permissionId?: string; notes?: string }) =>
       locationsService.uploadDocument(locationId, { projectId, category, permissionId, notes }, file),
-    onSuccess: () => {
-      showSuccess('Document uploaded.')
+    onSuccess: async () => {
       setDocumentUploadFile(null)
       setDocumentUploadCategory('noc')
       setDocumentUploadNotes('')
       setUploadPermissionId('')
-      invalidateLocationData()
+      await invalidateLocationData()
+      showSuccess('Document uploaded.')
     },
     onError: error => showError(resolveErrorMessage(error, 'Could not upload document.')),
   })
 
   const deleteDocumentMutation = useMutation({
     mutationFn: ({ projectId, locationId, documentId }: { projectId: string; locationId: string; documentId: string }) => locationsService.deleteDocument(projectId, locationId, documentId),
-    onSuccess: () => {
+    onSuccess: async () => {
+      await invalidateLocationData()
       showSuccess('Document deleted.')
-      invalidateLocationData()
     },
     onError: error => showError(resolveErrorMessage(error, 'Could not delete document.')),
   })
 
   const createPermissionMutation = useMutation({
     mutationFn: ({ locationId, values }: { locationId: string; values: CreateLocationPermissionInput }) => locationsService.createPermission(locationId, values),
-    onSuccess: () => {
+    onSuccess: async () => {
+      await invalidateLocationData()
       showSuccess('Permission saved.')
-      invalidateLocationData()
-      selectedDetailQuery.refetch()
     },
     onError: error => showError(resolveErrorMessage(error, 'Could not save permission.')),
   })
@@ -897,52 +926,47 @@ export function LocationsView() {
   const updatePermissionMutation = useMutation({
     mutationFn: ({ locationId, permissionId, values }: { locationId: string; permissionId: string; values: Partial<CreateLocationPermissionInput> & { projectId: string } }) =>
       locationsService.updatePermission(locationId, permissionId, values),
-    onSuccess: () => {
+    onSuccess: async () => {
+      await invalidateLocationData()
       showSuccess('Permission updated.')
-      invalidateLocationData()
-      selectedDetailQuery.refetch()
     },
     onError: error => showError(resolveErrorMessage(error, 'Could not update permission.')),
   })
 
   const deletePermissionMutation = useMutation({
     mutationFn: ({ projectId, locationId, permissionId }: { projectId: string; locationId: string; permissionId: string }) => locationsService.deletePermission(projectId, locationId, permissionId),
-    onSuccess: () => {
+    onSuccess: async () => {
+      await invalidateLocationData()
       showSuccess('Permission deleted.')
-      invalidateLocationData()
-      selectedDetailQuery.refetch()
     },
     onError: error => showError(resolveErrorMessage(error, 'Could not delete permission.')),
   })
 
   const upsertAmenityMutation = useMutation({
     mutationFn: ({ locationId, values }: { locationId: string; values: UpsertLocationAmenityInput }) => locationsService.upsertAmenity(locationId, values),
-    onSuccess: () => {
+    onSuccess: async () => {
+      await invalidateLocationData()
       showSuccess('Amenity saved.')
-      invalidateLocationData()
-      selectedDetailQuery.refetch()
     },
     onError: error => showError(resolveErrorMessage(error, 'Could not save amenity.')),
   })
 
   const createTimelineMutation = useMutation({
     mutationFn: ({ locationId, values }: { locationId: string; values: CreateLocationTimelineInput }) => locationsService.createTimeline(locationId, values),
-    onSuccess: () => {
-      showSuccess('Timeline entry added.')
+    onSuccess: async () => {
       setTimelineForm(current => ({ ...current, title: '', description: '', eventType: 'custom', eventAt: '' }))
-      invalidateLocationData()
-      selectedDetailQuery.refetch()
+      await invalidateLocationData()
+      showSuccess('Timeline entry added.')
     },
     onError: error => showError(resolveErrorMessage(error, 'Could not add timeline entry.')),
   })
 
   const createCommentMutation = useMutation({
     mutationFn: ({ locationId, values }: { locationId: string; values: CreateLocationCommentInput }) => locationsService.createComment(locationId, values),
-    onSuccess: () => {
-      showSuccess('Comment added.')
+    onSuccess: async () => {
       setCommentForm(current => ({ ...current, message: '' }))
-      invalidateLocationData()
-      selectedDetailQuery.refetch()
+      await invalidateLocationData()
+      showSuccess('Comment added.')
     },
     onError: error => showError(resolveErrorMessage(error, 'Could not add comment.')),
   })
@@ -954,6 +978,77 @@ export function LocationsView() {
       params.set('tab', tab)
       return params
     })
+  }
+
+  const openMediaViewer = (item: LocationMediaRecord) => {
+    setMediaViewer({
+      item,
+      scale: 1,
+      offsetX: 0,
+      offsetY: 0,
+    })
+  }
+
+  const closeMediaViewer = () => {
+    setMediaViewer(null)
+    mediaViewerDragRef.current = null
+  }
+
+  const updateMediaViewerScale = (nextScale: number) => {
+    setMediaViewer(current => {
+      if (!current) return current
+      return {
+        ...current,
+        scale: Math.max(1, Math.min(4, Number(nextScale.toFixed(2)))),
+      }
+    })
+  }
+
+  const resetMediaViewerPosition = () => {
+    setMediaViewer(current => {
+      if (!current) return current
+      return {
+        ...current,
+        offsetX: 0,
+        offsetY: 0,
+        scale: 1,
+      }
+    })
+  }
+
+  const downloadMediaFile = (item: LocationMediaRecord) => {
+    const anchor = document.createElement('a')
+    anchor.href = item.url
+    anchor.download = item.originalName
+    document.body.appendChild(anchor)
+    anchor.click()
+    anchor.remove()
+  }
+
+  const startMediaDrag = (event: PointerEvent<HTMLDivElement>) => {
+    if (!mediaViewer || mediaViewer.item.mediaKind !== 'image') return
+    mediaViewerDragRef.current = {
+      startX: event.clientX,
+      startY: event.clientY,
+      originX: mediaViewer.offsetX,
+      originY: mediaViewer.offsetY,
+    }
+    event.currentTarget.setPointerCapture(event.pointerId)
+  }
+
+  const moveMediaDrag = (event: PointerEvent<HTMLDivElement>) => {
+    if (!mediaViewer || mediaViewer.item.mediaKind !== 'image' || !mediaViewerDragRef.current) return
+    const { startX, startY, originX, originY } = mediaViewerDragRef.current
+    const nextOffsetX = originX + (event.clientX - startX)
+    const nextOffsetY = originY + (event.clientY - startY)
+    setMediaViewer(current => current ? { ...current, offsetX: nextOffsetX, offsetY: nextOffsetY } : current)
+  }
+
+  const stopMediaDrag = (event: PointerEvent<HTMLDivElement>) => {
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId)
+    }
+    mediaViewerDragRef.current = null
   }
 
   const selectedDetailComments = selectedDetailData?.comments ?? []
@@ -1150,10 +1245,11 @@ export function LocationsView() {
                   </div>
                   {item.notes && <p className="text-sm leading-6 text-zinc-600 dark:text-zinc-300">{item.notes}</p>}
                   <div className="flex flex-wrap gap-3">
-                    <a href={item.url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-2 rounded-full border border-zinc-200 bg-white px-4 py-2.5 text-[11px] font-semibold uppercase tracking-[0.18em] text-zinc-900 transition hover:border-zinc-400 hover:bg-zinc-100 hover:text-zinc-950 dark:border-zinc-800 dark:bg-zinc-950 dark:text-white dark:hover:border-zinc-600 dark:hover:bg-zinc-900">
-                      <span className="material-symbols-outlined text-[16px]">open_in_new</span>
-                      Open
-                    </a>
+                    <ActionButton
+                      label="Open"
+                      icon="visibility"
+                      onClick={() => openMediaViewer(item)}
+                    />
                     <ActionButton
                       label="Delete"
                       icon="delete"
@@ -1405,6 +1501,7 @@ export function LocationsView() {
       current.push(item)
       nearbyByType.set(item.amenityType, current)
     })
+    const hotelSuggestions = nearbyHotelsQuery.data ?? []
 
     const amenityCards: Array<{ key: LocationAmenityType; label: string }> = [
       { key: 'hospital', label: 'Hospitals' },
@@ -1442,21 +1539,27 @@ export function LocationsView() {
                     <button
                       key={result.id}
                       type="button"
-                      onClick={() => setAmenityDrafts(current => ({
-                        ...current,
-                        [card.key]: {
-                          ...current[card.key],
-                          amenityType: card.key,
-                          source: 'mapbox',
-                          name: result.name,
-                          address: result.address,
-                          phoneNumber: result.phoneNumber ?? '',
-                          distanceKm: result.distanceKm,
-                          latitude: result.latitude ?? undefined,
-                          longitude: result.longitude ?? undefined,
-                          mapLink: result.mapLink ?? '',
-                        },
-                      }))}
+                      onClick={() => {
+                        setAmenityDrafts(current => ({
+                          ...current,
+                          [card.key]: {
+                            ...current[card.key],
+                            amenityType: card.key,
+                            source: 'mapbox',
+                            name: result.name,
+                            address: result.address,
+                            phoneNumber: result.phoneNumber ?? '',
+                            distanceKm: result.distanceKm,
+                            latitude: result.latitude ?? undefined,
+                            longitude: result.longitude ?? undefined,
+                            mapLink: result.mapLink ?? '',
+                          },
+                        }))
+                        const directionsUrl = buildDirectionsUrl(result.latitude, result.longitude) ?? result.mapLink
+                        if (directionsUrl) {
+                          window.open(directionsUrl, '_blank', 'noopener,noreferrer')
+                        }
+                      }}
                       className="w-full rounded-[22px] border border-zinc-200 bg-white px-4 py-3 text-left transition hover:border-zinc-400 hover:bg-zinc-100 dark:border-zinc-800 dark:bg-zinc-950 dark:hover:border-zinc-600 dark:hover:bg-zinc-900"
                     >
                       <p className="text-sm font-medium text-zinc-900 dark:text-white">{result.name}</p>
@@ -1505,6 +1608,45 @@ export function LocationsView() {
               </div>
             )
           })}
+        </div>
+
+        <div className="mt-6 rounded-[28px] border border-zinc-200 bg-zinc-50 p-4 dark:border-zinc-800 dark:bg-zinc-900">
+          <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+            <div>
+              <p className="text-sm font-semibold text-zinc-900 dark:text-white">Hotels</p>
+              <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">Nearby stays pulled from the same Mapbox lookup pipeline.</p>
+            </div>
+            <StatusBadge variant="stable" label={hotelSuggestions.length > 0 ? `${hotelSuggestions.length} found` : 'No hotel match'} />
+          </div>
+          <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+            {hotelSuggestions.slice(0, 3).map(hotel => (
+              <div key={hotel.id} className="rounded-[22px] border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-950">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-semibold text-zinc-900 dark:text-white">{hotel.name}</p>
+                    <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">{hotel.address}</p>
+                  </div>
+                  <StatusBadge variant="stable" label={`${hotel.distanceKm.toFixed(2)} km`} />
+                </div>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {hotel.phoneNumber && <StatusBadge variant="stable" label={hotel.phoneNumber} />}
+                  {hotel.metadata?.poiCategories?.[0] && <StatusBadge variant="stable" label={hotel.metadata.poiCategories[0]} />}
+                </div>
+                <div className="mt-4 flex flex-wrap gap-3">
+                  <ActionButton
+                    label="Open"
+                    icon="open_in_new"
+                    onClick={() => {
+                      const directionsUrl = buildDirectionsUrl(hotel.latitude, hotel.longitude) ?? hotel.mapLink
+                      if (directionsUrl) {
+                        window.open(directionsUrl, '_blank', 'noopener,noreferrer')
+                      }
+                    }}
+                  />
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
       </Surface>
     )
@@ -2495,6 +2637,14 @@ export function LocationsView() {
                       setDropResolutionState('idle')
                       setDropResolutionMessage('')
                     }}
+                    onPaste={event => {
+                      const pastedText = event.clipboardData.getData('text')
+                      if (!pastedText.trim()) return
+                      setDropLocationInput(pastedText)
+                      setDropResolutionState('idle')
+                      setDropResolutionMessage('')
+                      resolveDropLocationInput(pastedText)
+                    }}
                     placeholder="https://maps.app.goo.gl/... or 12.9716, 77.5946 or full address"
                   />
                 </Field>
@@ -2517,6 +2667,73 @@ export function LocationsView() {
           </div>
         )}
       </ModalShell>
+
+      {mediaViewer && (
+        <div className="fixed inset-0 z-50 flex items-stretch justify-center bg-[color:rgba(9,9,11,0.72)] px-0 py-0 backdrop-blur-md sm:items-center sm:px-4 sm:py-6">
+          <div className="flex h-full w-full flex-col overflow-hidden bg-[color:var(--app-bg)] shadow-[0_24px_60px_rgba(15,23,42,0.28)] sm:h-[min(92vh,980px)] sm:max-w-6xl sm:rounded-[32px]">
+            <div className="flex items-start justify-between gap-4 border-b border-[color:var(--app-border)] px-5 py-4 sm:px-6">
+              <div className="min-w-0">
+                <p className="text-[10px] font-semibold uppercase tracking-[0.24em] text-[color:var(--app-muted)]">Media Viewer</p>
+                <h2 className="mt-1 truncate text-xl font-semibold tracking-[-0.03em] text-[color:var(--app-text)]">{mediaViewer.item.originalName}</h2>
+                <p className="mt-2 text-sm leading-6 text-[color:var(--app-muted)]">Use zoom, drag, print-safe download, and fullscreen viewing without leaving ProdSync.</p>
+              </div>
+              <div className="flex items-center gap-2">
+                {mediaViewer.item.mediaKind === 'image' && (
+                  <>
+                    <ActionButton label="Zoom +" icon="zoom_in" onClick={() => updateMediaViewerScale((mediaViewer.scale ?? 1) + 0.25)} />
+                    <ActionButton label="Zoom -" icon="zoom_out" onClick={() => updateMediaViewerScale((mediaViewer.scale ?? 1) - 0.25)} />
+                    <ActionButton label="Reset" icon="restart_alt" onClick={resetMediaViewerPosition} />
+                  </>
+                )}
+                <ActionButton label="Download" icon="download" onClick={() => downloadMediaFile(mediaViewer.item)} />
+                <button
+                  type="button"
+                  onClick={closeMediaViewer}
+                  className="flex h-11 w-11 items-center justify-center rounded-full border border-[color:var(--app-border)] bg-[color:var(--app-surface-strong)] text-[color:var(--app-muted)] transition hover:border-orange-200 hover:bg-orange-50 hover:text-orange-600"
+                >
+                  <span className="material-symbols-outlined text-[18px]">close</span>
+                </button>
+              </div>
+            </div>
+
+            <div className="flex min-h-0 flex-1 items-center justify-center p-4 sm:p-6">
+              <div className="flex h-full w-full items-center justify-center overflow-hidden rounded-[28px] border border-[color:var(--app-border)] bg-black">
+                {mediaViewer.item.mediaKind === 'image' ? (
+                  <div
+                    className="relative h-full w-full overflow-hidden"
+                    style={{ touchAction: 'none', cursor: mediaViewer.scale > 1 ? 'grab' : 'default' }}
+                    onWheel={event => {
+                      event.preventDefault()
+                      updateMediaViewerScale((mediaViewer.scale ?? 1) + (event.deltaY > 0 ? -0.15 : 0.15))
+                    }}
+                    onPointerDown={startMediaDrag}
+                    onPointerMove={moveMediaDrag}
+                    onPointerUp={stopMediaDrag}
+                    onPointerLeave={stopMediaDrag}
+                    onPointerCancel={stopMediaDrag}
+                  >
+                    <img
+                      src={mediaViewer.item.url}
+                      alt={mediaViewer.item.originalName}
+                      className="absolute left-1/2 top-1/2 max-h-none max-w-none select-none"
+                      style={{
+                        transform: `translate(-50%, -50%) translate(${mediaViewer.offsetX}px, ${mediaViewer.offsetY}px) scale(${mediaViewer.scale})`,
+                      }}
+                      draggable={false}
+                    />
+                  </div>
+                ) : (
+                  <video
+                    src={mediaViewer.item.url}
+                    controls
+                    className="h-full w-full bg-black object-contain"
+                  />
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       <ModalShell
         open={Boolean(deleteTarget)}

@@ -61,7 +61,10 @@ export const foodBeverageForecastSchema = z.object({
   projectId: z.string().uuid(),
   forecastDate: isoDateSchema,
   department: z.string().trim().min(2).max(120),
-  mealCount: z.coerce.number().int().min(0).max(100_000),
+  mealCount: z.preprocess(
+    value => value === '' || value == null ? undefined : value,
+    z.coerce.number().int().min(0).max(100_000).optional(),
+  ),
   expectedCrewCount: z.coerce.number().int().min(0).max(100_000).optional(),
   vegCount: z.coerce.number().int().min(0).max(100_000).default(0),
   nonVegCount: z.coerce.number().int().min(0).max(100_000).default(0),
@@ -74,7 +77,6 @@ export const foodBeverageForecastSchema = z.object({
   mealPeriod: z.enum(mealPeriodValues).nullable().optional(),
   notes: optionalText(2_000),
 }).superRefine((value, ctx) => {
-  const crewCount = value.expectedCrewCount ?? value.mealCount
   const totalDietary =
     (value.vegCount ?? 0) +
     (value.nonVegCount ?? 0) +
@@ -82,12 +84,21 @@ export const foodBeverageForecastSchema = z.object({
     (value.jainCount ?? 0) +
     (value.veganCount ?? 0) +
     (value.medicalCount ?? 0)
+  const crewCount = value.expectedCrewCount ?? value.mealCount ?? totalDietary
 
   if (totalDietary > crewCount) {
     ctx.addIssue({
       code: z.ZodIssueCode.custom,
       path: ['nonVegCount'],
       message: 'Dietary counts must not exceed the total crew count.',
+    })
+  }
+
+  if (totalDietary <= 0 && crewCount <= 0) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['vegCount'],
+      message: 'Enter at least one dietary count or a crew count.',
     })
   }
 })

@@ -228,7 +228,7 @@ export interface FoodBeverageForecastInput {
   projectId: string
   forecastDate: string
   department: string
-  mealCount: number
+  mealCount?: number
   expectedCrewCount?: number
   vegCount?: number
   nonVegCount?: number

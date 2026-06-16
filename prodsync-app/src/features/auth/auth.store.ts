@@ -220,8 +220,14 @@ export const useAuthStore = create<AuthStore>()((set, get) => ({
       return
     }
 
-    const { data } = await supabase.auth.getSession()
-    await get().setSession(data.session)
+    const isGoogleCallbackRoute = typeof window !== 'undefined' && window.location.pathname === '/auth/callback'
+
+    if (!isGoogleCallbackRoute) {
+      const { data } = await supabase.auth.getSession()
+      await get().setSession(data.session)
+    } else {
+      set(state => ({ ...state, isAuthReady: true }))
+    }
 
     if (!authSubscriptionBound) {
       authSubscriptionBound = true

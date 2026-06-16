@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type InputHTMLAttributes, type ReactNode, type SelectHTMLAttributes, type TextareaHTMLAttributes } from 'react'
+import { useEffect, useMemo, useRef, useState, type InputHTMLAttributes, type ReactNode, type SelectHTMLAttributes, type TextareaHTMLAttributes } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useSearchParams } from 'react-router-dom'
 import { KpiCard } from '@/components/shared/KpiCard'
@@ -215,7 +215,6 @@ export function FoodBeveragesView() {
     projectId: activeProjectId ?? '',
     forecastDate: tomorrowIso(),
     department: 'production',
-    mealCount: 0,
     expectedCrewCount: 0,
     vegCount: 0,
     nonVegCount: 0,
@@ -275,6 +274,15 @@ export function FoodBeveragesView() {
   })
   const [selectedInvoiceFile, setSelectedInvoiceFile] = useState<File | null>(null)
   const [invoiceEditingId, setInvoiceEditingId] = useState<string | null>(null)
+  const [invoicePreview, setInvoicePreview] = useState<{
+    invoiceId: string
+    invoiceNumber: string
+    url: string | null
+    loading: boolean
+    error: string | null
+  } | null>(null)
+  const invoicePreviewFrameRef = useRef<HTMLIFrameElement | null>(null)
+  const invoicePreviewRequestRef = useRef(0)
 
   useEffect(() => {
     if (!activeProjectId) return
@@ -353,7 +361,6 @@ export function FoodBeveragesView() {
   const createForecastMutation = useMutation({
     mutationFn: (payload: FoodBeverageForecastInput) => foodBeveragesService.createForecast(payload),
     onSuccess: async forecast => {
-      showSuccess('Forecast submitted.')
       queryClient.setQueryData<FoodBeverageForecastRecord[]>(
         ['food-beverages-forecasts', activeProjectId, forecast.forecastDate],
         current => {
@@ -367,19 +374,20 @@ export function FoodBeveragesView() {
       await queryClient.invalidateQueries({ queryKey: ['food-beverages-analytics', activeProjectId] })
       await queryClient.invalidateQueries({ queryKey: ['food-beverages-alerts', activeProjectId] })
       await queryClient.invalidateQueries({ queryKey: ['food-beverages-timeline', activeProjectId] })
+      showSuccess('Forecast submitted.')
     },
     onError: error => showError(resolveErrorMessage(error, 'Could not submit the forecast.')),
   })
   const createMealLogMutation = useMutation({
     mutationFn: (payload: FoodBeverageMealLogInput) => foodBeveragesService.createMealLog(payload),
     onSuccess: async () => {
-      showSuccess('Meal log saved.')
       await queryClient.invalidateQueries({ queryKey: ['food-beverages-meal-logs', activeProjectId] })
       await queryClient.invalidateQueries({ queryKey: ['food-beverages-invoices', activeProjectId] })
       await queryClient.invalidateQueries({ queryKey: ['food-beverages-overview', activeProjectId] })
       await queryClient.invalidateQueries({ queryKey: ['food-beverages-analytics', activeProjectId] })
       await queryClient.invalidateQueries({ queryKey: ['food-beverages-alerts', activeProjectId] })
       await queryClient.invalidateQueries({ queryKey: ['food-beverages-timeline', activeProjectId] })
+      showSuccess('Meal log saved.')
     },
     onError: error => showError(resolveErrorMessage(error, 'Could not save the meal log.')),
   })
@@ -390,7 +398,6 @@ export function FoodBeveragesView() {
         : foodBeveragesService.createInvoice(payload, file)
     ),
     onSuccess: async () => {
-      showSuccess(invoiceEditingId ? 'Invoice updated.' : 'Invoice submitted.')
       setInvoiceEditingId(null)
       setSelectedInvoiceFile(null)
       await queryClient.invalidateQueries({ queryKey: ['food-beverages-invoices', activeProjectId] })
@@ -398,6 +405,7 @@ export function FoodBeveragesView() {
       await queryClient.invalidateQueries({ queryKey: ['food-beverages-overview', activeProjectId] })
       await queryClient.invalidateQueries({ queryKey: ['food-beverages-alerts', activeProjectId] })
       await queryClient.invalidateQueries({ queryKey: ['food-beverages-timeline', activeProjectId] })
+      showSuccess(invoiceEditingId ? 'Invoice updated.' : 'Invoice submitted.')
     },
     onError: error => showError(resolveErrorMessage(error, 'Could not save the invoice.')),
   })
@@ -417,25 +425,44 @@ export function FoodBeveragesView() {
   const alerts = alertsQ.data ?? []
   const invoices = invoicesQ.data ?? []
   const selectedMealForecast = useMemo(() => {
-    if (!mealForecastRows.length) return null
     if (mealDraft.forecastId) return mealForecastRows.find(forecast => forecast.id === mealDraft.forecastId) ?? null
-    const targetDepartment = mealDraft.department.trim().toLowerCase()
-    return mealForecastRows.find(forecast => forecast.department.trim().toLowerCase() === targetDepartment) ?? mealForecastRows[0] ?? null
-  }, [mealDraft.department, mealDraft.forecastId, mealForecastRows])
+    return null
+  }, [mealDraft.forecastId, mealForecastRows])
 
   useEffect(() => {
     if (!selectedMealForecast) return
     setMealDraft(current => ({
       ...current,
       forecastId: selectedMealForecast.id,
+      department: selectedMealForecast.department,
+      mealPeriod: selectedMealForecast.mealPeriod ?? current.mealPeriod,
       forecastCount: selectedMealForecast.expectedCrewCount ?? selectedMealForecast.mealCount,
-      vendorName: current.vendorName?.trim() ? current.vendorName : (selectedMealForecast.vendorName ?? ''),
-      vendorContactNumber: current.vendorContactNumber?.trim() ? current.vendorContactNumber : (selectedMealForecast.vendorContactNumber ?? ''),
+      vendorName: selectedMealForecast.vendorName ?? '',
+      vendorContactNumber: selectedMealForecast.vendorContactNumber ?? '',
     }))
-  }, [selectedMealForecast?.id])
+  }, [selectedMealForecast])
+
+  const handleMealForecastChange = (forecastId: string) => {
+    const nextForecast = mealForecastRows.find(forecast => forecast.id === forecastId) ?? null
+    setMealDraft(current => {
+      if (!nextForecast) {
+        return { ...current, forecastId: null }
+      }
+
+      return {
+        ...current,
+        forecastId: nextForecast.id,
+        department: nextForecast.department,
+        mealPeriod: nextForecast.mealPeriod ?? current.mealPeriod,
+        forecastCount: nextForecast.expectedCrewCount ?? nextForecast.mealCount,
+        vendorName: nextForecast.vendorName ?? '',
+        vendorContactNumber: nextForecast.vendorContactNumber ?? '',
+      }
+    })
+  }
 
   const selectedInvoiceRecord = invoiceEditingId ? invoices.find(invoice => invoice.id === invoiceEditingId) ?? null : null
-  const forecastCrewCount = toPositiveNumber(forecastDraft.expectedCrewCount ?? forecastDraft.mealCount)
+  const forecastCrewCount = toPositiveNumber(forecastDraft.expectedCrewCount)
   const forecastDietaryTotal = toPositiveNumber(forecastDraft.vegCount) + toPositiveNumber(forecastDraft.nonVegCount) + toPositiveNumber(forecastDraft.eggCount) + toPositiveNumber(forecastDraft.jainCount) + toPositiveNumber(forecastDraft.veganCount) + toPositiveNumber(forecastDraft.medicalCount)
   const forecastOverflow = Math.max(forecastDietaryTotal - forecastCrewCount, 0)
   const forecastRemaining = Math.max(forecastCrewCount - forecastDietaryTotal, 0)
@@ -451,6 +478,49 @@ export function FoodBeveragesView() {
             ? analyticsQ.isLoading
             : timelineQ.isLoading
   const isRequestPending = createForecastMutation.isPending || createMealLogMutation.isPending || createInvoiceMutation.isPending
+
+  useEffect(() => {
+    return () => {
+      if (invoicePreview?.url) {
+        window.URL.revokeObjectURL(invoicePreview.url)
+      }
+    }
+  }, [invoicePreview?.url])
+
+  const openInvoicePreview = async (invoiceId: string, invoiceNumber: string) => {
+    if (!activeProjectId) return
+    const requestId = invoicePreviewRequestRef.current + 1
+    invoicePreviewRequestRef.current = requestId
+    setInvoicePreview({ invoiceId, invoiceNumber, url: null, loading: true, error: null })
+
+    try {
+      const { blob } = await foodBeveragesService.getInvoicePdf(invoiceId, activeProjectId)
+      if (invoicePreviewRequestRef.current !== requestId) return
+      const url = window.URL.createObjectURL(blob)
+      setInvoicePreview({ invoiceId, invoiceNumber, url, loading: false, error: null })
+    } catch (error) {
+      if (invoicePreviewRequestRef.current !== requestId) return
+      setInvoicePreview({ invoiceId, invoiceNumber, url: null, loading: false, error: resolveErrorMessage(error, 'Could not load the invoice PDF.') })
+    }
+  }
+
+  const closeInvoicePreview = () => {
+    setInvoicePreview(current => {
+      if (current?.url) {
+        window.URL.revokeObjectURL(current.url)
+      }
+      return null
+    })
+  }
+
+  const downloadInvoicePreview = async (invoiceId: string) => {
+    if (!activeProjectId) return
+    try {
+      await foodBeveragesService.downloadInvoicePdf(invoiceId, activeProjectId)
+    } catch (error) {
+      showError(resolveErrorMessage(error, 'Could not download the invoice PDF.'))
+    }
+  }
 
   if (isLoadingProjectContext) {
     return <PageLoader open message="Loading food and beverages workspace..." />
@@ -580,7 +650,7 @@ export function FoodBeveragesView() {
         {selectedTab === 'forecasting' && (
           <div className="mt-6 space-y-6">
             <SectionCard title="Next-Day Forecast" subtitle="Department heads should be able to submit in under 10 seconds.">
-              <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+              <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
                 <Field label="Forecast Date" required>
                   <Input type="date" value={forecastDraft.forecastDate} onChange={event => setForecastDraft(current => ({ ...current, forecastDate: event.target.value }))} />
                 </Field>
@@ -591,9 +661,6 @@ export function FoodBeveragesView() {
                 </Field>
                 <Field label="Expected Crew Count">
                   <Input type="number" min="0" value={forecastDraft.expectedCrewCount ?? 0} onChange={event => setForecastDraft(current => ({ ...current, expectedCrewCount: Number(event.target.value) }))} />
-                </Field>
-                <Field label="Forecast Total" required>
-                  <Input type="number" min="0" value={forecastDraft.mealCount} onChange={event => setForecastDraft(current => ({ ...current, mealCount: Number(event.target.value) }))} />
                 </Field>
               </div>
 
@@ -622,8 +689,7 @@ export function FoodBeveragesView() {
                     loading={createForecastMutation.isPending}
                     disabled={forecastOverflow > 0}
                     onClick={() => {
-                      const mealCount = Number(forecastDraft.mealCount)
-                      if (!forecastDraft.forecastDate.trim() || !forecastDraft.department.trim() || !Number.isFinite(mealCount) || mealCount <= 0) {
+                      if (!forecastDraft.forecastDate.trim() || !forecastDraft.department.trim() || !Number.isFinite(forecastCrewCount) || forecastCrewCount <= 0) {
                         showError('Please fill the required fields before submitting the forecast.')
                         return
                       }
@@ -635,7 +701,6 @@ export function FoodBeveragesView() {
                         ...forecastDraft,
                         projectId: activeProjectId,
                         expectedCrewCount: forecastCrewCount,
-                        mealCount: Number(forecastDraft.mealCount) || 0,
                         vegCount: Number(forecastDraft.vegCount) || 0,
                         nonVegCount: Number(forecastDraft.nonVegCount) || 0,
                         eggCount: Number(forecastDraft.eggCount) || 0,
@@ -711,8 +776,8 @@ export function FoodBeveragesView() {
                 <Field label="Department" required><Select value={mealDraft.department} onChange={event => setMealDraft(current => ({ ...current, department: event.target.value }))}>{DEPARTMENT_OPTIONS.map(option => <option key={option} value={option}>{labelize(option)}</option>)}</Select></Field>
                 <Field label="Meal Period" required><Select value={mealDraft.mealPeriod} onChange={event => setMealDraft(current => ({ ...current, mealPeriod: event.target.value as FoodBeverageMealLogInput['mealPeriod'] }))}>{MEAL_PERIOD_OPTIONS.map(option => <option key={option} value={option}>{mealPeriodLabel(option)}</option>)}</Select></Field>
                 <Field label="Forecast Link">
-                  <Select value={mealDraft.forecastId ?? ''} onChange={event => setMealDraft(current => ({ ...current, forecastId: event.target.value || null }))}>
-                    <option value="">Auto-link matching forecast</option>
+                  <Select value={mealDraft.forecastId ?? ''} onChange={event => handleMealForecastChange(event.target.value)}>
+                    <option value="">Select a forecast to sync fields</option>
                     {mealForecastRows.map(forecast => (
                       <option key={forecast.id} value={forecast.id}>
                         {formatDate(forecast.forecastDate)} - {labelize(forecast.department)} - {forecast.expectedCrewCount ?? forecast.mealCount}
@@ -971,12 +1036,18 @@ export function FoodBeveragesView() {
                           </p>
                         </div>
                         <div className="flex flex-wrap items-center gap-2">
-                          {invoice.fileUrl && (
-                            <>
-                              <a href={invoice.fileUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-2 rounded-full border border-zinc-200 bg-white px-4 py-2.5 text-[11px] font-semibold uppercase tracking-[0.18em] text-zinc-900 transition hover:border-zinc-400 hover:bg-zinc-100 dark:border-zinc-800 dark:bg-zinc-950 dark:text-white dark:hover:border-zinc-600 dark:hover:bg-zinc-900">View</a>
-                              <a href={invoice.fileUrl} download={invoice.invoiceNumber} className="inline-flex items-center gap-2 rounded-full border border-zinc-200 bg-white px-4 py-2.5 text-[11px] font-semibold uppercase tracking-[0.18em] text-zinc-900 transition hover:border-zinc-400 hover:bg-zinc-100 dark:border-zinc-800 dark:bg-zinc-950 dark:text-white dark:hover:border-zinc-600 dark:hover:bg-zinc-900">Download</a>
-                            </>
-                          )}
+                          <ActionButton
+                            label="View"
+                            icon="visibility"
+                            disabled={invoicePreview?.loading === true}
+                            onClick={() => void openInvoicePreview(invoice.id, invoice.invoiceNumber)}
+                          />
+                          <ActionButton
+                            label="Download"
+                            icon="download"
+                            disabled={invoicePreview?.loading === true}
+                            onClick={() => void downloadInvoicePreview(invoice.id)}
+                          />
                           <ActionButton
                             label="Edit"
                             icon="edit"
@@ -1218,6 +1289,65 @@ export function FoodBeveragesView() {
               Your access is limited to forecast submission only. Production leadership can review meal logs, invoices, analytics, and timeline activity for the full workflow.
             </p>
           </Surface>
+        )}
+
+        {invoicePreview && (
+          <div className="fixed inset-0 z-50 flex items-stretch justify-center bg-[color:rgba(9,9,11,0.72)] px-0 py-0 backdrop-blur-md sm:items-center sm:px-4 sm:py-6">
+            <div className="flex h-full w-full flex-col overflow-hidden bg-[color:var(--app-bg)] shadow-[0_24px_60px_rgba(15,23,42,0.28)] sm:h-[min(92vh,980px)] sm:max-w-6xl sm:rounded-[32px]">
+              <div className="flex items-start justify-between gap-4 border-b border-[color:var(--app-border)] px-5 py-4 sm:px-6">
+                <div>
+                  <p className="text-[10px] font-semibold uppercase tracking-[0.24em] text-[color:var(--app-muted)]">Invoice Preview</p>
+                  <h2 className="mt-1 text-xl font-semibold tracking-[-0.03em] text-[color:var(--app-text)]">{invoicePreview.invoiceNumber}</h2>
+                  <p className="mt-2 text-sm leading-6 text-[color:var(--app-muted)]">Review, print, or download the generated accounting PDF without leaving the workflow.</p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <ActionButton
+                    label="Print"
+                    icon="print"
+                    disabled={invoicePreview.loading || !invoicePreview.url}
+                    onClick={() => {
+                      invoicePreviewFrameRef.current?.contentWindow?.focus()
+                      invoicePreviewFrameRef.current?.contentWindow?.print()
+                    }}
+                  />
+                  <ActionButton
+                    label="Download"
+                    icon="download"
+                    disabled={invoicePreview.loading}
+                    onClick={() => void downloadInvoicePreview(invoicePreview.invoiceId)}
+                  />
+                  <button
+                    type="button"
+                    onClick={closeInvoicePreview}
+                    className="flex h-11 w-11 items-center justify-center rounded-full border border-[color:var(--app-border)] bg-[color:var(--app-surface-strong)] text-[color:var(--app-muted)] transition hover:border-orange-200 hover:bg-orange-50 hover:text-orange-600"
+                  >
+                    <span className="material-symbols-outlined text-[18px]">close</span>
+                  </button>
+                </div>
+              </div>
+
+              <div className="flex min-h-0 flex-1 flex-col gap-4 p-4 sm:p-6">
+                {invoicePreview.error ? (
+                  <div className="flex min-h-0 flex-1 items-center justify-center rounded-[28px] border border-red-200 bg-red-50 p-6 text-sm text-red-700 dark:border-red-500/20 dark:bg-red-500/10 dark:text-red-100">
+                    {invoicePreview.error}
+                  </div>
+                ) : invoicePreview.loading || !invoicePreview.url ? (
+                  <div className="flex min-h-0 flex-1 items-center justify-center rounded-[28px] border border-[color:var(--app-border)] bg-[color:var(--app-surface-strong)] p-6 text-sm text-[color:var(--app-muted)]">
+                    Loading invoice PDF...
+                  </div>
+                ) : (
+                  <div className="min-h-0 flex-1 overflow-hidden rounded-[28px] border border-[color:var(--app-border)] bg-[color:var(--app-surface-strong)]">
+                    <iframe
+                      ref={invoicePreviewFrameRef}
+                      title={`Invoice preview ${invoicePreview.invoiceNumber}`}
+                      src={invoicePreview.url}
+                      className="h-full w-full"
+                    />
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
         )}
       </div>
 

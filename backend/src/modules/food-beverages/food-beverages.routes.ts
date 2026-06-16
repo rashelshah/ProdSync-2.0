@@ -9,6 +9,7 @@ import {
   createFoodBeverageMealLogController,
   createFoodBeverageVendorController,
   getFoodBeverageAnalyticsController,
+  getFoodBeverageInvoicePdfController,
   getFoodBeveragesOverviewController,
   listFoodBeverageAlertsController,
   listFoodBeverageDietaryProfilesController,
@@ -38,5 +39,6 @@ foodBeveragesRouter.get('/analytics', authMiddleware, projectAccessMiddleware, a
 foodBeveragesRouter.get('/timeline', authMiddleware, projectAccessMiddleware, asyncHandler(listFoodBeverageTimelineController))
 foodBeveragesRouter.get('/alerts', authMiddleware, projectAccessMiddleware, asyncHandler(listFoodBeverageAlertsController))
 foodBeveragesRouter.get('/invoices', authMiddleware, projectAccessMiddleware, asyncHandler(listFoodBeverageInvoicesController))
+foodBeveragesRouter.get('/invoices/:invoiceId/pdf', authMiddleware, projectAccessMiddleware, asyncHandler(getFoodBeverageInvoicePdfController))
 foodBeveragesRouter.post('/invoices', authMiddleware, foodBeverageInvoiceUpload.single('file'), projectAccessMiddleware, asyncHandler(createFoodBeverageInvoiceController))
 foodBeveragesRouter.patch('/invoices/:invoiceId', authMiddleware, foodBeverageInvoiceUpload.single('file'), projectAccessMiddleware, asyncHandler(updateFoodBeverageInvoiceController))

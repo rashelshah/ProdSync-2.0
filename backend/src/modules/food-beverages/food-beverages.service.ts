@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto'
 import { adminClient } from '../../config/supabaseClient'
 import { bridgeApproval, updateBridgedApprovalStatus } from '../../services/approvalBridge.service'
 import { HttpError } from '../../utils/httpError'
+import { createFoodBeverageInvoicePdf } from './food-beverages.pdf'
 import type {
   FoodBeverageDietaryProfileInput,
   FoodBeverageForecastInput,
@@ -123,6 +124,36 @@ function normalizeDepartment(value: string | null | undefined) {
 function toMoney(value: unknown) {
   const amount = asNumber(value) ?? 0
   return Number(amount.toFixed(2))
+}
+
+function formatCurrency(value: unknown, currencyCode = 'INR') {
+  return new Intl.NumberFormat('en-IN', {
+    style: 'currency',
+    currency: currencyCode || 'INR',
+    maximumFractionDigits: 2,
+  }).format(toMoney(value))
+}
+
+function formatDateForPdf(value: string | null | undefined) {
+  const text = asDateOnly(value) ?? asString(value)
+  if (!text) {
+    return '-'
+  }
+
+  const date = new Date(`${text}T00:00:00.000Z`)
+  if (Number.isNaN(date.getTime())) {
+    return text
+  }
+
+  return new Intl.DateTimeFormat('en-IN', {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+  }).format(date)
+}
+
+function sanitizeFilename(value: string) {
+  return value.replace(/[^a-z0-9._-]+/gi, '-').replace(/-+/g, '-').replace(/^-|-$/g, '') || 'invoice'
 }
 
 function resolveForecastCrewCount(input: Partial<FoodBeverageForecastInput>) {
@@ -933,6 +964,13 @@ export async function createFoodBeverageForecast(input: FoodBeverageForecastInpu
 
   await ensureProjectRecord(input.projectId)
   const crewCount = resolveForecastCrewCount(input)
+  const totalDietaryCount =
+    Math.max(0, Math.round(input.vegCount ?? 0)) +
+    Math.max(0, Math.round(input.nonVegCount ?? 0)) +
+    Math.max(0, Math.round(input.eggCount ?? 0)) +
+    Math.max(0, Math.round(input.jainCount ?? 0)) +
+    Math.max(0, Math.round(input.veganCount ?? 0)) +
+    Math.max(0, Math.round(input.medicalCount ?? 0))
   const department = normalizeDepartment(input.department)
   const forecastDate = input.forecastDate
   const resolvedForecastCounts = {
@@ -951,7 +989,7 @@ export async function createFoodBeverageForecast(input: FoodBeverageForecastInpu
     project_id: input.projectId,
     forecast_date: forecastDate,
     department,
-    meal_count: crewCount,
+    meal_count: totalDietaryCount > 0 ? totalDietaryCount : crewCount,
     expected_crew_count: crewCount,
     ...resolvedForecastCounts,
     vendor_name: input.vendorName ?? null,
@@ -1091,7 +1129,7 @@ export async function listFoodBeverageMealLogs(projectId: string, date?: string 
     .filter(row => isScopeVisibleToUser(asString(row.created_by), scope))
     .map(row => mapMealLogRow(
       row,
-      vendorNameMap.get(String(row.vendor_id ?? '')) ?? null,
+      asString(row.vendor_name) ?? vendorNameMap.get(String(row.vendor_id ?? '')) ?? null,
       userNameMap.get(String(row.created_by ?? '')) ?? null,
     ))
 }
@@ -1295,10 +1333,101 @@ export async function listFoodBeverageInvoices(projectId: string, status?: strin
     .map(row => mapInvoiceRow(
     {
       ...row,
-      vendor_name: vendorNameMap.get(String(row.vendor_id ?? '')) ?? null,
+      vendor_name: asString(row.vendor_name) ?? vendorNameMap.get(String(row.vendor_id ?? '')) ?? null,
     },
     row.approval_id ? (approvalMap.get(String(row.approval_id)) as FoodBeverageInvoiceRecord['approvalStatus'] ?? 'pending') : 'not_requested',
   ))
+}
+
+export async function buildFoodBeverageInvoicePdf(projectId: string, invoiceId: string) {
+  await ensureProjectRecord(projectId)
+
+  const invoiceResult = await adminClient
+    .from('food_beverage_invoices')
+    .select('*')
+    .eq('project_id', projectId)
+    .eq('id', invoiceId)
+    .maybeSingle()
+
+  if (invoiceResult.error) {
+    throw invoiceResult.error
+  }
+
+  if (!invoiceResult.data) {
+    throw new HttpError(404, 'Invoice not found.')
+  }
+
+  const invoiceRow = invoiceResult.data as DbRow
+  const mealLogId = asString(invoiceRow.meal_log_id)
+  const forecastId = asString(invoiceRow.forecast_id)
+  const createdBy = asString(invoiceRow.created_by)
+
+  const [mealLogResult, forecastResult, projectResult, userNames, approvalStatuses] = await Promise.all([
+    mealLogId
+      ? adminClient.from('food_beverage_meal_logs').select('*').eq('project_id', projectId).eq('id', mealLogId).maybeSingle()
+      : Promise.resolve({ data: null, error: null }),
+    forecastId
+      ? adminClient.from('food_beverage_forecasts').select('*').eq('project_id', projectId).eq('id', forecastId).maybeSingle()
+      : Promise.resolve({ data: null, error: null }),
+    adminClient.from('projects').select('name').eq('id', projectId).maybeSingle(),
+    getUserNameMap([createdBy]),
+    getApprovalStatusMap([asString(invoiceRow.approval_id)]),
+  ])
+
+  if (mealLogResult.error) throw mealLogResult.error
+  if (forecastResult.error) throw forecastResult.error
+  if (projectResult.error) throw projectResult.error
+
+  const mealLogRow = mealLogResult.data as DbRow | null
+  const forecastRow = forecastResult.data as DbRow | null
+  const approvalStatus = asString(invoiceRow.approval_id)
+    ? approvalStatuses.get(String(invoiceRow.approval_id ?? '')) ?? 'pending'
+    : (asBoolean(invoiceRow.approval_requested) ? 'pending' : 'not_requested')
+  const vendorName = asString(invoiceRow.vendor_name)
+    ?? asString(mealLogRow?.vendor_name)
+    ?? asString(forecastRow?.vendor_name)
+    ?? 'Unknown Vendor'
+  const vendorContactNumber = asString(invoiceRow.vendor_contact_number)
+    ?? asString(mealLogRow?.vendor_contact_number)
+    ?? asString(forecastRow?.vendor_contact_number)
+    ?? '-'
+  const currencyCode = asString(invoiceRow.currency_code) ?? 'INR'
+  const generatedTimestamp = new Date().toISOString()
+  const notes = [
+    asString(invoiceRow.notes),
+    asString(invoiceRow.expense_notes),
+  ].filter(Boolean).join(' | ') || '-'
+  const foodCost = toMoney(mealLogRow?.food_cost ?? (toMoney(invoiceRow.plate_cost) * Math.max(0, Math.round(asNumber(invoiceRow.actual_people_served) ?? 0))))
+
+  const buffer = createFoodBeverageInvoicePdf({
+    invoiceNumber: asString(invoiceRow.invoice_number) ?? 'Invoice',
+    invoiceDate: formatDateForPdf(asDateOnly(invoiceRow.invoice_date) ?? asString(invoiceRow.invoice_date)),
+    projectName: asString((projectResult.data as DbRow | null)?.name) ?? 'ProdSync Project',
+    department: formatTitle(normalizeDepartment(asString(invoiceRow.department))),
+    mealPeriod: mealPeriodLabel(asString(invoiceRow.meal_period)),
+    forecastDate: formatDateForPdf(asDateOnly(forecastRow?.forecast_date) ?? asDateOnly(mealLogRow?.meal_date) ?? asDateOnly(invoiceRow.invoice_date)),
+    forecastCrewCount: String(Math.max(0, Math.round(asNumber(forecastRow?.expected_crew_count) ?? asNumber(invoiceRow.forecast_count) ?? 0))),
+    actualServedCount: String(Math.max(0, Math.round(asNumber(invoiceRow.actual_people_served) ?? 0))),
+    unusedPlates: String(Math.max(0, Math.round(asNumber(mealLogRow?.unused_plates) ?? 0))),
+    wastedMeals: String(Math.max(0, Math.round(asNumber(mealLogRow?.wasted_meals) ?? asNumber(mealLogRow?.waste_count) ?? 0))),
+    plateCost: formatCurrency(invoiceRow.plate_cost, currencyCode),
+    teaCoffeeExpense: formatCurrency(mealLogRow?.extra_expense ?? mealLogRow?.extra_cost ?? invoiceRow.extra_cost, currencyCode),
+    foodCost: formatCurrency(foodCost, currencyCode),
+    totalCost: formatCurrency(invoiceRow.total_cost ?? invoiceRow.amount, currencyCode),
+    vendorName,
+    vendorContactNumber,
+    approvalStatus: formatTitle(approvalStatus),
+    generatedBy: createdBy ? (userNames.get(createdBy) ?? 'ProdSync User') : 'ProdSync User',
+    generatedDate: formatDateForPdf(asDateOnly(invoiceRow.created_at) ?? asString(invoiceRow.created_at)),
+    notes,
+    generatedTimestamp,
+  })
+
+  return {
+    content: buffer,
+    contentType: 'application/pdf',
+    filename: `${sanitizeFilename(asString(invoiceRow.invoice_number) ?? 'invoice')}.pdf`,
+  }
 }
 
 export async function createFoodBeverageInvoice(input: FoodBeverageInvoiceInput, actorUserId: string | null, actorUserName: string | null, file?: Express.Multer.File | null) {

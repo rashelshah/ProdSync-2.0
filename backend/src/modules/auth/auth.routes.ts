@@ -2,7 +2,7 @@ import { Router } from 'express'
 import { z } from 'zod'
 import { asyncHandler } from '../../utils/asyncHandler'
 import { authMiddleware } from '../../middleware/auth.middleware'
-import { completeGoogleOnboarding, getUserFromAccessToken, syncGoogleLogin, type AuthenticatedUserContext } from '../../services/auth.service'
+import { completeGoogleOnboarding, syncGoogleLogin, type AuthenticatedUserContext } from '../../services/auth.service'
 import { HttpError } from '../../utils/httpError'
 
 export const authRouter = Router()
@@ -57,16 +57,6 @@ function serializeAuthUser(user: AuthenticatedUserContext) {
   }
 }
 
-async function refreshAuthUserFromRequest(authorizationHeader?: string) {
-  const accessToken = getBearerToken(authorizationHeader)
-
-  if (!accessToken) {
-    throw new HttpError(401, 'Authorization header missing bearer token.')
-  }
-
-  return getUserFromAccessToken(accessToken)
-}
-
 authRouter.get(
   '/me',
   authMiddleware,
@@ -87,8 +77,8 @@ authRouter.post(
       throw new HttpError(401, 'Authenticated user context is missing.')
     }
 
-    await syncGoogleLogin(req.authUser)
-    const refreshedUser = await refreshAuthUserFromRequest(req.headers.authorization)
+    const accessToken = getBearerToken(req.headers.authorization)
+    const refreshedUser = await syncGoogleLogin(req.authUser, accessToken ?? undefined)
 
     res.json({
       user: serializeAuthUser(refreshedUser),
@@ -108,8 +98,8 @@ authRouter.post(
     }
 
     const payload = googleOnboardingSchema.parse(req.body)
-    await completeGoogleOnboarding(req.authUser, payload)
-    const refreshedUser = await refreshAuthUserFromRequest(req.headers.authorization)
+    const accessToken = getBearerToken(req.headers.authorization)
+    const refreshedUser = await completeGoogleOnboarding(req.authUser, payload, accessToken ?? undefined)
 
     res.json({
       user: serializeAuthUser(refreshedUser),

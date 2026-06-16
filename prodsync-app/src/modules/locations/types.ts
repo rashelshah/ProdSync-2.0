@@ -264,6 +264,22 @@ export interface NearbyAmenitySuggestion {
   }
 }
 
+export interface NearbyHotelSuggestion {
+  id: string
+  name: string
+  address: string
+  phoneNumber: string | null
+  distanceKm: number
+  latitude: number | null
+  longitude: number | null
+  mapLink: string | null
+  source: 'mapbox' | 'manual'
+  metadata?: {
+    featureType?: string
+    poiCategories?: string[]
+  }
+}
+
 export interface CreateLocationInput {
   projectId: string
   name: string

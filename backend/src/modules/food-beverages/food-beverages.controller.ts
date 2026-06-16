@@ -3,6 +3,7 @@ import { HttpError } from '../../utils/httpError'
 import { canManageFoodBeverages, canSubmitFoodForecast, canViewAllFoodBeverages, canViewFoodBeverages } from './food-beverages.access'
 import {
   createFoodBeverageForecast,
+  buildFoodBeverageInvoicePdf,
   createFoodBeverageInvoice,
   createFoodBeverageMealLog,
   createFoodBeverageVendor,
@@ -205,6 +206,17 @@ export async function updateFoodBeverageInvoiceController(req: Request, res: Res
   const payload = updateFoodBeverageInvoiceSchema.parse(req.body)
   const invoice = await updateFoodBeverageInvoice(payload.projectId, String(req.params.invoiceId ?? ''), payload, req.authUser?.id ?? null, req.authUser?.fullName ?? req.authUser?.email ?? null, req.file ?? null)
   res.json({ invoice })
+}
+
+export async function getFoodBeverageInvoicePdfController(req: Request, res: Response) {
+  requireViewAccess(req)
+  const query = foodBeveragesProjectQuerySchema.parse(req.query)
+  const result = await buildFoodBeverageInvoicePdf(query.projectId, String(req.params.invoiceId ?? ''))
+  const inline = String(req.query.download ?? 'false') !== 'true'
+
+  res.setHeader('Content-Type', result.contentType)
+  res.setHeader('Content-Disposition', `${inline ? 'inline' : 'attachment'}; filename="${result.filename}"`)
+  res.send(result.content)
 }
 
 export async function getFoodBeverageAnalyticsController(req: Request, res: Response) {

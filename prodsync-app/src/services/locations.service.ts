@@ -1,4 +1,4 @@
-import { apiFetch, readApiJson } from '@/lib/api'
+import { apiFetch, apiOrigin, readApiJson } from '@/lib/api'
 import { MAP_CONFIG } from '@/config/map.config'
 import type { LocationPoint } from '@/modules/transport/types'
 import type {
@@ -18,6 +18,7 @@ import type {
   LocationSearchSuggestion,
   LocationTimelineRecord,
   NearbyAmenitySuggestion,
+  NearbyHotelSuggestion,
   PaginatedLocationDocuments,
   PaginatedLocationMedia,
   PaginatedLocations,
@@ -54,6 +55,12 @@ function buildUploadFormData(
   return formData
 }
 
+function toAbsoluteApiUrl(url: string | null | undefined) {
+  if (!url) return null
+  if (/^https?:\/\//i.test(url)) return url
+  return new URL(url, apiOrigin()).toString()
+}
+
 type SearchResponseItem = {
   name?: string
   lat?: number | null
@@ -82,9 +89,11 @@ type MapboxSearchBoxFeature = {
 const locationSearchCache = new Map<string, LocationSearchSuggestion[]>()
 const reverseGeocodeCache = new Map<string, string>()
 const nearbyAmenitiesCache = new Map<string, NearbyAmenitySuggestion[]>()
+const nearbyHotelCache = new Map<string, NearbyHotelSuggestion[]>()
 const inflightLocationSearches = new Map<string, Promise<LocationSearchSuggestion[]>>()
 const inflightReverseLookups = new Map<string, Promise<string>>()
 const inflightNearbyLookups = new Map<string, Promise<NearbyAmenitySuggestion[]>>()
+const inflightHotelLookups = new Map<string, Promise<NearbyHotelSuggestion[]>>()
 const resolvedLocationCache = new Map<string, LocationResolutionRecord>()
 const inflightLocationResolutions = new Map<string, Promise<LocationResolutionRecord>>()
 
@@ -233,6 +242,10 @@ function detectAmenityLabel(amenityType: NearbyAmenitySuggestion['amenityType'])
   }
 }
 
+function detectHotelLabel() {
+  return 'hotel'
+}
+
 function toAmenitySuggestion(
   amenityType: NearbyAmenitySuggestion['amenityType'],
   item: LocationSearchSuggestion,
@@ -251,6 +264,39 @@ function toAmenitySuggestion(
     mapLink: `https://www.google.com/maps?q=${encodeURIComponent(`${item.latitude},${item.longitude}`)}`,
     source: 'mapbox' as const,
     metadata: item.meta,
+  }
+}
+
+function toHotelSuggestion(
+  item: LocationSearchSuggestion,
+  origin: LocationPoint & { latitude: number; longitude: number },
+): NearbyHotelSuggestion {
+  const distanceKm = getDistanceKm(origin, { latitude: item.latitude, longitude: item.longitude })
+  return {
+    id: `hotel:${item.id}`,
+    name: item.label,
+    address: item.address,
+    phoneNumber: null,
+    distanceKm: Number(distanceKm.toFixed(2)),
+    latitude: item.latitude,
+    longitude: item.longitude,
+    mapLink: `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(`${item.latitude},${item.longitude}`)}`,
+    source: 'mapbox',
+    metadata: item.meta,
+  }
+}
+
+function normalizeMediaRecord(record: LocationMediaRecord): LocationMediaRecord {
+  return {
+    ...record,
+    url: toAbsoluteApiUrl(record.url) ?? record.url,
+  }
+}
+
+function normalizeDocumentRecord(record: LocationDocumentRecord): LocationDocumentRecord {
+  return {
+    ...record,
+    url: toAbsoluteApiUrl(record.url) ?? record.url,
   }
 }
 
@@ -302,7 +348,11 @@ export const locationsService = {
 
   async getMedia(projectId: string, locationId: string, page = 1, pageSize = 18): Promise<PaginatedLocationMedia> {
     const response = await apiFetch(`/locations/${encodeURIComponent(locationId)}/media?${withProjectId(projectId)}&page=${page}&pageSize=${pageSize}`)
-    return readApiJson<PaginatedLocationMedia>(response)
+    const payload = await readApiJson<PaginatedLocationMedia>(response)
+    return {
+      ...payload,
+      data: (payload.data ?? []).map(normalizeMediaRecord),
+    }
   },
 
   async uploadMedia(locationId: string, input: { projectId: string; notes?: string; latitude?: number; longitude?: number; uploadTime?: string }, file: File): Promise<LocationMediaRecord> {
@@ -312,7 +362,7 @@ export const locationsService = {
       body: formData,
     })
     const payload = await readApiJson<{ media: LocationMediaRecord }>(response)
-    return payload.media
+    return normalizeMediaRecord(payload.media)
   },
 
   async deleteMedia(projectId: string, locationId: string, mediaId: string): Promise<void> {
@@ -324,7 +374,11 @@ export const locationsService = {
 
   async getDocuments(projectId: string, locationId: string, page = 1, pageSize = 18): Promise<PaginatedLocationDocuments> {
     const response = await apiFetch(`/locations/${encodeURIComponent(locationId)}/documents?${withProjectId(projectId)}&page=${page}&pageSize=${pageSize}`)
-    return readApiJson<PaginatedLocationDocuments>(response)
+    const payload = await readApiJson<PaginatedLocationDocuments>(response)
+    return {
+      ...payload,
+      data: (payload.data ?? []).map(normalizeDocumentRecord),
+    }
   },
 
   async uploadDocument(locationId: string, input: { projectId: string; category: string; permissionId?: string; notes?: string }, file: File): Promise<LocationDocumentRecord> {
@@ -334,7 +388,7 @@ export const locationsService = {
       body: formData,
     })
     const payload = await readApiJson<{ document: LocationDocumentRecord }>(response)
-    return payload.document
+    return normalizeDocumentRecord(payload.document)
   },
 
   async deleteDocument(projectId: string, locationId: string, documentId: string): Promise<void> {
@@ -583,6 +637,45 @@ export const locationsService = {
     })
 
     inflightNearbyLookups.set(cacheKey, request)
+    return request
+  },
+
+  async getNearbyHotels(projectId: string, location: LocationPoint, signal?: AbortSignal): Promise<NearbyHotelSuggestion[]> {
+    const cacheKey = getNearbySearchKey(projectId, location)
+    if (!cacheKey) {
+      return []
+    }
+
+    const cached = nearbyHotelCache.get(cacheKey)
+    if (cached) {
+      return cached
+    }
+
+    const inflight = inflightHotelLookups.get(cacheKey)
+    if (inflight) {
+      return inflight
+    }
+
+    const request = (async () => {
+      const origin = {
+        latitude: location.latitude as number,
+        longitude: location.longitude as number,
+      }
+
+      const results = await fetchMapboxNearbySuggestions(detectHotelLabel(), origin, signal)
+      const hotels = results
+        .map(item => toHotelSuggestion(item, origin))
+        .filter(item => item.distanceKm <= 8)
+        .slice(0, 6)
+
+      nearbyHotelCache.set(cacheKey, hotels)
+      return hotels
+    })().finally(() => {
+      inflightHotelLookups.delete(cacheKey)
+    })
+
+    inflightHotelLookups.set(cacheKey, request)
+
     return request
   },
 
