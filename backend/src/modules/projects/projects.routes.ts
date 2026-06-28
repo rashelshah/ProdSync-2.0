@@ -41,10 +41,14 @@ const frontendProjectRoleSchema = z.enum([
   'Data Wrangler',
 ])
 
+const projectPhaseSchema = z.enum(['planning', 'pre_production', 'production', 'post_production', 'completed'])
+const planningSectionSchema = z.enum(['project_information', 'crew_planning', 'cast_planning', 'expense_planning', 'budget_review'])
+
 const createProjectSchema = z.object({
   name: z.string().trim().min(2).max(150),
-  location: z.string().trim().min(2).max(150),
-  status: frontendProjectStatusSchema,
+  location: z.string().trim().max(150).optional().or(z.literal('')),
+  status: frontendProjectStatusSchema.default('pre-production'),
+  projectPhase: projectPhaseSchema.default('planning'),
   budgetUSD: z.coerce.number().min(0).max(1_000_000_000),
   currency: currencySchema.default('INR'),
   activeCrew: z.coerce.number().int().min(0).max(100_000).optional(),
@@ -52,10 +56,23 @@ const createProjectSchema = z.object({
   endDate: z.string().date().optional().or(z.literal('')),
   enabledDepartments: z.array(departmentSchema).max(7).default([]),
   otRulesLabel: z.string().trim().max(200).optional(),
+  projectType: z.string().trim().max(120).optional(),
+  productionHouse: z.string().trim().max(160).optional(),
+  client: z.string().trim().max(160).optional(),
+  director: z.string().trim().max(160).optional(),
+  language: z.string().trim().max(80).optional(),
+  description: z.string().trim().max(2000).optional(),
 })
 
 const updateProjectSchema = createProjectSchema.extend({
   activeCrew: z.coerce.number().int().min(0).max(100_000).optional(),
+})
+
+const planningSectionPayloadSchema = z.object({
+  sectionType: planningSectionSchema,
+  payload: z.record(z.string(), z.unknown()).default({}),
+  isCompleted: z.boolean().default(false),
+  isSkipped: z.boolean().default(false),
 })
 
 const budgetAllocationDepartmentSchema = z.enum(BUDGET_ALLOCATION_DEPARTMENTS)
@@ -200,6 +217,13 @@ interface ProjectRow {
   currency_code: string | null
   start_date: string | null
   end_date: string | null
+  project_phase?: string | null
+  project_type?: string | null
+  production_house?: string | null
+  client_name?: string | null
+  director_name?: string | null
+  language?: string | null
+  description?: string | null
 }
 
 interface ProjectCrewRow {
@@ -245,6 +269,13 @@ type ProjectPayload = {
   name: string
   location: string
   status: 'pre-production' | 'shooting' | 'post'
+  projectPhase: z.infer<typeof projectPhaseSchema>
+  projectType: string
+  productionHouse: string
+  client: string
+  director: string
+  language: string
+  description: string
   progressPercent: number
   spentAmount: number
   isOverBudget: boolean
@@ -279,7 +310,7 @@ async function buildProjectPayloads(projectIds: string[]) {
   const [{ data: projectRows, error: projectError }, { data: departmentRows, error: departmentError }, { data: settingsRows, error: settingsError }, { data: crewRows, error: crewError }, { data: burnRows, error: burnError }] = await Promise.all([
     adminClient
       .from('projects')
-      .select('id, name, owner_id, status, location, budget, currency_code, start_date, end_date')
+      .select('id, name, owner_id, status, location, budget, currency_code, start_date, end_date, project_phase, project_type, production_house, client_name, director_name, language, description')
       .in('id', projectIds)
       .eq('is_archived', false),
     adminClient
@@ -371,6 +402,13 @@ async function buildProjectPayloads(projectIds: string[]) {
       name: row.name,
       location: row.location ?? 'Location pending',
       status: dbProjectStatusToFrontend[row.status] ?? 'pre-production',
+      projectPhase: projectPhaseSchema.catch('planning').parse(row.project_phase ?? 'planning'),
+      projectType: row.project_type ?? '',
+      productionHouse: row.production_house ?? '',
+      client: row.client_name ?? '',
+      director: row.director_name ?? '',
+      language: row.language ?? '',
+      description: row.description ?? '',
       progressPercent: progress.progress,
       spentAmount: progress.spent,
       isOverBudget: progress.isOverBudget,
@@ -779,6 +817,144 @@ projectsRouter.post(
   }),
 )
 
+
+type PlanningSectionRow = {
+  section_type: z.infer<typeof planningSectionSchema>
+  payload: Record<string, unknown> | null
+  is_completed: boolean | null
+  is_skipped: boolean | null
+  updated_at: string | null
+}
+
+const PLANNING_SECTIONS: z.infer<typeof planningSectionSchema>[] = [
+  'project_information',
+  'crew_planning',
+  'cast_planning',
+  'expense_planning',
+  'budget_review',
+]
+
+function buildPlanningSummary(rows: PlanningSectionRow[]) {
+  const bySection = new Map(rows.map(row => [row.section_type, row]))
+  const sections = PLANNING_SECTIONS.map(sectionType => {
+    const row = bySection.get(sectionType)
+    return {
+      sectionType,
+      payload: row?.payload ?? {},
+      isCompleted: Boolean(row?.is_completed),
+      isSkipped: Boolean(row?.is_skipped),
+      updatedAt: row?.updated_at ?? null,
+    }
+  })
+  const doneCount = sections.filter(section => section.isCompleted || section.isSkipped).length
+  return {
+    sections,
+    progressPercent: Math.round((doneCount / PLANNING_SECTIONS.length) * 100),
+    completedCount: sections.filter(section => section.isCompleted).length,
+    skippedCount: sections.filter(section => section.isSkipped).length,
+    totalCount: PLANNING_SECTIONS.length,
+  }
+}
+
+async function getPlanningSummary(projectId: string) {
+  const { data, error } = await adminClient
+    .from('project_planning_sections')
+    .select('section_type, payload, is_completed, is_skipped, updated_at')
+    .eq('project_id', projectId)
+
+  if (error) {
+    if (error.code === '42P01') {
+      return buildPlanningSummary([])
+    }
+    throw error
+  }
+
+  return buildPlanningSummary((data ?? []) as PlanningSectionRow[])
+}
+
+projectsRouter.get(
+  '/:projectId/planning',
+  authMiddleware,
+  projectAccessMiddleware,
+  asyncHandler(async (req, res) => {
+    const projectId = String(req.params.projectId ?? '')
+    const [project, planning] = await Promise.all([
+      getProjectPayload(projectId),
+      getPlanningSummary(projectId),
+    ])
+
+    if (!project) {
+      throw new HttpError(404, 'Project not found.')
+    }
+
+    res.json({ planning: { ...planning, project } })
+  }),
+)
+
+projectsRouter.put(
+  '/:projectId/planning',
+  authMiddleware,
+  projectAccessMiddleware,
+  asyncHandler(async (req, res) => {
+    const projectId = String(req.params.projectId ?? '')
+    const userId = req.authUser?.id
+
+    if (!userId) {
+      throw new HttpError(401, 'Authenticated user context is missing.')
+    }
+
+    const access = await getProjectAccess(projectId, userId)
+    const canEditProject = access.isOwner || access.membershipRole === 'EP' || access.membershipRole === 'LINE_PRODUCER' || access.membershipRole === 'SUPERVISOR'
+    if (!canEditProject) {
+      throw new HttpError(403, 'You do not have permission to edit project planning.')
+    }
+
+    const payload = planningSectionPayloadSchema.parse(req.body)
+    const { error } = await adminClient
+      .from('project_planning_sections')
+      .upsert({
+        project_id: projectId,
+        section_type: payload.sectionType,
+        payload: payload.payload,
+        is_completed: payload.isCompleted,
+        is_skipped: payload.isSkipped,
+        updated_by: userId,
+      }, { onConflict: 'project_id,section_type' })
+
+    if (error) {
+      throw error
+    }
+
+    if (payload.sectionType === 'project_information') {
+      const info = payload.payload as Record<string, unknown>
+      const phase = projectPhaseSchema.safeParse(info.projectPhase).success ? String(info.projectPhase) : undefined
+      const updates: Record<string, unknown> = {
+        name: typeof info.name === 'string' && info.name.trim() ? info.name.trim() : undefined,
+        location: typeof info.location === 'string' ? info.location.trim() || null : undefined,
+        budget: Number(info.budgetUSD ?? 0) || 0,
+        currency_code: typeof info.currency === 'string' ? info.currency : undefined,
+        start_date: typeof info.startDate === 'string' && info.startDate ? info.startDate : null,
+        end_date: typeof info.endDate === 'string' && info.endDate ? info.endDate : null,
+        project_phase: phase,
+        project_type: typeof info.projectType === 'string' ? info.projectType.trim() || null : undefined,
+        production_house: typeof info.productionHouse === 'string' ? info.productionHouse.trim() || null : undefined,
+        client_name: typeof info.client === 'string' ? info.client.trim() || null : undefined,
+        director_name: typeof info.director === 'string' ? info.director.trim() || null : undefined,
+        language: typeof info.language === 'string' ? info.language.trim() || null : undefined,
+        description: typeof info.description === 'string' ? info.description.trim() || null : undefined,
+      }
+      Object.keys(updates).forEach(key => updates[key] === undefined && delete updates[key])
+      if (Object.keys(updates).length > 0) {
+        const { error: projectError } = await adminClient.from('projects').update(updates).eq('id', projectId)
+        if (projectError) throw projectError
+      }
+    }
+
+    emitProjectEvent('project_updated', { projectId, data: { type: 'project_planning_updated' } })
+    const [project, planning] = await Promise.all([getProjectPayload(projectId), getPlanningSummary(projectId)])
+    res.json({ planning: { ...planning, project } })
+  }),
+)
 projectsRouter.post(
   '/',
   authMiddleware,
@@ -814,8 +990,15 @@ projectsRouter.post(
       .insert({
         owner_id: ownerId,
         name: payload.name,
-        location: payload.location,
+        location: payload.location?.trim() || null,
         status: frontendProjectStatusToDb[payload.status],
+        project_phase: payload.projectPhase,
+        project_type: payload.projectType?.trim() || null,
+        production_house: payload.productionHouse?.trim() || null,
+        client_name: payload.client?.trim() || null,
+        director_name: payload.director?.trim() || null,
+        language: payload.language?.trim() || null,
+        description: payload.description?.trim() || null,
         budget: payload.budgetUSD,
         currency_code: payload.currency,
         progress_percent: 0,
@@ -852,7 +1035,7 @@ projectsRouter.post(
         .from('project_settings')
         .upsert({
           project_id: projectId,
-          base_location: payload.location,
+          base_location: payload.location?.trim() || null,
           ot_rules_label: payload.otRulesLabel?.trim() || 'Standard OT with producer approval',
         }),
       adminClient
@@ -907,8 +1090,15 @@ projectsRouter.put(
         .from('projects')
         .update({
           name: payload.name,
-          location: payload.location,
+          location: payload.location?.trim() || null,
           status: frontendProjectStatusToDb[payload.status],
+          project_phase: payload.projectPhase,
+          project_type: payload.projectType?.trim() || null,
+          production_house: payload.productionHouse?.trim() || null,
+          client_name: payload.client?.trim() || null,
+          director_name: payload.director?.trim() || null,
+          language: payload.language?.trim() || null,
+          description: payload.description?.trim() || null,
           budget: payload.budgetUSD,
           currency_code: payload.currency,
           start_date: payload.startDate || null,
@@ -919,7 +1109,7 @@ projectsRouter.put(
         .from('project_settings')
         .upsert({
           project_id: projectId,
-          base_location: payload.location,
+          base_location: payload.location?.trim() || null,
           ot_rules_label: payload.otRulesLabel?.trim() || 'Standard OT with producer approval',
         }),
       adminClient

@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { useMutation, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Surface } from '@/components/shared/Surface'
 import { EmptyState, ErrorState, PageLoader } from '@/components/system/SystemStates'
 import { invalidateProjectData } from '@/context/project-sync'
@@ -18,6 +18,7 @@ import type {
   CreateJuniorArtistLogInput,
 } from '@/modules/actors/types'
 import { actorsService } from '@/services/actors.service'
+import { projectsService } from '@/services/projects.service'
 import { formatCurrency, formatDate } from '@/utils'
 
 function SectionHeader({ title, subtitle }: { title: string; subtitle: string }) {
@@ -114,6 +115,12 @@ export function ActorsView() {
   const queryClient = useQueryClient()
   const user = useAuthStore(state => state.user)
   const { activeProjectId, activeProject, isLoadingProjectContext } = useResolvedProjectContext()
+  const planningQ = useQuery({
+    queryKey: ['project-planning', activeProjectId],
+    queryFn: () => projectsService.getProjectPlanning(activeProjectId!),
+    enabled: Boolean(activeProjectId),
+    staleTime: 30_000,
+  })
   const canManageActors = canManageActorsOperations(user)
   const [lookActorFilter, setLookActorFilter] = useState('')
   const [lookCharacterFilter, setLookCharacterFilter] = useState('')
@@ -393,6 +400,13 @@ export function ActorsView() {
 
   return (
     <div className="page-shell max-md:pt-16">
+      {planningQ.data?.sections.find(section => section.sectionType === 'cast_planning')?.payload?.estimatedCast ? (
+        <Surface variant="warning" padding="md">
+          <p className="text-sm font-semibold text-zinc-900 dark:text-white">Planning estimated {Number(planningQ.data.sections.find(section => section.sectionType === 'cast_planning')?.payload?.estimatedCast ?? 0)} cast and artist entries.</p>
+          <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-300">Use this as a reference while adding actual actors, junior artists, payments, and call sheets.</p>
+        </Surface>
+      ) : null}
+
       <header className="page-header">
         <div>
           <span className="page-kicker">Department Workspace</span>

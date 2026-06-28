@@ -14,6 +14,7 @@ export async function invalidateProjectData(
     const projectScopedKeys: Array<readonly unknown[]> = [
       ['project', projectId],
       ['project-progress', projectId],
+      ['project-planning', projectId],
       ['budget-allocations', projectId],
       ['report-summary', projectId],
       ['reports-summary', projectId],

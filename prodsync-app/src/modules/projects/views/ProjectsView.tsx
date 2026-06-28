@@ -96,6 +96,7 @@ export function ProjectsView() {
     onSuccess: async (project) => {
       if (project) {
         setActiveProject(project.id, project.currency)
+        navigate(`/projects/${project.id}/planning`)
       }
 
       setShowCreateModal(false)
@@ -229,6 +230,12 @@ export function ProjectsView() {
     }
   }
 
+  function openPlanning(projectId: string) {
+    const project = projects.find(item => item.id === projectId) ?? visibleProjects.find(item => item.id === projectId) ?? null
+    setActiveProject(projectId, project?.currency ?? 'INR')
+    navigate(`/projects/${projectId}/planning`)
+  }
+
   function openProject(projectId: string) {
     const project = projects.find(item => item.id === projectId) ?? visibleProjects.find(item => item.id === projectId) ?? null
     setActiveProject(projectId, project?.currency ?? 'INR')
@@ -246,6 +253,7 @@ export function ProjectsView() {
         name: projectName.trim(),
         location: projectLocation.trim(),
         status: projectStatus,
+        projectPhase: 'planning',
         budgetUSD: Number(projectBudget) || 0,
         currency: projectCurrency,
         activeCrew: Number(projectCrew) || 0,
@@ -318,7 +326,7 @@ export function ProjectsView() {
           </div>
           <button onClick={() => setShowCreateModal(true)} className="btn-primary">
             <Plus className="h-4 w-4" />
-            Create Project
+            Start Project Planning
           </button>
         </div>
       </header>
@@ -339,7 +347,7 @@ export function ProjectsView() {
                 <div className="mt-6 flex justify-center">
                   <button onClick={() => setShowCreateModal(true)} className="btn-primary">
                     <Plus className="h-4 w-4" />
-                    Create Project
+                    Start Project Planning
                   </button>
                 </div>
               </Surface>
@@ -352,6 +360,7 @@ export function ProjectsView() {
                     badgeClass={statusTone[project.status]}
                     membershipLabel="Owner"
                     onOpen={() => openProject(project.id)}
+                    onPlanning={() => openPlanning(project.id)}
                     openLabel="Enter Workspace"
                   />
                 ))}
@@ -432,6 +441,7 @@ export function ProjectsView() {
                       badgeClass={statusTone[project.status]}
                       membershipLabel="Member"
                       onOpen={() => openProject(project.id)}
+                      onPlanning={() => openPlanning(project.id)}
                       openLabel="Enter Workspace"
                     />
                   ))}
@@ -504,7 +514,7 @@ export function ProjectsView() {
       )}
 
       {showCreateModal && (
-        <ModalShell title="Create Project" onClose={() => setShowCreateModal(false)}>
+        <ModalShell title="Start Project Planning" onClose={() => setShowCreateModal(false)}>
           <div className="grid gap-4">
             <label className="auth-field">
               <span className="auth-field-label">Project Name</span>
@@ -597,7 +607,7 @@ export function ProjectsView() {
             <button onClick={() => setShowCreateModal(false)} className="clay-ghost-button" disabled={projectAction === 'project-create'}>Cancel</button>
             <button onClick={createProjectSubmit} className="clay-primary-button" disabled={projectAction === 'project-create'}>
               {projectAction === 'project-create' ? <span className="ui-spinner" /> : null}
-              {projectAction === 'project-create' ? 'Saving Project...' : 'Save Project'}
+              {projectAction === 'project-create' ? 'Saving Project...' : 'Start Planning'}
             </button>
           </div>
         </ModalShell>
@@ -656,6 +666,7 @@ function ProjectCard({
   badgeClass,
   membershipLabel,
   onOpen,
+  onPlanning,
   onJoin,
   joinDisabled,
   joinLabel = 'Join Project',
@@ -665,6 +676,7 @@ function ProjectCard({
   badgeClass: string
   membershipLabel?: string
   onOpen?: () => void
+  onPlanning?: () => void
   onJoin?: () => void
   joinDisabled?: boolean
   joinLabel?: string
@@ -732,6 +744,7 @@ function ProjectCard({
       </div>
 
       <div className="mt-8 flex flex-wrap items-center gap-3 max-md:mt-5 max-md:gap-2">
+        {onPlanning && <button onClick={onPlanning} className="btn-soft max-md:flex-1 max-md:h-10 max-md:text-xs">Project Planning</button>}
         {onOpen && <button onClick={onOpen} className="btn-primary max-md:flex-1 max-md:h-10 max-md:text-xs">{openLabel}</button>}
         {onJoin && (
           <button onClick={onJoin} disabled={joinDisabled} className={cn('btn-soft max-md:flex-1 max-md:h-10 max-md:text-xs', joinDisabled && 'cursor-not-allowed opacity-60')}>

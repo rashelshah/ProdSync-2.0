@@ -1,5 +1,5 @@
 import { apiFetch, readApiJson } from '@/lib/api'
-import type { BudgetAllocationDepartment, ProjectBudgetAllocation, ProjectCurrency, ProjectDepartment, ProjectJoinRequest, ProjectMember, ProjectProgressSnapshot, ProjectRecord, ProjectRequestedRole } from '@/types'
+import type { BudgetAllocationDepartment, ProjectBudgetAllocation, ProjectCurrency, ProjectDepartment, ProjectJoinRequest, ProjectMember, ProjectPlanningSummary, ProjectProgressSnapshot, ProjectRecord, ProjectRequestedRole, PlanningSectionType } from '@/types'
 
 interface BackendProject {
   id: string
@@ -8,6 +8,13 @@ interface BackendProject {
   name: string
   location: string
   status: ProjectRecord['status']
+  projectPhase?: ProjectRecord['projectPhase']
+  projectType?: string
+  productionHouse?: string
+  client?: string
+  director?: string
+  language?: string
+  description?: string
   progressPercent: number
   spentAmount: number
   isOverBudget: boolean
@@ -61,6 +68,7 @@ interface CreateProjectInput {
   name: string
   location: string
   status: ProjectRecord['status']
+  projectPhase?: ProjectRecord['projectPhase']
   budgetUSD: number
   currency: ProjectCurrency
   activeCrew: number
@@ -88,6 +96,13 @@ function toProjectRecord(project: BackendProject): ProjectRecord {
     name: project.name,
     location: project.location,
     status: project.status,
+    projectPhase: project.projectPhase ?? 'planning',
+    projectType: project.projectType ?? '',
+    productionHouse: project.productionHouse ?? '',
+    client: project.client ?? '',
+    director: project.director ?? '',
+    language: project.language ?? '',
+    description: project.description ?? '',
     progressPercent: Number(project.progressPercent ?? 0),
     spentAmount: Number(project.spentAmount ?? 0),
     isOverBudget: Boolean(project.isOverBudget),
@@ -191,6 +206,39 @@ export const projectsService = {
     return payload.project ? toProjectRecord(payload.project) : null
   },
 
+
+  async getProjectPlanning(projectId: string) {
+    console.log('[projectsService] fetching planning', { projectId })
+    const response = await apiFetch(`/projects/${encodeURIComponent(projectId)}/planning`)
+    const payload = await readApiJson<{ planning: ProjectPlanningSummary }>(response)
+    return {
+      ...payload.planning,
+      project: toProjectRecord(payload.planning.project as unknown as BackendProject),
+    }
+  },
+
+  async savePlanningSection(projectId: string, input: {
+    sectionType: PlanningSectionType
+    payload: Record<string, unknown>
+    isCompleted?: boolean
+    isSkipped?: boolean
+  }) {
+    console.log('[projectsService] saving planning section', { projectId, sectionType: input.sectionType })
+    const response = await apiFetch(`/projects/${encodeURIComponent(projectId)}/planning`, {
+      method: 'PUT',
+      body: JSON.stringify({
+        sectionType: input.sectionType,
+        payload: input.payload,
+        isCompleted: input.isCompleted ?? false,
+        isSkipped: input.isSkipped ?? false,
+      }),
+    })
+    const payload = await readApiJson<{ planning: ProjectPlanningSummary }>(response)
+    return {
+      ...payload.planning,
+      project: toProjectRecord(payload.planning.project as unknown as BackendProject),
+    }
+  },
   async getProjectProgress(projectId: string) {
     console.log('[projectsService] fetching project progress', { projectId })
     const response = await apiFetch(`/projects/${encodeURIComponent(projectId)}/progress`)

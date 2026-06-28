@@ -1,8 +1,11 @@
+import { useQuery } from '@tanstack/react-query'
+import { useNavigate } from 'react-router-dom'
 import { useDashboardData } from '../hooks/useDashboardData'
 import { KpiCard } from '@/components/shared/KpiCard'
 import { Surface } from '@/components/shared/Surface'
 import { EmptyState, ErrorState, PageLoader } from '@/components/system/SystemStates'
 import { useResolvedProjectContext } from '@/features/projects/useResolvedProjectContext'
+import { projectsService } from '@/services/projects.service'
 import { formatCurrency, formatDate } from '@/utils'
 import { MissionControlMobile } from '../components/mission_control_mobile'
 
@@ -18,7 +21,14 @@ export function DashboardView() {
     locationsDashboard,
   } = useDashboardData()
 
-  const { activeProject } = useResolvedProjectContext()
+  const { activeProject, activeProjectId } = useResolvedProjectContext()
+  const navigate = useNavigate()
+  const planningQ = useQuery({
+    queryKey: ['project-planning', activeProjectId],
+    queryFn: () => projectsService.getProjectPlanning(activeProjectId!),
+    enabled: Boolean(activeProjectId),
+    staleTime: 20_000,
+  })
 
   const hasOperationalData =
     deptSnapshots.length > 0 ||
@@ -29,6 +39,69 @@ export function DashboardView() {
     kpis.activeCrew > 0 ||
     kpis.activeFleet > 0 ||
     kpis.otCostTodayUSD > 0
+
+
+
+  const planning = planningQ.data
+  const planningSections = planning?.sections ?? []
+  const getPlanningPayload = (sectionType: string) => planningSections.find(section => section.sectionType === sectionType)?.payload ?? {}
+  const crewPlanning = getPlanningPayload('crew_planning')
+  const castPlanning = getPlanningPayload('cast_planning')
+  const expensePlanning = getPlanningPayload('expense_planning')
+  const isPlanningPhase = !activeProject || activeProject.projectPhase === 'planning' || activeProject.projectPhase === 'pre_production'
+
+  if (isPlanningPhase) {
+    const estimatedCrew = Number(crewPlanning.estimatedCrew ?? 0)
+    const estimatedCast = Number(castPlanning.estimatedCast ?? 0)
+    const estimatedBudget = Number(crewPlanning.estimatedCost ?? 0) + Number(castPlanning.estimatedCost ?? 0) + Number(expensePlanning.estimatedCost ?? 0)
+    const nextStep = planningSections.find(section => !section.isCompleted && !section.isSkipped)
+
+    return (
+      <div className="page-shell page-shell-narrow max-md:pt-16">
+        <header className="page-header page-header-card">
+          <div>
+            <span className="page-kicker">Planning Dashboard</span>
+            <h1 className="page-title page-title-compact">What needs attention today?</h1>
+            <p className="page-subtitle">A calmer dashboard for setup: finish the planning steps first, then operational metrics will become more prominent.</p>
+          </div>
+          <div className="page-toolbar">
+            {activeProjectId && <button className="btn-primary" onClick={() => navigate(`/projects/${activeProjectId}/planning`)}>Continue Planning</button>}
+            <button className="btn-soft" onClick={() => navigate('/locations')}>Create Location</button>
+          </div>
+        </header>
+
+        <section className="grid gap-4 md:grid-cols-4">
+          <KpiCard label="Planning Progress" value={`${planning?.progressPercent ?? 0}%`} subLabel={nextStep ? `Next: ${nextStep.sectionType.replace(/_/g, ' ')}` : 'Project ready'} />
+          <KpiCard label="Estimated Budget" value={formatCurrency(estimatedBudget, activeProject?.currency ?? 'INR')} subLabel="Planning estimate" />
+          <KpiCard label="Estimated Crew" value={String(estimatedCrew)} subLabel="From crew planning" />
+          <KpiCard label="Estimated Cast" value={String(estimatedCast)} subLabel="From cast planning" />
+        </section>
+
+        <section className="grid gap-6 xl:grid-cols-[1.1fr_0.9fr]">
+          <Surface variant="raised" padding="lg">
+            <div className="section-heading"><div><p className="section-kicker">Project Planning</p><h2 className="section-title">Progress Tracker</h2></div></div>
+            <div className="mt-6 space-y-3">
+              {planningSections.map(section => (
+                <div key={section.sectionType} className="flex items-center justify-between rounded-[22px] bg-zinc-50 px-4 py-4 dark:bg-zinc-900">
+                  <div className="flex items-center gap-3"><span className="material-symbols-outlined text-orange-500">{section.isCompleted ? 'check_circle' : section.isSkipped ? 'remove_circle' : 'radio_button_unchecked'}</span><p className="text-sm font-semibold capitalize text-zinc-900 dark:text-white">{section.sectionType.replace(/_/g, ' ')}</p></div>
+                  <span className="text-[10px] font-semibold uppercase tracking-[0.18em] text-zinc-500 dark:text-zinc-400">{section.isCompleted ? 'Completed' : section.isSkipped ? 'Skipped' : 'Upcoming'}</span>
+                </div>
+              ))}
+            </div>
+          </Surface>
+
+          <Surface variant="raised" padding="lg">
+            <div className="section-heading"><div><p className="section-kicker">Signals</p><h2 className="section-title">Recent Activity & Approvals</h2></div></div>
+            <div className="mt-6 space-y-3">
+              {pendingApprovals.length === 0 && events.length === 0 ? <EmptyState icon="task_alt" title="Nothing urgent yet" description="Planning activity and pending approvals will appear here when they exist." /> : null}
+              {pendingApprovals.map(approval => <div key={approval.id} className="rounded-[20px] bg-orange-50 px-4 py-3 text-sm text-orange-700 dark:bg-orange-500/10 dark:text-orange-300">Pending approval: {approval.type}</div>)}
+              {events.slice(0, 3).map(event => <div key={event.id} className="rounded-[20px] bg-zinc-50 px-4 py-3 dark:bg-zinc-900"><p className="text-sm font-semibold text-zinc-900 dark:text-white">{event.title}</p><p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">{event.description}</p></div>)}
+            </div>
+          </Surface>
+        </section>
+      </div>
+    )
+  }
 
   if (isLoading) return <PageLoader open message="Loading mission control..." />
   if (isError) return <ErrorState message="Failed to load dashboard data" />

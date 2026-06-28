@@ -15,6 +15,7 @@ export interface User {
 }
 
 export type ProjectStage = 'pre-production' | 'shooting' | 'post'
+export type ProjectPhase = 'planning' | 'pre_production' | 'production' | 'post_production' | 'completed'
 export type ProjectDepartment = 'camera' | 'art' | 'transport' | 'production' | 'wardrobe' | 'post' | 'actors'
 export type ProjectCurrency = 'INR' | 'USD' | 'EUR'
 export type ProjectRequestedRole =
@@ -46,6 +47,13 @@ export interface ProjectRecord {
   ownerName: string
   location: string
   status: ProjectStage
+  projectPhase: ProjectPhase
+  projectType: string
+  productionHouse: string
+  client: string
+  director: string
+  language: string
+  description: string
   progressPercent: number
   spentAmount: number
   isOverBudget: boolean
@@ -495,4 +503,23 @@ export interface ReportSummary {
   health: ReportHealth
   scope: ReportScope
   lastUpdated: string
+}
+
+export type PlanningSectionType = 'project_information' | 'crew_planning' | 'cast_planning' | 'expense_planning' | 'budget_review'
+
+export interface ProjectPlanningSection {
+  sectionType: PlanningSectionType
+  payload: Record<string, unknown>
+  isCompleted: boolean
+  isSkipped: boolean
+  updatedAt: string | null
+}
+
+export interface ProjectPlanningSummary {
+  project: ProjectRecord
+  sections: ProjectPlanningSection[]
+  progressPercent: number
+  completedCount: number
+  skippedCount: number
+  totalCount: number
 }

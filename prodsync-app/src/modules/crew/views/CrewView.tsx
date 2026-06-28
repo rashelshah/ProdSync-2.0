@@ -10,6 +10,7 @@ import { useProject } from '@/context/ProjectContext'
 import { invalidateProjectData } from '@/context/project-sync'
 import { useAuthStore } from '@/features/auth/auth.store'
 import { resolveErrorMessage, showError, showLoading, showSuccess } from '@/lib/toast'
+import { projectsService } from '@/services/projects.service'
 import { crewService } from '@/services/crew.service'
 import type {
   CrewAttendanceHistoryItem,
@@ -198,6 +199,13 @@ export function CrewView() {
     battaQueue,
     refetch,
   } = useCrewData()
+
+  const planningQ = useQuery({
+    queryKey: ['project-planning', activeProjectId],
+    queryFn: () => projectsService.getProjectPlanning(activeProjectId!),
+    enabled: Boolean(activeProjectId),
+    staleTime: 30_000,
+  })
 
   const [activeAction, setActiveAction] = useState<string | null>(null)
   const [shiftGpsError, setShiftGpsError] = useState<string | null>(null)
@@ -657,6 +665,13 @@ export function CrewView() {
       </div>
 
       <div className="hidden md:block space-y-6">
+        {planningQ.data?.sections.find(section => section.sectionType === 'crew_planning')?.payload?.estimatedCrew ? (
+          <Surface variant="warning" padding="md">
+            <p className="text-sm font-semibold text-zinc-900 dark:text-white">Planning estimated {Number(planningQ.data.sections.find(section => section.sectionType === 'crew_planning')?.payload?.estimatedCrew ?? 0)} crew members.</p>
+            <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-300">Use this as a staffing reference while adding actual crew. Planning estimates never create employees automatically.</p>
+          </Surface>
+        ) : null}
+
         <header className="page-header">
           <div>
             <span className="page-kicker">Attendance, Geofence, and Crew Visibility</span>

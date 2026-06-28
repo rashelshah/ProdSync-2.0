@@ -1,3 +1,4 @@
+import { lazy, Suspense } from 'react'
 import { Navigate, Routes, Route } from 'react-router-dom'
 import { AppLayout } from '@/components/layout/AppLayout'
 import { RouteAccessGuard } from '@/features/auth/access-control'
@@ -20,6 +21,9 @@ import { ApprovalsView } from '@/modules/approvals/views/ApprovalsView'
 import { ReportsView } from '@/modules/reports/views/ReportsView'
 import { SettingsView } from '@/modules/settings/views/SettingsView'
 import { JoinRedirect } from '@/modules/projects/views/JoinRedirect'
+import { PageLoader } from '@/components/system/SystemStates'
+
+const ProjectPlanningWizard = lazy(() => import('@/modules/projects/components/ProjectPlanningWizard').then(module => ({ default: module.ProjectPlanningWizard })))
 
 export function AppRouter() {
   return (
@@ -36,6 +40,7 @@ export function AppRouter() {
         <Route element={<AppLayout />}>
           <Route path="/dashboard" element={<RouteAccessGuard routeId="dashboard"><DashboardView /></RouteAccessGuard>} />
           <Route path="/projects" element={<RouteAccessGuard routeId="projects"><ProjectsView /></RouteAccessGuard>} />
+          <Route path="/projects/:projectId/planning" element={<RouteAccessGuard routeId="projects"><Suspense fallback={<PageLoader open message="Loading project planning..." />}><ProjectPlanningWizard /></Suspense></RouteAccessGuard>} />
           <Route path="/transport" element={<RouteAccessGuard routeId="transport"><TransportView /></RouteAccessGuard>} />
           <Route path="/camera" element={<RouteAccessGuard routeId="camera"><CameraView /></RouteAccessGuard>} />
           <Route path="/crew" element={<RouteAccessGuard routeId="crew"><CrewView /></RouteAccessGuard>} />
@@ -56,4 +61,3 @@ export function AppRouter() {
     </Routes>
   )
 }
-
