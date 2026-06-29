@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { NavLink, useLocation, useNavigate } from 'react-router-dom'
-import { APP_NAV_ITEMS, canAccessRoute } from '@/features/auth/access-rules'
 import { useAuthStore } from '@/features/auth/auth.store'
+import { useProjectWorkflow } from '@/features/workflow/projectWorkflow'
 import { useProjectAlerts } from '@/features/alerts/useProjectAlerts'
 import { cn } from '@/utils'
 
@@ -10,9 +10,10 @@ export function MobileNavbar({ onOpenMenu }: { onOpenMenu?: () => void }) {
   const location = useLocation()
   const navigate = useNavigate()
   const { alerts } = useProjectAlerts()
+  const { visibleNavItems } = useProjectWorkflow()
   const criticalAlerts = alerts.filter(a => a.severity === 'critical' && !a.acknowledged)
 
-  const rawNavItems = user ? APP_NAV_ITEMS.filter(item => item.routeId !== 'projects' && canAccessRoute(user, item.routeId)) : []
+  const rawNavItems = user ? visibleNavItems : []
   
   const hasMore = rawNavItems.length > 4
   const visibleItems = hasMore ? rawNavItems.slice(0, 4) : rawNavItems
@@ -164,3 +165,4 @@ export function MobileNavbar({ onOpenMenu }: { onOpenMenu?: () => void }) {
     </>
   )
 }
+

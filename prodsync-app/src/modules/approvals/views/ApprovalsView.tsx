@@ -34,6 +34,9 @@ export function ApprovalsView() {
   const user = useAuthStore(state => state.user)
   const { activeProjectId, isLoadingProjectContext, isErrorProjectContext } = useResolvedProjectContext()
   const [activeAction, setActiveAction] = useState<string | null>(null)
+  const [searchTerm, setSearchTerm] = useState('')
+  const [categoryFilter, setCategoryFilter] = useState('all')
+  const [priorityFilter, setPriorityFilter] = useState('all')
 
   const pendingQ = useQuery({
     queryKey: ['pending-approvals', activeProjectId],
@@ -93,11 +96,28 @@ export function ApprovalsView() {
   if (isLoadingProjectContext || pendingQ.isLoading) return <PageLoader open message="Loading approvals..." />
   if (isErrorProjectContext || pendingQ.isError || historyQ.isError || kpisQ.isError) return <ErrorState message="Failed to load approvals" />
 
-  const pending = pendingQ.data ?? []
+  const rawPending = pendingQ.data ?? []
   const history = historyQ.data ?? []
   const kpis = kpisQ.data
+  const approvalCategories = Array.from(new Set(rawPending.map(item => item.sourceModule || item.department || 'Other Modules')))
+  const priorityWeight: Record<string, number> = { emergency: 4, high: 3, normal: 2, low: 1 }
+  const normalizedSearch = searchTerm.trim().toLowerCase()
+  const pending = rawPending
+    .filter(item => categoryFilter === 'all' || (item.sourceModule || item.department || 'Other Modules') === categoryFilter)
+    .filter(item => priorityFilter === 'all' || item.priority === priorityFilter)
+    .filter(item => {
+      if (!normalizedSearch) return true
+      return [item.type, item.department, item.requestedBy, item.notes, item.sourceModule]
+        .filter(Boolean)
+        .some(value => String(value).toLowerCase().includes(normalizedSearch))
+    })
+    .sort((left, right) => {
+      const priorityDelta = (priorityWeight[right.priority] ?? 0) - (priorityWeight[left.priority] ?? 0)
+      if (priorityDelta !== 0) return priorityDelta
+      return new Date(right.timestamp).getTime() - new Date(left.timestamp).getTime()
+    })
   const actionablePending = pending.filter(item => item.canAct !== false)
-  const hasData = pending.length > 0 || history.length > 0 || Boolean(kpis && (kpis.totalPending > 0 || kpis.pendingValueINR > 0))
+  const hasData = rawPending.length > 0 || history.length > 0 || Boolean(kpis && (kpis.totalPending > 0 || kpis.pendingValueINR > 0))
 
   return (
     <div className="page-shell space-y-6 md:space-y-0 pb-safe">
@@ -135,6 +155,33 @@ export function ApprovalsView() {
         <KpiCard label="Avg Action Time" value={`${kpis?.avgActionTimeMinutes ?? 0}m`} subLabel="Computed from audits" />
       </section>
 
+
+      <Surface variant="table" padding="lg">
+        <div className="grid gap-3 md:grid-cols-[1.2fr_0.8fr_0.8fr]">
+          <label className="auth-field">
+            <span className="auth-field-label">Search approvals</span>
+            <input value={searchTerm} onChange={event => setSearchTerm(event.target.value)} className="project-modal-input" placeholder="Search request, department, notes" />
+          </label>
+          <label className="auth-field">
+            <span className="auth-field-label">Category</span>
+            <select value={categoryFilter} onChange={event => setCategoryFilter(event.target.value)} className="project-modal-select">
+              <option value="all">All categories</option>
+              {approvalCategories.map(category => <option key={category} value={category}>{category.replace(/_/g, ' ')}</option>)}
+            </select>
+          </label>
+          <label className="auth-field">
+            <span className="auth-field-label">Priority</span>
+            <select value={priorityFilter} onChange={event => setPriorityFilter(event.target.value)} className="project-modal-select">
+              <option value="all">All priorities</option>
+              <option value="emergency">High Priority</option>
+              <option value="high">Urgent</option>
+              <option value="normal">Normal</option>
+              <option value="low">Low</option>
+            </select>
+          </label>
+        </div>
+      </Surface>
+
       {!hasData ? (
         <Surface variant="table" padding="lg">
           <EmptyState
@@ -161,11 +208,14 @@ export function ApprovalsView() {
                     <div className="flex flex-wrap items-center gap-2">
                       <p className="text-sm font-medium text-zinc-900 dark:text-white">{item.type}</p>
                       {approvalStageBadge(item)}
-                      {item.sourceModule && (
+                      {(item.sourceModule || item.department) && (
                         <span className="rounded-full bg-zinc-200/50 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-zinc-600 dark:bg-zinc-800/50 dark:text-zinc-400">
-                          {item.sourceModule}
+                          {(item.sourceModule || item.department || 'Other Modules').replace(/_/g, ' ')}
                         </span>
                       )}
+                      <span className="rounded-full bg-orange-100 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-orange-700 dark:bg-orange-500/12 dark:text-orange-300">
+                        {item.priority === 'emergency' ? 'High Priority' : item.priority}
+                      </span>
                     </div>
                     <p className="mt-2 text-sm text-zinc-500 dark:text-zinc-400">{item.department} | {formatCurrency(item.amountINR)}</p>
                     <p className="mt-1 text-xs uppercase tracking-[0.12em] text-zinc-500 dark:text-zinc-400">

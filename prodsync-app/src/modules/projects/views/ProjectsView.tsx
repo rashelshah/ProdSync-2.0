@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
 import { BriefcaseBusiness, CheckCircle2, Clock3, MapPin, Plus, ShieldCheck, Users } from 'lucide-react'
 import { Surface } from '@/components/shared/Surface'
+import { ProjectPhaseControl } from '@/components/project/ProjectPhaseControl'
 import { EmptyState, PageLoader } from '@/components/system/SystemStates'
 import { invalidateProjectData } from '@/context/project-sync'
 import { getDefaultWorkspacePath, isProducerRole } from '@/features/auth/access-rules'
@@ -703,6 +704,10 @@ function ProjectCard({
             </div>
           </div>
         )}
+      </div>
+
+      <div className="mt-5">
+        <ProjectPhaseControl project={project} compact />
       </div>
 
       <div className="mt-6 grid gap-4 sm:grid-cols-3 max-md:mt-5 max-md:gap-2">

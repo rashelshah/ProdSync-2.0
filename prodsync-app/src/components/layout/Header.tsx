@@ -6,6 +6,7 @@ import { getUserRoleLabel } from '@/features/auth/onboarding'
 import { useAuthStore } from '@/features/auth/auth.store'
 import { useTheme } from '@/components/theme/ThemeProvider'
 import { showSuccess } from '@/lib/toast'
+import { ProjectGlobalSearch } from '@/components/project/ProjectGlobalSearch'
 import { cn, timeAgo } from '@/utils'
 
 interface HeaderProps {
@@ -60,13 +61,8 @@ export function Header({
             </span>
           </button>
 
-          <div className="max-md:hidden flex min-w-0 flex-1 items-center gap-3 rounded-full border border-zinc-200 bg-zinc-50 px-4 py-3 dark:border-zinc-800 dark:bg-zinc-900 pointer-events-auto">
-            <span className="material-symbols-outlined text-[18px] text-zinc-400 dark:text-zinc-500">search</span>
-            <input
-              type="text"
-              placeholder="Search production assets..."
-              className="w-full min-w-0 bg-transparent text-sm text-zinc-900 outline-none placeholder:text-zinc-400 dark:text-white dark:placeholder:text-zinc-500"
-            />
+          <div className="max-md:hidden flex min-w-0 flex-1">
+            <ProjectGlobalSearch />
           </div>
         </div>
 

@@ -1,9 +1,10 @@
 import { NavLink, useLocation, useNavigate } from 'react-router-dom'
 import { cn } from '@/utils'
-import { APP_NAV_ITEMS, canAccessRoute } from '@/features/auth/access-rules'
+
 import { getUserRoleLabel } from '@/features/auth/onboarding'
 import { useAuthStore } from '@/features/auth/auth.store'
 import { useProjectAlerts } from '@/features/alerts/useProjectAlerts'
+import { useProjectWorkflow } from '@/features/workflow/projectWorkflow'
 
 interface SidebarProps {
   isCollapsed: boolean
@@ -28,7 +29,8 @@ export function Sidebar({
   const criticalAlerts = alerts.filter(a => a.severity === 'critical' && !a.acknowledged)
   const location = useLocation()
   const navigate = useNavigate()
-  const navItems = user ? APP_NAV_ITEMS.filter(item => item.routeId !== 'projects' && canAccessRoute(user, item.routeId)) : []
+  const { visibleNavItems } = useProjectWorkflow()
+  const navItems = user ? visibleNavItems : []
   const userRoleLabel = user ? getUserRoleLabel(user) : 'Crew Member'
   const effectiveCollapsed = isMobileViewport ? false : isCollapsed
   const showMobileBackdrop = isMobileViewport && isMobileOpen
@@ -194,3 +196,4 @@ export function Sidebar({
     </>
   )
 }
+

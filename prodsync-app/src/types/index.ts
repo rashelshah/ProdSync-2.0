@@ -523,3 +523,25 @@ export interface ProjectPlanningSummary {
   skippedCount: number
   totalCount: number
 }
+
+export interface ProjectPhaseHistoryItem {
+  id: string
+  projectId: string
+  previousPhase: ProjectPhase | null
+  newPhase: ProjectPhase
+  changedBy: string | null
+  changedByName: string
+  changedAt: string
+  notes: string | null
+  source: string
+}
+
+export interface ProjectSearchResult {
+  id: string
+  title: string
+  subtitle: string
+  module: string
+  path: string
+  phase: ProjectPhase | null
+  entityType: 'location' | 'approval' | 'activity' | 'project'
+}

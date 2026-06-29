@@ -5,6 +5,7 @@ import { KpiCard } from '@/components/shared/KpiCard'
 import { Surface } from '@/components/shared/Surface'
 import { EmptyState, ErrorState, PageLoader } from '@/components/system/SystemStates'
 import { useResolvedProjectContext } from '@/features/projects/useResolvedProjectContext'
+import { formatProjectPhase, useProjectWorkflow } from '@/features/workflow/projectWorkflow'
 import { projectsService } from '@/services/projects.service'
 import { formatCurrency, formatDate } from '@/utils'
 import { MissionControlMobile } from '../components/mission_control_mobile'
@@ -22,6 +23,7 @@ export function DashboardView() {
   } = useDashboardData()
 
   const { activeProject, activeProjectId } = useResolvedProjectContext()
+  const { phase, quickActions } = useProjectWorkflow()
   const navigate = useNavigate()
   const planningQ = useQuery({
     queryKey: ['project-planning', activeProjectId],
@@ -48,7 +50,7 @@ export function DashboardView() {
   const crewPlanning = getPlanningPayload('crew_planning')
   const castPlanning = getPlanningPayload('cast_planning')
   const expensePlanning = getPlanningPayload('expense_planning')
-  const isPlanningPhase = !activeProject || activeProject.projectPhase === 'planning' || activeProject.projectPhase === 'pre_production'
+  const isPlanningPhase = !activeProject || activeProject.projectPhase === 'planning'
 
   if (isPlanningPhase) {
     const estimatedCrew = Number(crewPlanning.estimatedCrew ?? 0)
@@ -60,13 +62,16 @@ export function DashboardView() {
       <div className="page-shell page-shell-narrow max-md:pt-16">
         <header className="page-header page-header-card">
           <div>
-            <span className="page-kicker">Planning Dashboard</span>
+            <span className="page-kicker">{formatProjectPhase(phase)} Dashboard</span>
             <h1 className="page-title page-title-compact">What needs attention today?</h1>
             <p className="page-subtitle">A calmer dashboard for setup: finish the planning steps first, then operational metrics will become more prominent.</p>
           </div>
           <div className="page-toolbar">
-            {activeProjectId && <button className="btn-primary" onClick={() => navigate(`/projects/${activeProjectId}/planning`)}>Continue Planning</button>}
-            <button className="btn-soft" onClick={() => navigate('/locations')}>Create Location</button>
+            {quickActions.slice(0, 3).map(action => (
+              <button key={action.id} className={action.id === 'continue-planning' ? 'btn-primary' : 'btn-soft'} onClick={() => navigate(action.id === 'continue-planning' && activeProjectId ? `/projects/${activeProjectId}/planning` : action.path)}>
+                {action.label}
+              </button>
+            ))}
           </div>
         </header>
 
@@ -127,10 +132,10 @@ export function DashboardView() {
         {/* Header — identical pattern to Crew / Camera / Art */}
         <header className="page-header page-header-card">
           <div>
-            <span className="page-kicker">Executive Control</span>
-            <h1 className="page-title">Mission Control</h1>
+            <span className="page-kicker">{formatProjectPhase(phase)} Control</span>
+            <h1 className="page-title">What needs attention now?</h1>
             <p className="page-subtitle">
-              Project-wide visibility will populate here once live transport, crew, approvals, and financial data starts syncing.
+              The dashboard is filtered to the current production phase while keeping existing live project data available.
             </p>
           </div>
 
@@ -157,6 +162,21 @@ export function DashboardView() {
             </div>
           </div>
         </header>
+
+
+        <section className="grid gap-4 md:grid-cols-3">
+          {quickActions.slice(0, 3).map(action => (
+            <button
+              key={action.id}
+              type="button"
+              onClick={() => navigate(action.path)}
+              className="rounded-[24px] border border-zinc-200 bg-white px-5 py-4 text-left transition-colors hover:border-orange-200 hover:bg-orange-50 dark:border-zinc-800 dark:bg-zinc-950 dark:hover:border-orange-500/20 dark:hover:bg-orange-500/10"
+            >
+              <p className="text-sm font-semibold text-zinc-900 dark:text-white">{action.label}</p>
+              <p className="mt-2 text-xs leading-5 text-zinc-500 dark:text-zinc-400">{action.description}</p>
+            </button>
+          ))}
+        </section>
 
         {/* KPI Cards */}
         <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-6">

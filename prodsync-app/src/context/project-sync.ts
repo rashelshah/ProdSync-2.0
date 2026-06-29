@@ -15,6 +15,7 @@ export async function invalidateProjectData(
       ['project', projectId],
       ['project-progress', projectId],
       ['project-planning', projectId],
+      ['project-phase-history', projectId],
       ['budget-allocations', projectId],
       ['report-summary', projectId],
       ['reports-summary', projectId],
@@ -66,3 +67,4 @@ export async function invalidateProjectData(
 
   await Promise.all(tasks)
 }
+

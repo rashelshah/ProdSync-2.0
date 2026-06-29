@@ -2,9 +2,11 @@ import { useEffect, useState, type ReactNode } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { EmptyState } from '@/components/system/SystemStates'
 import { Surface } from '@/components/shared/Surface'
+import { ProjectPhaseControl } from '@/components/project/ProjectPhaseControl'
 import { useProject } from '@/context/ProjectContext'
 import { invalidateProjectData } from '@/context/project-sync'
 import { useAuthStore } from '@/features/auth/auth.store'
+import { canManageProjectWorkflowClient } from '@/features/workflow/projectWorkflow'
 import { resolveErrorMessage, showError, showLoading, showSuccess } from '@/lib/toast'
 import { projectsService } from '@/services/projects.service'
 import { cn, formatCurrency } from '@/utils'
@@ -63,7 +65,7 @@ export function SettingsView() {
   const [enabledDepartments, setEnabledDepartments] = useState<ProjectDepartment[]>([])
   const [allocationRows, setAllocationRows] = useState<AllocationRowState[]>([])
 
-  const canEditProject = user?.role === 'EP'
+  const canEditProject = canManageProjectWorkflowClient(user) || activeProject?.ownerId === user?.id
   const budgetValue = Math.max(Number(budget) || 0, 0)
 
   const inviteInfoQ = useQuery({
@@ -158,6 +160,7 @@ export function SettingsView() {
         name: name.trim(),
         location: location.trim(),
         status,
+        projectPhase: activeProject.projectPhase,
         budgetUSD: Number(budget) || 0,
         currency,
         activeCrew: Number(crewCount) || 0,
@@ -241,6 +244,8 @@ export function SettingsView() {
         <h1 className="page-title page-title-compact">Settings</h1>
         <p className="page-subtitle">Currency, schedules, and project controls are now driven from the active project instead of placeholder settings cards.</p>
       </header>
+
+      <ProjectPhaseControl project={activeProject} showHistory />
 
       <div className="grid gap-6 xl:grid-cols-[1.2fr_0.8fr]">
         <Surface variant="table" padding="lg">

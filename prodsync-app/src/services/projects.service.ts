@@ -1,5 +1,5 @@
 import { apiFetch, readApiJson } from '@/lib/api'
-import type { BudgetAllocationDepartment, ProjectBudgetAllocation, ProjectCurrency, ProjectDepartment, ProjectJoinRequest, ProjectMember, ProjectPlanningSummary, ProjectProgressSnapshot, ProjectRecord, ProjectRequestedRole, PlanningSectionType } from '@/types'
+import type { BudgetAllocationDepartment, ProjectBudgetAllocation, ProjectCurrency, ProjectDepartment, ProjectJoinRequest, ProjectMember, ProjectPhaseHistoryItem, ProjectPlanningSummary, ProjectProgressSnapshot, ProjectRecord, ProjectRequestedRole, ProjectSearchResult, PlanningSectionType } from '@/types'
 
 interface BackendProject {
   id: string
@@ -206,6 +206,27 @@ export const projectsService = {
     return payload.project ? toProjectRecord(payload.project) : null
   },
 
+  async updateProjectPhase(projectId: string, projectPhase: ProjectRecord['projectPhase'], reason?: string) {
+    const response = await apiFetch(`/projects/${encodeURIComponent(projectId)}/phase`, {
+      method: 'PATCH',
+      body: JSON.stringify({ projectPhase, reason }),
+    })
+    const payload = await readApiJson<{ project: BackendProject | null }>(response)
+    return payload.project ? toProjectRecord(payload.project) : null
+  },
+
+  async getProjectPhaseHistory(projectId: string) {
+    const response = await apiFetch(`/projects/${encodeURIComponent(projectId)}/phase-history`)
+    const payload = await readApiJson<{ history: ProjectPhaseHistoryItem[] }>(response)
+    return payload.history ?? []
+  },
+
+  async searchProject(projectId: string, query: string, signal?: AbortSignal) {
+    const response = await apiFetch(`/projects/${encodeURIComponent(projectId)}/search?q=${encodeURIComponent(query)}`, { signal })
+    const payload = await readApiJson<{ results: ProjectSearchResult[] }>(response)
+    return payload.results ?? []
+  },
+
 
   async getProjectPlanning(projectId: string) {
     console.log('[projectsService] fetching planning', { projectId })
@@ -298,3 +319,4 @@ export const projectsService = {
     return payload.request
   },
 }
+

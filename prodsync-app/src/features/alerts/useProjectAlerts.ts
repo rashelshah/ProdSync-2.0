@@ -1,10 +1,12 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useResolvedProjectContext } from '@/features/projects/useResolvedProjectContext'
+import { useProjectWorkflow } from '@/features/workflow/projectWorkflow'
 import { alertsService } from '@/services/alerts.service'
 
 export function useProjectAlerts() {
   const queryClient = useQueryClient()
   const { activeProjectId } = useResolvedProjectContext()
+  const { phase } = useProjectWorkflow()
 
   const alertsQuery = useQuery({
     queryKey: ['alerts', activeProjectId],
@@ -27,7 +29,14 @@ export function useProjectAlerts() {
     },
   })
 
-  const alerts = alertsQuery.data ?? []
+  const phaseSources = {
+    planning: new Set(['approvals', 'system']),
+    pre_production: new Set(['locations', 'transport', 'food_beverages', 'crew', 'camera', 'expenses', 'approvals', 'system']),
+    production: new Set(['transport', 'food_beverages', 'crew', 'camera', 'expenses', 'locations', 'approvals', 'system']),
+    post_production: new Set(['approvals', 'expenses', 'food_beverages', 'system']),
+    completed: new Set(['system', 'approvals']),
+  }[phase]
+  const alerts = (alertsQuery.data ?? []).filter(alert => phaseSources.has(alert.source))
 
   return {
     activeProjectId,

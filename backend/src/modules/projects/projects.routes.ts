@@ -7,6 +7,7 @@ import { projectAccessMiddleware } from '../../middleware/projectAccess.middlewa
 import { roleMiddleware } from '../../middleware/role.middleware'
 import { emitProjectEvent } from '../../realtime/socket'
 import { BUDGET_ALLOCATION_DEPARTMENTS, listBudgetAllocations, saveBudgetAllocations } from '../../services/budgetAllocation.service'
+import { canManageProjectWorkflow, listProjectPhaseHistory, recordProjectPhaseChange } from '../../services/projectPhase.service'
 import { calculateProjectProgress } from '../../services/projectFinance.service'
 import { getProjectAccess } from '../../services/project-access.service'
 import { getProjectProgressSnapshot } from '../../services/reportService'
@@ -66,6 +67,11 @@ const createProjectSchema = z.object({
 
 const updateProjectSchema = createProjectSchema.extend({
   activeCrew: z.coerce.number().int().min(0).max(100_000).optional(),
+})
+
+const updateProjectPhaseSchema = z.object({
+  projectPhase: projectPhaseSchema,
+  reason: z.string().trim().max(500).optional(),
 })
 
 const planningSectionPayloadSchema = z.object({
@@ -732,6 +738,177 @@ projectsRouter.get(
 )
 
 projectsRouter.get(
+  '/:projectId/search',
+  authMiddleware,
+  projectAccessMiddleware,
+  asyncHandler(async (req, res) => {
+    const projectId = String(req.params.projectId ?? '')
+    const query = String(req.query.q ?? '').trim()
+
+    if (query.length < 2) {
+      res.json({ results: [] })
+      return
+    }
+
+    const escapedQuery = query.replace(/[^a-zA-Z0-9\s-]/g, '').trim()
+    if (escapedQuery.length < 2) {
+      res.json({ results: [] })
+      return
+    }
+    const pattern = `%${escapedQuery}%`
+    const [project, locationsResult, approvalsResult, activityResult] = await Promise.all([
+      getProjectPayload(projectId),
+      adminClient
+        .from('locations')
+        .select('id, name, address')
+        .eq('project_id', projectId)
+        .or(`name.ilike.${pattern},address.ilike.${pattern}`)
+        .limit(8),
+      adminClient
+        .from('approvals')
+        .select('id, request_title, request_description, source_module, department')
+        .eq('project_id', projectId)
+        .or(`request_title.ilike.${pattern},request_description.ilike.${pattern}`)
+        .limit(8),
+      adminClient
+        .from('activity_logs')
+        .select('id, entity, entity_label, action')
+        .eq('project_id', projectId)
+        .or(`entity_label.ilike.${pattern},action.ilike.${pattern}`)
+        .order('created_at', { ascending: false })
+        .limit(8),
+    ])
+
+    if (locationsResult.error) throw locationsResult.error
+    if (approvalsResult.error) throw approvalsResult.error
+    if (activityResult.error) throw activityResult.error
+
+    const results = [
+      ...(project && project.name.toLowerCase().includes(query.toLowerCase()) ? [{
+        id: project.id,
+        title: project.name,
+        subtitle: project.location,
+        module: 'Project Workspace',
+        path: '/projects',
+        phase: project.projectPhase,
+        entityType: 'project',
+      }] : []),
+      ...((locationsResult.data ?? []) as Array<{ id: string; name: string | null; address: string | null }>).map(row => ({
+        id: row.id,
+        title: row.name ?? 'Location',
+        subtitle: row.address ?? 'Locations workspace',
+        module: 'Locations',
+        path: `/locations?locationId=${row.id}`,
+        phase: 'pre_production',
+        entityType: 'location',
+      })),
+      ...((approvalsResult.data ?? []) as Array<{ id: string; request_title: string | null; request_description: string | null; source_module: string | null; department: string | null }>).map(row => ({
+        id: row.id,
+        title: row.request_title ?? 'Approval',
+        subtitle: row.request_description ?? row.department ?? 'Approvals',
+        module: 'Approvals',
+        path: '/approvals',
+        phase: row.source_module === 'locations' ? 'pre_production' : 'production',
+        entityType: 'approval',
+      })),
+      ...((activityResult.data ?? []) as Array<{ id: string; entity: string | null; entity_label: string | null; action: string | null }>).map(row => ({
+        id: row.id,
+        title: row.entity_label ?? row.action ?? 'Activity',
+        subtitle: row.entity ?? 'Recent project activity',
+        module: 'Project Activity',
+        path: row.entity?.startsWith('location') ? '/locations' : row.entity?.startsWith('approval') ? '/approvals' : '/projects',
+        phase: row.entity?.startsWith('location') ? 'pre_production' : row.entity?.startsWith('approval') ? 'production' : project?.projectPhase ?? 'planning',
+        entityType: 'activity',
+      })),
+    ].slice(0, 20)
+
+    res.json({ results })
+  }),
+)
+
+projectsRouter.get(
+  '/:projectId/phase-history',
+  authMiddleware,
+  projectAccessMiddleware,
+  asyncHandler(async (req, res) => {
+    const projectId = String(req.params.projectId ?? '')
+    const history = await listProjectPhaseHistory(projectId)
+    res.json({ history })
+  }),
+)
+
+projectsRouter.patch(
+  '/:projectId/phase',
+  authMiddleware,
+  projectAccessMiddleware,
+  asyncHandler(async (req, res) => {
+    const projectId = String(req.params.projectId ?? '')
+    const userId = req.authUser?.id
+
+    if (!userId) {
+      throw new HttpError(401, 'Authenticated user context is missing.')
+    }
+
+    const access = await getProjectAccess(projectId, userId)
+    if (!canManageProjectWorkflow({
+      authRole: req.authUser?.role,
+      membershipRole: access.membershipRole,
+      projectRole: access.projectRole,
+      isOwner: access.isOwner,
+    })) {
+      throw new HttpError(403, 'You do not have permission to change the project phase.')
+    }
+
+    const payload = updateProjectPhaseSchema.parse(req.body)
+    const currentProject = await getProjectPayload(projectId)
+    if (!currentProject) {
+      throw new HttpError(404, 'Project not found.')
+    }
+
+    if (currentProject.projectPhase !== payload.projectPhase) {
+      const { error: projectError } = await adminClient
+        .from('projects')
+        .update({ project_phase: payload.projectPhase })
+        .eq('id', projectId)
+
+      if (projectError) throw projectError
+
+      await recordProjectPhaseChange({
+        projectId,
+        previousPhase: currentProject.projectPhase,
+        nextPhase: payload.projectPhase,
+        changedBy: userId,
+        changedByName: req.authUser?.fullName ?? req.authUser?.email ?? null,
+        notes: payload.reason,
+        source: 'manual',
+      })
+    }
+
+    const [projectBase, progress, history] = await Promise.all([
+      getProjectPayload(projectId),
+      getProjectProgressSnapshot(projectId),
+      listProjectPhaseHistory(projectId),
+    ])
+    const project = projectBase
+      ? {
+          ...projectBase,
+          progressPercent: progress.progress,
+          spentAmount: progress.spent,
+          isOverBudget: progress.isOverBudget,
+          budgetUSD: progress.budget,
+        }
+      : null
+
+    emitProjectEvent('project_updated', {
+      projectId,
+      data: { type: 'project_phase_changed', projectPhase: payload.projectPhase },
+    })
+
+    res.json({ project, history })
+  }),
+)
+
+projectsRouter.get(
   '/:projectId',
   authMiddleware,
   projectAccessMiddleware,
@@ -798,7 +975,12 @@ projectsRouter.post(
     }
 
     const access = await getProjectAccess(projectId, userId)
-    const canEditProject = access.isOwner || access.membershipRole === 'EP'
+    const canEditProject = canManageProjectWorkflow({
+      authRole: req.authUser?.role,
+      membershipRole: access.membershipRole,
+      projectRole: access.projectRole,
+      isOwner: access.isOwner,
+    })
     if (!canEditProject) {
       throw new HttpError(403, 'Only an Executive Producer can edit budget allocations.')
     }
@@ -904,7 +1086,12 @@ projectsRouter.put(
     }
 
     const access = await getProjectAccess(projectId, userId)
-    const canEditProject = access.isOwner || access.membershipRole === 'EP' || access.membershipRole === 'LINE_PRODUCER' || access.membershipRole === 'SUPERVISOR'
+    const canEditProject = canManageProjectWorkflow({
+      authRole: req.authUser?.role,
+      membershipRole: access.membershipRole,
+      projectRole: access.projectRole,
+      isOwner: access.isOwner,
+    })
     if (!canEditProject) {
       throw new HttpError(403, 'You do not have permission to edit project planning.')
     }
@@ -1052,6 +1239,15 @@ projectsRouter.post(
       throw departmentUpsertError
     }
 
+    await recordProjectPhaseChange({
+      projectId,
+      previousPhase: null,
+      nextPhase: payload.projectPhase,
+      changedBy: ownerId,
+      changedByName: req.authUser?.fullName ?? req.authUser?.email ?? null,
+      source: 'project_create',
+    })
+
     const createdProject = await getProjectPayload(projectId)
 
     console.log('[projects][create] db result', { projectId, ownerId })
@@ -1073,11 +1269,17 @@ projectsRouter.put(
     }
 
     const access = await getProjectAccess(projectId, userId)
-    const canEditProject = access.isOwner || access.membershipRole === 'EP'
+    const canEditProject = canManageProjectWorkflow({
+      authRole: req.authUser?.role,
+      membershipRole: access.membershipRole,
+      projectRole: access.projectRole,
+      isOwner: access.isOwner,
+    })
     if (!canEditProject) {
-      throw new HttpError(403, 'Only an Executive Producer can edit project settings.')
+      throw new HttpError(403, 'You do not have permission to edit project settings.')
     }
 
+    const currentProject = await getProjectPayload(projectId)
     const enabledDepartments = new Set(['production', ...payload.enabledDepartments])
     const departmentRows = ['camera', 'art', 'transport', 'production', 'wardrobe', 'post', 'actors'].map(department => ({
       project_id: projectId,
@@ -1125,6 +1327,17 @@ projectsRouter.put(
     }
     if (departmentError) {
       throw departmentError
+    }
+
+    if (currentProject && payload.projectPhase && currentProject.projectPhase !== payload.projectPhase) {
+      await recordProjectPhaseChange({
+        projectId,
+        previousPhase: currentProject.projectPhase,
+        nextPhase: payload.projectPhase,
+        changedBy: userId,
+        changedByName: req.authUser?.fullName ?? req.authUser?.email ?? null,
+        source: 'settings',
+      })
     }
 
     const [projectBase, progress] = await Promise.all([
@@ -1266,3 +1479,6 @@ projectsRouter.get(
     res.json({ access: req.projectAccess })
   }),
 )
+
+
+
