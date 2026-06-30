@@ -11,7 +11,7 @@ import {
 import { HttpError } from '../utils/httpError'
 
 const exportQuerySchema = z.object({
-  type: z.enum(['pdf', 'csv']).default('pdf'),
+  type: z.enum(['pdf', 'csv', 'xlsx']).default('pdf'),
 })
 
 function requireProjectId(req: Request) {

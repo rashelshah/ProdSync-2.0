@@ -30,7 +30,7 @@ export function ReportsDashboard() {
   } = useReportsData()
 
   const exportMutation = useMutation({
-    mutationFn: async (type: 'pdf' | 'csv') => {
+    mutationFn: async (type: 'pdf' | 'csv' | 'xlsx') => {
       if (!activeProjectId) {
         throw new Error('Select a project before exporting reports.')
       }
@@ -51,6 +51,18 @@ export function ReportsDashboard() {
     }
   }
 
+  async function handleBudgetSheetExport() {
+    const toastId = 'reports-export-xlsx'
+    showLoading('Preparing budget workbook...', { id: toastId })
+
+    try {
+      await exportMutation.mutateAsync('xlsx')
+      showSuccess('Budget workbook downloaded.', { id: toastId })
+    } catch (error) {
+      showError(error instanceof Error ? error.message : 'Export failed.', { id: toastId })
+    }
+  }
+
   if (isLoading) return <PageLoader open message="Loading reports and insights..." />
   if (isError || !summary) return <ErrorState message="Failed to load reports" />
 
@@ -61,7 +73,7 @@ export function ReportsDashboard() {
       <div className="md:hidden mt-2 px-1 pb-16">
         <header className="px-3">
           <div className="overflow-hidden rounded-[28px] border border-zinc-200/80 bg-white/88 px-4 py-4 shadow-[0_18px_40px_rgba(15,23,42,0.08)] backdrop-blur-xl dark:border-white/8 dark:bg-zinc-900/82 dark:shadow-[0_20px_44px_rgba(0,0,0,0.32)]">
-            <span className="page-kicker text-orange-500">Reports Engine</span>
+            <span className="page-kicker text-orange-500">Financial Engine</span>
             <h1 className="page-title page-title-compact mt-1 text-zinc-900 dark:text-white">Reports & Insights</h1>
             <p className="page-subtitle mt-2 text-zinc-500 dark:text-zinc-400">
               Reporting for {activeProject?.name ?? 'the active project'}
@@ -70,7 +82,7 @@ export function ReportsDashboard() {
         </header>
 
         <div className="animate-in fade-in slide-in-from-bottom-2 duration-300 space-y-8 px-3 pt-6">
-          <div className="flex gap-3">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
             <button className="flex-1 flex justify-center items-center gap-2 rounded-[20px] bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 px-4 py-3 text-[11px] font-bold uppercase tracking-widest text-zinc-900 dark:text-white shadow-sm" onClick={() => handleExport('csv')} disabled={exportMutation.isPending}>
               <span className="material-symbols-outlined text-[16px]">table_view</span>
               Export CSV
@@ -78,6 +90,10 @@ export function ReportsDashboard() {
             <button className="flex-1 flex justify-center items-center gap-2 rounded-[20px] bg-gradient-to-r from-orange-500 to-orange-400 px-4 py-3 text-[11px] font-bold uppercase tracking-widest text-black shadow-[0_8px_16px_rgba(249,115,22,0.2)]" onClick={() => handleExport('pdf')} disabled={exportMutation.isPending}>
               <span className="material-symbols-outlined text-[16px]">picture_as_pdf</span>
               Export PDF
+            </button>
+            <button className="flex-1 flex justify-center items-center gap-2 rounded-[20px] bg-white dark:bg-zinc-900 border border-orange-200 dark:border-orange-500/30 px-4 py-3 text-[11px] font-bold uppercase tracking-widest text-orange-600 dark:text-orange-300 shadow-sm" onClick={() => void handleBudgetSheetExport()} disabled={exportMutation.isPending}>
+              <span className="material-symbols-outlined text-[16px]">grid_on</span>
+              Budget Sheet
             </button>
           </div>
 
@@ -127,7 +143,7 @@ export function ReportsDashboard() {
       <div className="hidden md:block space-y-6">
         <header className="page-header">
           <div>
-            <span className="page-kicker">Reports Engine</span>
+            <span className="page-kicker">Financial Engine</span>
             <h1 className="page-title page-title-compact">Reports & Insights</h1>
             <p className="page-subtitle">
               Aggregated financial and operational visibility for {activeProject?.name ?? 'the active project'}, scoped to {summary.scope.label.toLowerCase()} access.
@@ -142,6 +158,10 @@ export function ReportsDashboard() {
             <button className="btn-primary" onClick={() => handleExport('pdf')} disabled={exportMutation.isPending}>
               <span className="material-symbols-outlined text-sm">picture_as_pdf</span>
               Export PDF
+            </button>
+            <button className="btn-soft" onClick={() => void handleBudgetSheetExport()} disabled={exportMutation.isPending}>
+              <span className="material-symbols-outlined text-sm">grid_on</span>
+              Budget Sheet
             </button>
           </div>
         </header>

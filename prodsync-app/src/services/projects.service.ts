@@ -199,6 +199,14 @@ export const projectsService = {
     return payload.project ? toProjectRecord(payload.project) : null
   },
 
+  async deleteProject(projectId: string) {
+    console.log('[projectsService] deleting project', { projectId })
+    const response = await apiFetch(`/projects/${encodeURIComponent(projectId)}`, {
+      method: 'DELETE',
+    })
+    return readApiJson<{ ok: boolean }>(response)
+  },
+
   async getProject(projectId: string) {
     console.log('[projectsService] fetching live project', { projectId })
     const response = await apiFetch(`/projects/${encodeURIComponent(projectId)}`)

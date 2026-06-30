@@ -1016,6 +1016,10 @@ const PLANNING_SECTIONS: z.infer<typeof planningSectionSchema>[] = [
   'budget_review',
 ]
 
+function isPlanningComplete(summary: ReturnType<typeof buildPlanningSummary>) {
+  return summary.completedCount === summary.totalCount && summary.skippedCount === 0
+}
+
 function buildPlanningSummary(rows: PlanningSectionRow[]) {
   const bySection = new Map(rows.map(row => [row.section_type, row]))
   const sections = PLANNING_SECTIONS.map(sectionType => {
@@ -1137,9 +1141,96 @@ projectsRouter.put(
       }
     }
 
-    emitProjectEvent('project_updated', { projectId, data: { type: 'project_planning_updated' } })
-    const [project, planning] = await Promise.all([getProjectPayload(projectId), getPlanningSummary(projectId)])
+    const planning = await getPlanningSummary(projectId)
+    let project = await getProjectPayload(projectId)
+    let projectEventPayload: Record<string, unknown> = { type: 'project_planning_updated' }
+
+    if (project && project.projectPhase === 'planning' && isPlanningComplete(planning)) {
+      const { error: phaseUpdateError } = await adminClient
+        .from('projects')
+        .update({ project_phase: 'pre_production' })
+        .eq('id', projectId)
+
+      if (phaseUpdateError) {
+        throw phaseUpdateError
+      }
+
+      await recordProjectPhaseChange({
+        projectId,
+        previousPhase: 'planning',
+        nextPhase: 'pre_production',
+        changedBy: userId,
+        changedByName: req.authUser?.fullName ?? req.authUser?.email ?? null,
+        notes: 'Project planning completed and moved to pre-production automatically.',
+        source: 'project_planning_complete',
+      })
+
+      project = await getProjectPayload(projectId)
+      projectEventPayload = { type: 'project_phase_auto_advanced', projectPhase: 'pre_production' }
+    }
+
+    emitProjectEvent('project_updated', { projectId, data: projectEventPayload })
     res.json({ planning: { ...planning, project } })
+  }),
+)
+
+projectsRouter.delete(
+  '/:projectId',
+  authMiddleware,
+  projectAccessMiddleware,
+  asyncHandler(async (req, res) => {
+    const projectId = String(req.params.projectId ?? '')
+    const userId = req.authUser?.id
+
+    if (!userId) {
+      throw new HttpError(401, 'Authenticated user context is missing.')
+    }
+
+    const access = await getProjectAccess(projectId, userId)
+    const canDeleteProject = canManageProjectWorkflow({
+      authRole: req.authUser?.role,
+      membershipRole: access.membershipRole,
+      projectRole: access.projectRole,
+      isOwner: access.isOwner,
+    })
+
+    if (!canDeleteProject) {
+      throw new HttpError(403, 'You do not have permission to delete this project.')
+    }
+
+    const currentProject = await getProjectPayload(projectId)
+    if (!currentProject) {
+      throw new HttpError(404, 'Project not found.')
+    }
+
+    const { error } = await adminClient
+      .from('projects')
+      .update({
+        is_archived: true,
+        invite_enabled: false,
+      })
+      .eq('id', projectId)
+
+    if (error) {
+      throw error
+    }
+
+    await recordProjectPhaseChange({
+      projectId,
+      previousPhase: currentProject.projectPhase,
+      nextPhase: currentProject.projectPhase,
+      changedBy: userId,
+      changedByName: req.authUser?.fullName ?? req.authUser?.email ?? null,
+      notes: 'Project archived.',
+      source: 'project_delete',
+    })
+
+    emitProjectEvent('project_updated', {
+      projectId,
+      data: { type: 'project_archived' },
+    })
+
+    res.json({ ok: true })
   }),
 )
 projectsRouter.post(

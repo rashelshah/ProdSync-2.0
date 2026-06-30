@@ -1,10 +1,9 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useNavigate, useParams } from 'react-router-dom'
 import { Surface } from '@/components/shared/Surface'
 import { KpiCard } from '@/components/shared/KpiCard'
 import { EmptyState, ErrorState, PageLoader } from '@/components/system/SystemStates'
-import { invalidateProjectData } from '@/context/project-sync'
 import { useAuthStore } from '@/features/auth/auth.store'
 import { showError, showSuccess } from '@/lib/toast'
 import { projectsService } from '@/services/projects.service'
@@ -14,6 +13,7 @@ import type { PlanningSectionType, ProjectCurrency, ProjectPhase, ProjectPlannin
 type CrewRow = { id: string; department: string; estimatedCrew: number; estimatedDailyWage: number; estimatedDays: number }
 type CastRow = { id: string; category: string; estimatedCount: number; estimatedRate: number; estimatedDays: number }
 type ExpenseRow = { id: string; category: string; estimatedBudget: number; contingencyPercent: number; notes: string }
+type PlanningAction = 'save-draft' | 'save-continue' | 'skip' | 'finish-later' | null
 
 const steps: Array<{ id: PlanningSectionType; title: string; help: string }> = [
   { id: 'project_information', title: 'Project Information', help: 'Add only what you know today. Everything except the project name can be completed later.' },
@@ -54,8 +54,11 @@ export function ProjectPlanningWizard() {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
   const user = useAuthStore(state => state.user)
+  const [activeAction, setActiveAction] = useState<PlanningAction>(null)
   const [stepIndex, setStepIndex] = useState(0)
   const currentStep = steps[stepIndex]
+  const lastSavedSignatureRef = useRef('')
+  const pendingSaveSignatureRef = useRef('')
 
   const planningQ = useQuery({
     queryKey: ['project-planning', projectId],
@@ -71,8 +74,38 @@ export function ProjectPlanningWizard() {
     mutationFn: (input: { sectionType: PlanningSectionType; payload: Record<string, unknown>; isCompleted?: boolean; isSkipped?: boolean }) =>
       projectsService.savePlanningSection(projectId, input),
     onSuccess: async result => {
-      await invalidateProjectData(queryClient, { projectId, userId: user?.id })
       queryClient.setQueryData(['project-planning', projectId], result)
+      queryClient.setQueryData(['project', projectId], result.project)
+
+      if (user?.id) {
+        queryClient.setQueryData(['accessible-projects', user.id], (current: unknown) => {
+          if (!current || typeof current !== 'object') {
+            return current
+          }
+
+          const snapshot = current as { projects?: Array<{ id: string }>; projectMembers?: unknown[] }
+          return {
+            ...snapshot,
+            projects: (snapshot.projects ?? []).map(project => project.id === result.project.id ? result.project : project),
+          }
+        })
+      }
+
+      if (currentStep.id === 'project_information') {
+        await Promise.all([
+          queryClient.invalidateQueries({ queryKey: ['reports-summary', projectId] }),
+          queryClient.invalidateQueries({ queryKey: ['reports-burn-chart', projectId] }),
+          queryClient.invalidateQueries({ queryKey: ['reports-departments', projectId] }),
+          queryClient.invalidateQueries({ queryKey: ['budget-allocations', projectId] }),
+        ])
+      }
+
+      lastSavedSignatureRef.current = pendingSaveSignatureRef.current
+
+      if (planning?.project.projectPhase === 'planning' && result.project.projectPhase === 'pre_production') {
+        showSuccess('Project Planning completed. Project has moved to Pre-Production.')
+        navigate('/projects')
+      }
     },
   })
 
@@ -103,16 +136,34 @@ export function ProjectPlanningWizard() {
     setCrewRows(readRows<CrewRow>(planning.sections, 'crew_planning', 'departments', defaultCrewDepartments.map(newCrewRow)))
     setCastRows(readRows<CastRow>(planning.sections, 'cast_planning', 'categories', defaultCastCategories.map(newCastRow)))
     setExpenseRows(readRows<ExpenseRow>(planning.sections, 'expense_planning', 'categories', defaultExpenseCategories.map(newExpenseRow)))
+    lastSavedSignatureRef.current = ''
+    pendingSaveSignatureRef.current = ''
   }, [infoDefaults, planning])
+
+  const currentSignature = useMemo(() => JSON.stringify({
+    step: currentStep.id,
+    info,
+    crewRows,
+    castRows,
+    expenseRows,
+    completed: Boolean(section?.isCompleted),
+    skipped: Boolean(section?.isSkipped),
+  }), [castRows, crewRows, currentStep.id, expenseRows, info, section?.isCompleted, section?.isSkipped])
 
   useEffect(() => {
     if (!planning || saveMutation.isPending) return
+    if (!lastSavedSignatureRef.current && !pendingSaveSignatureRef.current) {
+      lastSavedSignatureRef.current = currentSignature
+      return
+    }
+    if (currentSignature === lastSavedSignatureRef.current || currentSignature === pendingSaveSignatureRef.current) return
     const timer = window.setTimeout(() => {
+      pendingSaveSignatureRef.current = currentSignature
       const payload = getPayload()
       void saveMutation.mutateAsync({ sectionType: currentStep.id, payload, isCompleted: Boolean(section?.isCompleted), isSkipped: Boolean(section?.isSkipped) }).catch(() => undefined)
     }, 1800)
     return () => window.clearTimeout(timer)
-  }, [info, crewRows, castRows, expenseRows, currentStep.id])
+  }, [currentSignature, planning, saveMutation.isPending])
 
   if (planningQ.isLoading) return <PageLoader open message="Loading project planning..." />
   if (planningQ.isError || !planning || !currentStep) return <ErrorState message="Project planning could not be loaded." />
@@ -143,19 +194,20 @@ export function ProjectPlanningWizard() {
       showError('Project name is the only required field.')
       return
     }
+    pendingSaveSignatureRef.current = currentSignature
     try {
-      await saveMutation.mutateAsync({
+      const result = await saveMutation.mutateAsync({
         sectionType: currentStep.id,
         payload: getPayload(),
         isCompleted: options.completed ?? false,
         isSkipped: options.skipped ?? false,
       })
-      if (options.finish) {
+      if (result.project.projectPhase !== 'pre_production' && options.finish) {
         showSuccess('Project planning saved.')
-        navigate('/dashboard')
-      } else if (options.advance) {
+        navigate('/projects')
+      } else if (result.project.projectPhase !== 'pre_production' && options.advance) {
         setStepIndex(index => Math.min(index + 1, steps.length - 1))
-      } else {
+      } else if (result.project.projectPhase !== 'pre_production') {
         showSuccess('Draft saved.')
       }
     } catch (error) {
@@ -164,6 +216,16 @@ export function ProjectPlanningWizard() {
   }
 
   const actionBusy = saveMutation.isPending
+  const isActionBusy = (action: Exclude<PlanningAction, null>) => activeAction === action || actionBusy
+  const runAction = async (action: Exclude<PlanningAction, null>, handler: () => Promise<void> | void) => {
+    if (actionBusy) return
+    setActiveAction(action)
+    try {
+      await handler()
+    } finally {
+      setActiveAction(null)
+    }
+  }
 
   return (
     <div className="page-shell page-shell-narrow pb-32 max-md:pt-16">
@@ -185,7 +247,7 @@ export function ProjectPlanningWizard() {
           const stepSection = planning.sections.find(item => item.sectionType === step.id)
           const state = index === stepIndex ? 'Current' : stepSection?.isCompleted ? 'Completed' : stepSection?.isSkipped ? 'Skipped' : 'Upcoming'
           return (
-            <button key={step.id} onClick={() => setStepIndex(index)} className={cn('rounded-[24px] border px-4 py-4 text-left transition-all', index === stepIndex ? 'border-orange-300 bg-orange-50 dark:border-orange-500/30 dark:bg-orange-500/10' : 'border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900')}>
+            <button key={step.id} type="button" disabled={actionBusy} onClick={() => setStepIndex(index)} className={cn('rounded-[24px] border px-4 py-4 text-left transition-all', index === stepIndex ? 'border-orange-300 bg-orange-50 dark:border-orange-500/30 dark:bg-orange-500/10' : 'border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900', actionBusy && 'cursor-not-allowed opacity-75')}>
               <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-zinc-500 dark:text-zinc-400">Step {index + 1} · {state}</p>
               <p className="mt-2 text-sm font-semibold text-zinc-900 dark:text-white">{step.title}</p>
             </button>
@@ -201,21 +263,77 @@ export function ProjectPlanningWizard() {
         {currentStep.id === 'budget_review' && <BudgetReview crewCost={crewCost} castCost={castCost} expenseCost={expenseCost} crewCount={crewCount} castCount={castCount} departmentCount={crewRows.length} currency={currency} />}
       </Surface>
 
-      <section className="hidden items-center justify-between gap-3 rounded-[30px] border border-zinc-200 bg-white p-4 shadow-soft dark:border-zinc-800 dark:bg-zinc-950 md:flex">
-        <button className="btn-soft" disabled={stepIndex === 0 || actionBusy} onClick={() => setStepIndex(index => Math.max(0, index - 1))}>Back</button>
+      <section className="sticky bottom-6 z-40 hidden items-center justify-between gap-3 rounded-[30px] border border-zinc-200 bg-white p-4 shadow-soft dark:border-zinc-800 dark:bg-zinc-950 md:flex">
+        <button type="button" className="btn-soft" disabled={stepIndex === 0 || actionBusy} onClick={() => setStepIndex(index => Math.max(0, index - 1))}>Back</button>
         <div className="flex flex-wrap gap-3">
-          <button className="btn-ghost" disabled={actionBusy} onClick={() => saveStep({ completed: false })}>Save Draft</button>
-          <button className="btn-soft" disabled={actionBusy} onClick={() => saveStep({ skipped: true, advance: stepIndex < steps.length - 1, finish: stepIndex === steps.length - 1 })}>Skip For Now</button>
-          <button className="btn-soft" disabled={actionBusy} onClick={() => navigate('/projects')}>Finish Later</button>
-          <button className="btn-primary" disabled={actionBusy} onClick={() => saveStep({ completed: true, advance: stepIndex < steps.length - 1, finish: stepIndex === steps.length - 1 })}>{stepIndex === steps.length - 1 ? 'Finish Project Planning' : 'Save & Continue'}</button>
+          <button
+            type="button"
+            className="btn-ghost min-w-36"
+            disabled={isActionBusy('save-draft')}
+            onClick={() => void runAction('save-draft', () => saveStep({ completed: false }))}
+          >
+            {activeAction === 'save-draft' ? <span className="ui-spinner" /> : null}
+            {activeAction === 'save-draft' ? 'Saving...' : 'Save Draft'}
+          </button>
+          <button
+            type="button"
+            className="btn-soft min-w-36"
+            disabled={isActionBusy('skip')}
+            onClick={() => void runAction('skip', () => saveStep({ skipped: true, advance: stepIndex < steps.length - 1, finish: stepIndex === steps.length - 1 }))}
+          >
+            {activeAction === 'skip' ? <span className="ui-spinner" /> : null}
+            {activeAction === 'skip' ? 'Skipping...' : 'Skip For Now'}
+          </button>
+          <button
+            type="button"
+            className="btn-soft min-w-36"
+            disabled={isActionBusy('finish-later')}
+            onClick={() => void runAction('finish-later', async () => navigate('/projects'))}
+          >
+            {activeAction === 'finish-later' ? <span className="ui-spinner" /> : null}
+            {activeAction === 'finish-later' ? 'Leaving...' : 'Finish Later'}
+          </button>
+          <button
+            type="button"
+            className="btn-primary min-w-40"
+            disabled={isActionBusy('save-continue')}
+            onClick={() => void runAction('save-continue', () => saveStep({ completed: true, advance: stepIndex < steps.length - 1, finish: stepIndex === steps.length - 1 }))}
+          >
+            {activeAction === 'save-continue' ? <span className="ui-spinner" /> : null}
+            {activeAction === 'save-continue' ? 'Saving...' : (stepIndex === steps.length - 1 ? 'Finish Project Planning' : 'Save & Continue')}
+          </button>
         </div>
       </section>
 
       <section className="fixed inset-x-4 bottom-24 z-40 grid grid-cols-4 gap-2 rounded-[28px] border border-white/70 bg-white/90 p-2 shadow-soft backdrop-blur-xl dark:border-white/10 dark:bg-zinc-950/90 md:hidden">
-        <button className="btn-soft justify-center px-2" disabled={stepIndex === 0 || actionBusy} onClick={() => setStepIndex(index => Math.max(0, index - 1))}>Back</button>
-        <button className="btn-ghost justify-center px-2" disabled={actionBusy} onClick={() => saveStep({ completed: false })}>Save</button>
-        <button className="btn-soft justify-center px-2" disabled={actionBusy} onClick={() => saveStep({ skipped: true, advance: stepIndex < steps.length - 1, finish: stepIndex === steps.length - 1 })}>Skip</button>
-        <button className="btn-primary justify-center px-2" disabled={actionBusy} onClick={() => saveStep({ completed: true, advance: stepIndex < steps.length - 1, finish: stepIndex === steps.length - 1 })}>{stepIndex === steps.length - 1 ? 'Finish' : 'Next'}</button>
+        <button type="button" className="btn-soft justify-center px-2" disabled={stepIndex === 0 || actionBusy} onClick={() => setStepIndex(index => Math.max(0, index - 1))}>Back</button>
+        <button
+          type="button"
+          className="btn-ghost justify-center px-2"
+          disabled={isActionBusy('save-draft')}
+          onClick={() => void runAction('save-draft', () => saveStep({ completed: false }))}
+        >
+          {activeAction === 'save-draft' ? <span className="ui-spinner" /> : null}
+          {activeAction === 'save-draft' ? 'Saving' : 'Save'}
+        </button>
+        <button
+          type="button"
+          className="btn-soft justify-center px-2"
+          disabled={isActionBusy('skip')}
+          onClick={() => void runAction('skip', () => saveStep({ skipped: true, advance: stepIndex < steps.length - 1, finish: stepIndex === steps.length - 1 }))}
+        >
+          {activeAction === 'skip' ? <span className="ui-spinner" /> : null}
+          {activeAction === 'skip' ? 'Skipping' : 'Skip'}
+        </button>
+        <button
+          type="button"
+          className="btn-primary justify-center px-2"
+          disabled={isActionBusy('save-continue')}
+          onClick={() => void runAction('save-continue', () => saveStep({ completed: true, advance: stepIndex < steps.length - 1, finish: stepIndex === steps.length - 1 }))}
+        >
+          {activeAction === 'save-continue' ? <span className="ui-spinner" /> : null}
+          {activeAction === 'save-continue' ? 'Saving' : (stepIndex === steps.length - 1 ? 'Finish' : 'Next')}
+        </button>
       </section>
     </div>
   )
@@ -230,6 +348,19 @@ function Field({ label, value, onChange, type = 'text', required = false }: { la
   return <label className="auth-field"><span className="auth-field-label">{label}{required ? ' *' : ''}</span><input type={type} className="project-modal-control" value={String(value ?? '')} onChange={e => onChange(e.target.value)} placeholder={required ? '' : 'Can be completed later.'} /></label>
 }
 
+function PlanningColumnHeader({ children }: { children: string }) {
+  return <span className="text-[10px] font-semibold uppercase tracking-[0.18em] text-zinc-500 dark:text-zinc-400">{children}</span>
+}
+
+function PlanningCell({ label, children }: { label: string; children: ReactNode }) {
+  return (
+    <label className="space-y-1.5">
+      <span className="text-[10px] font-semibold uppercase tracking-[0.16em] text-zinc-500 md:hidden dark:text-zinc-400">{label}</span>
+      {children}
+    </label>
+  )
+}
+
 function CrewStep({ rows, setRows, currency }: { rows: CrewRow[]; setRows: React.Dispatch<React.SetStateAction<CrewRow[]>>; currency: ProjectCurrency }) {
   return <PlanningRows title="Estimated Departments" empty="No crew estimates yet. Add departments or skip this step." rows={rows} setRows={setRows} currency={currency} kind="crew" />
 }
@@ -241,11 +372,125 @@ function PlanningRows<T extends CrewRow | CastRow>({ title, empty, rows, setRows
   const nameKey = kind === 'crew' ? 'department' : 'category'
   const countKey = kind === 'crew' ? 'estimatedCrew' : 'estimatedCount'
   const rateKey = kind === 'crew' ? 'estimatedDailyWage' : 'estimatedRate'
-  return <div className="space-y-5"><div className="section-heading"><h2 className="section-title">{title}</h2><button className="btn-primary" onClick={() => setRows(current => [...current, (kind === 'crew' ? newCrewRow() : newCastRow()) as T])}>Add {kind === 'crew' ? 'Department' : 'Category'}</button></div>{rows.length === 0 ? <EmptyState icon="edit_note" title={empty} /> : <div className="space-y-3">{rows.map(row => <div key={row.id} className="grid gap-3 rounded-[24px] bg-zinc-50 p-4 dark:bg-zinc-900 md:grid-cols-[1.2fr_0.8fr_0.8fr_0.7fr_1fr_auto]"><input className="project-modal-control" value={String((row as unknown as Record<string, string | number>)[nameKey])} onChange={e => setRows(cur => cur.map(item => item.id === row.id ? { ...item, [nameKey]: e.target.value } : item))} /><input className="project-modal-control" type="number" value={Number((row as unknown as Record<string, string | number>)[countKey])} onChange={e => setRows(cur => cur.map(item => item.id === row.id ? { ...item, [countKey]: Number(e.target.value) || 0 } : item))} /><input className="project-modal-control" type="number" value={Number((row as unknown as Record<string, string | number>)[rateKey])} onChange={e => setRows(cur => cur.map(item => item.id === row.id ? { ...item, [rateKey]: Number(e.target.value) || 0 } : item))} /><input className="project-modal-control" type="number" value={row.estimatedDays} onChange={e => setRows(cur => cur.map(item => item.id === row.id ? { ...item, estimatedDays: Number(e.target.value) || 0 } : item))} /><div className="rounded-[18px] bg-white px-4 py-3 text-sm font-semibold dark:bg-zinc-950">{formatCurrency(rowTotal(row), currency)}</div><div className="flex gap-2"><button className="btn-soft px-3" onClick={() => setRows(cur => [...cur, { ...row, id: crypto.randomUUID() }])}>Copy</button><button className="btn-ghost px-3" onClick={() => setRows(cur => cur.filter(item => item.id !== row.id))}>Remove</button></div></div>)}</div>}<SummaryTotal label="Grand Total" amount={rows.reduce((sum, row) => sum + rowTotal(row), 0)} currency={currency} /></div>
+  const columns = kind === 'crew'
+    ? ['Department', 'Estimated People', 'Estimated Days', 'Daily Rate', 'Estimated Cost', 'Actions']
+    : ['Category', 'Estimated Artists', 'Shoot Days', 'Per Day Cost', 'Estimated Cost', 'Actions']
+
+  return (
+    <div className="space-y-5">
+      <div className="section-heading">
+        <h2 className="section-title">{title}</h2>
+        <button type="button" className="btn-primary" onClick={() => setRows(current => [...current, (kind === 'crew' ? newCrewRow() : newCastRow()) as T])}>
+          Add {kind === 'crew' ? 'Department' : 'Category'}
+        </button>
+      </div>
+      {rows.length === 0 ? (
+        <EmptyState icon="edit_note" title={empty} />
+      ) : (
+        <div className="space-y-3">
+          <div className="hidden rounded-[18px] border border-zinc-200 bg-zinc-100 px-4 py-3 md:grid md:grid-cols-[1.2fr_0.8fr_0.8fr_0.7fr_1fr_auto] md:gap-3 dark:border-zinc-800 dark:bg-zinc-900">
+            {columns.map(column => <PlanningColumnHeader key={column}>{column}</PlanningColumnHeader>)}
+          </div>
+          {rows.map(row => (
+            <div key={row.id} className="grid gap-3 rounded-[24px] bg-zinc-50 p-4 dark:bg-zinc-900 md:grid-cols-[1.2fr_0.8fr_0.8fr_0.7fr_1fr_auto]">
+              <PlanningCell label={columns[0]}>
+                <input
+                  className="project-modal-control"
+                  value={String((row as unknown as Record<string, string | number>)[nameKey])}
+                  onChange={e => setRows(cur => cur.map(item => item.id === row.id ? { ...item, [nameKey]: e.target.value } : item))}
+                />
+              </PlanningCell>
+              <PlanningCell label={columns[1]}>
+                <input
+                  className="project-modal-control"
+                  type="number"
+                  value={Number((row as unknown as Record<string, string | number>)[countKey])}
+                  onChange={e => setRows(cur => cur.map(item => item.id === row.id ? { ...item, [countKey]: Number(e.target.value) || 0 } : item))}
+                />
+              </PlanningCell>
+              <PlanningCell label={columns[2]}>
+                <input
+                  className="project-modal-control"
+                  type="number"
+                  value={row.estimatedDays}
+                  onChange={e => setRows(cur => cur.map(item => item.id === row.id ? { ...item, estimatedDays: Number(e.target.value) || 0 } : item))}
+                />
+              </PlanningCell>
+              <PlanningCell label={columns[3]}>
+                <input
+                  className="project-modal-control"
+                  type="number"
+                  value={Number((row as unknown as Record<string, string | number>)[rateKey])}
+                  onChange={e => setRows(cur => cur.map(item => item.id === row.id ? { ...item, [rateKey]: Number(e.target.value) || 0 } : item))}
+                />
+              </PlanningCell>
+              <div className="rounded-[18px] bg-white px-4 py-3 text-sm font-semibold dark:bg-zinc-950">
+                <span className="md:hidden block text-[10px] uppercase tracking-[0.16em] text-zinc-500 dark:text-zinc-400">{columns[4]}</span>
+                <span className="mt-1 block">{formatCurrency(rowTotal(row), currency)}</span>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <button type="button" className="btn-soft px-3" onClick={() => setRows(cur => [...cur, { ...row, id: crypto.randomUUID() }])}>Copy</button>
+                <button type="button" className="btn-ghost px-3" onClick={() => setRows(cur => cur.filter(item => item.id !== row.id))}>Remove</button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+      <SummaryTotal label="Grand Total" amount={rows.reduce((sum, row) => sum + rowTotal(row), 0)} currency={currency} />
+    </div>
+  )
 }
 
 function ExpenseStep({ rows, setRows, currency }: { rows: ExpenseRow[]; setRows: React.Dispatch<React.SetStateAction<ExpenseRow[]>>; currency: ProjectCurrency }) {
-  return <div className="space-y-5"><div className="section-heading"><h2 className="section-title">Estimated Expenses</h2><button className="btn-primary" onClick={() => setRows(current => [...current, newExpenseRow()])}>Add Category</button></div>{rows.length === 0 ? <EmptyState icon="receipt_long" title="No expenses estimated. You can return later." /> : <div className="space-y-3">{rows.map((row, index) => <div key={row.id} className="grid gap-3 rounded-[24px] bg-zinc-50 p-4 dark:bg-zinc-900 md:grid-cols-[1.1fr_0.8fr_0.7fr_1fr_auto]"><input className="project-modal-control" value={row.category} onChange={e => setRows(cur => cur.map(item => item.id === row.id ? { ...item, category: e.target.value } : item))} /><input className="project-modal-control" type="number" value={row.estimatedBudget} onChange={e => setRows(cur => cur.map(item => item.id === row.id ? { ...item, estimatedBudget: Number(e.target.value) || 0 } : item))} /><input className="project-modal-control" type="number" value={row.contingencyPercent} onChange={e => setRows(cur => cur.map(item => item.id === row.id ? { ...item, contingencyPercent: Number(e.target.value) || 0 } : item))} /><input className="project-modal-control" value={row.notes} onChange={e => setRows(cur => cur.map(item => item.id === row.id ? { ...item, notes: e.target.value } : item))} placeholder="Optional notes" /><div className="flex flex-wrap gap-2"><button className="btn-soft px-3" disabled={index === 0} onClick={() => setRows(cur => moveRow(cur, index, -1))}>Up</button><button className="btn-soft px-3" disabled={index === rows.length - 1} onClick={() => setRows(cur => moveRow(cur, index, 1))}>Down</button><button className="btn-soft px-3" onClick={() => setRows(cur => [...cur, { ...row, id: crypto.randomUUID() }])}>Copy</button><button className="btn-ghost px-3" onClick={() => setRows(cur => cur.filter(item => item.id !== row.id))}>Remove</button></div><p className="md:col-span-5 text-sm font-semibold text-zinc-600 dark:text-zinc-300">Category Total: {formatCurrency(expenseTotal(row), currency)}</p></div>)}</div>}<SummaryTotal label="Expense Estimate" amount={rows.reduce((sum, row) => sum + expenseTotal(row), 0)} currency={currency} /></div>
+  return (
+    <div className="space-y-5">
+      <div className="section-heading">
+        <h2 className="section-title">Estimated Expenses</h2>
+        <button type="button" className="btn-primary" onClick={() => setRows(current => [...current, newExpenseRow()])}>Add Category</button>
+      </div>
+      {rows.length === 0 ? (
+        <EmptyState icon="receipt_long" title="No expenses estimated. You can return later." />
+      ) : (
+        <div className="space-y-3">
+          <div className="hidden rounded-[18px] border border-zinc-200 bg-zinc-100 px-4 py-3 md:grid md:grid-cols-[1.1fr_0.8fr_0.7fr_0.9fr_1fr_auto] md:gap-3 dark:border-zinc-800 dark:bg-zinc-900">
+            <PlanningColumnHeader>Category</PlanningColumnHeader>
+            <PlanningColumnHeader>Estimated Amount</PlanningColumnHeader>
+            <PlanningColumnHeader>Buffer %</PlanningColumnHeader>
+            <PlanningColumnHeader>Calculated Total</PlanningColumnHeader>
+            <PlanningColumnHeader>Notes</PlanningColumnHeader>
+            <PlanningColumnHeader>Actions</PlanningColumnHeader>
+          </div>
+          {rows.map((row, index) => (
+            <div key={row.id} className="grid gap-3 rounded-[24px] bg-zinc-50 p-4 dark:bg-zinc-900 md:grid-cols-[1.1fr_0.8fr_0.7fr_0.9fr_1fr_auto]">
+              <PlanningCell label="Category">
+                <input className="project-modal-control" value={row.category} onChange={e => setRows(cur => cur.map(item => item.id === row.id ? { ...item, category: e.target.value } : item))} />
+              </PlanningCell>
+              <PlanningCell label="Estimated Amount">
+                <input className="project-modal-control" type="number" value={row.estimatedBudget} onChange={e => setRows(cur => cur.map(item => item.id === row.id ? { ...item, estimatedBudget: Number(e.target.value) || 0 } : item))} />
+              </PlanningCell>
+              <PlanningCell label="Buffer %">
+                <input className="project-modal-control" type="number" value={row.contingencyPercent} onChange={e => setRows(cur => cur.map(item => item.id === row.id ? { ...item, contingencyPercent: Number(e.target.value) || 0 } : item))} />
+              </PlanningCell>
+              <div className="rounded-[18px] bg-white px-4 py-3 text-sm font-semibold dark:bg-zinc-950">
+                <span className="md:hidden block text-[10px] uppercase tracking-[0.16em] text-zinc-500 dark:text-zinc-400">Calculated Total</span>
+                <span className="mt-1 block">{formatCurrency(expenseTotal(row), currency)}</span>
+              </div>
+              <PlanningCell label="Notes">
+                <input className="project-modal-control" value={row.notes} onChange={e => setRows(cur => cur.map(item => item.id === row.id ? { ...item, notes: e.target.value } : item))} placeholder="Optional notes" />
+              </PlanningCell>
+              <div className="flex flex-wrap gap-2">
+                <button type="button" className="btn-soft px-3" disabled={index === 0} onClick={() => setRows(cur => moveRow(cur, index, -1))}>Up</button>
+                <button type="button" className="btn-soft px-3" disabled={index === rows.length - 1} onClick={() => setRows(cur => moveRow(cur, index, 1))}>Down</button>
+                <button type="button" className="btn-soft px-3" onClick={() => setRows(cur => [...cur, { ...row, id: crypto.randomUUID() }])}>Copy</button>
+                <button type="button" className="btn-ghost px-3" onClick={() => setRows(cur => cur.filter(item => item.id !== row.id))}>Remove</button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+      <SummaryTotal label="Expense Estimate" amount={rows.reduce((sum, row) => sum + expenseTotal(row), 0)} currency={currency} />
+    </div>
+  )
 }
 
 function moveRow<T>(rows: T[], index: number, direction: number) {

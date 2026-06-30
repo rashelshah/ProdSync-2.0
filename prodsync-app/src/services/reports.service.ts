@@ -51,8 +51,8 @@ export const reportsService = {
     return payload.alerts ?? []
   },
 
-  async exportReport(projectId: string, type: 'pdf' | 'csv') {
+  async exportReport(projectId: string, type: 'pdf' | 'csv' | 'xlsx') {
     const response = await apiFetch(`/reports/export?${withProjectId(projectId)}&type=${encodeURIComponent(type)}`)
-    await downloadResponse(response, `reports.${type}`)
+    await downloadResponse(response, type === 'xlsx' ? 'budget-workbook.xlsx' : `reports.${type}`)
   },
 }

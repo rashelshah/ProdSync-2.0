@@ -2,6 +2,7 @@ import { adminClient } from '../config/supabaseClient'
 import { deleteCacheKey, getCacheJson, setCacheJson } from './cache.service'
 import { BUDGET_ALLOCATION_DEPARTMENTS, listBudgetAllocations } from './budgetAllocation.service'
 import { calculateProjectProgress } from './projectFinance.service'
+import { buildBudgetWorkbook } from './financialWorkbook.service'
 import { HttpError } from '../utils/httpError'
 import { runtimeBuffer } from '../utils/runtime'
 
@@ -62,8 +63,23 @@ interface OtLiabilityRow {
   estimated_ot_cost: number | string | null
 }
 
-interface ProjectSettingsRow {
+export interface ProjectSettingsRow {
   alert_thresholds: Record<string, unknown> | null
+  config: Record<string, unknown> | null
+}
+
+export interface ApprovalLedgerRow {
+  id: string
+  request_title: string | null
+  department: string | null
+  type: string | null
+  amount: number | string | null
+  status: string | null
+  submitted_at: string | null
+  approved_at: string | null
+  rejected_at: string | null
+  metadata: Record<string, unknown> | null
+  created_at: string
 }
 
 interface FuelLogRow {
@@ -532,7 +548,7 @@ async function loadOtLiability(projectId: string) {
 async function loadProjectSettings(projectId: string) {
   const { data, error } = await adminClient
     .from('project_settings')
-    .select('alert_thresholds')
+    .select('alert_thresholds, config')
     .eq('project_id', projectId)
     .maybeSingle()
 
@@ -541,6 +557,21 @@ async function loadProjectSettings(projectId: string) {
   }
 
   return (data ?? { alert_thresholds: null }) as ProjectSettingsRow
+}
+
+async function loadRecentApprovalLedger(projectId: string) {
+  const { data, error } = await adminClient
+    .from('approvals')
+    .select('id, request_title, department, type, amount, status, submitted_at, approved_at, rejected_at, metadata, created_at')
+    .eq('project_id', projectId)
+    .order('submitted_at', { ascending: false })
+    .limit(25)
+
+  if (error) {
+    throw error
+  }
+
+  return (data ?? []) as ApprovalLedgerRow[]
 }
 
 async function loadFuelAnomalyRows(projectId: string) {
@@ -1433,7 +1464,7 @@ export async function getScopedAlerts(projectId: string, scope: ReportsScope) {
   return filterBundle(bundle, scope).alerts
 }
 
-export async function buildScopedExport(projectId: string, scope: ReportsScope, type: 'pdf' | 'csv') {
+export async function buildScopedExport(projectId: string, scope: ReportsScope, type: 'pdf' | 'csv' | 'xlsx') {
   const bundle = filterBundle(await getProjectReportsBundle(projectId), scope)
   const safeProjectName = bundle.projectName.replace(/[^a-z0-9]+/gi, '-').replace(/^-+|-+$/g, '').toLowerCase() || 'project'
 
@@ -1443,6 +1474,24 @@ export async function buildScopedExport(projectId: string, scope: ReportsScope, 
       filename: `${safeProjectName}-reports.csv`,
       body: buildExportCsv(bundle),
     }
+  }
+
+  if (type === 'xlsx') {
+    const [projectSettings, approvalLedger] = await Promise.all([
+      loadProjectSettings(projectId),
+      loadRecentApprovalLedger(projectId),
+    ])
+    const scopedApprovalLedger = scope.type === 'full'
+      ? approvalLedger
+      : approvalLedger.filter(row => row.department && scope.departments.includes(row.department as ReportDepartmentKey))
+
+    return buildBudgetWorkbook({
+      bundle,
+      projectSettings,
+      approvalLedger: scopedApprovalLedger,
+      projectName: bundle.projectName,
+      generatedAt: bundle.generatedAt,
+    })
   }
 
   return {

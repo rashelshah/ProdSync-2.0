@@ -1,7 +1,7 @@
 import { useEffect, useState, type ReactNode } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
-import { BriefcaseBusiness, CheckCircle2, Clock3, MapPin, Plus, ShieldCheck, Users } from 'lucide-react'
+import { BriefcaseBusiness, CheckCircle2, Clock3, MapPin, Plus, ShieldCheck, Trash2, Users } from 'lucide-react'
 import { Surface } from '@/components/shared/Surface'
 import { ProjectPhaseControl } from '@/components/project/ProjectPhaseControl'
 import { EmptyState, PageLoader } from '@/components/system/SystemStates'
@@ -70,6 +70,7 @@ export function ProjectsView() {
   const [projectOtRules, setProjectOtRules] = useState('')
   const [selectedDepartments, setSelectedDepartments] = useState<ProjectDepartment[]>([])
   const [projectAction, setProjectAction] = useState<string | null>(null)
+  const [deleteProjectTarget, setDeleteProjectTarget] = useState<ProjectRecord | null>(null)
 
   const currentUser = user ?? {
     id: '',
@@ -293,6 +294,29 @@ export function ProjectsView() {
     )
   }
 
+  function confirmDeleteProject() {
+    if (!deleteProjectTarget) return
+
+    void runProjectAction(
+      async () => {
+        const projectId = deleteProjectTarget.id
+        await projectsService.deleteProject(projectId)
+        setDeleteProjectTarget(null)
+        await invalidateProjectData(queryClient, { projectId, userId: user?.id })
+        if (activeProjectId === projectId) {
+          setActiveProject(null, 'INR')
+        }
+        navigate('/projects')
+      },
+      {
+        actionKey: `project-delete-${deleteProjectTarget.id}`,
+        loadingMessage: 'Deleting project...',
+        successMessage: 'Project deleted successfully.',
+        errorMessage: 'Project could not be deleted.',
+      },
+    )
+  }
+
   function getRequestForProject(projectId: string) {
     return joinRequests.find(request => request.projectId === projectId && request.userId === currentUser.id)
   }
@@ -362,6 +386,7 @@ export function ProjectsView() {
                     membershipLabel="Owner"
                     onOpen={() => openProject(project.id)}
                     onPlanning={() => openPlanning(project.id)}
+                    onDelete={() => setDeleteProjectTarget(project)}
                     openLabel="Enter Workspace"
                   />
                 ))}
@@ -512,6 +537,39 @@ export function ProjectsView() {
             )}
           </section>
         </div>
+      )}
+
+      {deleteProjectTarget && (
+        <ModalShell title="Delete Project" onClose={() => setDeleteProjectTarget(null)}>
+          <div className="space-y-5">
+            <div className="rounded-[24px] border border-red-200 bg-red-50 p-4 dark:border-red-500/20 dark:bg-red-500/10">
+              <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-red-600 dark:text-red-300">Project</p>
+              <p className="mt-2 text-lg font-semibold text-zinc-900 dark:text-white">{deleteProjectTarget.name}</p>
+              <p className="mt-3 text-sm leading-6 text-zinc-600 dark:text-zinc-300">
+                Are you sure you want to permanently remove this project from the active workspace? This action cannot be undone.
+              </p>
+            </div>
+            <div className="flex flex-wrap gap-3">
+              <button
+                type="button"
+                onClick={() => setDeleteProjectTarget(null)}
+                className="clay-ghost-button"
+                disabled={projectAction === `project-delete-${deleteProjectTarget.id}`}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={confirmDeleteProject}
+                className="clay-primary-button"
+                disabled={projectAction === `project-delete-${deleteProjectTarget.id}`}
+              >
+                {projectAction === `project-delete-${deleteProjectTarget.id}` ? <span className="ui-spinner" /> : null}
+                {projectAction === `project-delete-${deleteProjectTarget.id}` ? 'Deleting...' : 'Delete Project'}
+              </button>
+            </div>
+          </div>
+        </ModalShell>
       )}
 
       {showCreateModal && (
@@ -669,6 +727,7 @@ function ProjectCard({
   onOpen,
   onPlanning,
   onJoin,
+  onDelete,
   joinDisabled,
   joinLabel = 'Join Project',
   openLabel = 'Open',
@@ -679,6 +738,7 @@ function ProjectCard({
   onOpen?: () => void
   onPlanning?: () => void
   onJoin?: () => void
+  onDelete?: () => void
   joinDisabled?: boolean
   joinLabel?: string
   openLabel?: string
@@ -754,6 +814,16 @@ function ProjectCard({
         {onJoin && (
           <button onClick={onJoin} disabled={joinDisabled} className={cn('btn-soft max-md:flex-1 max-md:h-10 max-md:text-xs', joinDisabled && 'cursor-not-allowed opacity-60')}>
             {joinLabel}
+          </button>
+        )}
+        {onDelete && (
+          <button
+            type="button"
+            onClick={onDelete}
+            className="inline-flex items-center gap-2 rounded-full border border-red-200 bg-red-50 px-4 py-2.5 text-[11px] font-semibold uppercase tracking-[0.18em] text-red-600 transition hover:bg-red-100 dark:border-red-500/20 dark:bg-red-500/10 dark:text-red-300 max-md:flex-1 max-md:h-10 max-md:justify-center max-md:text-xs"
+          >
+            <Trash2 className="h-4 w-4" />
+            Delete
           </button>
         )}
         <span className="text-xs font-semibold uppercase tracking-[0.18em] text-zinc-500 dark:text-zinc-400 max-md:w-full max-md:text-center max-md:text-[9px] max-md:mt-2">
