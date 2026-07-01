@@ -60,7 +60,9 @@ export async function getReportAlerts(req: Request, res: Response) {
 export async function exportReport(req: Request, res: Response) {
   const projectId = requireProjectId(req)
   const { type } = exportQuerySchema.parse(req.query)
-  const result = await buildScopedExport(projectId, resolveScope(req), type)
+  const result = await buildScopedExport(projectId, resolveScope(req), type, {
+    generatedBy: req.authUser?.fullName ?? req.authUser?.email ?? null,
+  })
 
   res.setHeader('Content-Type', result.contentType)
   res.setHeader('Content-Disposition', `attachment; filename="${result.filename}"`)

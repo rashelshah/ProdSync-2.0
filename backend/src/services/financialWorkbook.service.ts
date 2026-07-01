@@ -1,4 +1,4 @@
-import type { ApprovalLedgerRow, ProjectSettingsRow, ReportsBundle } from './reportService'
+import type { ApprovalLedgerRow, ProjectMetaRow, ProjectSettingsRow, ReportsBundle } from './reportService'
 
 const byteBuffer = globalThis.Buffer as unknown as {
   from(input: string | ArrayBuffer | ArrayBufferView, encoding?: string): any
@@ -10,6 +10,8 @@ export interface FinancialWorkbookInput {
   bundle: ReportsBundle
   projectName: string
   generatedAt: string
+  generatedBy?: string | null
+  projectMeta: ProjectMetaRow
   projectSettings: ProjectSettingsRow
   approvalLedger: ApprovalLedgerRow[]
 }
@@ -21,6 +23,7 @@ interface FinancialConfig {
   emergencyAllocation: number
   warningThresholdPct: number
   criticalThresholdPct: number
+  budgetVersion: string
 }
 
 interface SheetCell {
@@ -166,6 +169,11 @@ function readFinancialConfig(projectSettings: ProjectSettingsRow, projectBudget:
     'budgetCriticalPercent',
     'budgetCriticalPercentage',
   ])
+  const budgetVersionRaw = findDeepValue(rawConfig, [
+    'budgetVersion',
+    'budgetSheetVersion',
+    'version',
+  ])
 
   const contingencyPct = Math.max(0, Math.min(100, asNumber(contingencyRaw) <= 1 ? asNumber(contingencyRaw) * 100 : asNumber(contingencyRaw)))
   const contingencyAmount = toMoney(
@@ -181,6 +189,7 @@ function readFinancialConfig(projectSettings: ProjectSettingsRow, projectBudget:
     emergencyAllocation: toMoney(asNumber(emergencyRaw)),
     warningThresholdPct: Math.max(0, Math.min(100, asNumber(warningThresholdRaw, 85) || 85)),
     criticalThresholdPct: Math.max(0, Math.min(100, asNumber(criticalThresholdRaw, 100) || 100)),
+    budgetVersion: String(budgetVersionRaw ?? 'v1').trim() || 'v1',
   }
 }
 
@@ -273,6 +282,255 @@ function buildApprovalLedgerRows(approvalLedger: ApprovalLedgerRow[]) {
       { value: sourceModule || 'Operational module', style: STYLE.muted },
     ] satisfies SheetCell[]
   })
+}
+
+function cleanText(value: unknown, fallback = '') {
+  if (typeof value === 'string') {
+    return value.trim() || fallback
+  }
+
+  if (value === null || value === undefined) {
+    return fallback
+  }
+
+  return String(value)
+}
+
+function extractMetadataField(source: Record<string, unknown> | null, aliases: string[], fallback = '') {
+  const value = findDeepValue(source, aliases)
+  return cleanText(value, fallback)
+}
+
+function resolveDepartmentKey(value: string | null | undefined) {
+  return normalizeKey(value ?? 'production')
+}
+
+function resolvePaymentStatus(status: string | null | undefined) {
+  const normalized = (status ?? 'pending').toLowerCase()
+  if (normalized === 'paid') {
+    return 'Paid'
+  }
+  if (normalized === 'approved' || normalized === 'released') {
+    return 'Approved'
+  }
+  if (normalized === 'rejected') {
+    return 'Rejected'
+  }
+  return 'Pending'
+}
+
+function resolveStatusAmount(row: ApprovalLedgerRow, statusList: string[]) {
+  const normalized = (row.status ?? 'pending').toLowerCase()
+  return statusList.includes(normalized) ? toMoney(asNumber(row.amount)) : 0
+}
+
+function buildBudgetRegisterRow(
+  bundle: ReportsBundle,
+  projectMeta: ProjectMetaRow,
+  config: FinancialConfig,
+  generatedAt: string,
+  generatedBy: string | null | undefined,
+  department: string,
+  row: ApprovalLedgerRow | null,
+  index: number,
+  departmentTotals: { budget: number; actual: number; approved: number; pending: number; paid: number; overtime: number },
+  kind: 'summary' | 'detail' | 'subtotal',
+) {
+  const producer = cleanText(findDeepValue(projectMeta as unknown as Record<string, unknown>, ['producer_name', 'producer']), '')
+  const projectCurrency = cleanText(projectMeta.currency_code, 'INR')
+  const departmentLabelValue = departmentLabel(department)
+  const departmentBudget = toMoney(departmentTotals.budget)
+  const departmentActual = toMoney(departmentTotals.actual)
+  const departmentCommitted = toMoney(departmentTotals.approved + departmentTotals.pending)
+  const departmentEfc = toMoney(departmentActual + departmentTotals.pending + departmentTotals.overtime)
+  const departmentVariance = toMoney(departmentBudget - departmentEfc)
+  const departmentRemaining = toMoney(Math.max(departmentBudget - departmentActual, 0))
+  const departmentBalance = toMoney(Math.max(departmentBudget - departmentCommitted, 0))
+  const sourceModule = row ? extractMetadataField(row.metadata, ['sourceModule', 'source_module', 'module', 'referenceModule', 'reference_module'], 'Operational module') : ''
+  const vendor = row ? extractMetadataField(row.metadata, ['vendorName', 'vendor_name', 'vendor', 'supplierName', 'supplier_name'], '') : ''
+  const location = row ? extractMetadataField(row.metadata, ['locationName', 'location_name', 'location', 'siteName', 'site_name'], '') : ''
+  const notes = row ? extractMetadataField(row.metadata, ['notes', 'note', 'comment', 'description'], row.request_title ?? '') : ''
+  const attachmentFile = row ? extractMetadataField(row.metadata, ['attachmentName', 'attachment_name', 'fileName', 'file_name', 'filename'], '') : ''
+  const attachmentReference = row ? extractMetadataField(row.metadata, ['attachmentUrl', 'attachment_url', 'downloadUrl', 'download_url', 'referenceUrl', 'reference_url'], '') : ''
+  const quantity = row ? asNumber(findDeepValue(row.metadata, ['quantity', 'qty'])) : 0
+  const unit = row ? extractMetadataField(row.metadata, ['unit', 'measureUnit', 'measure_unit'], '') : ''
+  const unitRate = row ? asNumber(findDeepValue(row.metadata, ['unitRate', 'unit_rate', 'rate'])) : 0
+  const multiplier = row ? asNumber(findDeepValue(row.metadata, ['multiplier', 'factor'])) : 0
+  const overtime = row ? asNumber(findDeepValue(row.metadata, ['overtime', 'otHours', 'ot_hours'])) : 0
+  const days = row ? asNumber(findDeepValue(row.metadata, ['days', 'dayCount', 'day_count'])) : 0
+  const shootDays = row ? asNumber(findDeepValue(row.metadata, ['shootDays', 'shoot_days'])) : 0
+  const crewCount = row ? asNumber(findDeepValue(row.metadata, ['crewCount', 'crew_count', 'headcount'])) : 0
+  const approvedAmount = row ? resolveStatusAmount(row, ['approved', 'paid', 'released']) : 0
+  const pendingAmount = row ? resolveStatusAmount(row, ['pending', 'submitted', 'queued']) : 0
+  const paidAmount = row ? resolveStatusAmount(row, ['paid']) : 0
+  const committedCost = row ? toMoney(approvedAmount + pendingAmount) : departmentCommitted
+  const actualCost = row ? toMoney(approvedAmount + paidAmount) : departmentActual
+  const estimatedFinalCost = row
+    ? toMoney(actualCost + pendingAmount + (overtime ? overtime : 0))
+    : departmentEfc
+  const variance = row
+    ? toMoney(departmentBudget - estimatedFinalCost)
+    : departmentVariance
+  const remainingBudget = row
+    ? toMoney(Math.max(departmentBudget - actualCost, 0))
+    : departmentRemaining
+  const balance = row
+    ? toMoney(Math.max(departmentBudget - committedCost, 0))
+    : departmentBalance
+  const paymentStatus = kind === 'summary'
+    ? 'Summary'
+    : kind === 'subtotal'
+      ? 'Subtotal'
+      : resolvePaymentStatus(row?.status ?? null)
+  const accountNumber = kind === 'summary'
+    ? `${departmentLabelValue.toUpperCase().replace(/[^A-Z0-9]+/g, '-')}-SUMMARY`
+    : kind === 'subtotal'
+      ? `${departmentLabelValue.toUpperCase().replace(/[^A-Z0-9]+/g, '-')}-TOTAL`
+      : `${departmentLabelValue.toUpperCase().replace(/[^A-Z0-9]+/g, '-')}-${String(index + 1).padStart(3, '0')}`
+
+  return [
+    { value: accountNumber, style: kind === 'subtotal' ? STYLE.label : STYLE.text },
+    { value: kind === 'summary' ? departmentLabelValue : row?.type ?? departmentLabelValue, style: kind === 'subtotal' ? STYLE.label : STYLE.text },
+    { value: kind === 'detail' ? sourceModule : kind === 'summary' ? 'Department Summary' : 'Subtotal', style: STYLE.text },
+    { value: kind === 'detail' ? cleanText(row?.request_title ?? '', `${departmentLabelValue} line item`) : kind === 'summary' ? 'Department budget overview' : 'Department subtotal', style: STYLE.text },
+    { value: departmentLabelValue, style: STYLE.text },
+    { value: departmentBudget, style: STYLE.amount },
+    { value: actualCost, style: STYLE.amount },
+    { value: committedCost, style: STYLE.amount },
+    { value: estimatedFinalCost, style: STYLE.amount },
+    { value: variance, style: STYLE.amount },
+    { value: remainingBudget, style: STYLE.amount },
+    { value: quantity || '', style: STYLE.text },
+    { value: unit, style: STYLE.text },
+    { value: unitRate || '', style: STYLE.amount },
+    { value: multiplier || '', style: STYLE.percent },
+    { value: overtime || '', style: STYLE.amount },
+    { value: days || '', style: STYLE.text },
+    { value: shootDays || '', style: STYLE.text },
+    { value: crewCount || '', style: STYLE.text },
+    { value: vendor, style: STYLE.text },
+    { value: location, style: STYLE.text },
+    { value: notes, style: STYLE.muted },
+    { value: approvedAmount, style: STYLE.amount },
+    { value: pendingAmount, style: STYLE.amount },
+    { value: paidAmount, style: STYLE.amount },
+    { value: balance, style: STYLE.amount },
+    { value: paymentStatus, style: kind === 'summary' ? STYLE.section : kind === 'subtotal' ? STYLE.label : STYLE.text },
+    { value: projectMeta.name, style: STYLE.text },
+    { value: cleanText(projectMeta.production_house), style: STYLE.text },
+    { value: cleanText(projectMeta.client_name), style: STYLE.text },
+    { value: cleanText(producer || generatedBy), style: STYLE.text },
+    { value: projectCurrency, style: STYLE.text },
+    { value: config.budgetVersion, style: STYLE.text },
+    { value: new Date(generatedAt).toLocaleDateString('en-IN'), style: STYLE.text },
+    { value: cleanText(generatedBy), style: STYLE.text },
+    { value: attachmentFile, style: STYLE.text },
+    { value: attachmentReference, style: STYLE.text },
+  ] satisfies SheetCell[]
+}
+
+function buildBudgetRegisterSheet(
+  bundle: ReportsBundle,
+  projectMeta: ProjectMetaRow,
+  config: FinancialConfig,
+  approvalLedger: ApprovalLedgerRow[],
+  generatedAt: string,
+  generatedBy: string | null | undefined,
+) {
+  const ledgerByDepartment = new Map<string, ApprovalLedgerRow[]>()
+  for (const row of approvalLedger) {
+    const departmentKey = resolveDepartmentKey(row.department)
+    const current = ledgerByDepartment.get(departmentKey) ?? []
+    current.push(row)
+    ledgerByDepartment.set(departmentKey, current)
+  }
+
+  const rows: SheetCell[][] = [
+    [{ value: 'Budget Register', style: STYLE.title }],
+    [{ value: `Project: ${bundle.projectName}`, style: STYLE.subtitle }],
+    [{ value: `Production House: ${cleanText(projectMeta.production_house)} | Client: ${cleanText(projectMeta.client_name)} | Currency: ${cleanText(projectMeta.currency_code, 'INR')} | Generated By: ${cleanText(generatedBy, 'ProdSync')}`, style: STYLE.subtitle }],
+    [],
+    [
+      { value: 'Account Number', style: STYLE.tableHeader },
+      { value: 'Category', style: STYLE.tableHeader },
+      { value: 'Sub Category', style: STYLE.tableHeader },
+      { value: 'Description', style: STYLE.tableHeader },
+      { value: 'Department', style: STYLE.tableHeader },
+      { value: 'Budget', style: STYLE.tableHeader },
+      { value: 'Actual Cost', style: STYLE.tableHeader },
+      { value: 'Committed Cost', style: STYLE.tableHeader },
+      { value: 'Estimated Final Cost (EFC)', style: STYLE.tableHeader },
+      { value: 'Variance', style: STYLE.tableHeader },
+      { value: 'Remaining Budget', style: STYLE.tableHeader },
+      { value: 'Quantity', style: STYLE.tableHeader },
+      { value: 'Unit', style: STYLE.tableHeader },
+      { value: 'Unit Rate', style: STYLE.tableHeader },
+      { value: 'Multiplier', style: STYLE.tableHeader },
+      { value: 'Overtime', style: STYLE.tableHeader },
+      { value: 'Days', style: STYLE.tableHeader },
+      { value: 'Shoot Days', style: STYLE.tableHeader },
+      { value: 'Crew Count', style: STYLE.tableHeader },
+      { value: 'Vendor', style: STYLE.tableHeader },
+      { value: 'Location', style: STYLE.tableHeader },
+      { value: 'Notes', style: STYLE.tableHeader },
+      { value: 'Approved Amount', style: STYLE.tableHeader },
+      { value: 'Pending Amount', style: STYLE.tableHeader },
+      { value: 'Paid Amount', style: STYLE.tableHeader },
+      { value: 'Balance', style: STYLE.tableHeader },
+      { value: 'Payment Status', style: STYLE.tableHeader },
+      { value: 'Project Name', style: STYLE.tableHeader },
+      { value: 'Production House', style: STYLE.tableHeader },
+      { value: 'Client', style: STYLE.tableHeader },
+      { value: 'Producer', style: STYLE.tableHeader },
+      { value: 'Currency', style: STYLE.tableHeader },
+      { value: 'Budget Version', style: STYLE.tableHeader },
+      { value: 'Export Date', style: STYLE.tableHeader },
+      { value: 'Generated By', style: STYLE.tableHeader },
+      { value: 'Attachment File', style: STYLE.tableHeader },
+      { value: 'Attachment Reference', style: STYLE.tableHeader },
+    ],
+  ]
+
+  const departmentOrder = bundle.departments.map(row => row.department)
+
+  departmentOrder.forEach((department, index) => {
+    const departmentRows = ledgerByDepartment.get(resolveDepartmentKey(department)) ?? []
+    const departmentBudget = toMoney(bundle.departments.find(row => row.department === department)?.budget ?? 0)
+    const departmentActual = toMoney(bundle.departments.find(row => row.department === department)?.spent ?? 0)
+    const approvedAmount = toMoney(departmentRows.reduce((sum, row) => sum + resolveStatusAmount(row, ['approved', 'paid', 'released']), 0))
+    const pendingAmount = toMoney(departmentRows.reduce((sum, row) => sum + resolveStatusAmount(row, ['pending', 'submitted', 'queued']), 0))
+    const paidAmount = toMoney(departmentRows.reduce((sum, row) => sum + resolveStatusAmount(row, ['paid']), 0))
+    const overtime = toMoney(departmentRows.reduce((sum, row) => sum + asNumber(findDeepValue(row.metadata, ['overtime', 'otHours', 'ot_hours'])), 0))
+    const totals = {
+      budget: departmentBudget,
+      actual: departmentActual,
+      approved: approvedAmount,
+      pending: pendingAmount,
+      paid: paidAmount,
+      overtime,
+    }
+
+    rows.push(buildBudgetRegisterRow(bundle, projectMeta, config, generatedAt, generatedBy, department, null, index, totals, 'summary'))
+
+    departmentRows.forEach((row, rowIndex) => {
+      rows.push(buildBudgetRegisterRow(bundle, projectMeta, config, generatedAt, generatedBy, department, row, rowIndex, totals, 'detail'))
+    })
+
+    rows.push(buildBudgetRegisterRow(bundle, projectMeta, config, generatedAt, generatedBy, department, null, index, totals, 'subtotal'))
+    if (index < departmentOrder.length - 1) {
+      rows.push([])
+    }
+  })
+
+  return {
+    name: 'Budget Register',
+    rows,
+    freeze: { rows: 5, cols: 0 },
+    autoFilter: `A5:AK${Math.max(5, rows.length)}`,
+    widths: [
+      18, 20, 18, 28, 18, 14, 14, 16, 18, 14, 16, 12, 10, 12, 11, 10, 10, 12, 12, 18, 18, 22, 14, 14, 12, 14, 14, 20, 18, 18, 18, 12, 14, 14, 18, 18, 18,
+    ],
+  } satisfies WorkbookSheet
 }
 
 function cellXml(ref: string, cell: SheetCell) {
@@ -615,7 +873,14 @@ function createZip(entries: { name: string; data: Buffer }[]) {
   return Buffer.concat([...localParts, ...centralParts, endOfCentralDirectory])
 }
 
-function buildSummarySheet(bundle: ReportsBundle, config: FinancialConfig, approvalLedger: ApprovalLedgerRow[]) {
+function buildSummarySheet(
+  bundle: ReportsBundle,
+  config: FinancialConfig,
+  approvalLedger: ApprovalLedgerRow[],
+  projectMeta: ProjectMetaRow,
+  generatedBy: string | null | undefined,
+) {
+  const producer = cleanText(findDeepValue(projectMeta as unknown as Record<string, unknown>, ['producer_name', 'producer']), '')
   const budget = toMoney(bundle.summary.budget)
   const actual = toMoney(bundle.summary.totalSpend)
   const pending = toMoney(bundle.summary.pendingApprovals)
@@ -623,8 +888,8 @@ function buildSummarySheet(bundle: ReportsBundle, config: FinancialConfig, appro
   const remaining = toMoney(Math.max(budget - actual, 0))
   const available = toMoney(Math.max(budget - (actual + pending + overtime), 0))
   const utilization = bundle.summary.budget > 0 ? actual / budget : 0
-  const departmentSectionRow = 11
-  const departmentHeaderRow = 12
+  const departmentSectionRow = 12
+  const departmentHeaderRow = 13
   const departmentEndRow = departmentHeaderRow + bundle.departments.length
   const ledgerSectionRow = departmentEndRow + 2
   const ledgerHeaderRow = ledgerSectionRow + 1
@@ -636,7 +901,8 @@ function buildSummarySheet(bundle: ReportsBundle, config: FinancialConfig, appro
 
   const rows: SheetCell[][] = [
     [{ value: 'ProdSync Financial Engine', style: STYLE.title }],
-    [{ value: `Project: ${bundle.projectName} | Generated: ${new Date(bundle.generatedAt).toLocaleString('en-IN')}`, style: STYLE.subtitle }],
+    [{ value: `Project: ${bundle.projectName} | Production House: ${cleanText(projectMeta.production_house, 'N/A')} | Generated: ${new Date(bundle.generatedAt).toLocaleString('en-IN')}`, style: STYLE.subtitle }],
+    [{ value: `Client: ${cleanText(projectMeta.client_name, 'N/A')} | Producer: ${cleanText(producer || generatedBy, 'N/A')} | Currency: ${cleanText(projectMeta.currency_code, 'INR')} | Version: ${config.budgetVersion}`, style: STYLE.subtitle }],
     [],
     [{ value: 'Estimated Project Budget', style: STYLE.section }, { value: 'Actual Spend', style: STYLE.section }, { value: 'Remaining Budget', style: STYLE.section }, { value: 'Budget Utilization', style: STYLE.section }],
     [{ value: budget, style: STYLE.amount }, { value: actual, style: STYLE.amount }, { value: remaining, style: STYLE.amount }, { value: utilization, style: STYLE.percent }],
@@ -668,6 +934,7 @@ function buildSummarySheet(bundle: ReportsBundle, config: FinancialConfig, appro
     merges: [
       'A1:H1',
       'A2:H2',
+      'A3:H3',
       `A${departmentSectionRow}:H${departmentSectionRow}`,
       `A${ledgerSectionRow}:H${ledgerSectionRow}`,
     ],
@@ -797,7 +1064,8 @@ function sheetXmlRows(sheet: WorkbookSheet) {
 function buildZipEntries(input: FinancialWorkbookInput) {
   const config = readFinancialConfig(input.projectSettings, input.bundle.summary.budget)
   const sheets = [
-    buildSummarySheet(input.bundle, config, input.approvalLedger),
+    buildSummarySheet(input.bundle, config, input.approvalLedger, input.projectMeta, input.generatedBy),
+    buildBudgetRegisterSheet(input.bundle, input.projectMeta, config, input.approvalLedger, input.generatedAt, input.generatedBy),
     buildDepartmentSheet(input.bundle),
     buildCategorySheet(input.bundle),
     buildApprovalsSheet(input.bundle, input.approvalLedger),

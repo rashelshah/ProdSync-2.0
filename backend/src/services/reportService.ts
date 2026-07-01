@@ -16,12 +16,16 @@ type ReportDepartmentKey = typeof REPORT_DEPARTMENTS[number]
 type ReportSeverity = 'GREEN' | 'YELLOW' | 'RED'
 type FinancialMetricDepartment = Exclude<ReportDepartmentKey, 'crew'>
 
-interface ProjectMetaRow {
+export interface ProjectMetaRow {
   id: string
   name: string
   budget: number | string | null
   start_date: string | null
   end_date: string | null
+  production_house: string | null
+  client_name: string | null
+  director_name: string | null
+  currency_code: string | null
   is_archived: boolean | null
 }
 
@@ -416,7 +420,7 @@ export async function refreshReportsMaterializedViews() {
 async function loadProjectMeta(projectId: string) {
   const { data, error } = await adminClient
     .from('projects')
-    .select('id, name, budget, start_date, end_date, is_archived')
+    .select('id, name, budget, start_date, end_date, production_house, client_name, director_name, currency_code, is_archived')
     .eq('id', projectId)
     .maybeSingle()
 
@@ -1464,7 +1468,7 @@ export async function getScopedAlerts(projectId: string, scope: ReportsScope) {
   return filterBundle(bundle, scope).alerts
 }
 
-export async function buildScopedExport(projectId: string, scope: ReportsScope, type: 'pdf' | 'csv' | 'xlsx') {
+export async function buildScopedExport(projectId: string, scope: ReportsScope, type: 'pdf' | 'csv' | 'xlsx', options?: { generatedBy?: string | null }) {
   const bundle = filterBundle(await getProjectReportsBundle(projectId), scope)
   const safeProjectName = bundle.projectName.replace(/[^a-z0-9]+/gi, '-').replace(/^-+|-+$/g, '').toLowerCase() || 'project'
 
@@ -1477,9 +1481,10 @@ export async function buildScopedExport(projectId: string, scope: ReportsScope, 
   }
 
   if (type === 'xlsx') {
-    const [projectSettings, approvalLedger] = await Promise.all([
+    const [projectSettings, approvalLedger, projectMeta] = await Promise.all([
       loadProjectSettings(projectId),
       loadRecentApprovalLedger(projectId),
+      loadProjectMeta(projectId),
     ])
     const scopedApprovalLedger = scope.type === 'full'
       ? approvalLedger
@@ -1487,10 +1492,12 @@ export async function buildScopedExport(projectId: string, scope: ReportsScope, 
 
     return buildBudgetWorkbook({
       bundle,
+      projectMeta,
       projectSettings,
       approvalLedger: scopedApprovalLedger,
       projectName: bundle.projectName,
       generatedAt: bundle.generatedAt,
+      generatedBy: options?.generatedBy ?? null,
     })
   }
 

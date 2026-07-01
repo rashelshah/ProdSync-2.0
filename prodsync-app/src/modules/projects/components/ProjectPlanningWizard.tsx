@@ -1,6 +1,11 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useNavigate, useParams } from 'react-router-dom'
+import * as Tooltip from '@radix-ui/react-tooltip'
+import { DndContext, PointerSensor, TouchSensor, closestCenter, useSensor, useSensors, type DragEndEvent } from '@dnd-kit/core'
+import { SortableContext, arrayMove, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable'
+import { CSS } from '@dnd-kit/utilities'
+import { CircleHelp, GripVertical } from 'lucide-react'
 import { Surface } from '@/components/shared/Surface'
 import { KpiCard } from '@/components/shared/KpiCard'
 import { EmptyState, ErrorState, PageLoader } from '@/components/system/SystemStates'
@@ -13,7 +18,8 @@ import type { PlanningSectionType, ProjectCurrency, ProjectPhase, ProjectPlannin
 type CrewRow = { id: string; department: string; estimatedCrew: number; estimatedDailyWage: number; estimatedDays: number }
 type CastRow = { id: string; category: string; estimatedCount: number; estimatedRate: number; estimatedDays: number }
 type ExpenseRow = { id: string; category: string; estimatedBudget: number; contingencyPercent: number; notes: string }
-type PlanningAction = 'save-draft' | 'save-continue' | 'skip' | 'finish-later' | null
+type PlanningAction = 'save-draft' | 'save-continue' | null
+type ExpenseReorderHandler = (nextRows: ExpenseRow[], previousRows: ExpenseRow[]) => void | Promise<void>
 
 const steps: Array<{ id: PlanningSectionType; title: string; help: string }> = [
   { id: 'project_information', title: 'Project Information', help: 'Add only what you know today. Everything except the project name can be completed later.' },
@@ -47,6 +53,15 @@ function newCastRow(category = 'Category'): CastRow {
 }
 function newExpenseRow(category = 'Category'): ExpenseRow {
   return { id: crypto.randomUUID(), category, estimatedBudget: 0, contingencyPercent: 0, notes: '' }
+}
+
+function sortRowsByProjectedOrder<T extends { id: string }>(rows: T[], activeId: string, overId: string) {
+  const oldIndex = rows.findIndex(row => row.id === activeId)
+  const newIndex = rows.findIndex(row => row.id === overId)
+  if (oldIndex < 0 || newIndex < 0 || oldIndex === newIndex) {
+    return rows
+  }
+  return arrayMove(rows, oldIndex, newIndex)
 }
 
 export function ProjectPlanningWizard() {
@@ -107,6 +122,9 @@ export function ProjectPlanningWizard() {
         navigate('/projects')
       }
     },
+    onError: () => {
+      pendingSaveSignatureRef.current = ''
+    },
   })
 
   const infoDefaults = useMemo(() => ({
@@ -130,15 +148,18 @@ export function ProjectPlanningWizard() {
   const [castRows, setCastRows] = useState<CastRow[]>([])
   const [expenseRows, setExpenseRows] = useState<ExpenseRow[]>([])
 
+  const hydratedProjectIdRef = useRef<string | null>(null)
   useEffect(() => {
     if (!planning) return
+    if (hydratedProjectIdRef.current === planning.project.id) return
+    hydratedProjectIdRef.current = planning.project.id
     setInfo(infoDefaults)
     setCrewRows(readRows<CrewRow>(planning.sections, 'crew_planning', 'departments', defaultCrewDepartments.map(newCrewRow)))
     setCastRows(readRows<CastRow>(planning.sections, 'cast_planning', 'categories', defaultCastCategories.map(newCastRow)))
     setExpenseRows(readRows<ExpenseRow>(planning.sections, 'expense_planning', 'categories', defaultExpenseCategories.map(newExpenseRow)))
     lastSavedSignatureRef.current = ''
     pendingSaveSignatureRef.current = ''
-  }, [infoDefaults, planning])
+  }, [infoDefaults, planning, planning?.project.id])
 
   const currentSignature = useMemo(() => JSON.stringify({
     step: currentStep.id,
@@ -151,7 +172,7 @@ export function ProjectPlanningWizard() {
   }), [castRows, crewRows, currentStep.id, expenseRows, info, section?.isCompleted, section?.isSkipped])
 
   useEffect(() => {
-    if (!planning || saveMutation.isPending) return
+    if (!planning || activeAction) return
     if (!lastSavedSignatureRef.current && !pendingSaveSignatureRef.current) {
       lastSavedSignatureRef.current = currentSignature
       return
@@ -163,7 +184,7 @@ export function ProjectPlanningWizard() {
       void saveMutation.mutateAsync({ sectionType: currentStep.id, payload, isCompleted: Boolean(section?.isCompleted), isSkipped: Boolean(section?.isSkipped) }).catch(() => undefined)
     }, 1800)
     return () => window.clearTimeout(timer)
-  }, [currentSignature, planning, saveMutation.isPending])
+  }, [activeAction, currentSignature, currentStep.id, planning, section?.isCompleted, section?.isSkipped])
 
   if (planningQ.isLoading) return <PageLoader open message="Loading project planning..." />
   if (planningQ.isError || !planning || !currentStep) return <ErrorState message="Project planning could not be loaded." />
@@ -215,10 +236,37 @@ export function ProjectPlanningWizard() {
     }
   }
 
-  const actionBusy = saveMutation.isPending
-  const isActionBusy = (action: Exclude<PlanningAction, null>) => activeAction === action || actionBusy
+  async function handleExpenseReorder(nextRows: ExpenseRow[], previousRows: ExpenseRow[]) {
+    if (!planning || currentStep.id !== 'expense_planning') return
+    const nextSignature = JSON.stringify({
+      step: currentStep.id,
+      info,
+      crewRows,
+      castRows,
+      expenseRows: nextRows,
+      completed: Boolean(section?.isCompleted),
+      skipped: Boolean(section?.isSkipped),
+    })
+    pendingSaveSignatureRef.current = nextSignature
+    try {
+      await saveMutation.mutateAsync({
+        sectionType: 'expense_planning',
+        payload: { categories: nextRows, estimatedCost: nextRows.reduce((sum, row) => sum + expenseTotal(row), 0) },
+        isCompleted: Boolean(section?.isCompleted),
+        isSkipped: Boolean(section?.isSkipped),
+      })
+      lastSavedSignatureRef.current = nextSignature
+    } catch (error) {
+      pendingSaveSignatureRef.current = ''
+      setExpenseRows(previousRows)
+      showError('Expense order could not be saved right now.')
+    }
+  }
+
+  const actionBusy = activeAction !== null
+  const isActionBusy = (action: Exclude<PlanningAction, null>) => activeAction === action
   const runAction = async (action: Exclude<PlanningAction, null>, handler: () => Promise<void> | void) => {
-    if (actionBusy) return
+    if (activeAction) return
     setActiveAction(action)
     try {
       await handler()
@@ -228,11 +276,15 @@ export function ProjectPlanningWizard() {
   }
 
   return (
-    <div className="page-shell page-shell-narrow pb-32 max-md:pt-16">
+    <Tooltip.Provider delayDuration={350} skipDelayDuration={120}>
+      <div className="page-shell page-shell-narrow pb-12 max-md:pt-16">
       <header className="page-header page-header-card">
         <div>
           <span className="page-kicker">Project Planning</span>
-          <h1 className="page-title page-title-compact">{currentStep.title}</h1>
+          <div className="flex flex-wrap items-center gap-2">
+            <h1 className="page-title page-title-compact">{currentStep.title}</h1>
+            <HelpMarker label={currentStep.title} content={currentStep.help} />
+          </div>
           <p className="page-subtitle">{currentStep.help}</p>
         </div>
         <Surface variant="raised" className="min-w-[260px]" padding="md">
@@ -249,7 +301,10 @@ export function ProjectPlanningWizard() {
           return (
             <button key={step.id} type="button" disabled={actionBusy} onClick={() => setStepIndex(index)} className={cn('rounded-[24px] border px-4 py-4 text-left transition-all', index === stepIndex ? 'border-orange-300 bg-orange-50 dark:border-orange-500/30 dark:bg-orange-500/10' : 'border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900', actionBusy && 'cursor-not-allowed opacity-75')}>
               <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-zinc-500 dark:text-zinc-400">Step {index + 1} · {state}</p>
-              <p className="mt-2 text-sm font-semibold text-zinc-900 dark:text-white">{step.title}</p>
+              <div className="mt-2 flex items-center gap-2">
+                <p className="text-sm font-semibold text-zinc-900 dark:text-white">{step.title}</p>
+                <HelpMarker label={step.title} content={step.help} />
+              </div>
             </button>
           )
         })}
@@ -259,83 +314,37 @@ export function ProjectPlanningWizard() {
         {currentStep.id === 'project_information' && <ProjectInfoStep info={info} setInfo={setInfo} />}
         {currentStep.id === 'crew_planning' && <CrewStep rows={crewRows} setRows={setCrewRows} currency={currency} />}
         {currentStep.id === 'cast_planning' && <CastStep rows={castRows} setRows={setCastRows} currency={currency} />}
-        {currentStep.id === 'expense_planning' && <ExpenseStep rows={expenseRows} setRows={setExpenseRows} currency={currency} />}
+        {currentStep.id === 'expense_planning' && <ExpenseStep rows={expenseRows} setRows={setExpenseRows} currency={currency} onReorder={handleExpenseReorder} />}
         {currentStep.id === 'budget_review' && <BudgetReview crewCost={crewCost} castCost={castCost} expenseCost={expenseCost} crewCount={crewCount} castCount={castCount} departmentCount={crewRows.length} currency={currency} />}
       </Surface>
 
-      <section className="sticky bottom-6 z-40 hidden items-center justify-between gap-3 rounded-[30px] border border-zinc-200 bg-white p-4 shadow-soft dark:border-zinc-800 dark:bg-zinc-950 md:flex">
-        <button type="button" className="btn-soft" disabled={stepIndex === 0 || actionBusy} onClick={() => setStepIndex(index => Math.max(0, index - 1))}>Back</button>
-        <div className="flex flex-wrap gap-3">
-          <button
-            type="button"
-            className="btn-ghost min-w-36"
-            disabled={isActionBusy('save-draft')}
-            onClick={() => void runAction('save-draft', () => saveStep({ completed: false }))}
-          >
-            {activeAction === 'save-draft' ? <span className="ui-spinner" /> : null}
-            {activeAction === 'save-draft' ? 'Saving...' : 'Save Draft'}
-          </button>
-          <button
-            type="button"
-            className="btn-soft min-w-36"
-            disabled={isActionBusy('skip')}
-            onClick={() => void runAction('skip', () => saveStep({ skipped: true, advance: stepIndex < steps.length - 1, finish: stepIndex === steps.length - 1 }))}
-          >
-            {activeAction === 'skip' ? <span className="ui-spinner" /> : null}
-            {activeAction === 'skip' ? 'Skipping...' : 'Skip For Now'}
-          </button>
-          <button
-            type="button"
-            className="btn-soft min-w-36"
-            disabled={isActionBusy('finish-later')}
-            onClick={() => void runAction('finish-later', async () => navigate('/projects'))}
-          >
-            {activeAction === 'finish-later' ? <span className="ui-spinner" /> : null}
-            {activeAction === 'finish-later' ? 'Leaving...' : 'Finish Later'}
-          </button>
-          <button
-            type="button"
-            className="btn-primary min-w-40"
-            disabled={isActionBusy('save-continue')}
-            onClick={() => void runAction('save-continue', () => saveStep({ completed: true, advance: stepIndex < steps.length - 1, finish: stepIndex === steps.length - 1 }))}
-          >
-            {activeAction === 'save-continue' ? <span className="ui-spinner" /> : null}
-            {activeAction === 'save-continue' ? 'Saving...' : (stepIndex === steps.length - 1 ? 'Finish Project Planning' : 'Save & Continue')}
-          </button>
+      <section className="rounded-[30px] border border-zinc-200 bg-white p-4 shadow-soft dark:border-zinc-800 dark:bg-zinc-950">
+        <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+          <button type="button" className="btn-soft md:w-fit" disabled={stepIndex === 0 || actionBusy} onClick={() => setStepIndex(index => Math.max(0, index - 1))}>Back</button>
+          <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:justify-end">
+            <button
+              type="button"
+              className="btn-ghost min-w-36"
+              disabled={isActionBusy('save-draft')}
+              onClick={() => void runAction('save-draft', () => saveStep({ completed: false }))}
+            >
+              {activeAction === 'save-draft' ? <span className="ui-spinner" /> : null}
+              {activeAction === 'save-draft' ? 'Saving...' : 'Save Draft'}
+            </button>
+            <button
+              type="button"
+              className="btn-primary min-w-40"
+              disabled={isActionBusy('save-continue')}
+              onClick={() => void runAction('save-continue', () => saveStep({ completed: true, advance: stepIndex < steps.length - 1, finish: stepIndex === steps.length - 1 }))}
+            >
+              {activeAction === 'save-continue' ? <span className="ui-spinner" /> : null}
+              {activeAction === 'save-continue' ? 'Saving...' : (stepIndex === steps.length - 1 ? 'Finish Planning' : 'Save & Continue')}
+            </button>
+          </div>
         </div>
       </section>
-
-      <section className="fixed inset-x-4 bottom-24 z-40 grid grid-cols-4 gap-2 rounded-[28px] border border-white/70 bg-white/90 p-2 shadow-soft backdrop-blur-xl dark:border-white/10 dark:bg-zinc-950/90 md:hidden">
-        <button type="button" className="btn-soft justify-center px-2" disabled={stepIndex === 0 || actionBusy} onClick={() => setStepIndex(index => Math.max(0, index - 1))}>Back</button>
-        <button
-          type="button"
-          className="btn-ghost justify-center px-2"
-          disabled={isActionBusy('save-draft')}
-          onClick={() => void runAction('save-draft', () => saveStep({ completed: false }))}
-        >
-          {activeAction === 'save-draft' ? <span className="ui-spinner" /> : null}
-          {activeAction === 'save-draft' ? 'Saving' : 'Save'}
-        </button>
-        <button
-          type="button"
-          className="btn-soft justify-center px-2"
-          disabled={isActionBusy('skip')}
-          onClick={() => void runAction('skip', () => saveStep({ skipped: true, advance: stepIndex < steps.length - 1, finish: stepIndex === steps.length - 1 }))}
-        >
-          {activeAction === 'skip' ? <span className="ui-spinner" /> : null}
-          {activeAction === 'skip' ? 'Skipping' : 'Skip'}
-        </button>
-        <button
-          type="button"
-          className="btn-primary justify-center px-2"
-          disabled={isActionBusy('save-continue')}
-          onClick={() => void runAction('save-continue', () => saveStep({ completed: true, advance: stepIndex < steps.length - 1, finish: stepIndex === steps.length - 1 }))}
-        >
-          {activeAction === 'save-continue' ? <span className="ui-spinner" /> : null}
-          {activeAction === 'save-continue' ? 'Saving' : (stepIndex === steps.length - 1 ? 'Finish' : 'Next')}
-        </button>
-      </section>
-    </div>
+      </div>
+    </Tooltip.Provider>
   )
 }
 
@@ -348,8 +357,49 @@ function Field({ label, value, onChange, type = 'text', required = false }: { la
   return <label className="auth-field"><span className="auth-field-label">{label}{required ? ' *' : ''}</span><input type={type} className="project-modal-control" value={String(value ?? '')} onChange={e => onChange(e.target.value)} placeholder={required ? '' : 'Can be completed later.'} /></label>
 }
 
-function PlanningColumnHeader({ children }: { children: string }) {
-  return <span className="text-[10px] font-semibold uppercase tracking-[0.18em] text-zinc-500 dark:text-zinc-400">{children}</span>
+function HelpMarker({ label, content }: { label: string; content: string }) {
+  const [open, setOpen] = useState(false)
+
+  useEffect(() => {
+    if (!open) return
+    const timer = window.setTimeout(() => setOpen(false), 3600)
+    return () => window.clearTimeout(timer)
+  }, [open])
+
+  return (
+    <Tooltip.Root open={open} onOpenChange={setOpen}>
+      <Tooltip.Trigger asChild>
+        <span
+          role="img"
+          aria-hidden="true"
+          className="inline-flex size-5 items-center justify-center rounded-full text-zinc-400 transition-colors hover:text-orange-500 dark:text-zinc-500 dark:hover:text-orange-400"
+          aria-label={`${label} help`}
+        >
+          <CircleHelp className="h-4 w-4" />
+        </span>
+      </Tooltip.Trigger>
+      <Tooltip.Portal>
+        <Tooltip.Content
+          side="top"
+          align="center"
+          sideOffset={8}
+          className="max-w-72 rounded-2xl border border-zinc-200 bg-white px-3 py-2 text-xs leading-5 text-zinc-700 shadow-xl dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-200"
+        >
+          {content}
+          <Tooltip.Arrow className="fill-white dark:fill-zinc-950" />
+        </Tooltip.Content>
+      </Tooltip.Portal>
+    </Tooltip.Root>
+  )
+}
+
+function PlanningColumnHeader({ children, help }: { children: string; help?: string }) {
+  return (
+    <span className="inline-flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-[0.18em] text-zinc-500 dark:text-zinc-400">
+      {children}
+      {help ? <HelpMarker label={children} content={help} /> : null}
+    </span>
+  )
 }
 
 function PlanningCell({ label, children }: { label: string; children: ReactNode }) {
@@ -375,11 +425,22 @@ function PlanningRows<T extends CrewRow | CastRow>({ title, empty, rows, setRows
   const columns = kind === 'crew'
     ? ['Department', 'Estimated People', 'Estimated Days', 'Daily Rate', 'Estimated Cost', 'Actions']
     : ['Category', 'Estimated Artists', 'Shoot Days', 'Per Day Cost', 'Estimated Cost', 'Actions']
+  const gridClass = kind === 'crew'
+    ? 'md:grid-cols-[1.2fr_0.8fr_0.8fr_0.7fr_1fr_auto]'
+    : 'md:grid-cols-[1.2fr_0.8fr_0.8fr_0.7fr_1fr_auto]'
 
   return (
     <div className="space-y-5">
       <div className="section-heading">
-        <h2 className="section-title">{title}</h2>
+        <div className="flex items-center gap-2">
+          <h2 className="section-title">{title}</h2>
+          <HelpMarker
+            label={title}
+            content={kind === 'crew'
+              ? 'Estimate how many people and how many days this department needs.'
+              : 'Estimate how many artists are needed and what each shoot day may cost.'}
+          />
+        </div>
         <button type="button" className="btn-primary" onClick={() => setRows(current => [...current, (kind === 'crew' ? newCrewRow() : newCastRow()) as T])}>
           Add {kind === 'crew' ? 'Department' : 'Category'}
         </button>
@@ -388,11 +449,16 @@ function PlanningRows<T extends CrewRow | CastRow>({ title, empty, rows, setRows
         <EmptyState icon="edit_note" title={empty} />
       ) : (
         <div className="space-y-3">
-          <div className="hidden rounded-[18px] border border-zinc-200 bg-zinc-100 px-4 py-3 md:grid md:grid-cols-[1.2fr_0.8fr_0.8fr_0.7fr_1fr_auto] md:gap-3 dark:border-zinc-800 dark:bg-zinc-900">
-            {columns.map(column => <PlanningColumnHeader key={column}>{column}</PlanningColumnHeader>)}
+          <div className={cn('hidden rounded-[18px] border border-zinc-200 bg-zinc-100 px-4 py-3 md:grid md:gap-3 dark:border-zinc-800 dark:bg-zinc-900', gridClass)}>
+            <PlanningColumnHeader help="The team or department being planned.">Department</PlanningColumnHeader>
+            <PlanningColumnHeader help="How many people are expected in this group.">Estimated People</PlanningColumnHeader>
+            <PlanningColumnHeader help="Approximate number of working days expected for this department.">Estimated Days</PlanningColumnHeader>
+            <PlanningColumnHeader help="Cost for one person for one working day.">Daily Rate</PlanningColumnHeader>
+            <PlanningColumnHeader help="Estimated total cost for this row.">Estimated Cost</PlanningColumnHeader>
+            <PlanningColumnHeader>Actions</PlanningColumnHeader>
           </div>
           {rows.map(row => (
-            <div key={row.id} className="grid gap-3 rounded-[24px] bg-zinc-50 p-4 dark:bg-zinc-900 md:grid-cols-[1.2fr_0.8fr_0.8fr_0.7fr_1fr_auto]">
+            <div key={row.id} className={cn('grid gap-3 rounded-[24px] bg-zinc-50 p-4 dark:bg-zinc-900', gridClass)}>
               <PlanningCell label={columns[0]}>
                 <input
                   className="project-modal-control"
@@ -441,65 +507,120 @@ function PlanningRows<T extends CrewRow | CastRow>({ title, empty, rows, setRows
   )
 }
 
-function ExpenseStep({ rows, setRows, currency }: { rows: ExpenseRow[]; setRows: React.Dispatch<React.SetStateAction<ExpenseRow[]>>; currency: ProjectCurrency }) {
+function ExpenseStep({ rows, setRows, currency, onReorder }: { rows: ExpenseRow[]; setRows: React.Dispatch<React.SetStateAction<ExpenseRow[]>>; currency: ProjectCurrency; onReorder?: ExpenseReorderHandler }) {
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 120, tolerance: 6 } }),
+  )
+
+  function handleDragEnd(event: DragEndEvent) {
+    const { active, over } = event
+    if (!over || active.id === over.id) return
+    const previousRows = rows
+    const nextRows = sortRowsByProjectedOrder(rows, String(active.id), String(over.id))
+    if (nextRows === previousRows) return
+    setRows(nextRows)
+    if (!onReorder) return
+
+    void Promise.resolve(onReorder(nextRows, previousRows)).catch(() => undefined)
+  }
+
   return (
     <div className="space-y-5">
       <div className="section-heading">
-        <h2 className="section-title">Estimated Expenses</h2>
+        <div className="flex items-center gap-2">
+          <h2 className="section-title">Estimated Expenses</h2>
+          <HelpMarker label="Estimated Expenses" content="List broad cost buckets first. Detailed spending will come later through invoices and transactions." />
+        </div>
         <button type="button" className="btn-primary" onClick={() => setRows(current => [...current, newExpenseRow()])}>Add Category</button>
       </div>
       {rows.length === 0 ? (
         <EmptyState icon="receipt_long" title="No expenses estimated. You can return later." />
       ) : (
-        <div className="space-y-3">
-          <div className="hidden rounded-[18px] border border-zinc-200 bg-zinc-100 px-4 py-3 md:grid md:grid-cols-[1.1fr_0.8fr_0.7fr_0.9fr_1fr_auto] md:gap-3 dark:border-zinc-800 dark:bg-zinc-900">
-            <PlanningColumnHeader>Category</PlanningColumnHeader>
-            <PlanningColumnHeader>Estimated Amount</PlanningColumnHeader>
-            <PlanningColumnHeader>Buffer %</PlanningColumnHeader>
-            <PlanningColumnHeader>Calculated Total</PlanningColumnHeader>
-            <PlanningColumnHeader>Notes</PlanningColumnHeader>
-            <PlanningColumnHeader>Actions</PlanningColumnHeader>
-          </div>
-          {rows.map((row, index) => (
-            <div key={row.id} className="grid gap-3 rounded-[24px] bg-zinc-50 p-4 dark:bg-zinc-900 md:grid-cols-[1.1fr_0.8fr_0.7fr_0.9fr_1fr_auto]">
-              <PlanningCell label="Category">
-                <input className="project-modal-control" value={row.category} onChange={e => setRows(cur => cur.map(item => item.id === row.id ? { ...item, category: e.target.value } : item))} />
-              </PlanningCell>
-              <PlanningCell label="Estimated Amount">
-                <input className="project-modal-control" type="number" value={row.estimatedBudget} onChange={e => setRows(cur => cur.map(item => item.id === row.id ? { ...item, estimatedBudget: Number(e.target.value) || 0 } : item))} />
-              </PlanningCell>
-              <PlanningCell label="Buffer %">
-                <input className="project-modal-control" type="number" value={row.contingencyPercent} onChange={e => setRows(cur => cur.map(item => item.id === row.id ? { ...item, contingencyPercent: Number(e.target.value) || 0 } : item))} />
-              </PlanningCell>
-              <div className="rounded-[18px] bg-white px-4 py-3 text-sm font-semibold dark:bg-zinc-950">
-                <span className="md:hidden block text-[10px] uppercase tracking-[0.16em] text-zinc-500 dark:text-zinc-400">Calculated Total</span>
-                <span className="mt-1 block">{formatCurrency(expenseTotal(row), currency)}</span>
+        <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+          <SortableContext items={rows.map(row => row.id)} strategy={verticalListSortingStrategy}>
+            <div className="space-y-3">
+              <div className="hidden rounded-[18px] border border-zinc-200 bg-zinc-100 px-4 py-3 md:grid md:grid-cols-[1.05fr_0.75fr_0.7fr_0.85fr_1fr_auto] md:gap-3 dark:border-zinc-800 dark:bg-zinc-900">
+                <PlanningColumnHeader help="The broad expense category you want to estimate.">Category</PlanningColumnHeader>
+                <PlanningColumnHeader help="The estimated amount you expect to spend in this category.">Estimated Amount</PlanningColumnHeader>
+                <PlanningColumnHeader help="A small buffer added to the estimate to cover changes.">Buffer %</PlanningColumnHeader>
+                <PlanningColumnHeader help="The final estimate after buffer is added.">Calculated Total</PlanningColumnHeader>
+                <PlanningColumnHeader help="Optional note for this estimate.">Notes</PlanningColumnHeader>
+                <PlanningColumnHeader>Actions</PlanningColumnHeader>
               </div>
-              <PlanningCell label="Notes">
-                <input className="project-modal-control" value={row.notes} onChange={e => setRows(cur => cur.map(item => item.id === row.id ? { ...item, notes: e.target.value } : item))} placeholder="Optional notes" />
-              </PlanningCell>
-              <div className="flex flex-wrap gap-2">
-                <button type="button" className="btn-soft px-3" disabled={index === 0} onClick={() => setRows(cur => moveRow(cur, index, -1))}>Up</button>
-                <button type="button" className="btn-soft px-3" disabled={index === rows.length - 1} onClick={() => setRows(cur => moveRow(cur, index, 1))}>Down</button>
-                <button type="button" className="btn-soft px-3" onClick={() => setRows(cur => [...cur, { ...row, id: crypto.randomUUID() }])}>Copy</button>
-                <button type="button" className="btn-ghost px-3" onClick={() => setRows(cur => cur.filter(item => item.id !== row.id))}>Remove</button>
-              </div>
+              {rows.map((row, index) => (
+                <SortableExpenseRow
+                  key={row.id}
+                  row={row}
+                  index={index}
+                  currency={currency}
+                  setRows={setRows}
+                />
+              ))}
             </div>
-          ))}
-        </div>
+          </SortableContext>
+        </DndContext>
       )}
       <SummaryTotal label="Expense Estimate" amount={rows.reduce((sum, row) => sum + expenseTotal(row), 0)} currency={currency} />
     </div>
   )
 }
 
-function moveRow<T>(rows: T[], index: number, direction: number) {
-  const next = [...rows]
-  const target = index + direction
-  if (target < 0 || target >= rows.length) return rows
-  const [item] = next.splice(index, 1)
-  next.splice(target, 0, item)
-  return next
+function SortableExpenseRow({
+  row,
+  index,
+  currency,
+  setRows,
+}: {
+  row: ExpenseRow
+  index: number
+  currency: ProjectCurrency
+  setRows: React.Dispatch<React.SetStateAction<ExpenseRow[]>>
+}) {
+  const sortable = useSortable({ id: row.id })
+  const style = {
+    transform: `${CSS.Transform.toString(sortable.transform)}${sortable.isDragging ? ' scale(1.015)' : ''}`,
+    transition: sortable.transition,
+    opacity: sortable.isDragging ? 0.88 : 1,
+    boxShadow: sortable.isDragging ? '0 18px 38px rgba(15, 23, 42, 0.16)' : undefined,
+  } as React.CSSProperties
+
+  return (
+    <div ref={sortable.setNodeRef} style={style} className={cn('grid gap-3 rounded-[24px] bg-zinc-50 p-4 select-none dark:bg-zinc-900 md:grid-cols-[1.05fr_0.75fr_0.7fr_0.85fr_1fr_auto]', sortable.isDragging && 'ring-1 ring-orange-300 dark:ring-orange-500/40')}>
+      <PlanningCell label="Category">
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            ref={sortable.setActivatorNodeRef}
+            {...sortable.attributes}
+            {...sortable.listeners}
+            className="inline-flex size-10 shrink-0 touch-none cursor-grab items-center justify-center rounded-[14px] border border-zinc-200 bg-white text-zinc-500 transition-colors hover:text-orange-500 active:cursor-grabbing dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-400 dark:hover:text-orange-400"
+            aria-label="Drag to reorder expense row"
+          >
+            <GripVertical className="h-4 w-4" />
+          </button>
+          <input className="project-modal-control" value={row.category} onChange={e => setRows(cur => cur.map(item => item.id === row.id ? { ...item, category: e.target.value } : item))} />
+        </div>
+      </PlanningCell>
+      <PlanningCell label="Estimated Amount">
+        <input className="project-modal-control" type="number" value={row.estimatedBudget} onChange={e => setRows(cur => cur.map(item => item.id === row.id ? { ...item, estimatedBudget: Number(e.target.value) || 0 } : item))} />
+      </PlanningCell>
+      <PlanningCell label="Buffer %">
+        <input className="project-modal-control" type="number" value={row.contingencyPercent} onChange={e => setRows(cur => cur.map(item => item.id === row.id ? { ...item, contingencyPercent: Number(e.target.value) || 0 } : item))} />
+      </PlanningCell>
+      <div className="rounded-[18px] bg-white px-4 py-3 text-sm font-semibold dark:bg-zinc-950">
+        <span className="md:hidden block text-[10px] uppercase tracking-[0.16em] text-zinc-500 dark:text-zinc-400">Calculated Total</span>
+        <span className="mt-1 block">{formatCurrency(expenseTotal(row), currency)}</span>
+      </div>
+      <PlanningCell label="Notes">
+        <input className="project-modal-control" value={row.notes} onChange={e => setRows(cur => cur.map(item => item.id === row.id ? { ...item, notes: e.target.value } : item))} placeholder="Optional notes" />
+      </PlanningCell>
+      <div className="flex flex-wrap gap-2">
+        <button type="button" className="btn-soft px-3" onClick={() => setRows(cur => [...cur, { ...row, id: crypto.randomUUID() }])}>Copy</button>
+        <button type="button" className="btn-ghost px-3" onClick={() => setRows(cur => cur.filter(item => item.id !== row.id))}>Remove</button>
+      </div>
+    </div>
+  )
 }
 
 function SummaryTotal({ label, amount, currency }: { label: string; amount: number; currency: ProjectCurrency }) {

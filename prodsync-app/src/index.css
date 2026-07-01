@@ -364,6 +364,11 @@
     @apply w-full bg-transparent text-sm text-zinc-900 outline-none placeholder:text-zinc-400 dark:text-white dark:placeholder:text-zinc-500;
   }
 
+  .auth-input,
+  .auth-select {
+    color-scheme: light dark;
+  }
+
   .auth-select,
   .auth-textarea {
     @apply w-full rounded-[1rem] border border-zinc-200 bg-zinc-50/80 px-4 py-3.5 text-sm text-zinc-900 outline-none shadow-none transition-colors focus:border-orange-500 focus:bg-white dark:border-zinc-800 dark:bg-zinc-900/80 dark:text-white dark:focus:border-orange-500 dark:focus:bg-zinc-950;
@@ -488,6 +493,18 @@
   }
 
   .dark .project-modal-select option {
+    background: #09090b;
+    color: #ffffff;
+  }
+
+  .auth-input option,
+  .auth-select option {
+    background: #ffffff;
+    color: #18181b;
+  }
+
+  .dark .auth-input option,
+  .dark .auth-select option {
     background: #09090b;
     color: #ffffff;
   }

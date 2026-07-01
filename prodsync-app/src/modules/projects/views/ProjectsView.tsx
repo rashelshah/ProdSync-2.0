@@ -743,6 +743,12 @@ function ProjectCard({
   joinLabel?: string
   openLabel?: string
 }) {
+  const planningLabel = project.projectPhase !== 'planning' || project.progressPercent >= 100
+    ? 'Edit Planning'
+    : project.progressPercent > 0
+      ? 'Continue Planning'
+      : 'Start Planning'
+
   return (
     <Surface variant="raised" className="rounded-[30px] max-md:rounded-[24px] max-md:p-4">
       <div className="flex flex-wrap items-start justify-between gap-4 max-md:gap-2">
@@ -809,7 +815,7 @@ function ProjectCard({
       </div>
 
       <div className="mt-8 flex flex-wrap items-center gap-3 max-md:mt-5 max-md:gap-2">
-        {onPlanning && <button onClick={onPlanning} className="btn-soft max-md:flex-1 max-md:h-10 max-md:text-xs">Project Planning</button>}
+        {onPlanning && <button onClick={onPlanning} className="btn-soft max-md:flex-1 max-md:h-10 max-md:text-xs">{planningLabel}</button>}
         {onOpen && <button onClick={onOpen} className="btn-primary max-md:flex-1 max-md:h-10 max-md:text-xs">{openLabel}</button>}
         {onJoin && (
           <button onClick={onJoin} disabled={joinDisabled} className={cn('btn-soft max-md:flex-1 max-md:h-10 max-md:text-xs', joinDisabled && 'cursor-not-allowed opacity-60')}>
