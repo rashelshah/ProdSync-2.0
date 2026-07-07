@@ -13,6 +13,7 @@ import { getProjectAccess } from '../../services/project-access.service'
 import { getProjectProgressSnapshot } from '../../services/reportService'
 import { asyncHandler } from '../../utils/asyncHandler'
 import { HttpError } from '../../utils/httpError'
+import { buildDefaultExpenseTemplatePayload } from './expenseTemplate.registry'
 
 export const projectsRouter = Router()
 
@@ -1058,6 +1059,44 @@ async function getPlanningSummary(projectId: string) {
   return buildPlanningSummary((data ?? []) as PlanningSectionRow[])
 }
 
+async function ensureExpensePlanningTemplate(projectId: string, userId?: string | null) {
+  const { data: rows, error } = await adminClient
+    .from('project_planning_sections')
+    .select('section_type, payload')
+    .eq('project_id', projectId)
+    .in('section_type', ['project_information', 'expense_planning'])
+
+  if (error) {
+    throw error
+  }
+
+  const projectInformationRow = (rows ?? []).find(row => row.section_type === 'project_information')
+  const expensePlanningRow = (rows ?? []).find(row => row.section_type === 'expense_planning')
+  const planningInitialized = Boolean(projectInformationRow?.payload && typeof projectInformationRow.payload === 'object' && !Array.isArray(projectInformationRow.payload) && (projectInformationRow.payload as Record<string, unknown>).planningInitialized)
+
+  if (!planningInitialized || expensePlanningRow) {
+    return getPlanningSummary(projectId)
+  }
+
+  const templatePayload = buildDefaultExpenseTemplatePayload()
+  const { error: templateSeedError } = await adminClient
+    .from('project_planning_sections')
+    .upsert({
+      project_id: projectId,
+      section_type: 'expense_planning',
+      payload: templatePayload,
+      is_completed: false,
+      is_skipped: false,
+      updated_by: userId ?? null,
+    }, { onConflict: 'project_id,section_type' })
+
+  if (templateSeedError) {
+    throw templateSeedError
+  }
+
+  return getPlanningSummary(projectId)
+}
+
 projectsRouter.get(
   '/:projectId/planning',
   authMiddleware,
@@ -1073,7 +1112,9 @@ projectsRouter.get(
       throw new HttpError(404, 'Project not found.')
     }
 
-    res.json({ planning: { ...planning, project } })
+    const seededPlanning = await ensureExpensePlanningTemplate(projectId, req.authUser?.id ?? null)
+
+    res.json({ planning: { ...seededPlanning, project } })
   }),
 )
 
@@ -1138,6 +1179,10 @@ projectsRouter.put(
       if (Object.keys(updates).length > 0) {
         const { error: projectError } = await adminClient.from('projects').update(updates).eq('id', projectId)
         if (projectError) throw projectError
+      }
+
+      if (Boolean(info.planningInitialized)) {
+        await ensureExpensePlanningTemplate(projectId, userId)
       }
     }
 

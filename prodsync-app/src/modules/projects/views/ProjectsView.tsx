@@ -1,7 +1,7 @@
 import { useEffect, useState, type ReactNode } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
-import { BriefcaseBusiness, CheckCircle2, Clock3, MapPin, Plus, ShieldCheck, Trash2, Users } from 'lucide-react'
+import { CheckCircle2, Plus, ShieldCheck, Trash2, Users } from 'lucide-react'
 import { Surface } from '@/components/shared/Surface'
 import { ProjectPhaseControl } from '@/components/project/ProjectPhaseControl'
 import { EmptyState, PageLoader } from '@/components/system/SystemStates'
@@ -14,9 +14,8 @@ import { useProjectsStore } from '@/features/projects/projects.store'
 import { resolveErrorMessage, showError, showLoading, showSuccess } from '@/lib/toast'
 import { projectsService, type ProjectPreview } from '@/services/projects.service'
 import { cn, formatCurrency, formatDate, timeAgo } from '@/utils'
-import type { ProjectCurrency, ProjectDepartment, ProjectJoinRequest, ProjectRecord, ProjectRequestedRole, ProjectStage } from '@/types'
+import type { ProjectDepartment, ProjectJoinRequest, ProjectRecord, ProjectRequestedRole, ProjectStage } from '@/types'
 
-const PROJECT_STATUSES: ProjectStage[] = ['pre-production', 'shooting', 'post']
 const DEPARTMENTS: { id: ProjectDepartment; label: string }[] = [
   { id: 'camera', label: 'Camera' },
   { id: 'art', label: 'Art' },
@@ -26,7 +25,6 @@ const DEPARTMENTS: { id: ProjectDepartment; label: string }[] = [
   { id: 'post', label: 'Post' },
   { id: 'actors', label: 'Actor & Juniors' },
 ]
-const PROJECT_CURRENCIES: ProjectCurrency[] = ['INR', 'USD', 'EUR']
 
 const statusTone: Record<ProjectStage, string> = {
   'pre-production': 'bg-zinc-100 text-zinc-700 dark:bg-white/8 dark:text-zinc-300',
@@ -55,20 +53,9 @@ export function ProjectsView() {
   })
   const joinRequests = joinRequestsQ.data ?? []
 
-  const [showCreateModal, setShowCreateModal] = useState(false)
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null)
   const [requestedRole, setRequestedRole] = useState<ProjectRequestedRole>('Crew Member')
   const [requestMessage, setRequestMessage] = useState('')
-  const [projectName, setProjectName] = useState('')
-  const [projectLocation, setProjectLocation] = useState('')
-  const [projectStatus, setProjectStatus] = useState<ProjectStage>('pre-production')
-  const [projectBudget, setProjectBudget] = useState('')
-  const [projectCurrency, setProjectCurrency] = useState<ProjectCurrency>('INR')
-  const [projectCrew, setProjectCrew] = useState('')
-  const [projectStartDate, setProjectStartDate] = useState('')
-  const [projectEndDate, setProjectEndDate] = useState('')
-  const [projectOtRules, setProjectOtRules] = useState('')
-  const [selectedDepartments, setSelectedDepartments] = useState<ProjectDepartment[]>([])
   const [projectAction, setProjectAction] = useState<string | null>(null)
   const [deleteProjectTarget, setDeleteProjectTarget] = useState<ProjectRecord | null>(null)
 
@@ -92,32 +79,6 @@ export function ProjectsView() {
     : joinRequests.filter(request => request.userId === currentUser.id && request.status === 'pending')
 
   const selectedProject = selectedProjectId ? visibleProjects.find(project => project.id === selectedProjectId) ?? null : null
-
-  const createProjectMutation = useMutation({
-    mutationFn: projectsService.createProject,
-    onSuccess: async (project) => {
-      if (project) {
-        setActiveProject(project.id, project.currency)
-        navigate(`/projects/${project.id}/planning`)
-      }
-
-      setShowCreateModal(false)
-      setProjectName('')
-      setProjectLocation('')
-      setProjectBudget('')
-      setProjectCurrency('INR')
-      setProjectCrew('')
-      setProjectStartDate('')
-      setProjectEndDate('')
-      setProjectOtRules('')
-      setSelectedDepartments([])
-
-      await invalidateProjectData(queryClient, {
-        projectId: project?.id,
-        userId: user?.id,
-      })
-    },
-  })
 
   const requestJoinMutation = useMutation({
     mutationFn: projectsService.createJoinRequest,
@@ -238,39 +199,14 @@ export function ProjectsView() {
     navigate(`/projects/${projectId}/planning`)
   }
 
+  function startPlanning() {
+    navigate('/projects/new/planning')
+  }
+
   function openProject(projectId: string) {
     const project = projects.find(item => item.id === projectId) ?? visibleProjects.find(item => item.id === projectId) ?? null
     setActiveProject(projectId, project?.currency ?? 'INR')
     navigate(getDefaultWorkspacePath(currentUser))
-  }
-
-  function createProjectSubmit() {
-    if (!projectName.trim()) {
-      showError('Project name is required.', { id: 'project-create' })
-      return
-    }
-
-    void runProjectAction(
-      () => createProjectMutation.mutateAsync({
-        name: projectName.trim(),
-        location: projectLocation.trim(),
-        status: projectStatus,
-        projectPhase: 'planning',
-        budgetUSD: Number(projectBudget) || 0,
-        currency: projectCurrency,
-        activeCrew: Number(projectCrew) || 0,
-        startDate: projectStartDate,
-        endDate: projectEndDate,
-        enabledDepartments: selectedDepartments,
-        otRulesLabel: projectOtRules.trim(),
-      }),
-      {
-        actionKey: 'project-create',
-        loadingMessage: 'Creating project...',
-        successMessage: 'Project created successfully.',
-        errorMessage: 'Project could not be created.',
-      },
-    )
   }
 
   function submitJoinRequest() {
@@ -321,12 +257,6 @@ export function ProjectsView() {
     return joinRequests.find(request => request.projectId === projectId && request.userId === currentUser.id)
   }
 
-  function toggleDepartment(department: ProjectDepartment) {
-    setSelectedDepartments(current =>
-      current.includes(department) ? current.filter(item => item !== department) : [...current, department],
-    )
-  }
-
   if (isLoadingProjectContext) {
     return <PageLoader open message="Loading project access..." />
   }
@@ -342,14 +272,14 @@ export function ProjectsView() {
           </p>
         </div>
 
-        <div className="page-toolbar">
-          <div className="rounded-[24px] bg-zinc-50 px-4 py-3 text-sm text-zinc-500 dark:bg-zinc-900 dark:text-zinc-400">
-            Active project:
-            <span className="ml-2 font-semibold text-zinc-900 dark:text-white">
-              {projects.find(project => project.id === activeProjectId)?.name ?? 'Not selected'}
-            </span>
-          </div>
-          <button onClick={() => setShowCreateModal(true)} className="btn-primary">
+          <div className="page-toolbar">
+            <div className="rounded-[24px] bg-zinc-50 px-4 py-3 text-sm text-zinc-500 dark:bg-zinc-900 dark:text-zinc-400">
+              Active project:
+              <span className="ml-2 font-semibold text-zinc-900 dark:text-white">
+                {projects.find(project => project.id === activeProjectId)?.name ?? 'Not selected'}
+              </span>
+            </div>
+          <button onClick={startPlanning} className="btn-primary">
             <Plus className="h-4 w-4" />
             Start Project Planning
           </button>
@@ -370,7 +300,7 @@ export function ProjectsView() {
               <Surface variant="muted" padding="lg">
                 <EmptyState icon="workspaces" title="No projects yet" description="Create your first project to unlock the workspace and start inviting departments." />
                 <div className="mt-6 flex justify-center">
-                  <button onClick={() => setShowCreateModal(true)} className="btn-primary">
+                  <button onClick={startPlanning} className="btn-primary">
                     <Plus className="h-4 w-4" />
                     Start Project Planning
                   </button>
@@ -568,106 +498,6 @@ export function ProjectsView() {
                 {projectAction === `project-delete-${deleteProjectTarget.id}` ? 'Deleting...' : 'Delete Project'}
               </button>
             </div>
-          </div>
-        </ModalShell>
-      )}
-
-      {showCreateModal && (
-        <ModalShell title="Start Project Planning" onClose={() => setShowCreateModal(false)}>
-          <div className="grid gap-4">
-            <label className="auth-field">
-              <span className="auth-field-label">Project Name</span>
-              <div className="project-modal-input-shell">
-                <BriefcaseBusiness className="h-4 w-4 text-zinc-400" />
-                <input value={projectName} onChange={event => setProjectName(event.target.value)} className="project-modal-input" placeholder="Midnight Courtyard" />
-              </div>
-            </label>
-
-            <div className="grid gap-4 md:grid-cols-2">
-              <label className="auth-field">
-                <span className="auth-field-label">Location</span>
-                <div className="project-modal-input-shell">
-                  <MapPin className="h-4 w-4 text-zinc-400" />
-                  <input value={projectLocation} onChange={event => setProjectLocation(event.target.value)} className="project-modal-input" placeholder="Chennai" />
-                </div>
-              </label>
-              <label className="auth-field">
-                <span className="auth-field-label">Status</span>
-                <select value={projectStatus} onChange={event => setProjectStatus(event.target.value as ProjectStage)} className="project-modal-select">
-                  {PROJECT_STATUSES.map(status => (
-                    <option key={status} value={status}>{status}</option>
-                  ))}
-                </select>
-              </label>
-            </div>
-
-            <div className="grid gap-4 md:grid-cols-2">
-              <label className="auth-field">
-                <span className="auth-field-label">Budget</span>
-                <div className="project-modal-input-shell">
-                  <input value={projectBudget} onChange={event => setProjectBudget(event.target.value)} className="project-modal-input" />
-                </div>
-              </label>
-              <label className="auth-field">
-                <span className="auth-field-label">Currency</span>
-                <select value={projectCurrency} onChange={event => setProjectCurrency(event.target.value as ProjectCurrency)} className="project-modal-select">
-                  {PROJECT_CURRENCIES.map(currency => (
-                    <option key={currency} value={currency}>{currency}</option>
-                  ))}
-                </select>
-              </label>
-            </div>
-
-            <div className="grid gap-4 md:grid-cols-2">
-              <label className="auth-field">
-                <span className="auth-field-label">Active Crew</span>
-                <div className="project-modal-input-shell">
-                  <input value={projectCrew} onChange={event => setProjectCrew(event.target.value)} className="project-modal-input" />
-                </div>
-              </label>
-            </div>
-
-            <div className="grid gap-4 md:grid-cols-2">
-              <label className="auth-field">
-                <span className="auth-field-label">Start Date</span>
-                <input type="date" value={projectStartDate} onChange={event => setProjectStartDate(event.target.value)} className="project-modal-select" />
-              </label>
-              <label className="auth-field">
-                <span className="auth-field-label">End Date</span>
-                <input type="date" value={projectEndDate} onChange={event => setProjectEndDate(event.target.value)} className="project-modal-select" />
-              </label>
-            </div>
-
-            <label className="auth-field">
-              <span className="auth-field-label">OT Rules / FEFSI Settings</span>
-              <div className="project-modal-input-shell">
-                <Clock3 className="h-4 w-4 text-zinc-400" />
-                <input value={projectOtRules} onChange={event => setProjectOtRules(event.target.value)} className="project-modal-input" />
-              </div>
-            </label>
-
-            <div className="auth-field">
-              <span className="auth-field-label">Enabled Departments</span>
-              <div className="flex flex-wrap gap-3">
-                {DEPARTMENTS.map(department => (
-                  <button
-                    key={department.id}
-                    onClick={() => toggleDepartment(department.id)}
-                    className={cn('project-department-chip', selectedDepartments.includes(department.id) && 'is-selected')}
-                  >
-                    {department.label}
-                  </button>
-                ))}
-              </div>
-            </div>
-          </div>
-
-          <div className="mt-8 flex flex-wrap gap-3">
-            <button onClick={() => setShowCreateModal(false)} className="clay-ghost-button" disabled={projectAction === 'project-create'}>Cancel</button>
-            <button onClick={createProjectSubmit} className="clay-primary-button" disabled={projectAction === 'project-create'}>
-              {projectAction === 'project-create' ? <span className="ui-spinner" /> : null}
-              {projectAction === 'project-create' ? 'Saving Project...' : 'Start Planning'}
-            </button>
           </div>
         </ModalShell>
       )}

@@ -76,6 +76,12 @@ interface CreateProjectInput {
   endDate: string
   enabledDepartments: ProjectDepartment[]
   otRulesLabel: string
+  projectType?: string
+  productionHouse?: string
+  client?: string
+  director?: string
+  language?: string
+  description?: string
 }
 
 interface JoinRequestCreateInput {
