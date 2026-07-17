@@ -6,6 +6,7 @@ import { Surface } from '@/components/shared/Surface'
 import { EmptyState, ErrorState, PageLoader } from '@/components/system/SystemStates'
 import { useResolvedProjectContext } from '@/features/projects/useResolvedProjectContext'
 import { formatProjectPhase, useProjectWorkflow } from '@/features/workflow/projectWorkflow'
+import { normalizeCrewPlanningDepartments, summarizeCrewPlanningDepartments } from '@/modules/projects/planningTemplates'
 import { projectsService } from '@/services/projects.service'
 import { formatCurrency, formatDate } from '@/utils'
 import { MissionControlMobile } from '../components/mission_control_mobile'
@@ -53,9 +54,10 @@ export function DashboardView() {
   const isPlanningPhase = !activeProject || activeProject.projectPhase === 'planning'
 
   if (isPlanningPhase) {
-    const estimatedCrew = Number(crewPlanning.estimatedCrew ?? 0)
+    const crewSummary = summarizeCrewPlanningDepartments(normalizeCrewPlanningDepartments(crewPlanning))
+    const estimatedCrew = crewSummary.estimatedCrew || Number(crewPlanning.estimatedCrew ?? 0)
     const estimatedCast = Number(castPlanning.estimatedCast ?? 0)
-    const estimatedBudget = Number(crewPlanning.estimatedCost ?? 0) + Number(castPlanning.estimatedCost ?? 0) + Number(expensePlanning.estimatedCost ?? 0)
+    const estimatedBudget = (crewSummary.estimatedCost || Number(crewPlanning.estimatedCost ?? 0)) + Number(castPlanning.estimatedCost ?? 0) + Number(expensePlanning.estimatedCost ?? 0)
     const nextStep = planningSections.find(section => !section.isCompleted && !section.isSkipped)
 
     return (

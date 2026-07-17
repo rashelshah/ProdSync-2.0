@@ -13,7 +13,7 @@ import { getProjectAccess } from '../../services/project-access.service'
 import { getProjectProgressSnapshot } from '../../services/reportService'
 import { asyncHandler } from '../../utils/asyncHandler'
 import { HttpError } from '../../utils/httpError'
-import { buildDefaultExpenseTemplatePayload } from './expenseTemplate.registry'
+import { buildDefaultCrewTemplatePayload, buildDefaultExpenseTemplatePayload, PLANNING_TEMPLATE_SEED_VERSION } from './expenseTemplate.registry'
 
 export const projectsRouter = Router()
 
@@ -1059,39 +1059,63 @@ async function getPlanningSummary(projectId: string) {
   return buildPlanningSummary((data ?? []) as PlanningSectionRow[])
 }
 
-async function ensureExpensePlanningTemplate(projectId: string, userId?: string | null) {
+async function ensurePlanningTemplates(projectId: string, userId?: string | null) {
   const { data: rows, error } = await adminClient
     .from('project_planning_sections')
     .select('section_type, payload')
     .eq('project_id', projectId)
-    .in('section_type', ['project_information', 'expense_planning'])
+    .in('section_type', ['project_information', 'crew_planning', 'expense_planning'])
 
   if (error) {
     throw error
   }
 
   const projectInformationRow = (rows ?? []).find(row => row.section_type === 'project_information')
+  const crewPlanningRow = (rows ?? []).find(row => row.section_type === 'crew_planning')
   const expensePlanningRow = (rows ?? []).find(row => row.section_type === 'expense_planning')
   const planningInitialized = Boolean(projectInformationRow?.payload && typeof projectInformationRow.payload === 'object' && !Array.isArray(projectInformationRow.payload) && (projectInformationRow.payload as Record<string, unknown>).planningInitialized)
+  const seedVersion = Number(
+    projectInformationRow?.payload && typeof projectInformationRow.payload === 'object' && !Array.isArray(projectInformationRow.payload)
+      ? (projectInformationRow.payload as Record<string, unknown>).planningTemplateSeedVersion
+      : 0,
+  ) || 0
 
-  if (!planningInitialized || expensePlanningRow) {
+  if (!planningInitialized) {
     return getPlanningSummary(projectId)
   }
 
-  const templatePayload = buildDefaultExpenseTemplatePayload()
-  const { error: templateSeedError } = await adminClient
-    .from('project_planning_sections')
-    .upsert({
+  const templateRows: Array<Record<string, unknown>> = []
+
+  if (!expensePlanningRow) {
+    templateRows.push({
       project_id: projectId,
       section_type: 'expense_planning',
-      payload: templatePayload,
+      payload: buildDefaultExpenseTemplatePayload(),
       is_completed: false,
       is_skipped: false,
       updated_by: userId ?? null,
-    }, { onConflict: 'project_id,section_type' })
+    })
+  }
 
-  if (templateSeedError) {
-    throw templateSeedError
+  if (!crewPlanningRow && seedVersion >= PLANNING_TEMPLATE_SEED_VERSION) {
+    templateRows.push({
+      project_id: projectId,
+      section_type: 'crew_planning',
+      payload: buildDefaultCrewTemplatePayload(),
+      is_completed: false,
+      is_skipped: false,
+      updated_by: userId ?? null,
+    })
+  }
+
+  if (templateRows.length > 0) {
+    const { error: templateSeedError } = await adminClient
+      .from('project_planning_sections')
+      .upsert(templateRows, { onConflict: 'project_id,section_type' })
+
+    if (templateSeedError) {
+      throw templateSeedError
+    }
   }
 
   return getPlanningSummary(projectId)
@@ -1112,7 +1136,7 @@ projectsRouter.get(
       throw new HttpError(404, 'Project not found.')
     }
 
-    const seededPlanning = await ensureExpensePlanningTemplate(projectId, req.authUser?.id ?? null)
+    const seededPlanning = await ensurePlanningTemplates(projectId, req.authUser?.id ?? null)
 
     res.json({ planning: { ...seededPlanning, project } })
   }),
@@ -1182,7 +1206,7 @@ projectsRouter.put(
       }
 
       if (Boolean(info.planningInitialized)) {
-        await ensureExpensePlanningTemplate(projectId, userId)
+        await ensurePlanningTemplates(projectId, userId)
       }
     }
 

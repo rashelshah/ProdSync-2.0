@@ -10,6 +10,7 @@ import { useProject } from '@/context/ProjectContext'
 import { invalidateProjectData } from '@/context/project-sync'
 import { useAuthStore } from '@/features/auth/auth.store'
 import { resolveErrorMessage, showError, showLoading, showSuccess } from '@/lib/toast'
+import { normalizeCrewPlanningDepartments, summarizeCrewPlanningDepartments } from '@/modules/projects/planningTemplates'
 import { projectsService } from '@/services/projects.service'
 import { crewService } from '@/services/crew.service'
 import type {
@@ -228,6 +229,7 @@ export function CrewView() {
   const [historyPage, setHistoryPage] = useState(1)
   const [customStartDate, setCustomStartDate] = useState(() => toDateInputValue(shiftDate(new Date(), -29)))
   const [customEndDate, setCustomEndDate] = useState(() => toDateInputValue(new Date()))
+  const [showImportedPlanningRoles, setShowImportedPlanningRoles] = useState(false)
   const searchDebounceRef = useRef<number | null>(null)
 
   const projectRole = user?.projectRoleTitle
@@ -256,6 +258,21 @@ export function CrewView() {
     enabled: Boolean(activeProjectId) && canUseCrewModule,
     staleTime: 15_000,
   })
+
+  const crewPlanningSummary = useMemo(() => {
+    const payload = planningQ.data?.sections.find(section => section.sectionType === 'crew_planning')?.payload
+    if (!payload) {
+      return null
+    }
+    const departments = normalizeCrewPlanningDepartments(payload)
+    const summary = summarizeCrewPlanningDepartments(departments)
+    return {
+      departments,
+      estimatedCrew: summary.estimatedCrew || Number(payload.estimatedCrew ?? 0),
+      estimatedCost: summary.estimatedCost || Number(payload.estimatedCost ?? 0),
+      roleCount: summary.roleCount || Number(payload.roleCount ?? 0),
+    }
+  }, [planningQ.data?.sections])
 
   const currentAttendancePayout = useMemo(
     () => payouts.find(payout => payout.attendanceId === myShift.attendanceId),
@@ -665,10 +682,55 @@ export function CrewView() {
       </div>
 
       <div className="hidden md:block space-y-6">
-        {planningQ.data?.sections.find(section => section.sectionType === 'crew_planning')?.payload?.estimatedCrew ? (
+        {crewPlanningSummary?.estimatedCrew ? (
           <Surface variant="warning" padding="md">
-            <p className="text-sm font-semibold text-zinc-900 dark:text-white">Planning estimated {Number(planningQ.data.sections.find(section => section.sectionType === 'crew_planning')?.payload?.estimatedCrew ?? 0)} crew members.</p>
-            <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-300">Use this as a staffing reference while adding actual crew. Planning estimates never create employees automatically.</p>
+            <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+              <div>
+                <p className="text-sm font-semibold text-zinc-900 dark:text-white">Planning estimated {crewPlanningSummary.estimatedCrew} crew members across {crewPlanningSummary.roleCount} roles.</p>
+                <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-300">Import planned roles as a staffing template here without creating or overwriting live crew records.</p>
+              </div>
+              <button type="button" className="btn-soft self-start lg:self-center" onClick={() => setShowImportedPlanningRoles(current => !current)}>
+                {showImportedPlanningRoles ? 'Hide Imported Roles' : 'Import Planned Roles'}
+              </button>
+            </div>
+          </Surface>
+        ) : null}
+
+        {showImportedPlanningRoles && crewPlanningSummary?.departments?.length ? (
+          <Surface variant="table" padding="lg">
+            <div className="section-heading">
+              <div>
+                <p className="section-kicker">Crew Planning Import</p>
+                <h2 className="section-title">Imported Planned Roles</h2>
+              </div>
+            </div>
+            <p className="mt-2 text-sm text-zinc-500 dark:text-zinc-400">This template is synced from Project Planning Step 2 and remains read-only here so actual crew records stay untouched.</p>
+            <div className="mt-6 space-y-4">
+              {crewPlanningSummary.departments.map(department => (
+                <div key={department.id} className="rounded-[24px] bg-zinc-50 p-4 dark:bg-zinc-900">
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div>
+                      <p className="text-sm font-semibold text-zinc-900 dark:text-white">{department.name}</p>
+                      <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
+                        {department.roles.filter(role => role.isPlanned).length} / {department.roles.length} planned
+                      </p>
+                    </div>
+                    <p className="text-sm font-semibold text-zinc-900 dark:text-white">{formatCurrency(department.roles.reduce((sum, role) => sum + (role.estimatedCount * role.shootDays * role.dailyWage), 0))}</p>
+                  </div>
+                  <div className="mt-4 space-y-2">
+                    {department.roles.map(role => (
+                      <div key={role.id} className="grid gap-2 rounded-[18px] bg-white px-4 py-3 text-sm dark:bg-zinc-950 md:grid-cols-[1.3fr_0.6fr_0.6fr_0.8fr_1fr]">
+                        <span className="font-medium text-zinc-900 dark:text-white">{role.role}</span>
+                        <span className="text-zinc-500 dark:text-zinc-400">Count {role.estimatedCount}</span>
+                        <span className="text-zinc-500 dark:text-zinc-400">Days {role.shootDays}</span>
+                        <span className="text-zinc-500 dark:text-zinc-400">Rate {formatCurrency(role.dailyWage)}</span>
+                        <span className="font-medium text-zinc-900 dark:text-white">{formatCurrency(role.estimatedCount * role.shootDays * role.dailyWage)}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
           </Surface>
         ) : null}
 

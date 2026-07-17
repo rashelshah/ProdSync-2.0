@@ -12,11 +12,22 @@ import { EmptyState, ErrorState, PageLoader } from '@/components/system/SystemSt
 import { useAuthStore } from '@/features/auth/auth.store'
 import { useProjectsStore } from '@/features/projects/projects.store'
 import { showError, showSuccess } from '@/lib/toast'
+import {
+  buildDefaultCrewPlanningDepartments,
+  crewPlanningDepartmentTotal,
+  crewPlanningRoleTotal,
+  flattenCrewPlanningDepartments,
+  normalizeCrewPlanningDepartments,
+  PLANNING_TEMPLATE_SEED_VERSION,
+  planningDepartmentTemplates,
+  summarizeCrewPlanningDepartments,
+  type CrewPlanningDepartment,
+  type CrewPlanningRole,
+} from '@/modules/projects/planningTemplates'
 import { projectsService } from '@/services/projects.service'
 import { cn, formatCurrency } from '@/utils'
 import type { PlanningSectionType, ProjectCurrency, ProjectPhase, ProjectPlanningSection, ProjectRecord, ProjectStage } from '@/types'
 
-type CrewRow = { id: string; department: string; estimatedCrew: number; estimatedDailyWage: number; estimatedDays: number }
 type CastRow = { id: string; category: string; estimatedCount: number; estimatedRate: number; estimatedDays: number }
 type ExpenseItem = { id: string; item: string; qty: number; unit: string; rate: number; bufferPercent: number; notes: string; sortOrder: number; isPlanned: boolean }
 type ExpenseDepartment = { id: string; name: string; moduleKey: string; isCustom: boolean; sortOrder: number; items: ExpenseItem[] }
@@ -38,21 +49,7 @@ const phaseOptions: Array<{ value: ProjectPhase; label: string }> = [
   { value: 'completed', label: 'Completed' },
 ]
 
-const defaultCrewDepartments = ['Camera', 'Art', 'Direction', 'Production', 'Transport', 'Food', 'Makeup', 'Costume', 'Editing', 'Sound', 'Lighting', 'VFX']
 const defaultCastCategories = ['Lead Actors', 'Supporting Actors', 'Junior Artists', 'Child Artists', 'Special Performers']
-const expenseDepartmentTemplates: Array<{ id: string; name: string; moduleKey: string }> = [
-  { id: 'camera-assets', name: 'Camera & Assets', moduleKey: 'camera' },
-  { id: 'art-department', name: 'Art Department', moduleKey: 'art' },
-  { id: 'transport-logistics', name: 'Transport & Logistics', moduleKey: 'transport' },
-  { id: 'accommodation-travel', name: 'Accommodation & Travel', moduleKey: 'accommodation' },
-  { id: 'food-beverages', name: 'Food & Beverages', moduleKey: 'food-beverages' },
-  { id: 'crew-wages', name: 'Crew & Wages', moduleKey: 'crew' },
-  { id: 'actor-juniors', name: 'Actor & Juniors', moduleKey: 'actors' },
-  { id: 'wardrobe-makeup', name: 'Wardrobe & Makeup', moduleKey: 'wardrobe' },
-  { id: 'locations', name: 'Locations', moduleKey: 'locations' },
-  { id: 'post-production', name: 'Post Production', moduleKey: 'post' },
-  { id: 'miscellaneous', name: 'Miscellaneous', moduleKey: 'production' },
-]
 
 const legacyExpenseCategoryToDepartmentId: Record<string, string> = {
   'Crew & Wages': 'crew-wages',
@@ -72,7 +69,7 @@ const legacyExpenseCategoryToDepartmentId: Record<string, string> = {
 }
 
 const numberValue = (value: unknown) => Number(value ?? 0) || 0
-const rowTotal = (row: CrewRow | CastRow) => numberValue('estimatedCrew' in row ? row.estimatedCrew : row.estimatedCount) * numberValue('estimatedDailyWage' in row ? row.estimatedDailyWage : row.estimatedRate) * numberValue(row.estimatedDays)
+const castRowTotal = (row: CastRow) => numberValue(row.estimatedCount) * numberValue(row.estimatedRate) * numberValue(row.estimatedDays)
 const itemBaseTotal = (item: ExpenseItem) => numberValue(item.qty) * numberValue(item.rate)
 const itemTotal = (item: ExpenseItem) => itemBaseTotal(item) * (1 + numberValue(item.bufferPercent) / 100)
 const departmentBaseTotal = (department: ExpenseDepartment) => department.items.reduce((sum, item) => sum + itemBaseTotal(item), 0)
@@ -111,7 +108,7 @@ function newExpenseItem(label = 'Line Item', sortOrder = 0): ExpenseItem {
 }
 
 function buildLegacyExpenseDepartments(): ExpenseDepartment[] {
-  return expenseDepartmentTemplates.map((template, index) => ({
+  return planningDepartmentTemplates.map((template, index) => ({
     id: `dept-${template.id}`,
     name: template.name,
     moduleKey: template.moduleKey,
@@ -199,10 +196,6 @@ function flattenExpenseDepartments(departments: ExpenseDepartment[]) {
     })),
   )
 }
-
-function newCrewRow(department = 'Department'): CrewRow {
-  return { id: crypto.randomUUID(), department, estimatedCrew: 0, estimatedDailyWage: 0, estimatedDays: 0 }
-}
 function newCastRow(category = 'Category'): CastRow {
   return { id: crypto.randomUUID(), category, estimatedCount: 0, estimatedRate: 0, estimatedDays: 0 }
 }
@@ -281,24 +274,28 @@ export function ProjectPlanningWizard() {
   }), [isDraftMode, planning?.project])
 
   const [info, setInfo] = useState<Record<string, string | number>>(infoDefaults)
-  const [crewRows, setCrewRows] = useState<CrewRow[]>([])
+  const [crewDepartments, setCrewDepartments] = useState<CrewPlanningDepartment[]>([])
   const [castRows, setCastRows] = useState<CastRow[]>([])
   const [expenseDepartments, setExpenseDepartments] = useState<ExpenseDepartment[]>([])
+  const [expandedCrewDepartmentId, setExpandedCrewDepartmentId] = useState<string | null>(null)
   const [expandedDepartmentId, setExpandedDepartmentId] = useState<string | null>(null)
   const currency = (String(info.currency ?? infoDefaults.currency ?? 'INR') as ProjectCurrency)
 
   const hydratedProjectIdRef = useRef<string | null>(null)
   const hydratedDraftRef = useRef(false)
+  const crewAccordionHydratedRef = useRef(false)
   const expenseAccordionHydratedRef = useRef(false)
   useEffect(() => {
     if (isDraftMode) {
       if (hydratedDraftRef.current) return
       hydratedDraftRef.current = true
       setInfo(infoDefaults)
-      setCrewRows(defaultCrewDepartments.map(newCrewRow))
+      setCrewDepartments(buildDefaultCrewPlanningDepartments())
       setCastRows(defaultCastCategories.map(newCastRow))
       setExpenseDepartments([])
+      setExpandedCrewDepartmentId(null)
       setExpandedDepartmentId(null)
+      crewAccordionHydratedRef.current = true
       expenseAccordionHydratedRef.current = true
       lastSavedSignatureRef.current = ''
       pendingSaveSignatureRef.current = ''
@@ -309,13 +306,39 @@ export function ProjectPlanningWizard() {
     if (hydratedProjectIdRef.current === planning.project.id) return
     hydratedProjectIdRef.current = planning.project.id
     setInfo(infoDefaults)
-    setCrewRows(readRows<CrewRow>(planning.sections, 'crew_planning', 'departments', defaultCrewDepartments.map(newCrewRow)))
+    setCrewDepartments(normalizeCrewPlanningDepartments(planning.sections.find(item => item.sectionType === 'crew_planning')?.payload as Record<string, unknown> | undefined))
     setCastRows(readRows<CastRow>(planning.sections, 'cast_planning', 'categories', defaultCastCategories.map(newCastRow)))
     setExpenseDepartments(normalizeExpenseDepartments(planning.sections.find(item => item.sectionType === 'expense_planning')?.payload as Record<string, unknown> | undefined))
+    crewAccordionHydratedRef.current = false
     expenseAccordionHydratedRef.current = false
     lastSavedSignatureRef.current = ''
     pendingSaveSignatureRef.current = ''
   }, [infoDefaults, isDraftMode, planning, planning?.project.id])
+
+  useEffect(() => {
+    if (isDraftMode) return
+    if (!crewDepartments.length) return
+    if (crewAccordionHydratedRef.current) return
+
+    const storageKey = `prodsync.crew.expanded.${projectId}`
+    const storedDepartmentId = window.localStorage.getItem(storageKey)
+    if (storedDepartmentId && crewDepartments.some(department => department.id === storedDepartmentId)) {
+      setExpandedCrewDepartmentId(storedDepartmentId)
+    } else {
+      setExpandedCrewDepartmentId(crewDepartments[0]?.id ?? null)
+    }
+    crewAccordionHydratedRef.current = true
+  }, [crewDepartments, isDraftMode, projectId])
+
+  useEffect(() => {
+    if (isDraftMode) return
+    const storageKey = `prodsync.crew.expanded.${projectId}`
+    if (expandedCrewDepartmentId) {
+      window.localStorage.setItem(storageKey, expandedCrewDepartmentId)
+    } else {
+      window.localStorage.removeItem(storageKey)
+    }
+  }, [expandedCrewDepartmentId, isDraftMode, projectId])
 
   useEffect(() => {
     if (isDraftMode) return
@@ -345,12 +368,12 @@ export function ProjectPlanningWizard() {
   const currentSignature = useMemo(() => JSON.stringify({
     step: currentStep.id,
     info,
-    crewRows,
+    crewDepartments,
     castRows,
     expenseDepartments,
     completed: Boolean(section?.isCompleted),
     skipped: Boolean(section?.isSkipped),
-  }), [castRows, crewRows, currentStep.id, expenseDepartments, info, section?.isCompleted, section?.isSkipped])
+  }), [castRows, crewDepartments, currentStep.id, expenseDepartments, info, section?.isCompleted, section?.isSkipped])
 
   useEffect(() => {
     if (isDraftMode || !planning || activeAction) return
@@ -458,10 +481,11 @@ export function ProjectPlanningWizard() {
   if (planningQ.isLoading) return <PageLoader open message="Loading project planning..." />
   if (planningQ.isError || !planning || !currentStep) return <ErrorState message="Project planning could not be loaded." />
 
-  const crewCost = crewRows.reduce((sum, row) => sum + rowTotal(row), 0)
-  const castCost = castRows.reduce((sum, row) => sum + rowTotal(row), 0)
+  const crewSummary = summarizeCrewPlanningDepartments(crewDepartments)
+  const crewCost = crewSummary.estimatedCost
+  const castCost = castRows.reduce((sum, row) => sum + castRowTotal(row), 0)
   const expenseCost = expenseDepartments.reduce((sum, department) => sum + departmentTotal(department), 0)
-  const crewCount = crewRows.reduce((sum, row) => sum + numberValue(row.estimatedCrew), 0)
+  const crewCount = crewSummary.estimatedCrew
   const castCount = castRows.reduce((sum, row) => sum + numberValue(row.estimatedCount), 0)
   const grandTotal = crewCost + castCost + expenseCost
 
@@ -471,11 +495,19 @@ export function ProjectPlanningWizard() {
   }
 
   function getPayload(): Record<string, unknown> {
-    if (currentStep.id === 'project_information') return info
-    if (currentStep.id === 'crew_planning') return { departments: crewRows, estimatedCrew: crewCount, estimatedCost: crewCost }
+    if (currentStep.id === 'project_information') return { ...info, planningTemplateSeedVersion: PLANNING_TEMPLATE_SEED_VERSION }
+    if (currentStep.id === 'crew_planning') return {
+      departments: crewDepartments,
+      roles: flattenCrewPlanningDepartments(crewDepartments),
+      estimatedCrew: crewSummary.estimatedCrew,
+      estimatedCost: crewSummary.estimatedCost,
+      departmentCount: crewSummary.departmentCount,
+      roleCount: crewSummary.roleCount,
+      plannedRoleCount: crewSummary.plannedRoleCount,
+    }
     if (currentStep.id === 'cast_planning') return { categories: castRows, estimatedCast: castCount, estimatedCost: castCost }
     if (currentStep.id === 'expense_planning') return { departments: expenseDepartments, categories: flattenExpenseDepartments(expenseDepartments), estimatedCost: expenseCost, departmentCount: expenseDepartments.length, itemCount: expenseDepartments.reduce((sum, department) => sum + department.items.length, 0), plannedItemCount: expenseDepartments.reduce((sum, department) => sum + department.items.filter(item => item.isPlanned).length, 0) }
-    return { crewCost, castCost, expenseCost, crewCount, castCount, departmentCount: crewRows.length, grandTotal }
+    return { crewCost, castCost, expenseCost, crewCount, castCount, departmentCount: crewSummary.departmentCount, grandTotal }
   }
 
   function buildProjectCreateInput() {
@@ -536,7 +568,7 @@ export function ProjectPlanningWizard() {
     try {
       await projectsService.savePlanningSection(project.id, {
         sectionType: 'project_information',
-        payload: { ...info, planningInitialized: true },
+        payload: { ...info, planningInitialized: true, planningTemplateSeedVersion: PLANNING_TEMPLATE_SEED_VERSION },
         isCompleted: completeStepOne,
         isSkipped: false,
       })
@@ -619,7 +651,51 @@ export function ProjectPlanningWizard() {
 
       <Surface variant="raised" padding="lg" className="overflow-hidden">
         {currentStep.id === 'project_information' && <ProjectInfoStep info={info} setInfo={setInfo} />}
-        {currentStep.id === 'crew_planning' && <CrewStep rows={crewRows} setRows={setCrewRows} currency={currency} />}
+        {currentStep.id === 'crew_planning' && (
+          <CrewStep
+            departments={crewDepartments}
+            setDepartments={setCrewDepartments}
+            expandedDepartmentId={expandedCrewDepartmentId}
+            setExpandedDepartmentId={setExpandedCrewDepartmentId}
+            currency={currency}
+            onPersist={async (nextDepartments, previousDepartments) => {
+              if (!planning || currentStep.id !== 'crew_planning') return
+              const nextSignature = JSON.stringify({
+                step: currentStep.id,
+                info,
+                crewDepartments: nextDepartments,
+                castRows,
+                expenseDepartments,
+                completed: Boolean(section?.isCompleted),
+                skipped: Boolean(section?.isSkipped),
+              })
+              pendingSaveSignatureRef.current = nextSignature
+              try {
+                const nextSummary = summarizeCrewPlanningDepartments(nextDepartments)
+                await saveMutation.mutateAsync({
+                  sectionType: 'crew_planning',
+                  payload: {
+                    departments: nextDepartments,
+                    roles: flattenCrewPlanningDepartments(nextDepartments),
+                    estimatedCrew: nextSummary.estimatedCrew,
+                    estimatedCost: nextSummary.estimatedCost,
+                    departmentCount: nextSummary.departmentCount,
+                    roleCount: nextSummary.roleCount,
+                    plannedRoleCount: nextSummary.plannedRoleCount,
+                  },
+                  isCompleted: Boolean(section?.isCompleted),
+                  isSkipped: Boolean(section?.isSkipped),
+                })
+                lastSavedSignatureRef.current = nextSignature
+              } catch (error) {
+                pendingSaveSignatureRef.current = ''
+                setCrewDepartments(previousDepartments)
+                setExpandedCrewDepartmentId(current => previousDepartments.some(department => department.id === current) ? current : previousDepartments[0]?.id ?? null)
+                showError('Crew role order could not be saved right now.')
+              }
+            }}
+          />
+        )}
         {currentStep.id === 'cast_planning' && <CastStep rows={castRows} setRows={setCastRows} currency={currency} />}
         {currentStep.id === 'expense_planning' && (
           <ExpenseStep
@@ -633,7 +709,7 @@ export function ProjectPlanningWizard() {
               const nextSignature = JSON.stringify({
                 step: currentStep.id,
                 info,
-                crewRows,
+                crewDepartments,
                 castRows,
                 expenseDepartments: nextDepartments,
                 completed: Boolean(section?.isCompleted),
@@ -663,7 +739,7 @@ export function ProjectPlanningWizard() {
             }}
           />
         )}
-        {currentStep.id === 'budget_review' && <BudgetReview crewCost={crewCost} castCost={castCost} expenseCost={expenseCost} crewCount={crewCount} castCount={castCount} departmentCount={crewRows.length} currency={currency} />}
+        {currentStep.id === 'budget_review' && <BudgetReview crewCost={crewCost} castCost={castCost} expenseCost={expenseCost} crewCount={crewCount} castCount={castCount} departmentCount={crewSummary.departmentCount} currency={currency} />}
       </Surface>
 
       <section className="rounded-[30px] border border-zinc-200 bg-white p-4 shadow-soft dark:border-zinc-800 dark:bg-zinc-950">
@@ -759,88 +835,623 @@ function PlanningCell({ label, children }: { label: string; children: ReactNode 
   )
 }
 
-function CrewStep({ rows, setRows, currency }: { rows: CrewRow[]; setRows: React.Dispatch<React.SetStateAction<CrewRow[]>>; currency: ProjectCurrency }) {
-  return <PlanningRows title="Estimated Departments" empty="No crew estimates yet. Add departments or skip this step." rows={rows} setRows={setRows} currency={currency} kind="crew" />
-}
-function CastStep({ rows, setRows, currency }: { rows: CastRow[]; setRows: React.Dispatch<React.SetStateAction<CastRow[]>>; currency: ProjectCurrency }) {
-  return <PlanningRows title="Estimated Cast" empty="No cast estimates yet. Add categories or skip this step." rows={rows} setRows={setRows} currency={currency} kind="cast" />
+function newCrewRole(role = 'Crew Role', sortOrder = 0): CrewPlanningRole {
+  return {
+    id: `crew-role-${crypto.randomUUID()}`,
+    role,
+    estimatedCount: 0,
+    shootDays: 0,
+    dailyWage: 0,
+    notes: '',
+    sortOrder,
+    isPlanned: false,
+    isPreset: false,
+  }
 }
 
-function PlanningRows<T extends CrewRow | CastRow>({ title, empty, rows, setRows, currency, kind }: { title: string; empty: string; rows: T[]; setRows: React.Dispatch<React.SetStateAction<T[]>>; currency: ProjectCurrency; kind: 'crew' | 'cast' }) {
-  const nameKey = kind === 'crew' ? 'department' : 'category'
-  const countKey = kind === 'crew' ? 'estimatedCrew' : 'estimatedCount'
-  const rateKey = kind === 'crew' ? 'estimatedDailyWage' : 'estimatedRate'
-  const columns = kind === 'crew'
-    ? ['Department', 'Estimated People', 'Estimated Days', 'Daily Rate', 'Estimated Cost', 'Actions']
-    : ['Category', 'Estimated Artists', 'Shoot Days', 'Per Day Cost', 'Estimated Cost', 'Actions']
-  const gridClass = kind === 'crew'
-    ? 'md:grid-cols-[1.2fr_0.8fr_0.8fr_0.7fr_1fr_auto]'
-    : 'md:grid-cols-[1.2fr_0.8fr_0.8fr_0.7fr_1fr_auto]'
+function CrewStep({
+  departments,
+  setDepartments,
+  expandedDepartmentId,
+  setExpandedDepartmentId,
+  currency,
+  onPersist,
+}: {
+  departments: CrewPlanningDepartment[]
+  setDepartments: React.Dispatch<React.SetStateAction<CrewPlanningDepartment[]>>
+  expandedDepartmentId: string | null
+  setExpandedDepartmentId: React.Dispatch<React.SetStateAction<string | null>>
+  currency: ProjectCurrency
+  onPersist: (nextDepartments: CrewPlanningDepartment[], previousDepartments: CrewPlanningDepartment[]) => void | Promise<void>
+}) {
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 120, tolerance: 6 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+  )
+  const departmentRenameBaselineRef = useRef<Record<string, string>>({})
+  const departmentNameInputRefs = useRef<Record<string, HTMLInputElement | null>>({})
+  const [pendingDepartmentFocusId, setPendingDepartmentFocusId] = useState<string | null>(null)
+  const cancelRenameCommitRef = useRef<string | null>(null)
+
+  function normalizeDepartmentOrder(nextDepartments: CrewPlanningDepartment[]) {
+    return nextDepartments.map((department, departmentIndex) => ({
+      ...department,
+      sortOrder: departmentIndex,
+      roles: department.roles.map((role, roleIndex) => ({
+        ...role,
+        sortOrder: roleIndex,
+      })),
+    }))
+  }
+
+  function commitDepartments(nextDepartments: CrewPlanningDepartment[], previousDepartments: CrewPlanningDepartment[]) {
+    const normalized = normalizeDepartmentOrder(nextDepartments)
+    setDepartments(normalized)
+    void Promise.resolve(onPersist(normalized, previousDepartments)).catch(() => undefined)
+  }
+
+  useEffect(() => {
+    if (!pendingDepartmentFocusId) return
+    const input = departmentNameInputRefs.current[pendingDepartmentFocusId]
+    if (!input) return
+    input.focus()
+    input.select()
+    setPendingDepartmentFocusId(null)
+  }, [pendingDepartmentFocusId, departments])
+
+  function uniqueDepartmentName(baseName: string, excludeId?: string) {
+    const existingNames = new Set(
+      departments
+        .filter(department => department.id !== excludeId)
+        .map(department => department.name.trim().toLowerCase()),
+    )
+
+    const trimmedBase = baseName.trim() || 'Custom Department'
+    if (!existingNames.has(trimmedBase.toLowerCase())) {
+      return trimmedBase
+    }
+
+    let suffix = 2
+    while (existingNames.has(`${trimmedBase} ${suffix}`.toLowerCase())) {
+      suffix += 1
+    }
+
+    return `${trimmedBase} ${suffix}`
+  }
+
+  function findDepartmentByRoleId(roleId: string) {
+    return departments.find(department => department.roles.some(role => role.id === roleId)) ?? null
+  }
+
+  function moveDepartment(previousDepartments: CrewPlanningDepartment[], activeId: string, overId: string) {
+    const oldIndex = previousDepartments.findIndex(department => department.id === activeId)
+    const newIndex = previousDepartments.findIndex(department => department.id === overId)
+    if (oldIndex < 0 || newIndex < 0 || oldIndex === newIndex) {
+      return previousDepartments
+    }
+    return arrayMove(previousDepartments, oldIndex, newIndex)
+  }
+
+  function moveRolesWithinDepartment(previousDepartments: CrewPlanningDepartment[], departmentId: string, activeRoleId: string, overRoleId: string) {
+    const departmentIndex = previousDepartments.findIndex(department => department.id === departmentId)
+    if (departmentIndex < 0) return previousDepartments
+    const department = previousDepartments[departmentIndex]
+    const oldIndex = department.roles.findIndex(role => role.id === activeRoleId)
+    const newIndex = department.roles.findIndex(role => role.id === overRoleId)
+    if (oldIndex < 0 || newIndex < 0 || oldIndex === newIndex) return previousDepartments
+    const nextDepartments = [...previousDepartments]
+    nextDepartments[departmentIndex] = {
+      ...department,
+      roles: arrayMove(department.roles, oldIndex, newIndex),
+    }
+    return nextDepartments
+  }
+
+  function handleDragEnd(event: DragEndEvent) {
+    const { active, over } = event
+    if (!over || active.id === over.id) return
+
+    const activeId = String(active.id)
+    const overId = String(over.id)
+    const previousDepartments = departments
+
+    const activeDepartment = previousDepartments.find(department => department.id === activeId)
+    const overDepartment = previousDepartments.find(department => department.id === overId)
+    if (activeDepartment && overDepartment) {
+      const nextDepartments = moveDepartment(previousDepartments, activeId, overId)
+      if (nextDepartments !== previousDepartments) {
+        commitDepartments(nextDepartments, previousDepartments)
+      }
+      return
+    }
+
+    const activeRoleDepartment = findDepartmentByRoleId(activeId)
+    const overRoleDepartment = findDepartmentByRoleId(overId)
+    if (!activeRoleDepartment || !overRoleDepartment || activeRoleDepartment.id !== overRoleDepartment.id) return
+
+    const nextDepartments = moveRolesWithinDepartment(previousDepartments, activeRoleDepartment.id, activeId, overId)
+    if (nextDepartments !== previousDepartments) {
+      commitDepartments(nextDepartments, previousDepartments)
+    }
+  }
+
+  function addDepartment() {
+    const previousDepartments = departments
+    const nextDepartmentId = `dept-custom-${crypto.randomUUID()}`
+    const nextDepartmentName = uniqueDepartmentName('Custom Department')
+    const nextDepartments = normalizeDepartmentOrder([
+      ...previousDepartments,
+      {
+        id: nextDepartmentId,
+        name: nextDepartmentName,
+        moduleKey: 'custom',
+        isCustom: true,
+        sortOrder: previousDepartments.length,
+        roles: [],
+      },
+    ])
+    setExpandedDepartmentId(nextDepartmentId)
+    setPendingDepartmentFocusId(nextDepartmentId)
+    commitDepartments(nextDepartments, previousDepartments)
+  }
+
+  function addRole(departmentId: string) {
+    const previousDepartments = departments
+    const nextDepartments = normalizeDepartmentOrder(previousDepartments.map(department =>
+      department.id === departmentId
+        ? { ...department, roles: [...department.roles, newCrewRole('Crew Role', department.roles.length)] }
+        : department,
+    ))
+    commitDepartments(nextDepartments, previousDepartments)
+  }
+
+  function duplicateRole(departmentId: string, roleId: string) {
+    const previousDepartments = departments
+    const nextDepartments = normalizeDepartmentOrder(previousDepartments.map(department => {
+      if (department.id !== departmentId) return department
+      const roleIndex = department.roles.findIndex(role => role.id === roleId)
+      if (roleIndex < 0) return department
+      const source = department.roles[roleIndex]
+      const clone: CrewPlanningRole = {
+        ...source,
+        id: `crew-role-${crypto.randomUUID()}`,
+        isPreset: false,
+        sortOrder: roleIndex + 1,
+      }
+      const nextRoles = [...department.roles]
+      nextRoles.splice(roleIndex + 1, 0, clone)
+      return { ...department, roles: nextRoles }
+    }))
+    commitDepartments(nextDepartments, previousDepartments)
+  }
+
+  function removeRole(departmentId: string, roleId: string) {
+    const previousDepartments = departments
+    const nextDepartments = normalizeDepartmentOrder(previousDepartments.map(department =>
+      department.id === departmentId
+        ? { ...department, roles: department.roles.filter(role => role.id !== roleId) }
+        : department,
+    ))
+    commitDepartments(nextDepartments, previousDepartments)
+  }
+
+  function removeDepartment(departmentId: string) {
+    const previousDepartments = departments
+    const nextDepartments = normalizeDepartmentOrder(previousDepartments.filter(department => department.id !== departmentId))
+    delete departmentRenameBaselineRef.current[departmentId]
+    delete departmentNameInputRefs.current[departmentId]
+    setExpandedDepartmentId(current => current === departmentId ? null : current)
+    commitDepartments(nextDepartments, previousDepartments)
+  }
+
+  function startDepartmentRename(departmentId: string) {
+    const department = departments.find(item => item.id === departmentId)
+    if (!department) return
+    departmentRenameBaselineRef.current[departmentId] = department.name
+    setPendingDepartmentFocusId(departmentId)
+  }
+
+  function commitDepartmentRename(departmentId: string) {
+    const baselineName = departmentRenameBaselineRef.current[departmentId] ?? departments.find(item => item.id === departmentId)?.name ?? 'Department'
+    const currentDepartment = departments.find(item => item.id === departmentId)
+    if (!currentDepartment) return
+    if (cancelRenameCommitRef.current === departmentId) {
+      cancelRenameCommitRef.current = null
+      return
+    }
+
+    const trimmedName = currentDepartment.name.trim()
+    if (!trimmedName) {
+      showError('Department name cannot be empty.')
+      setDepartments(current => current.map(department =>
+        department.id === departmentId ? { ...department, name: baselineName } : department,
+      ))
+      return
+    }
+
+    if (trimmedName === baselineName.trim()) {
+      departmentRenameBaselineRef.current[departmentId] = trimmedName
+      return
+    }
+
+    const duplicateExists = departments.some(department =>
+      department.id !== departmentId && department.name.trim().toLowerCase() === trimmedName.toLowerCase(),
+    )
+    if (duplicateExists) {
+      showError('Department names must be unique.')
+      setDepartments(current => current.map(department =>
+        department.id === departmentId ? { ...department, name: baselineName } : department,
+      ))
+      return
+    }
+
+    const nextDepartments = departments.map(department =>
+      department.id === departmentId ? { ...department, name: trimmedName } : department,
+    )
+    departmentRenameBaselineRef.current[departmentId] = trimmedName
+    commitDepartments(nextDepartments, departments)
+  }
+
+  function cancelDepartmentRename(departmentId: string) {
+    const baselineName = departmentRenameBaselineRef.current[departmentId]
+    if (!baselineName) return
+    cancelRenameCommitRef.current = departmentId
+    const revertedDepartments = departments.map(department =>
+      department.id === departmentId ? { ...department, name: baselineName } : department,
+    )
+    commitDepartments(revertedDepartments, departments)
+  }
+
+  function updateDepartmentName(departmentId: string, name: string) {
+    setDepartments(current => current.map(department =>
+      department.id === departmentId ? { ...department, name } : department,
+    ))
+  }
+
+  function updateRoleField(departmentId: string, roleId: string, updates: Partial<CrewPlanningRole>) {
+    setDepartments(current => current.map(department =>
+      department.id === departmentId
+        ? {
+            ...department,
+            roles: department.roles.map(role => role.id === roleId ? { ...role, ...updates } : role),
+          }
+        : department,
+    ))
+  }
+
+  const crewSummary = summarizeCrewPlanningDepartments(departments)
 
   return (
     <div className="space-y-5">
       <div className="section-heading">
         <div className="flex items-center gap-2">
-          <h2 className="section-title">{title}</h2>
-          <HelpMarker
-            label={title}
-            content={kind === 'crew'
-              ? 'Estimate how many people and how many days this department needs.'
-              : 'Estimate how many artists are needed and what each shoot day may cost.'}
-          />
+          <h2 className="section-title">Crew Planning</h2>
+          <HelpMarker label="Crew Planning" content="Plan department-wise crew roles, counts, wage assumptions, and shoot-day coverage without creating actual crew records." />
         </div>
-        <button type="button" className="btn-primary" onClick={() => setRows(current => [...current, (kind === 'crew' ? newCrewRow() : newCastRow()) as T])}>
-          Add {kind === 'crew' ? 'Department' : 'Category'}
+        <button type="button" className="btn-primary" onClick={addDepartment}>+ Add Department</button>
+      </div>
+
+      {departments.length === 0 ? (
+        <EmptyState icon="groups" title="No departments yet" description="Add a department to start planning roles." />
+      ) : (
+        <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+          <SortableContext items={departments.map(department => department.id)} strategy={verticalListSortingStrategy}>
+            <div className="space-y-4">
+              {departments.map(department => (
+                <CrewDepartmentCard
+                  key={department.id}
+                  department={department}
+                  currency={currency}
+                  expanded={expandedDepartmentId === department.id}
+                  onToggle={() => setExpandedDepartmentId(current => current === department.id ? null : department.id)}
+                  onRenameStart={() => startDepartmentRename(department.id)}
+                  onRenameCommit={() => commitDepartmentRename(department.id)}
+                  onRenameCancel={() => cancelDepartmentRename(department.id)}
+                  onRename={name => updateDepartmentName(department.id, name)}
+                  nameInputRef={element => {
+                    departmentNameInputRefs.current[department.id] = element
+                  }}
+                  onAddRole={() => addRole(department.id)}
+                  onDuplicateRole={roleId => duplicateRole(department.id, roleId)}
+                  onRemoveRole={roleId => removeRole(department.id, roleId)}
+                  onDeleteDepartment={() => removeDepartment(department.id)}
+                  onUpdateRole={(roleId, updates) => updateRoleField(department.id, roleId, updates)}
+                />
+              ))}
+            </div>
+          </SortableContext>
+        </DndContext>
+      )}
+
+      <div className="grid gap-4 md:grid-cols-3">
+        <KpiCard label="Departments" value={String(crewSummary.departmentCount)} />
+        <KpiCard label="Planning Progress" value={`${crewSummary.plannedRoleCount}/${crewSummary.roleCount}`} />
+        <SummaryTotal label="Crew Estimate" amount={crewSummary.estimatedCost} currency={currency} />
+      </div>
+    </div>
+  )
+}
+
+function CrewDepartmentCard({
+  department,
+  currency,
+  expanded,
+  onToggle,
+  onRenameStart,
+  onRenameCommit,
+  onRenameCancel,
+  onRename,
+  nameInputRef,
+  onAddRole,
+  onDuplicateRole,
+  onRemoveRole,
+  onDeleteDepartment,
+  onUpdateRole,
+}: {
+  department: CrewPlanningDepartment
+  currency: ProjectCurrency
+  expanded: boolean
+  onToggle: () => void
+  onRenameStart: () => void
+  onRenameCommit: () => void
+  onRenameCancel: () => void
+  onRename: (name: string) => void
+  nameInputRef: (element: HTMLInputElement | null) => void
+  onAddRole: () => void
+  onDuplicateRole: (roleId: string) => void
+  onRemoveRole: (roleId: string) => void
+  onDeleteDepartment: () => void
+  onUpdateRole: (roleId: string, updates: Partial<CrewPlanningRole>) => void
+}) {
+  const sortable = useSortable({ id: department.id })
+  const style = {
+    transform: CSS.Transform.toString(sortable.transform),
+    transition: sortable.transition,
+    opacity: sortable.isDragging ? 0.9 : 1,
+    boxShadow: sortable.isDragging ? '0 24px 44px rgba(15, 23, 42, 0.16)' : undefined,
+  } as React.CSSProperties
+
+  const plannedRoleCount = department.roles.filter(role => role.isPlanned).length
+  const roleCount = department.roles.length
+  const estimatedHeadcount = department.roles.reduce((sum, role) => sum + numberValue(role.estimatedCount), 0)
+  const total = crewPlanningDepartmentTotal(department)
+  const summaryLabel = roleCount > 0
+    ? `${plannedRoleCount} / ${roleCount} Planned | Headcount ${estimatedHeadcount} | ${formatCurrency(total, currency)}`
+    : 'No crew roles yet'
+
+  return (
+    <article ref={sortable.setNodeRef} style={style} className={cn('rounded-[24px] border border-zinc-200 bg-white p-3 dark:border-zinc-800 dark:bg-zinc-950', sortable.isDragging && 'ring-1 ring-orange-300 dark:ring-orange-500/40')}>
+      <div
+        className="rounded-[20px] bg-zinc-50 px-4 py-3 dark:bg-zinc-900"
+        role="button"
+        tabIndex={0}
+        aria-expanded={expanded}
+        onClick={onToggle}
+        onKeyDown={event => {
+          if (event.key === 'Enter' || event.key === ' ') {
+            event.preventDefault()
+            onToggle()
+          }
+        }}
+      >
+        <div className="flex items-start gap-3">
+          <button
+            type="button"
+            ref={sortable.setActivatorNodeRef}
+            {...sortable.attributes}
+            {...sortable.listeners}
+            className="mt-0.5 inline-flex size-9 shrink-0 touch-none cursor-grab items-center justify-center rounded-[14px] border border-zinc-200 bg-white text-zinc-500 transition-colors hover:text-orange-500 active:cursor-grabbing dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-400 dark:hover:text-orange-400"
+            aria-label={`Drag to reorder ${department.name}`}
+            onClick={event => event.stopPropagation()}
+          >
+            <GripVertical className="h-4 w-4" />
+          </button>
+
+          <div className="min-w-0 flex-1 select-none">
+            <div className="flex items-center gap-2">
+              {department.isCustom ? (
+                <input
+                  ref={nameInputRef}
+                  value={department.name}
+                  onFocus={onRenameStart}
+                  onBlur={onRenameCommit}
+                  onClick={event => event.stopPropagation()}
+                  onChange={event => onRename(event.target.value)}
+                  onKeyDown={event => {
+                    if (event.key === 'Escape') {
+                      event.preventDefault()
+                      onRenameCancel()
+                      event.currentTarget.blur()
+                    }
+                    if (event.key === 'Enter') {
+                      event.preventDefault()
+                      event.currentTarget.blur()
+                    }
+                  }}
+                  className="min-w-0 flex-1 bg-transparent text-sm font-semibold text-zinc-900 outline-none placeholder:text-zinc-400 dark:text-white"
+                  aria-label="Department name"
+                />
+              ) : (
+                <p className="truncate text-sm font-semibold text-zinc-900 dark:text-white">{department.name}</p>
+              )}
+              <ChevronDown className={cn('h-4 w-4 shrink-0 text-zinc-400 transition-transform duration-200 dark:text-zinc-500', expanded && 'rotate-180')} />
+            </div>
+            <p className="mt-1 truncate text-xs leading-5 text-zinc-500 dark:text-zinc-400">{summaryLabel}</p>
+          </div>
+
+          <div className="flex shrink-0 flex-wrap justify-end gap-2" onClick={event => event.stopPropagation()}>
+            <button type="button" className="btn-soft px-3" onClick={onAddRole}>+ Add Crew Role</button>
+            <button type="button" className="btn-ghost px-3" onClick={onToggle}>
+              {expanded ? 'Collapse' : 'Expand'}
+            </button>
+            <button type="button" className="btn-ghost px-3 text-red-500 dark:text-red-300" onClick={onDeleteDepartment}>Delete</button>
+          </div>
+        </div>
+      </div>
+
+      {expanded && (
+        <div className="mt-3 space-y-3">
+          <div className="hidden rounded-[18px] border border-zinc-200 bg-zinc-100 px-4 py-3 md:grid md:grid-cols-[auto_auto_1.2fr_0.7fr_0.7fr_0.8fr_1fr_1fr_auto] md:gap-3 dark:border-zinc-800 dark:bg-zinc-900">
+            <span />
+            <span />
+            <PlanningColumnHeader help="The crew role being planned inside this department.">Crew Role</PlanningColumnHeader>
+            <PlanningColumnHeader help="How many people are needed for this role.">Estimated Count</PlanningColumnHeader>
+            <PlanningColumnHeader help="Expected shoot days for this role.">Shoot Days</PlanningColumnHeader>
+            <PlanningColumnHeader help="Expected daily wage for one person in this role.">Daily Wage</PlanningColumnHeader>
+            <PlanningColumnHeader help="Automatically calculated estimate for this role.">Estimated Cost</PlanningColumnHeader>
+            <PlanningColumnHeader help="Optional planning notes for the crew team.">Notes</PlanningColumnHeader>
+            <PlanningColumnHeader>Actions</PlanningColumnHeader>
+          </div>
+
+          <SortableContext items={department.roles.map(role => role.id)} strategy={verticalListSortingStrategy}>
+            <div className="space-y-3">
+              {department.roles.map(role => (
+                <CrewRoleRow
+                  key={role.id}
+                  role={role}
+                  currency={currency}
+                  onDuplicate={() => onDuplicateRole(role.id)}
+                  onRemove={() => onRemoveRole(role.id)}
+                  onChange={updates => onUpdateRole(role.id, updates)}
+                />
+              ))}
+            </div>
+          </SortableContext>
+        </div>
+      )}
+    </article>
+  )
+}
+
+function CrewRoleRow({
+  role,
+  currency,
+  onDuplicate,
+  onRemove,
+  onChange,
+}: {
+  role: CrewPlanningRole
+  currency: ProjectCurrency
+  onDuplicate: () => void
+  onRemove: () => void
+  onChange: (updates: Partial<CrewPlanningRole>) => void
+}) {
+  const sortable = useSortable({ id: role.id })
+  const style = {
+    transform: CSS.Transform.toString(sortable.transform),
+    transition: sortable.transition,
+    opacity: sortable.isDragging ? 0.88 : 1,
+    boxShadow: sortable.isDragging ? '0 18px 38px rgba(15, 23, 42, 0.16)' : undefined,
+    zIndex: sortable.isDragging ? 10 : undefined,
+  } as React.CSSProperties
+
+  return (
+    <div
+      ref={sortable.setNodeRef}
+      style={style}
+      className={cn('grid gap-3 rounded-[24px] bg-zinc-50 p-4 select-none dark:bg-zinc-900 md:grid-cols-[auto_auto_1.2fr_0.7fr_0.7fr_0.8fr_1fr_1fr_auto]', sortable.isDragging && 'ring-1 ring-orange-300 dark:ring-orange-500/40')}
+    >
+      <div className="flex items-center justify-center md:justify-start">
+        <button
+          type="button"
+          className={cn(
+            'inline-flex size-8 items-center justify-center rounded-full border transition-all duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-500/40',
+            role.isPlanned
+              ? 'border-orange-500 bg-orange-500 text-black shadow-[0_0_0_1px_rgba(249,115,22,0.22)] hover:scale-[1.03]'
+              : 'border-zinc-300 bg-white text-transparent hover:border-orange-300 hover:text-orange-500 dark:border-zinc-700 dark:bg-zinc-950',
+          )}
+          aria-pressed={role.isPlanned}
+          aria-label={role.isPlanned ? `Mark ${role.role} as unplanned` : `Mark ${role.role} as planned`}
+          onClick={event => {
+            event.stopPropagation()
+            onChange({ isPlanned: !role.isPlanned })
+          }}
+        >
+          <span className="sr-only">{role.isPlanned ? 'Planned' : 'Not planned'}</span>
+          {role.isPlanned ? <Check className="h-4 w-4" strokeWidth={3} /> : null}
+        </button>
+      </div>
+      <div className="flex items-center justify-center md:justify-start">
+        <button
+          type="button"
+          ref={sortable.setActivatorNodeRef}
+          {...sortable.attributes}
+          {...sortable.listeners}
+          className="inline-flex size-10 shrink-0 touch-none cursor-grab items-center justify-center rounded-[14px] border border-zinc-200 bg-white text-zinc-500 transition-colors hover:text-orange-500 active:cursor-grabbing dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-400 dark:hover:text-orange-400"
+          aria-label={`Drag to reorder ${role.role}`}
+        >
+          <GripVertical className="h-4 w-4" />
+        </button>
+      </div>
+      <PlanningCell label="Crew Role">
+        <input className="project-modal-control" value={role.role} onChange={event => onChange({ role: event.target.value, isPreset: false })} />
+      </PlanningCell>
+      <PlanningCell label="Estimated Count">
+        <input className="project-modal-control" type="number" inputMode="numeric" value={role.estimatedCount} onChange={event => onChange({ estimatedCount: Number(event.target.value) || 0 })} />
+      </PlanningCell>
+      <PlanningCell label="Shoot Days">
+        <input className="project-modal-control" type="number" inputMode="numeric" value={role.shootDays} onChange={event => onChange({ shootDays: Number(event.target.value) || 0 })} />
+      </PlanningCell>
+      <PlanningCell label="Daily Wage">
+        <input className="project-modal-control" type="number" inputMode="decimal" value={role.dailyWage} onChange={event => onChange({ dailyWage: Number(event.target.value) || 0 })} />
+      </PlanningCell>
+      <div className="rounded-[18px] bg-white px-4 py-3 text-sm font-semibold dark:bg-zinc-950">
+        <span className="md:hidden block text-[10px] uppercase tracking-[0.16em] text-zinc-500 dark:text-zinc-400">Estimated Cost</span>
+        <span className="mt-1 block">{formatCurrency(crewPlanningRoleTotal(role), currency)}</span>
+      </div>
+      <PlanningCell label="Notes">
+        <input className="project-modal-control" value={role.notes} onChange={event => onChange({ notes: event.target.value })} placeholder="Optional notes" />
+      </PlanningCell>
+      <div className="flex flex-wrap gap-2">
+        <button type="button" className="btn-soft px-3" onClick={onDuplicate}>Copy</button>
+        <button type="button" className="btn-ghost px-3" onClick={onRemove}>Remove</button>
+      </div>
+    </div>
+  )
+}
+
+function CastStep({ rows, setRows, currency }: { rows: CastRow[]; setRows: React.Dispatch<React.SetStateAction<CastRow[]>>; currency: ProjectCurrency }) {
+  return (
+    <div className="space-y-5">
+      <div className="section-heading">
+        <div className="flex items-center gap-2">
+          <h2 className="section-title">Estimated Cast</h2>
+          <HelpMarker label="Estimated Cast" content="Estimate how many artists are needed and what each shoot day may cost." />
+        </div>
+        <button type="button" className="btn-primary" onClick={() => setRows(current => [...current, newCastRow()])}>
+          Add Category
         </button>
       </div>
       {rows.length === 0 ? (
-        <EmptyState icon="edit_note" title={empty} />
+        <EmptyState icon="theater_comedy" title="No cast estimates yet. Add categories or skip this step." />
       ) : (
         <div className="space-y-3">
-          <div className={cn('hidden rounded-[18px] border border-zinc-200 bg-zinc-100 px-4 py-3 md:grid md:gap-3 dark:border-zinc-800 dark:bg-zinc-900', gridClass)}>
-            <PlanningColumnHeader help="The team or department being planned.">Department</PlanningColumnHeader>
-            <PlanningColumnHeader help="How many people are expected in this group.">Estimated People</PlanningColumnHeader>
-            <PlanningColumnHeader help="Approximate number of working days expected for this department.">Estimated Days</PlanningColumnHeader>
-            <PlanningColumnHeader help="Cost for one person for one working day.">Daily Rate</PlanningColumnHeader>
-            <PlanningColumnHeader help="Estimated total cost for this row.">Estimated Cost</PlanningColumnHeader>
+          <div className="hidden rounded-[18px] border border-zinc-200 bg-zinc-100 px-4 py-3 md:grid md:grid-cols-[1.2fr_0.8fr_0.8fr_0.7fr_1fr_auto] md:gap-3 dark:border-zinc-800 dark:bg-zinc-900">
+            <PlanningColumnHeader help="The cast category being planned.">Category</PlanningColumnHeader>
+            <PlanningColumnHeader help="How many artists are expected in this group.">Estimated Artists</PlanningColumnHeader>
+            <PlanningColumnHeader help="Approximate number of working days expected for this category.">Shoot Days</PlanningColumnHeader>
+            <PlanningColumnHeader help="Cost for one artist for one shoot day.">Per Day Cost</PlanningColumnHeader>
+            <PlanningColumnHeader help="Estimated total cost for this category.">Estimated Cost</PlanningColumnHeader>
             <PlanningColumnHeader>Actions</PlanningColumnHeader>
           </div>
           {rows.map(row => (
-            <div key={row.id} className={cn('grid gap-3 rounded-[24px] bg-zinc-50 p-4 dark:bg-zinc-900', gridClass)}>
-              <PlanningCell label={columns[0]}>
-                <input
-                  className="project-modal-control"
-                  value={String((row as unknown as Record<string, string | number>)[nameKey])}
-                  onChange={e => setRows(cur => cur.map(item => item.id === row.id ? { ...item, [nameKey]: e.target.value } : item))}
-                />
+            <div key={row.id} className="grid gap-3 rounded-[24px] bg-zinc-50 p-4 dark:bg-zinc-900 md:grid-cols-[1.2fr_0.8fr_0.8fr_0.7fr_1fr_auto]">
+              <PlanningCell label="Category">
+                <input className="project-modal-control" value={row.category} onChange={e => setRows(cur => cur.map(item => item.id === row.id ? { ...item, category: e.target.value } : item))} />
               </PlanningCell>
-              <PlanningCell label={columns[1]}>
-                <input
-                  className="project-modal-control"
-                  type="number"
-                  value={Number((row as unknown as Record<string, string | number>)[countKey])}
-                  onChange={e => setRows(cur => cur.map(item => item.id === row.id ? { ...item, [countKey]: Number(e.target.value) || 0 } : item))}
-                />
+              <PlanningCell label="Estimated Artists">
+                <input className="project-modal-control" type="number" value={row.estimatedCount} onChange={e => setRows(cur => cur.map(item => item.id === row.id ? { ...item, estimatedCount: Number(e.target.value) || 0 } : item))} />
               </PlanningCell>
-              <PlanningCell label={columns[2]}>
-                <input
-                  className="project-modal-control"
-                  type="number"
-                  value={row.estimatedDays}
-                  onChange={e => setRows(cur => cur.map(item => item.id === row.id ? { ...item, estimatedDays: Number(e.target.value) || 0 } : item))}
-                />
+              <PlanningCell label="Shoot Days">
+                <input className="project-modal-control" type="number" value={row.estimatedDays} onChange={e => setRows(cur => cur.map(item => item.id === row.id ? { ...item, estimatedDays: Number(e.target.value) || 0 } : item))} />
               </PlanningCell>
-              <PlanningCell label={columns[3]}>
-                <input
-                  className="project-modal-control"
-                  type="number"
-                  value={Number((row as unknown as Record<string, string | number>)[rateKey])}
-                  onChange={e => setRows(cur => cur.map(item => item.id === row.id ? { ...item, [rateKey]: Number(e.target.value) || 0 } : item))}
-                />
+              <PlanningCell label="Per Day Cost">
+                <input className="project-modal-control" type="number" value={row.estimatedRate} onChange={e => setRows(cur => cur.map(item => item.id === row.id ? { ...item, estimatedRate: Number(e.target.value) || 0 } : item))} />
               </PlanningCell>
               <div className="rounded-[18px] bg-white px-4 py-3 text-sm font-semibold dark:bg-zinc-950">
-                <span className="md:hidden block text-[10px] uppercase tracking-[0.16em] text-zinc-500 dark:text-zinc-400">{columns[4]}</span>
-                <span className="mt-1 block">{formatCurrency(rowTotal(row), currency)}</span>
+                <span className="md:hidden block text-[10px] uppercase tracking-[0.16em] text-zinc-500 dark:text-zinc-400">Estimated Cost</span>
+                <span className="mt-1 block">{formatCurrency(castRowTotal(row), currency)}</span>
               </div>
               <div className="flex flex-wrap gap-2">
                 <button type="button" className="btn-soft px-3" onClick={() => setRows(cur => [...cur, { ...row, id: crypto.randomUUID() }])}>Copy</button>
@@ -850,7 +1461,7 @@ function PlanningRows<T extends CrewRow | CastRow>({ title, empty, rows, setRows
           ))}
         </div>
       )}
-      <SummaryTotal label="Grand Total" amount={rows.reduce((sum, row) => sum + rowTotal(row), 0)} currency={currency} />
+      <SummaryTotal label="Grand Total" amount={rows.reduce((sum, row) => sum + castRowTotal(row), 0)} currency={currency} />
     </div>
   )
 }
