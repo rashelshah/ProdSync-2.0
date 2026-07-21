@@ -5,7 +5,7 @@ export type ExpenseTemplateItemDefinition = {
   qty?: number
   unit?: string
   rate?: number
-  dailyWagePerDay?: number
+  numberOfDays?: number
   bufferPercent?: number
   notes?: string
 }
@@ -279,7 +279,7 @@ function createExpenseTemplateItem(item: ExpenseTemplateItemDefinition, itemInde
     qty: item.qty ?? 0,
     unit: item.unit ?? 'Nos',
     rate: item.rate ?? 0,
-    dailyWagePerDay: item.dailyWagePerDay ?? 0,
+    numberOfDays: item.numberOfDays ?? 1,
     bufferPercent: item.bufferPercent ?? 0,
     notes: item.notes ?? '',
     sortOrder: itemIndex,
@@ -323,7 +323,7 @@ export function buildDefaultExpenseTemplatePayload() {
         qty: item.qty,
         unit: item.unit,
         rate: item.rate,
-        dailyWagePerDay: item.dailyWagePerDay,
+        numberOfDays: item.numberOfDays,
         bufferPercent: item.bufferPercent,
         notes: item.notes,
         sortOrder: item.sortOrder,

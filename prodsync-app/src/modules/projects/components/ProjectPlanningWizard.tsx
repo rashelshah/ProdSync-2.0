@@ -29,7 +29,7 @@ import { cn, formatCurrency } from '@/utils'
 import type { PlanningSectionType, ProjectCurrency, ProjectPhase, ProjectPlanningSection, ProjectRecord, ProjectStage } from '@/types'
 
 type CastRow = { id: string; category: string; estimatedCount: number; estimatedRate: number; estimatedDays: number }
-type ExpenseItem = { id: string; item: string; qty: number; unit: string; rate: number; dailyWagePerDay: number; bufferPercent: number; notes: string; sortOrder: number; isPlanned: boolean }
+type ExpenseItem = { id: string; item: string; qty: number; unit: string; rate: number; numberOfDays: number; bufferPercent: number; notes: string; sortOrder: number; isPlanned: boolean }
 type ExpenseDepartment = { id: string; name: string; moduleKey: string; isCustom: boolean; sortOrder: number; items: ExpenseItem[] }
 type PlanningAction = 'save-draft' | 'save-continue' | null
 
@@ -69,8 +69,13 @@ const legacyExpenseCategoryToDepartmentId: Record<string, string> = {
 }
 
 const numberValue = (value: unknown) => Number(value ?? 0) || 0
+const normalizeExpenseDays = (value: unknown) => {
+  const parsed = Number(value ?? 1)
+  return Number.isFinite(parsed) && parsed >= 1 ? parsed : 1
+}
+const isRecord = (value: unknown): value is Record<string, unknown> => typeof value === 'object' && value !== null && !Array.isArray(value)
 const castRowTotal = (row: CastRow) => numberValue(row.estimatedCount) * numberValue(row.estimatedRate) * numberValue(row.estimatedDays)
-const itemBaseTotal = (item: ExpenseItem) => numberValue(item.qty) * (numberValue(item.rate) + numberValue(item.dailyWagePerDay))
+const itemBaseTotal = (item: ExpenseItem) => numberValue(item.qty) * numberValue(item.rate) * numberValue(item.numberOfDays)
 const itemTotal = (item: ExpenseItem) => itemBaseTotal(item) * (1 + numberValue(item.bufferPercent) / 100)
 const departmentBaseTotal = (department: ExpenseDepartment) => department.items.reduce((sum, item) => sum + itemBaseTotal(item), 0)
 const departmentBufferTotal = (department: ExpenseDepartment) => department.items.reduce((sum, item) => sum + (itemBaseTotal(item) * numberValue(item.bufferPercent) / 100), 0)
@@ -100,7 +105,7 @@ function newExpenseItem(label = 'Line Item', sortOrder = 0): ExpenseItem {
     qty: 0,
     unit: 'Nos',
     rate: 0,
-    dailyWagePerDay: 0,
+    numberOfDays: 1,
     bufferPercent: 0,
     notes: '',
     sortOrder,
@@ -121,54 +126,65 @@ function buildLegacyExpenseDepartments(): ExpenseDepartment[] {
 
 function normalizeExpenseDepartments(payload: Record<string, unknown> | undefined | null): ExpenseDepartment[] {
   if (payload && Array.isArray(payload.departments) && payload.departments.length > 0) {
-    return (payload.departments as ExpenseDepartment[]).map((department, departmentIndex) => ({
-      id: String(department.id ?? `dept-${departmentIndex}`),
-      name: String(department.name ?? 'Department'),
-      moduleKey: String(department.moduleKey ?? 'custom'),
-      isCustom: Boolean(department.isCustom),
-      sortOrder: Number(department.sortOrder ?? departmentIndex),
-      items: Array.isArray(department.items)
-        ? department.items.map((item, itemIndex) => ({
-          id: String(item.id ?? `item-${departmentIndex}-${itemIndex}`),
-          item: String(item.item ?? 'Line Item'),
-          qty: numberValue(item.qty),
-          unit: String(item.unit ?? 'Nos'),
-          rate: numberValue(item.rate),
-          dailyWagePerDay: numberValue(item.dailyWagePerDay ?? item.dailyWage ?? 0),
-          bufferPercent: numberValue(item.bufferPercent),
-          notes: String(item.notes ?? ''),
-          sortOrder: Number(item.sortOrder ?? itemIndex),
-          isPlanned: Boolean(item.isPlanned),
-        }))
-        : [],
-    })).sort((left, right) => left.sortOrder - right.sortOrder).map(department => ({
+    return payload.departments.map((department, departmentIndex) => {
+      const departmentRecord = isRecord(department) ? department : {}
+      const rawItems = Array.isArray(departmentRecord.items) ? departmentRecord.items : []
+
+      return {
+        id: String(departmentRecord.id ?? `dept-${departmentIndex}`),
+        name: String(departmentRecord.name ?? 'Department'),
+        moduleKey: String(departmentRecord.moduleKey ?? 'custom'),
+        isCustom: Boolean(departmentRecord.isCustom),
+        sortOrder: Number(departmentRecord.sortOrder ?? departmentIndex),
+        items: rawItems.map((item, itemIndex) => {
+          const itemRecord = isRecord(item) ? item : {}
+
+          return {
+            id: String(itemRecord.id ?? `item-${departmentIndex}-${itemIndex}`),
+            item: String(itemRecord.item ?? 'Line Item'),
+            qty: numberValue(itemRecord.qty),
+            unit: String(itemRecord.unit ?? 'Nos'),
+            rate: numberValue(itemRecord.rate),
+            numberOfDays: normalizeExpenseDays(itemRecord.numberOfDays ?? itemRecord.dailyWagePerDay ?? itemRecord.dailyWage),
+            bufferPercent: numberValue(itemRecord.bufferPercent),
+            notes: String(itemRecord.notes ?? ''),
+            sortOrder: Number(itemRecord.sortOrder ?? itemIndex),
+            isPlanned: Boolean(itemRecord.isPlanned),
+          }
+        }),
+      }
+    }).sort((left, right) => left.sortOrder - right.sortOrder).map(department => ({
       ...department,
       items: department.items.sort((left, right) => left.sortOrder - right.sortOrder),
     }))
   }
 
   if (payload && Array.isArray(payload.categories) && payload.categories.length > 0) {
-    const legacyDepartments = buildLegacyExpenseDepartments().map(department => ({
-      ...department,
-      items: [] as ExpenseItem[],
-    }))
+    const legacyDepartments = buildLegacyExpenseDepartments().map(department => {
+      const items: ExpenseItem[] = []
+      return {
+        ...department,
+        items,
+      }
+    })
 
-    for (const [index, row] of (payload.categories as Array<Record<string, unknown>>).entries()) {
-      const legacyName = String(row.category ?? row.item ?? row.name ?? 'Line Item')
+    for (const [index, row] of payload.categories.entries()) {
+      const rowRecord = isRecord(row) ? row : {}
+      const legacyName = String(rowRecord.category ?? rowRecord.item ?? rowRecord.name ?? 'Line Item')
       const departmentId = legacyExpenseCategoryToDepartmentId[legacyName] ?? 'miscellaneous'
       const department = legacyDepartments.find(item => item.id === `dept-${departmentId}`)
       if (!department) continue
       department.items.push({
-        id: String(row.id ?? `legacy-${index}`),
+        id: String(rowRecord.id ?? `legacy-${index}`),
         item: legacyName,
-        qty: numberValue(row.qty ?? row.quantity ?? 0),
-        unit: String(row.unit ?? 'Nos'),
-        rate: numberValue(row.rate ?? row.estimatedBudget ?? 0),
-        dailyWagePerDay: numberValue(row.dailyWagePerDay ?? row.dailyWage ?? 0),
-        bufferPercent: numberValue(row.bufferPercent ?? row.contingencyPercent ?? 0),
-        notes: String(row.notes ?? ''),
+        qty: numberValue(rowRecord.qty ?? rowRecord.quantity ?? 0),
+        unit: String(rowRecord.unit ?? 'Nos'),
+        rate: numberValue(rowRecord.rate ?? rowRecord.estimatedBudget ?? 0),
+        numberOfDays: normalizeExpenseDays(rowRecord.numberOfDays ?? rowRecord.dailyWagePerDay ?? rowRecord.dailyWage),
+        bufferPercent: numberValue(rowRecord.bufferPercent ?? rowRecord.contingencyPercent ?? 0),
+        notes: String(rowRecord.notes ?? ''),
         sortOrder: index,
-        isPlanned: Boolean(row.isPlanned ?? row.planned ?? false),
+        isPlanned: Boolean(rowRecord.isPlanned ?? rowRecord.planned ?? false),
       })
     }
 
@@ -192,7 +208,7 @@ function flattenExpenseDepartments(departments: ExpenseDepartment[]) {
       qty: item.qty,
       unit: item.unit,
       rate: item.rate,
-      dailyWagePerDay: item.dailyWagePerDay,
+      numberOfDays: item.numberOfDays,
       bufferPercent: item.bufferPercent,
       notes: item.notes,
       sortOrder: item.sortOrder,
@@ -840,7 +856,7 @@ function PlanningCell({ label, children }: { label: string; children: ReactNode 
 }
 
 
-function PlanningDecimalInput({
+function PlanningDaysInput({
   value,
   onChange,
   ariaLabel,
@@ -852,20 +868,14 @@ function PlanningDecimalInput({
   const [draft, setDraft] = useState(() => String(value))
 
   useEffect(() => {
-    setDraft(current => {
-      if (current.trim() === '' && value === 0) {
-        return ''
-      }
-
-      return String(value)
-    })
+    setDraft(String(value))
   }, [value])
 
   return (
     <input
       className="project-modal-control"
       type="number"
-      min={0}
+      min={1}
       step="any"
       inputMode="decimal"
       aria-label={ariaLabel}
@@ -875,12 +885,12 @@ function PlanningDecimalInput({
         setDraft(nextValue)
 
         if (nextValue.trim() === '') {
-          onChange(0)
+          onChange(1)
           return
         }
 
         const parsed = Number(nextValue)
-        if (!Number.isFinite(parsed) || parsed < 0) {
+        if (!Number.isFinite(parsed) || parsed < 1) {
           return
         }
 
@@ -888,7 +898,7 @@ function PlanningDecimalInput({
       }}
       onBlur={() => {
         if (draft.trim() === '') {
-          setDraft('')
+          setDraft('1')
         }
       }}
       onKeyDown={event => {
@@ -1982,7 +1992,7 @@ function ExpenseDepartmentCard({
             <PlanningColumnHeader help="Number of units expected.">Qty</PlanningColumnHeader>
             <PlanningColumnHeader help="Unit of measurement such as Nos, Days, Hours, or Sets.">Unit</PlanningColumnHeader>
             <PlanningColumnHeader help="Estimated cost per unit.">Rate</PlanningColumnHeader>
-            <PlanningColumnHeader help="Recurring charge per day for rental-style expenses.">Daily Wage / Day</PlanningColumnHeader>
+            <PlanningColumnHeader help="Number of days the item is rented or used.">No. of Days</PlanningColumnHeader>
             <PlanningColumnHeader help="Extra contingency percentage for this line.">Buffer %</PlanningColumnHeader>
             <PlanningColumnHeader help="Automatically calculated estimate for this line item.">Estimated Total</PlanningColumnHeader>
             <PlanningColumnHeader help="Optional production notes.">Notes</PlanningColumnHeader>
@@ -2083,11 +2093,11 @@ function ExpenseItemRow({
       <PlanningCell label="Rate">
         <input className="project-modal-control" type="number" inputMode="decimal" value={item.rate} onChange={event => onChange({ rate: Number(event.target.value) || 0 })} />
       </PlanningCell>
-      <PlanningCell label="Daily Wage / Day">
-        <PlanningDecimalInput
-          value={item.dailyWagePerDay}
-          ariaLabel="Daily Wage / Day"
-          onChange={dailyWagePerDay => onChange({ dailyWagePerDay })}
+      <PlanningCell label="No. of Days">
+        <PlanningDaysInput
+          value={item.numberOfDays}
+          ariaLabel="No. of Days"
+          onChange={numberOfDays => onChange({ numberOfDays })}
         />
       </PlanningCell>
       <PlanningCell label="Buffer %">
