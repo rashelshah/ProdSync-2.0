@@ -29,7 +29,7 @@ import { cn, formatCurrency } from '@/utils'
 import type { PlanningSectionType, ProjectCurrency, ProjectPhase, ProjectPlanningSection, ProjectRecord, ProjectStage } from '@/types'
 
 type CastRow = { id: string; category: string; estimatedCount: number; estimatedRate: number; estimatedDays: number }
-type ExpenseItem = { id: string; item: string; qty: number; unit: string; rate: number; bufferPercent: number; notes: string; sortOrder: number; isPlanned: boolean }
+type ExpenseItem = { id: string; item: string; qty: number; unit: string; rate: number; dailyWagePerDay: number; bufferPercent: number; notes: string; sortOrder: number; isPlanned: boolean }
 type ExpenseDepartment = { id: string; name: string; moduleKey: string; isCustom: boolean; sortOrder: number; items: ExpenseItem[] }
 type PlanningAction = 'save-draft' | 'save-continue' | null
 
@@ -70,7 +70,7 @@ const legacyExpenseCategoryToDepartmentId: Record<string, string> = {
 
 const numberValue = (value: unknown) => Number(value ?? 0) || 0
 const castRowTotal = (row: CastRow) => numberValue(row.estimatedCount) * numberValue(row.estimatedRate) * numberValue(row.estimatedDays)
-const itemBaseTotal = (item: ExpenseItem) => numberValue(item.qty) * numberValue(item.rate)
+const itemBaseTotal = (item: ExpenseItem) => numberValue(item.qty) * (numberValue(item.rate) + numberValue(item.dailyWagePerDay))
 const itemTotal = (item: ExpenseItem) => itemBaseTotal(item) * (1 + numberValue(item.bufferPercent) / 100)
 const departmentBaseTotal = (department: ExpenseDepartment) => department.items.reduce((sum, item) => sum + itemBaseTotal(item), 0)
 const departmentBufferTotal = (department: ExpenseDepartment) => department.items.reduce((sum, item) => sum + (itemBaseTotal(item) * numberValue(item.bufferPercent) / 100), 0)
@@ -100,6 +100,7 @@ function newExpenseItem(label = 'Line Item', sortOrder = 0): ExpenseItem {
     qty: 0,
     unit: 'Nos',
     rate: 0,
+    dailyWagePerDay: 0,
     bufferPercent: 0,
     notes: '',
     sortOrder,
@@ -133,6 +134,7 @@ function normalizeExpenseDepartments(payload: Record<string, unknown> | undefine
           qty: numberValue(item.qty),
           unit: String(item.unit ?? 'Nos'),
           rate: numberValue(item.rate),
+          dailyWagePerDay: numberValue(item.dailyWagePerDay ?? item.dailyWage ?? 0),
           bufferPercent: numberValue(item.bufferPercent),
           notes: String(item.notes ?? ''),
           sortOrder: Number(item.sortOrder ?? itemIndex),
@@ -162,6 +164,7 @@ function normalizeExpenseDepartments(payload: Record<string, unknown> | undefine
         qty: numberValue(row.qty ?? row.quantity ?? 0),
         unit: String(row.unit ?? 'Nos'),
         rate: numberValue(row.rate ?? row.estimatedBudget ?? 0),
+        dailyWagePerDay: numberValue(row.dailyWagePerDay ?? row.dailyWage ?? 0),
         bufferPercent: numberValue(row.bufferPercent ?? row.contingencyPercent ?? 0),
         notes: String(row.notes ?? ''),
         sortOrder: index,
@@ -189,6 +192,7 @@ function flattenExpenseDepartments(departments: ExpenseDepartment[]) {
       qty: item.qty,
       unit: item.unit,
       rate: item.rate,
+      dailyWagePerDay: item.dailyWagePerDay,
       bufferPercent: item.bufferPercent,
       notes: item.notes,
       sortOrder: item.sortOrder,
@@ -835,6 +839,66 @@ function PlanningCell({ label, children }: { label: string; children: ReactNode 
   )
 }
 
+
+function PlanningDecimalInput({
+  value,
+  onChange,
+  ariaLabel,
+}: {
+  value: number
+  onChange: (value: number) => void
+  ariaLabel: string
+}) {
+  const [draft, setDraft] = useState(() => String(value))
+
+  useEffect(() => {
+    setDraft(current => {
+      if (current.trim() === '' && value === 0) {
+        return ''
+      }
+
+      return String(value)
+    })
+  }, [value])
+
+  return (
+    <input
+      className="project-modal-control"
+      type="number"
+      min={0}
+      step="any"
+      inputMode="decimal"
+      aria-label={ariaLabel}
+      value={draft}
+      onChange={event => {
+        const nextValue = event.target.value
+        setDraft(nextValue)
+
+        if (nextValue.trim() === '') {
+          onChange(0)
+          return
+        }
+
+        const parsed = Number(nextValue)
+        if (!Number.isFinite(parsed) || parsed < 0) {
+          return
+        }
+
+        onChange(parsed)
+      }}
+      onBlur={() => {
+        if (draft.trim() === '') {
+          setDraft('')
+        }
+      }}
+      onKeyDown={event => {
+        if (event.key === '-' || event.key === 'e' || event.key === 'E' || event.key === '+') {
+          event.preventDefault()
+        }
+      }}
+    />
+  )
+}
 function newCrewRole(role = 'Crew Role', sortOrder = 0): CrewPlanningRole {
   return {
     id: `crew-role-${crypto.randomUUID()}`,
@@ -1911,13 +1975,14 @@ function ExpenseDepartmentCard({
 
       {expanded && (
         <div className="mt-3 space-y-3">
-          <div className="hidden rounded-[18px] border border-zinc-200 bg-zinc-100 px-4 py-3 md:grid md:grid-cols-[auto_auto_1.25fr_0.6fr_0.7fr_0.75fr_0.75fr_1fr_1fr_auto] md:gap-3 dark:border-zinc-800 dark:bg-zinc-900">
+          <div className="hidden rounded-[18px] border border-zinc-200 bg-zinc-100 px-4 py-3 md:grid md:grid-cols-[auto_auto_1.25fr_0.6fr_0.7fr_0.75fr_0.75fr_0.75fr_1fr_1fr_auto] md:gap-3 dark:border-zinc-800 dark:bg-zinc-900">
             <span />
             <span />
             <PlanningColumnHeader help="The specific line item inside this department.">Item</PlanningColumnHeader>
             <PlanningColumnHeader help="Number of units expected.">Qty</PlanningColumnHeader>
             <PlanningColumnHeader help="Unit of measurement such as Nos, Days, Hours, or Sets.">Unit</PlanningColumnHeader>
             <PlanningColumnHeader help="Estimated cost per unit.">Rate</PlanningColumnHeader>
+            <PlanningColumnHeader help="Recurring charge per day for rental-style expenses.">Daily Wage / Day</PlanningColumnHeader>
             <PlanningColumnHeader help="Extra contingency percentage for this line.">Buffer %</PlanningColumnHeader>
             <PlanningColumnHeader help="Automatically calculated estimate for this line item.">Estimated Total</PlanningColumnHeader>
             <PlanningColumnHeader help="Optional production notes.">Notes</PlanningColumnHeader>
@@ -1970,7 +2035,7 @@ function ExpenseItemRow({
     <div
       ref={sortable.setNodeRef}
       style={style}
-      className={cn('grid gap-3 rounded-[24px] bg-zinc-50 p-4 select-none dark:bg-zinc-900 md:grid-cols-[auto_auto_1.25fr_0.6fr_0.7fr_0.75fr_0.75fr_1fr_1fr_auto]', sortable.isDragging && 'ring-1 ring-orange-300 dark:ring-orange-500/40')}
+      className={cn('grid gap-3 rounded-[24px] bg-zinc-50 p-4 select-none dark:bg-zinc-900 md:grid-cols-[auto_auto_1.25fr_0.6fr_0.7fr_0.75fr_0.75fr_0.75fr_1fr_1fr_auto]', sortable.isDragging && 'ring-1 ring-orange-300 dark:ring-orange-500/40')}
     >
       <div className="flex items-center justify-center md:justify-start">
         <button
@@ -2017,6 +2082,13 @@ function ExpenseItemRow({
       </PlanningCell>
       <PlanningCell label="Rate">
         <input className="project-modal-control" type="number" inputMode="decimal" value={item.rate} onChange={event => onChange({ rate: Number(event.target.value) || 0 })} />
+      </PlanningCell>
+      <PlanningCell label="Daily Wage / Day">
+        <PlanningDecimalInput
+          value={item.dailyWagePerDay}
+          ariaLabel="Daily Wage / Day"
+          onChange={dailyWagePerDay => onChange({ dailyWagePerDay })}
+        />
       </PlanningCell>
       <PlanningCell label="Buffer %">
         <input className="project-modal-control" type="number" inputMode="decimal" value={item.bufferPercent} onChange={event => onChange({ bufferPercent: Number(event.target.value) || 0 })} />
