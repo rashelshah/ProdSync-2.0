@@ -5,6 +5,8 @@ import { StatusBadge } from '@/components/shared/StatusBadge'
 import { Surface } from '@/components/shared/Surface'
 import { EmptyState, ErrorState } from '@/components/system/SystemStates'
 import { useResolvedProjectContext } from '@/features/projects/useResolvedProjectContext'
+import { LiquidGlassNavbar } from '@/components/shared/LiquidGlassNavbar'
+import { useMobileScrollHide } from '@/hooks/useMobileScrollHide'
 import { resolveErrorMessage, showError, showSuccess } from '@/lib/toast'
 import { accommodationService } from '@/services/accommodation.service'
 import { formatDate, formatTime, timeAgo } from '@/utils'
@@ -129,26 +131,27 @@ function ModalShell({
   if (!open) return null
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/55 px-4 py-8 backdrop-blur-sm">
-      <Surface variant="table" padding="lg" className="flex max-h-[88vh] w-full max-w-2xl flex-col border border-zinc-200 shadow-2xl dark:border-zinc-800">
-        <div className="shrink-0">
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center sm:px-4 sm:py-8 transition-opacity">
+      <button type="button" aria-label="Close modal" className="absolute inset-0 w-full h-full bg-black/55 backdrop-blur-sm" onClick={onClose} disabled={isSubmitting} />
+      <Surface variant="raised" padding="lg" className="relative z-10 flex max-h-[90vh] sm:max-h-[88vh] w-full max-w-2xl flex-col border border-zinc-200 shadow-2xl dark:border-zinc-800 rounded-t-[32px] rounded-b-none sm:rounded-[32px]">
+        <div className="shrink-0 pb-4 border-b border-zinc-100 dark:border-zinc-800/50">
           <div className="flex items-start justify-between gap-4">
             <div>
               <p className="section-kicker">{kicker}</p>
-              <h2 className="section-title">{title}</h2>
+              <h2 className="section-title mt-1">{title}</h2>
               <p className="mt-2 text-sm text-zinc-500 dark:text-zinc-400">{description}</p>
             </div>
-            <button onClick={onClose} disabled={isSubmitting} className="btn-ghost px-3 py-2 text-[10px]">
-              Close
+            <button onClick={onClose} disabled={isSubmitting} className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-[color:var(--app-border)] bg-[color:var(--app-surface-strong)] text-[color:var(--app-muted)] transition hover:border-orange-200 hover:bg-orange-50 hover:text-orange-600">
+              <span className="material-symbols-outlined text-[18px]">close</span>
             </button>
           </div>
         </div>
-        <div className="mt-6 flex-1 overflow-y-auto pr-2 custom-scrollbar">{children}</div>
-        <div className="mt-6 flex shrink-0 justify-end gap-3">
-          <button onClick={onClose} disabled={isSubmitting} className="btn-ghost">
+        <div className="flex-1 overflow-y-auto py-6 sm:pr-2 custom-scrollbar">{children}</div>
+        <div className="shrink-0 pt-4 border-t border-zinc-100 dark:border-zinc-800/50 flex flex-col-reverse sm:flex-row sm:justify-end gap-3">
+          <button onClick={onClose} disabled={isSubmitting} className="btn-ghost w-full sm:w-auto justify-center">
             Cancel
           </button>
-          <button onClick={onSubmit} disabled={isSubmitting} className="btn-primary disabled:opacity-60">
+          <button onClick={onSubmit} disabled={isSubmitting} className="btn-primary w-full sm:w-auto justify-center disabled:opacity-60">
             {isSubmitting ? 'Saving...' : primaryLabel}
           </button>
         </div>
@@ -177,23 +180,24 @@ function ConfirmModal({
   if (!open) return null
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/55 px-4 py-8 backdrop-blur-sm">
-      <Surface variant="table" padding="lg" className="w-full max-w-lg border border-zinc-200 shadow-2xl dark:border-zinc-800">
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center sm:px-4 sm:py-8 transition-opacity">
+      <button type="button" aria-label="Close modal" className="absolute inset-0 w-full h-full bg-black/55 backdrop-blur-sm" onClick={onClose} disabled={isSubmitting} />
+      <Surface variant="raised" padding="lg" className="relative z-10 w-full max-w-lg border border-zinc-200 shadow-2xl dark:border-zinc-800 rounded-t-[32px] rounded-b-none sm:rounded-[32px]">
         <div className="flex items-start justify-between gap-4">
           <div>
             <p className="section-kicker">Confirmation</p>
-            <h2 className="section-title">{title}</h2>
+            <h2 className="section-title mt-1">{title}</h2>
             <p className="mt-2 text-sm text-zinc-500 dark:text-zinc-400">{message}</p>
           </div>
-          <button onClick={onClose} disabled={isSubmitting} className="btn-ghost px-3 py-2 text-[10px]">
-            Close
+          <button onClick={onClose} disabled={isSubmitting} className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-[color:var(--app-border)] bg-[color:var(--app-surface-strong)] text-[color:var(--app-muted)] transition hover:border-orange-200 hover:bg-orange-50 hover:text-orange-600">
+            <span className="material-symbols-outlined text-[18px]">close</span>
           </button>
         </div>
-        <div className="mt-6 flex justify-end gap-3">
-          <button onClick={onClose} disabled={isSubmitting} className="btn-ghost">
+        <div className="mt-8 flex flex-col-reverse sm:flex-row sm:justify-end gap-3">
+          <button onClick={onClose} disabled={isSubmitting} className="btn-ghost w-full sm:w-auto justify-center">
             Cancel
           </button>
-          <button onClick={onConfirm} disabled={isSubmitting} className="btn-primary disabled:opacity-60">
+          <button onClick={onConfirm} disabled={isSubmitting} className="btn-primary w-full sm:w-auto justify-center disabled:opacity-60 bg-red-600 hover:bg-red-700 text-white">
             {isSubmitting ? 'Working...' : actionLabel}
           </button>
         </div>
@@ -393,6 +397,10 @@ export function AccommodationView() {
   const [extendNotes, setExtendNotes] = useState('')
   const [confirmState, setConfirmState] = useState<ConfirmState>(null)
   const [confirmBusy, setConfirmBusy] = useState(false)
+  const [expandedAllocationId, setExpandedAllocationId] = useState<string | null>(null)
+  const [activeMobileTab, setActiveMobileTab] = useState<'home' | 'hotels' | 'reminders' | 'transport' | 'alerts'>('home')
+
+  const { navRef: bottomNavRef, companionRef: floatingActionsRef } = useMobileScrollHide()
 
   const refreshAccommodation = async () => {
     await Promise.all([
@@ -818,8 +826,8 @@ export function AccommodationView() {
 
   return (
     <>
-      <div className="page-shell space-y-6">
-        <Surface variant="table" padding="lg">
+      <div className="page-shell space-y-6 pb-56 md:pb-0">
+        <Surface variant="table" padding="lg" className="hidden md:block">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
             <div>
               <p className="section-kicker">Operations</p>
@@ -838,6 +846,30 @@ export function AccommodationView() {
             </div>
           </div>
         </Surface>
+
+        <div className="md:hidden w-full relative z-10 pt-2 pb-2">
+          <div className="overflow-hidden rounded-[28px] border border-zinc-200/80 bg-white/88 px-4 py-4 shadow-[0_18px_40px_rgba(15,23,42,0.08)] backdrop-blur-xl dark:border-white/8 dark:bg-zinc-900/82 dark:shadow-[0_20px_44px_rgba(0,0,0,0.32)]">
+            <span className="page-kicker text-orange-500">OPERATIONS</span>
+            <h1 className="page-title page-title-compact mt-1 text-zinc-900 dark:text-white">Accommodation & Travel</h1>
+            <p className="page-subtitle mt-2 text-zinc-500 dark:text-zinc-400">
+              Manage hotels, room allocations, reminders, status updates, and transport pickup syncing from one workspace.
+            </p>
+          </div>
+        </div>
+
+        {/* Mobile Bottom Sticky Actions */}
+        <div ref={floatingActionsRef} className="fixed bottom-[88px] left-1/2 w-[calc(100vw-1.5rem)] max-w-sm -translate-x-1/2 z-40 md:hidden bg-[#111111] border border-[#222222] rounded-[32px] p-2.5 shadow-[0_20px_40px_rgba(0,0,0,0.5)] transition-transform duration-300">
+          <div className="grid grid-cols-2 gap-3">
+            <button onClick={openCreateAllocationModal} className="flex flex-col items-center justify-center rounded-[24px] bg-orange-500 py-3 font-bold text-zinc-950 transition active:scale-95" type="button">
+              <span className="material-symbols-outlined text-[24px]">hotel_class</span>
+              <span className="mt-1 text-[10px] uppercase tracking-wider">Add Allocation</span>
+            </button>
+            <button onClick={openCreateHotelModal} className="flex flex-col items-center justify-center rounded-[24px] border border-zinc-700 py-3 font-bold text-orange-500 transition active:scale-95" type="button">
+              <span className="material-symbols-outlined text-[24px]">domain_add</span>
+              <span className="mt-1 text-[10px] uppercase tracking-wider">Add Hotel</span>
+            </button>
+          </div>
+        </div>
 
         {isPageEmpty ? (
           <Surface variant="table" padding="lg" className="min-h-[420px]">
@@ -861,8 +893,8 @@ export function AccommodationView() {
           </Surface>
         ) : (
           <>
-            <div className="grid gap-6 xl:grid-cols-[1.7fr_1fr]">
-              <Surface variant="table" padding="none" className="overflow-hidden">
+            <div className={`gap-6 xl:grid-cols-[1.7fr_1fr] ${activeMobileTab === 'home' || activeMobileTab === 'hotels' ? 'grid' : 'hidden md:grid'}`}>
+              <Surface variant="table" padding="none" className={`overflow-hidden ${activeMobileTab === 'home' ? '' : 'hidden md:block'}`}>
                 <div className="p-6 sm:p-7">
                   <PanelHeader
                     kicker="Core Feature"
@@ -879,11 +911,80 @@ export function AccommodationView() {
                     />
                   </div>
                 ) : (
-                  <DataTable columns={allocationColumns} data={allocations} getKey={row => row.id} />
+                  <>
+                    <div className="hidden md:block">
+                      <DataTable columns={allocationColumns} data={allocations} getKey={row => row.id} />
+                    </div>
+                    <div className="md:hidden flex flex-col divide-y divide-zinc-200 dark:divide-zinc-800 border-t border-zinc-200 dark:border-zinc-800">
+                      {allocations.map(allocation => {
+                        const isExpanded = expandedAllocationId === allocation.id
+                        return (
+                          <div key={allocation.id} className="p-4 flex flex-col bg-white dark:bg-zinc-950 transition-colors">
+                            <div className="flex items-start justify-between gap-3 cursor-pointer select-none" onClick={() => setExpandedAllocationId(isExpanded ? null : allocation.id)}>
+                              <div className="flex-1">
+                                <p className="font-semibold text-zinc-900 dark:text-white">{allocation.personName}</p>
+                                <p className="mt-0.5 text-xs text-zinc-500 dark:text-zinc-400">{allocation.department ?? 'No department'} · {allocation.roleTitle ?? 'No role'}</p>
+                                <div className="mt-2 text-sm text-zinc-600 dark:text-zinc-300">
+                                  <span className="font-medium text-zinc-900 dark:text-white">{allocation.hotelName}</span> — Room {allocation.roomNumber}
+                                </div>
+                              </div>
+                              <div className="flex flex-col items-end shrink-0 gap-2">
+                                {bookingBadge(allocation)}
+                                <span className="material-symbols-outlined text-zinc-400 text-xl transition-transform" style={{ transform: isExpanded ? 'rotate(180deg)' : 'rotate(0deg)' }}>expand_more</span>
+                              </div>
+                            </div>
+                            {isExpanded && (
+                              <div className="mt-4 pt-4 border-t border-zinc-100 dark:border-zinc-800/60 animate-in fade-in slide-in-from-top-2 duration-200">
+                                <div className="grid grid-cols-2 gap-4 mb-4 text-sm">
+                                  <div>
+                                    <p className="text-xs uppercase tracking-wider text-zinc-500 dark:text-zinc-400">Check-in</p>
+                                    <p className="mt-1 font-medium text-zinc-900 dark:text-white">{formatDate(allocation.checkInDate)}</p>
+                                  </div>
+                                  <div>
+                                    <p className="text-xs uppercase tracking-wider text-zinc-500 dark:text-zinc-400">Check-out</p>
+                                    <p className="mt-1 font-medium text-zinc-900 dark:text-white">{formatDate(allocation.checkOutDate)}</p>
+                                    {allocation.checkOutDate < todayDate && (allocation.bookingStatus === 'confirmed' || allocation.bookingStatus === 'checked_in') && (
+                                      <p className="mt-1 text-[10px] font-medium text-red-500">Extra Day Charge</p>
+                                    )}
+                                  </div>
+                                </div>
+                                <div className="flex flex-wrap gap-2">
+                                  <button onClick={() => openEditAllocationModal(allocation)} className="btn-ghost px-3 py-2 text-[10px] flex-1 text-center justify-center" type="button">Edit</button>
+                                  <button
+                                    onClick={() => setConfirmState({
+                                      title: 'Delete allocation',
+                                      message: `Remove ${allocation.personName} from the accommodation matrix?`,
+                                      actionLabel: 'Delete',
+                                      action: async () => {
+                                        if (!activeProjectId) return
+                                        await deleteAllocationMutation.mutateAsync({ projectId: activeProjectId, id: allocation.id })
+                                      },
+                                    })}
+                                    className="btn-ghost px-3 py-2 text-[10px] text-red-500 dark:text-red-400 flex-1 text-center justify-center" type="button"
+                                  >
+                                    Delete
+                                  </button>
+                                  <button onClick={() => void quickStatusUpdate(allocation, 'checked_in')} disabled={allocation.bookingStatus === 'checked_in'} className="btn-soft px-3 py-2 text-[10px] disabled:opacity-50 flex-1 text-center justify-center" type="button">
+                                    Check In
+                                  </button>
+                                  <button onClick={() => void quickStatusUpdate(allocation, 'checked_out')} disabled={allocation.bookingStatus === 'checked_out'} className="btn-soft px-3 py-2 text-[10px] disabled:opacity-50 flex-1 text-center justify-center" type="button">
+                                    Check Out
+                                  </button>
+                                  <button onClick={() => openExtendModal(allocation)} className="btn-primary px-3 py-2 text-[10px] w-full text-center justify-center mt-1" type="button">
+                                    Extend Stay
+                                  </button>
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        )
+                      })}
+                    </div>
+                  </>
                 )}
               </Surface>
 
-              <Surface variant="table" padding="lg" className="h-full">
+              <Surface variant="table" padding="lg" className={`h-full ${activeMobileTab === 'home' || activeMobileTab === 'hotels' ? '' : 'hidden md:block'}`}>
                 <PanelHeader
                   kicker="Directory"
                   title="Hotel Management"
@@ -919,8 +1020,8 @@ export function AccommodationView() {
               </Surface>
             </div>
 
-            <div className="grid gap-6 xl:grid-cols-3">
-              <Surface variant="table" padding="lg">
+            <div className={`gap-6 xl:grid-cols-3 ${activeMobileTab !== 'hotels' ? 'grid' : 'hidden md:grid'}`}>
+              <Surface variant="table" padding="lg" className={activeMobileTab === 'home' || activeMobileTab === 'reminders' ? '' : 'hidden md:block'}>
                 <PanelHeader kicker="Automation" title="Upcoming Reminders" />
                 {upcomingReminders.length === 0 ? (
                   <SmallEmpty title="No reminders scheduled" description="Check-in, check-out, and extension reminders will appear here automatically." />
@@ -942,7 +1043,7 @@ export function AccommodationView() {
                 )}
               </Surface>
 
-              <Surface variant="table" padding="lg">
+              <Surface variant="table" padding="lg" className={activeMobileTab === 'home' || activeMobileTab === 'transport' ? '' : 'hidden md:block'}>
                 <PanelHeader kicker="Transport" title="Travel Sync Queue" />
                 {travelSync.length === 0 ? (
                   <SmallEmpty title="No travel sync rows" description="As soon as active stays exist, hotel pickup addresses will flow here for transport coordination." />
@@ -968,7 +1069,7 @@ export function AccommodationView() {
                 )}
               </Surface>
 
-              <Surface variant="table" padding="lg">
+              <Surface variant="table" padding="lg" className={activeMobileTab === 'home' || activeMobileTab === 'alerts' ? '' : 'hidden md:block'}>
                 <PanelHeader kicker="Signals" title="Alerts Panel" />
                 {derivedAlerts.length === 0 ? (
                   <SmallEmpty title="No active alerts" description="Overlaps, late checkouts, travel mismatches, and extension issues will surface here automatically." />
@@ -991,6 +1092,22 @@ export function AccommodationView() {
             </div>
           </>
         )}
+      </div>
+
+      {/* Bottom Navigation */}
+      <div className="md:hidden">
+        <LiquidGlassNavbar
+          ref={bottomNavRef}
+          activeTabId={activeMobileTab}
+          onTabChange={(id) => setActiveMobileTab(id as any)}
+          tabs={[
+            { id: 'home', icon: 'home', label: 'Home' },
+            { id: 'hotels', icon: 'domain', label: 'Hotels' },
+            { id: 'reminders', icon: 'notifications', label: 'Reminders' },
+            { id: 'transport', icon: 'directions_car', label: 'Transport' },
+            { id: 'alerts', icon: 'warning', label: 'Alerts' },
+          ]}
+        />
       </div>
 
       <ModalShell
