@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type InputHTMLAttributes, type KeyboardEvent, type PointerEvent, type ReactNode, type SelectHTMLAttributes, type TextareaHTMLAttributes } from 'react'
-import { useMutation, useQuery, useInfiniteQuery, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useSearchParams } from 'react-router-dom'
 import { KpiCard } from '@/components/shared/KpiCard'
 import { StatusBadge } from '@/components/shared/StatusBadge'
@@ -8,8 +8,6 @@ import { SectionSelectorSheet } from '@/components/shared/SectionSelectorSheet'
 import { EmptyState, ErrorState, PageLoader } from '@/components/system/SystemStates'
 import { useAuthStore } from '@/features/auth/auth.store'
 import { useResolvedProjectContext } from '@/features/projects/useResolvedProjectContext'
-import { useMobileScrollHide } from '@/hooks/useMobileScrollHide'
-import { LiquidGlassNavbar } from '@/components/shared/LiquidGlassNavbar'
 import { resolveErrorMessage, showError, showSuccess } from '@/lib/toast'
 import { formatCurrency, formatDate, timeAgo } from '@/utils'
 import { locationsService } from '@/services/locations.service'
@@ -208,15 +206,15 @@ function ModalShell({
   if (!open) return null
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center sm:px-4 sm:py-6">
+    <div className="fixed inset-0 z-50 flex items-center justify-center px-4 py-6">
       <button
         type="button"
         aria-label="Close modal"
         className="absolute inset-0 bg-[color:rgba(9,9,11,0.7)] backdrop-blur-md"
         onClick={onClose}
       />
-      <Surface variant="raised" padding="none" className={`relative z-10 w-full overflow-hidden rounded-t-[32px] sm:rounded-[32px] flex flex-col max-h-[90vh] ${maxWidth}`}>
-        <div className="border-b border-zinc-200 px-5 py-4 dark:border-zinc-800 sm:px-6 shrink-0">
+      <Surface variant="raised" padding="none" className={`relative z-10 w-full overflow-hidden ${maxWidth}`}>
+        <div className="border-b border-zinc-200 px-5 py-4 dark:border-zinc-800 sm:px-6">
           <div className="flex items-start justify-between gap-4">
             <div>
               <p className="text-[10px] font-semibold uppercase tracking-[0.24em] text-[color:var(--app-muted)]">ProdSync</p>
@@ -226,17 +224,17 @@ function ModalShell({
             <button
               type="button"
               onClick={onClose}
-              className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-[color:var(--app-border)] bg-[color:var(--app-surface-strong)] text-[color:var(--app-muted)] transition hover:border-orange-200 hover:bg-orange-50 hover:text-orange-600"
+              className="flex h-11 w-11 items-center justify-center rounded-full border border-[color:var(--app-border)] bg-[color:var(--app-surface-strong)] text-[color:var(--app-muted)] transition hover:border-orange-200 hover:bg-orange-50 hover:text-orange-600"
             >
               <span className="material-symbols-outlined text-[18px]">close</span>
             </button>
           </div>
         </div>
-        <div className="overflow-y-auto p-4 sm:p-6 shrink">
+        <div className="max-h-[calc(100vh-12rem)] overflow-y-auto p-5 sm:p-6">
           {children}
         </div>
         {footer && (
-          <div className="border-t border-zinc-200 px-5 py-4 dark:border-zinc-800 sm:px-6 shrink-0">
+          <div className="border-t border-zinc-200 px-5 py-4 dark:border-zinc-800 sm:px-6">
             {footer}
           </div>
         )}
@@ -256,7 +254,7 @@ function ActionButton({
 }: {
   label: string
   icon: string
-  onClick?: (e: React.MouseEvent<HTMLButtonElement>) => void
+  onClick?: () => void
   tone?: 'default' | 'danger'
   type?: 'button' | 'submit'
   disabled?: boolean
@@ -492,7 +490,6 @@ export function LocationsView() {
 
   const selectedLocationId = searchParams.get('locationId')
   const workspaceTab = workspaceTabFromValue(searchParams.get('tab'))
-  const { navRef: bottomNavRef } = useMobileScrollHide()
 
   const [createMode, setCreateMode] = useState<CreateMode>('menu')
   const [createModalOpen, setCreateModalOpen] = useState(false)
@@ -506,8 +503,6 @@ export function LocationsView() {
     confirmLabel: string
     onConfirm: () => void
   } | null>(null)
-  const [openMenuId, setOpenMenuId] = useState<string | null>(null)
-  const [openPermissionId, setOpenPermissionId] = useState<string | null>(null)
   const [locationPage, setLocationPage] = useState(1)
   const [newLocationFile, setNewLocationFile] = useState<File | null>(null)
   const [newLocationPreview, setNewLocationPreview] = useState('')
@@ -730,16 +725,9 @@ export function LocationsView() {
     setCommentForm(current => ({ ...current, projectId: activeProjectId }))
   }, [activeProjectId])
 
-  const locationsQuery = useInfiniteQuery({
-    queryKey: ['locations', activeProjectId],
-    queryFn: ({ pageParam = 1 }) => locationsService.getLocations(activeProjectId!, { page: pageParam, pageSize: 12 } satisfies LocationListFilters),
-    getNextPageParam: (lastPage) => {
-      if (lastPage.pagination && lastPage.pagination.page < lastPage.pagination.totalPages) {
-        return lastPage.pagination.page + 1
-      }
-      return undefined
-    },
-    initialPageParam: 1,
+  const locationsQuery = useQuery({
+    queryKey: ['locations', activeProjectId, locationPage],
+    queryFn: () => locationsService.getLocations(activeProjectId!, { page: locationPage, pageSize: 12 } satisfies LocationListFilters),
     enabled: Boolean(activeProjectId),
     staleTime: 15_000,
   })
@@ -786,7 +774,7 @@ export function LocationsView() {
 
   selectedDetailData = selectedDetailQuery.data ?? null
   const selectedLocation = selectedDetailData?.location ?? null
-  const locations = locationsQuery.data?.pages.flatMap(page => page.data) ?? []
+  const locations = locationsQuery.data?.data ?? []
 
   useEffect(() => {
     if (!activeProjectId) return
@@ -1103,14 +1091,8 @@ export function LocationsView() {
 
     return (
       <div className="grid gap-6 xl:grid-cols-[1.25fr_0.75fr]">
-        <div className="md:rounded-[32px] md:border md:border-zinc-200 md:bg-white md:p-6 lg:p-8 md:dark:border-zinc-800 md:dark:bg-zinc-950">
-          <div className="section-heading hidden md:block">
-            <div>
-              <p className="section-kicker">Readiness</p>
-              <h3 className="section-title">Production Status</h3>
-            </div>
-          </div>
-          <div className="flex flex-col gap-4 mt-0 md:mt-5 lg:flex-row lg:items-start lg:justify-between">
+        <Surface variant="table" padding="lg">
+          <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
             <div className="min-w-0">
               <p className="text-[10px] font-semibold uppercase tracking-[0.24em] text-zinc-500 dark:text-zinc-400">Selected Location</p>
               <h3 className="mt-2 text-2xl font-semibold tracking-[-0.04em] text-zinc-900 dark:text-white">{selectedLocation.name}</h3>
@@ -1128,64 +1110,34 @@ export function LocationsView() {
             </div>
           </div>
 
-          <div className="mt-6 grid grid-cols-2 gap-4 md:grid-cols-3 xl:grid-cols-4">
-            <div className="rounded-[26px] border border-zinc-200 bg-zinc-50 p-4 dark:border-zinc-800 dark:bg-zinc-900 flex flex-col justify-between">
-              <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-zinc-500 dark:text-zinc-400">Shoot Readiness</p>
-              <div className="mt-2">
-                <p className="text-2xl font-semibold text-zinc-900 dark:text-white">{selectedLocation.readiness?.readinessScore ?? 0}</p>
-                <p className="mt-1 text-[9px] uppercase tracking-wider text-orange-600 dark:text-orange-400 line-clamp-1">{selectedLocation.readiness?.readinessStatus ? labelize(selectedLocation.readiness.readinessStatus) : 'Not ready'}</p>
-              </div>
-            </div>
-            <div className="rounded-[26px] border border-zinc-200 bg-zinc-50 p-4 dark:border-zinc-800 dark:bg-zinc-900 flex flex-col justify-between">
-              <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-zinc-500 dark:text-zinc-400">Perms Readiness</p>
-              <div className="mt-2">
-                <p className="text-2xl font-semibold text-zinc-900 dark:text-white">{overviewStats.permissionsScore}</p>
-                <p className="mt-1 text-[9px] uppercase tracking-wider text-zinc-500 dark:text-zinc-400 line-clamp-1">Approved / total</p>
-              </div>
-            </div>
-            <div className="rounded-[26px] border border-zinc-200 bg-zinc-50 p-4 dark:border-zinc-800 dark:bg-zinc-900 flex flex-col justify-between">
-              <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-zinc-500 dark:text-zinc-400">Risk Score</p>
-              <div className="mt-2">
-                <p className="text-2xl font-semibold text-zinc-900 dark:text-white">{selectedLocation.riskLevel === 'high' ? '90' : selectedLocation.riskLevel === 'medium' ? '60' : '30'}</p>
-                <p className="mt-1 text-[9px] uppercase tracking-wider text-red-500 dark:text-red-400 line-clamp-1">{labelize(selectedLocation.riskLevel)} risk</p>
-              </div>
-            </div>
-            <div className="rounded-[26px] border border-zinc-200 bg-zinc-50 p-4 dark:border-zinc-800 dark:bg-zinc-900 flex flex-col justify-between">
+          <div className="mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+            <KpiCard label="Shoot Readiness" value={String(selectedLocation.readiness?.readinessScore ?? 0)} subLabel={selectedLocation.readiness?.readinessStatus ? labelize(selectedLocation.readiness.readinessStatus) : 'Not ready'} subType={selectedLocation.readiness?.readinessStatus === 'ready' ? 'success' : selectedLocation.readiness?.readinessStatus === 'almost_ready' ? 'warning' : 'critical'} />
+            <KpiCard label="Permission Readiness" value={overviewStats.permissionsScore} subLabel="Approved / total" />
+            <KpiCard label="Risk Score" value={selectedLocation.riskLevel === 'high' ? '90' : selectedLocation.riskLevel === 'medium' ? '60' : '30'} subLabel={`${labelize(selectedLocation.riskLevel)} risk profile`} />
+            <KpiCard label="Document Count" value={String(overviewStats.documentCount)} subLabel="Secure files stored" />
+            <KpiCard label="Gallery Count" value={String(overviewStats.mediaCount)} subLabel="Images and videos captured" />
+            <KpiCard label="Timeline Activity" value={String(overviewStats.timelineCount)} subLabel="Audit-safe events logged" />
+          </div>
+
+          <div className="mt-6 grid gap-4 md:grid-cols-2">
+            <div className="rounded-[26px] border border-zinc-200 bg-zinc-50 p-4 dark:border-zinc-800 dark:bg-zinc-900">
               <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-zinc-500 dark:text-zinc-400">Project Spend</p>
-              <div className="mt-2">
-                <p className="text-2xl font-semibold text-zinc-900 dark:text-white">{formatCurrency(overviewStats.totalCost)}</p>
-                <p className="mt-1 text-[9px] uppercase tracking-wider text-zinc-500 dark:text-zinc-400 line-clamp-1">Pending: {overviewStats.pendingCosts}</p>
-              </div>
+              <p className="mt-2 text-2xl font-semibold text-zinc-900 dark:text-white">{formatCurrency(overviewStats.totalCost)}</p>
+              <p className="mt-2 text-sm text-zinc-500 dark:text-zinc-400">{overviewStats.pendingCosts} cost approvals pending</p>
             </div>
-            <div className="rounded-[26px] border border-zinc-200 bg-zinc-50 p-4 dark:border-zinc-800 dark:bg-zinc-900 flex flex-col justify-between">
-              <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-zinc-500 dark:text-zinc-400">Document Count</p>
-              <div className="mt-2">
-                <p className="text-2xl font-semibold text-zinc-900 dark:text-white">{overviewStats.documentCount}</p>
-                <p className="mt-1 text-[9px] uppercase tracking-wider text-zinc-500 dark:text-zinc-400 line-clamp-1">Secure files</p>
-              </div>
-            </div>
-            <div className="rounded-[26px] border border-zinc-200 bg-zinc-50 p-4 dark:border-zinc-800 dark:bg-zinc-900 flex flex-col justify-between">
-              <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-zinc-500 dark:text-zinc-400">Gallery Count</p>
-              <div className="mt-2">
-                <p className="text-2xl font-semibold text-zinc-900 dark:text-white">{overviewStats.mediaCount}</p>
-                <p className="mt-1 text-[9px] uppercase tracking-wider text-zinc-500 dark:text-zinc-400 line-clamp-1">Images & videos</p>
-              </div>
-            </div>
-            <div className="rounded-[26px] border border-zinc-200 bg-zinc-50 p-4 dark:border-zinc-800 dark:bg-zinc-900 flex flex-col justify-between col-span-2 md:col-span-1 xl:col-span-2">
+            <div className="rounded-[26px] border border-zinc-200 bg-zinc-50 p-4 dark:border-zinc-800 dark:bg-zinc-900">
               <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-zinc-500 dark:text-zinc-400">Latest Timeline Entry</p>
-              <div className="mt-2">
-                {selectedDetailData?.timeline[0] ? (
-                  <>
-                    <p className="text-base font-semibold text-zinc-900 dark:text-white line-clamp-1">{selectedDetailData.timeline[0].title}</p>
-                    <p className="mt-1 text-[9px] uppercase tracking-wider text-zinc-500 dark:text-zinc-400 line-clamp-1">{formatDate(selectedDetailData.timeline[0].eventAt)} · {timeAgo(selectedDetailData.timeline[0].eventAt)}</p>
-                  </>
-                ) : (
-                  <p className="text-sm text-zinc-500 dark:text-zinc-400">No activity yet</p>
-                )}
-              </div>
+              {selectedDetailData?.timeline[0] ? (
+                <>
+                  <p className="mt-2 text-lg font-semibold text-zinc-900 dark:text-white">{selectedDetailData.timeline[0].title}</p>
+                  <p className="mt-2 text-sm text-zinc-500 dark:text-zinc-400">{formatDate(selectedDetailData.timeline[0].eventAt)} · {timeAgo(selectedDetailData.timeline[0].eventAt)}</p>
+                </>
+              ) : (
+                <p className="mt-2 text-sm text-zinc-500 dark:text-zinc-400">No timeline activity yet.</p>
+              )}
             </div>
           </div>
-        </div>
+        </Surface>
 
         <div className="space-y-6">
           <Surface variant="table" padding="lg">
@@ -1219,6 +1171,18 @@ export function LocationsView() {
             </div>
           </Surface>
         </div>
+        <SectionSelectorSheet
+          open={locationTabSheetOpen}
+          title="Select Section"
+          description="Choose a workspace section without horizontal scrolling."
+          selectedId={selectedTab}
+          options={WORKSPACE_TABS}
+          onSelect={tab => {
+            setLocationTabSheetOpen(false)
+            handleWorkspaceTabSwitch(selectedLocation.id, tab as WorkspaceTab)
+          }}
+          onClose={() => setLocationTabSheetOpen(false)}
+        />
       </div>
     )
   }
@@ -1384,39 +1348,25 @@ export function LocationsView() {
 
             return (
               <div key={item.key} className="rounded-[28px] border border-zinc-200 bg-zinc-50 p-4 dark:border-zinc-800 dark:bg-zinc-900">
-                <div 
-                  className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between cursor-pointer md:cursor-auto"
-                  onClick={() => {
-                    if (window.innerWidth < 768) {
-                      setOpenPermissionId(openPermissionId === item.key ? null : item.key)
-                    }
-                  }}
-                >
+                <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
                   <div className="min-w-0 flex-1">
-                    <div className="flex flex-wrap items-center justify-between md:justify-start gap-3">
-                      <div className="flex items-center gap-3">
-                        <span className={`flex h-9 w-9 items-center justify-center rounded-full ${existing ? 'bg-zinc-800 text-white dark:bg-zinc-100 dark:text-zinc-950' : 'bg-zinc-200 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300'}`}>
-                          <span className="material-symbols-outlined text-[18px]">{existing ? 'check_circle' : 'radio_button_unchecked'}</span>
-                        </span>
-                        <div>
-                          <p className="text-sm font-semibold text-zinc-900 dark:text-white">{item.label}</p>
-                          <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">{existing ? 'Tracked and editable' : 'Not started yet'}</p>
-                        </div>
-                      </div>
-                      <span className="material-symbols-outlined md:hidden text-[color:var(--app-muted)] transition-transform duration-200" style={{ transform: openPermissionId === item.key ? 'rotate(180deg)' : 'none' }}>
-                        keyboard_arrow_down
+                    <div className="flex flex-wrap items-center gap-3">
+                      <span className={`flex h-9 w-9 items-center justify-center rounded-full ${existing ? 'bg-zinc-800 text-white dark:bg-zinc-100 dark:text-zinc-950' : 'bg-zinc-200 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300'}`}>
+                        <span className="material-symbols-outlined text-[18px]">{existing ? 'check_circle' : 'radio_button_unchecked'}</span>
                       </span>
-                      {existing && <div className="hidden md:block"><StatusBadge variant={permissionStatusVariant(existing.status)} label={labelize(existing.status)} /></div>}
+                      <div>
+                        <p className="text-sm font-semibold text-zinc-900 dark:text-white">{item.label}</p>
+                        <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">{existing ? 'Tracked and editable' : 'Not started yet'}</p>
+                      </div>
+                      {existing && <StatusBadge variant={permissionStatusVariant(existing.status)} label={labelize(existing.status)} />}
                     </div>
-                    {existing && <div className="mt-3 md:hidden"><StatusBadge variant={permissionStatusVariant(existing.status)} label={labelize(existing.status)} /></div>}
                     <p className="mt-3 text-sm text-zinc-500 dark:text-zinc-400">Due date, assigned person, notes, and attachments are all handled here without leaving the location workspace.</p>
                   </div>
-                  <div className={`flex flex-wrap gap-3 ${openPermissionId === item.key ? 'flex' : 'hidden'} md:flex`}>
+                  <div className="flex flex-wrap gap-3">
                     <ActionButton
                       label="Attach Doc"
                       icon="attach_file"
-                      onClick={(e) => {
-                        e.stopPropagation()
+                      onClick={() => {
                         setUploadPermissionId(existing?.id ?? '')
                         setSearchParams(params => {
                           params.set('locationId', selectedLocation.id)
@@ -1431,20 +1381,17 @@ export function LocationsView() {
                         icon="delete"
                         tone="danger"
                         loading={deletePermissionMutation.isPending}
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          deletePermissionMutation.mutate({
-                            projectId: activeProjectId!,
-                            locationId: selectedLocation.id,
-                            permissionId: existing.id,
-                          })
-                        }}
+                        onClick={() => deletePermissionMutation.mutate({
+                          projectId: activeProjectId!,
+                          locationId: selectedLocation.id,
+                          permissionId: existing.id,
+                        })}
                       />
                     )}
                   </div>
                 </div>
 
-                <div className={`mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-4 ${openPermissionId === item.key ? 'grid' : 'hidden'} md:grid`}>
+                <div className="mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
                   <Field label="Status">
                     <Select
                       value={draft.status}
@@ -1490,7 +1437,7 @@ export function LocationsView() {
                   </Field>
                 </div>
 
-                <div className={`mt-4 grid gap-4 xl:grid-cols-[1fr_220px] ${openPermissionId === item.key ? 'grid' : 'hidden'} md:grid`}>
+                <div className="mt-4 grid gap-4 xl:grid-cols-[1fr_220px]">
                   <Field label="Notes">
                     <Textarea
                       value={draft.notes ?? ''}
@@ -2090,7 +2037,19 @@ export function LocationsView() {
             ))}
           </div>
 
-
+          <div className="mt-5 md:hidden">
+            <button
+              type="button"
+              onClick={() => setLocationTabSheetOpen(true)}
+              className="flex w-full items-center justify-between rounded-2xl border border-[color:var(--app-border)] bg-[color:var(--app-surface-strong)] px-4 py-3 text-left text-sm text-[color:var(--app-text)]"
+            >
+              <span className="inline-flex items-center gap-2 font-medium">
+                <span className="material-symbols-outlined text-[18px]">{WORKSPACE_TABS.find(tab => tab.id === selectedTab)?.icon}</span>
+                {WORKSPACE_TABS.find(tab => tab.id === selectedTab)?.mobileLabel}
+              </span>
+              <span className="material-symbols-outlined text-[18px] text-[color:var(--app-muted)]">keyboard_arrow_down</span>
+            </button>
+          </div>
           {switchingTab && (
             <p className="mt-4 inline-flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-[color:var(--app-muted)]">
               <LoadingDots />
@@ -2156,107 +2115,59 @@ export function LocationsView() {
                   loading={switchingTab === 'overview' && selectedLocationId === location.id}
                   onClick={() => handleWorkspaceTabSwitch(location.id, 'overview')}
                 />
-                
-                {/* Desktop Actions */}
-                <div className="hidden items-center gap-3 md:flex">
-                  <ActionButton
-                    label="Edit"
-                    icon="edit"
-                    onClick={() => {
-                      setEditingLocation(location)
-                      setLocationDraft({
-                        projectId: location.projectId,
-                        name: location.name,
-                        address: location.address,
-                        latitude: location.latitude ?? undefined,
-                        longitude: location.longitude ?? undefined,
-                        locationType: location.locationType,
-                        shootStartDate: location.shootStartDate ?? '',
-                        shootEndDate: location.shootEndDate ?? '',
-                        riskLevel: location.riskLevel,
-                        status: location.status,
-                        notes: location.notes ?? '',
-                      })
-                      setCreateMode('upload')
-                      setCreateModalOpen(true)
-                    }}
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setDeleteTarget(location)}
-                    className="flex h-11 w-11 items-center justify-center rounded-full border border-red-200 bg-red-50 text-red-600 transition hover:bg-red-100 dark:border-red-500/20 dark:bg-red-500/10 dark:text-red-300"
-                  >
-                    <span className="material-symbols-outlined text-[18px]">delete</span>
-                  </button>
-                </div>
-
-                {/* Mobile Overflow Menu */}
-                <div className="relative md:hidden">
-                  <button
-                    type="button"
-                    onClick={() => setOpenMenuId(openMenuId === location.id ? null : location.id)}
-                    className="flex h-11 w-11 items-center justify-center rounded-full border border-[color:var(--app-border)] bg-[color:var(--app-surface-strong)] text-[color:var(--app-muted)] transition hover:border-orange-200 hover:bg-orange-50 hover:text-orange-600"
-                  >
-                    <span className="material-symbols-outlined text-[18px]">more_vert</span>
-                  </button>
-                  {openMenuId === location.id && (
-                    <>
-                      <div className="fixed inset-0 z-40" onClick={() => setOpenMenuId(null)} />
-                      <div className="absolute right-0 top-12 z-50 w-48 rounded-[20px] border border-[color:var(--app-border)] bg-[color:var(--app-surface-strong)] p-2 shadow-xl">
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setOpenMenuId(null)
-                            setEditingLocation(location)
-                            setLocationDraft({
-                              projectId: location.projectId,
-                              name: location.name,
-                              address: location.address,
-                              latitude: location.latitude ?? undefined,
-                              longitude: location.longitude ?? undefined,
-                              locationType: location.locationType,
-                              shootStartDate: location.shootStartDate ?? '',
-                              shootEndDate: location.shootEndDate ?? '',
-                              riskLevel: location.riskLevel,
-                              status: location.status,
-                              notes: location.notes ?? '',
-                            })
-                            setCreateMode('upload')
-                            setCreateModalOpen(true)
-                          }}
-                          className="flex w-full items-center gap-3 rounded-[12px] px-3 py-2 text-left text-sm font-medium text-zinc-900 transition hover:bg-zinc-50 dark:text-white dark:hover:bg-zinc-800"
-                        >
-                          <span className="material-symbols-outlined text-[18px]">edit</span>
-                          Edit
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setOpenMenuId(null)
-                            setDeleteTarget(location)
-                          }}
-                          className="flex w-full items-center gap-3 rounded-[12px] px-3 py-2 text-left text-sm font-medium text-red-600 transition hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-500/10"
-                        >
-                          <span className="material-symbols-outlined text-[18px]">delete</span>
-                          Delete
-                        </button>
-                      </div>
-                    </>
-                  )}
-                </div>
+                <ActionButton
+                  label="Edit"
+                  icon="edit"
+                  onClick={() => {
+                    setEditingLocation(location)
+                    setLocationDraft({
+                      projectId: location.projectId,
+                      name: location.name,
+                      address: location.address,
+                      latitude: location.latitude ?? undefined,
+                      longitude: location.longitude ?? undefined,
+                      locationType: location.locationType,
+                      shootStartDate: location.shootStartDate ?? '',
+                      shootEndDate: location.shootEndDate ?? '',
+                      riskLevel: location.riskLevel,
+                      status: location.status,
+                      notes: location.notes ?? '',
+                    })
+                    setCreateMode('upload')
+                    setCreateModalOpen(true)
+                  }}
+                />
+                <button
+                  type="button"
+                  onClick={() => setDeleteTarget(location)}
+                  className="flex h-11 w-11 items-center justify-center rounded-full border border-red-200 bg-red-50 text-red-600 transition hover:bg-red-100 dark:border-red-500/20 dark:bg-red-500/10 dark:text-red-300"
+                >
+                  <span className="material-symbols-outlined text-[18px]">delete</span>
+                </button>
               </div>
             </div>
           </Surface>
         ))}
 
-        {locationsQuery.hasNextPage && (
-          <div className="flex items-center justify-center pt-4 pb-2">
-            <ActionButton
-              label="Load More Locations"
-              icon="expand_more"
-              loading={locationsQuery.isFetchingNextPage}
-              onClick={() => locationsQuery.fetchNextPage()}
-            />
+        {locationsQuery.data?.pagination && (
+          <div className="flex items-center justify-between gap-3">
+            <p className="text-xs uppercase tracking-[0.22em] text-zinc-500 dark:text-zinc-400">
+              Page {locationsQuery.data.pagination.page} of {locationsQuery.data.pagination.totalPages}
+            </p>
+            <div className="flex gap-3">
+              <ActionButton
+                label="Previous"
+                icon="chevron_left"
+                disabled={locationPage <= 1}
+                onClick={() => setLocationPage(current => Math.max(1, current - 1))}
+              />
+              <ActionButton
+                label="Next"
+                icon="chevron_right"
+                disabled={locationPage >= locationsQuery.data.pagination.totalPages}
+                onClick={() => setLocationPage(current => Math.min(locationsQuery.data!.pagination.totalPages, current + 1))}
+              />
+            </div>
           </div>
         )}
       </div>
@@ -2329,27 +2240,16 @@ export function LocationsView() {
   return (
     <div className="min-h-screen bg-[color:var(--app-bg)] pb-10">
       <div className="mx-auto w-full max-w-7xl px-4 py-5 sm:px-6 lg:px-8">
-        <div className="flex flex-col md:flex-row items-start justify-between gap-4">
-          <div className="hidden md:block">
+        <div className="flex items-start justify-between gap-4">
+          <div>
             <p className="text-[10px] font-semibold uppercase tracking-[0.26em] text-[color:var(--app-muted)]">LOCATION</p>
             <h1 className="mt-2 text-4xl font-semibold tracking-[-0.06em] text-[color:var(--app-text)]">LOCATION</h1>
             <p className="mt-3 max-w-3xl text-sm leading-6 text-[color:var(--app-muted)]">
               Enter the module and immediately see your location list. Open a workspace only when you need to manage scouting, permissions, amenities, documents, and timeline activity for one location.
             </p>
           </div>
-          {!selectedLocationId && (
-            <div className="md:hidden w-full relative z-10 pt-2">
-              <div className="overflow-hidden rounded-[28px] border border-zinc-200/80 bg-white/88 px-4 py-4 shadow-[0_18px_40px_rgba(15,23,42,0.08)] backdrop-blur-xl dark:border-white/8 dark:bg-zinc-900/82 dark:shadow-[0_20px_44px_rgba(0,0,0,0.32)]">
-                <span className="page-kicker text-orange-500">LOCATION</span>
-                <h1 className="page-title page-title-compact mt-1 text-zinc-900 dark:text-white">LOCATION</h1>
-                <p className="page-subtitle mt-2 text-zinc-500 dark:text-zinc-400">
-                  Enter the module and immediately see your location list. Open a workspace only when you need to manage scouting, permissions, amenities, documents, and timeline activity for one location.
-                </p>
-              </div>
-            </div>
-          )}
 
-          <div className={`fixed bottom-6 right-6 z-50 md:static md:z-auto md:flex md:flex-wrap md:items-center md:gap-3 ${selectedLocationId ? 'hidden md:flex' : ''}`}>
+          <div className="flex flex-wrap items-center gap-3">
             <ActionButton
               label="New Location"
               icon="add_location"
@@ -2517,7 +2417,7 @@ export function LocationsView() {
             <Field label="Notes"><Textarea value={locationDraft.notes ?? ''} onChange={event => setLocationDraft(current => ({ ...current, notes: event.target.value }))} /></Field>
           </div>
         ) : createMode === 'menu' ? (
-          <div className="grid gap-3 sm:gap-4 md:grid-cols-3">
+          <div className="grid gap-4 md:grid-cols-3">
             <button
               type="button"
               onClick={() => {
@@ -2527,13 +2427,13 @@ export function LocationsView() {
                 setCaptureMessage('')
                 locationFileInputRef.current?.click()
               }}
-              className="group rounded-[24px] sm:rounded-[30px] border border-zinc-200 bg-zinc-50 p-4 sm:p-6 text-left transition hover:border-zinc-400 hover:bg-zinc-100 dark:border-zinc-800 dark:bg-zinc-900 dark:hover:border-zinc-600 dark:hover:bg-zinc-800"
+              className="group rounded-[30px] border border-zinc-200 bg-zinc-50 p-6 text-left transition hover:border-zinc-400 hover:bg-zinc-100 dark:border-zinc-800 dark:bg-zinc-900 dark:hover:border-zinc-600 dark:hover:bg-zinc-800"
             >
-              <div className="flex h-10 w-10 sm:h-14 sm:w-14 items-center justify-center rounded-[14px] sm:rounded-[20px] bg-zinc-800 text-white dark:bg-zinc-100 dark:text-zinc-950">
-                <span className="material-symbols-outlined text-[20px] sm:text-[28px]">photo_camera</span>
+              <div className="flex h-14 w-14 items-center justify-center rounded-[20px] bg-zinc-800 text-white dark:bg-zinc-100 dark:text-zinc-950">
+                <span className="material-symbols-outlined text-[28px]">photo_camera</span>
               </div>
-              <h3 className="mt-3 sm:mt-4 text-lg sm:text-xl font-semibold text-zinc-900 dark:text-white">Capture Location</h3>
-              <p className="mt-1 sm:mt-2 text-xs sm:text-sm leading-5 sm:leading-6 text-zinc-500 dark:text-zinc-400">Use the native camera, auto-resolve GPS, and create a location in under 15 seconds.</p>
+              <h3 className="mt-4 text-xl font-semibold text-zinc-900 dark:text-white">Capture Location</h3>
+              <p className="mt-2 text-sm leading-6 text-zinc-500 dark:text-zinc-400">Use the native camera, auto-resolve GPS, and create a location in under 15 seconds.</p>
             </button>
             <button
               type="button"
@@ -2543,13 +2443,13 @@ export function LocationsView() {
                 setNewLocationSearch('')
                 locationFileInputRef.current?.click()
               }}
-              className="group rounded-[24px] sm:rounded-[30px] border border-zinc-200 bg-zinc-50 p-4 sm:p-6 text-left transition hover:border-zinc-400 hover:bg-zinc-100 dark:border-zinc-800 dark:bg-zinc-900 dark:hover:border-zinc-600 dark:hover:bg-zinc-800"
+              className="group rounded-[30px] border border-zinc-200 bg-zinc-50 p-6 text-left transition hover:border-zinc-400 hover:bg-zinc-100 dark:border-zinc-800 dark:bg-zinc-900 dark:hover:border-zinc-600 dark:hover:bg-zinc-800"
             >
-              <div className="flex h-10 w-10 sm:h-14 sm:w-14 items-center justify-center rounded-[14px] sm:rounded-[20px] bg-zinc-800 text-white dark:bg-zinc-100 dark:text-zinc-950">
-                <span className="material-symbols-outlined text-[20px] sm:text-[28px]">upload_file</span>
+              <div className="flex h-14 w-14 items-center justify-center rounded-[20px] bg-zinc-800 text-white dark:bg-zinc-100 dark:text-zinc-950">
+                <span className="material-symbols-outlined text-[28px]">upload_file</span>
               </div>
-              <h3 className="mt-3 sm:mt-4 text-lg sm:text-xl font-semibold text-zinc-900 dark:text-white">Upload Image</h3>
-              <p className="mt-1 sm:mt-2 text-xs sm:text-sm leading-5 sm:leading-6 text-zinc-500 dark:text-zinc-400">Upload an image, search for the location, and store exact coordinates with Mapbox suggestions.</p>
+              <h3 className="mt-4 text-xl font-semibold text-zinc-900 dark:text-white">Upload Image</h3>
+              <p className="mt-2 text-sm leading-6 text-zinc-500 dark:text-zinc-400">Upload an image, search for the location, and store exact coordinates with Mapbox suggestions.</p>
             </button>
             <button
               type="button"
@@ -2563,13 +2463,13 @@ export function LocationsView() {
                 setDropResolutionState('idle')
                 setDropResolutionMessage('')
               }}
-              className="group rounded-[24px] sm:rounded-[30px] border border-zinc-200 bg-zinc-50 p-4 sm:p-6 text-left transition hover:border-zinc-400 hover:bg-zinc-100 dark:border-zinc-800 dark:bg-zinc-900 dark:hover:border-zinc-600 dark:hover:bg-zinc-800"
+              className="group rounded-[30px] border border-zinc-200 bg-zinc-50 p-6 text-left transition hover:border-zinc-400 hover:bg-zinc-100 dark:border-zinc-800 dark:bg-zinc-900 dark:hover:border-zinc-600 dark:hover:bg-zinc-800"
             >
-              <div className="flex h-10 w-10 sm:h-14 sm:w-14 items-center justify-center rounded-[14px] sm:rounded-[20px] bg-zinc-800 text-white dark:bg-zinc-100 dark:text-zinc-950">
-                <span className="material-symbols-outlined text-[20px] sm:text-[28px]">pin_drop</span>
+              <div className="flex h-14 w-14 items-center justify-center rounded-[20px] bg-zinc-800 text-white dark:bg-zinc-100 dark:text-zinc-950">
+                <span className="material-symbols-outlined text-[28px]">pin_drop</span>
               </div>
-              <h3 className="mt-3 sm:mt-4 text-lg sm:text-xl font-semibold text-zinc-900 dark:text-white">Drop Location</h3>
-              <p className="mt-1 sm:mt-2 text-xs sm:text-sm leading-5 sm:leading-6 text-zinc-500 dark:text-zinc-400">Paste a Google Maps link, Mapbox URL, coordinates, or address text. ProdSync resolves the location for you.</p>
+              <h3 className="mt-4 text-xl font-semibold text-zinc-900 dark:text-white">Drop Location</h3>
+              <p className="mt-2 text-sm leading-6 text-zinc-500 dark:text-zinc-400">Paste a Google Maps link, Mapbox URL, coordinates, or address text. ProdSync resolves the location for you.</p>
             </button>
           </div>
         ) : createMode === 'capture' ? (
@@ -2907,22 +2807,6 @@ export function LocationsView() {
           This action cannot be undone. Please confirm before continuing.
         </div>
       </ModalShell>
-
-      {/* Bottom Navigation */}
-      {selectedLocationId && (
-        <div className="md:hidden">
-          <LiquidGlassNavbar
-            ref={bottomNavRef}
-            activeTabId={selectedTab}
-            onTabChange={(id) => handleWorkspaceTabSwitch(selectedLocationId, id as WorkspaceTab)}
-            tabs={WORKSPACE_TABS.map(tab => ({
-              id: tab.id,
-              icon: tab.icon,
-              label: '', // Labels removed on mobile to save space
-            }))}
-          />
-        </div>
-      )}
     </div>
   )
 }
