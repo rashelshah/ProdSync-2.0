@@ -27,20 +27,20 @@ export function KpiCard({
   }
 
   return (
-    <Surface variant="raised" padding="md" className={cn('min-h-[148px]', className)}>
-      <div className="flex h-full flex-col justify-between gap-6">
-        <div className="flex items-start justify-between gap-4">
-          <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-[color:var(--app-muted)]">{label}</p>
+    <Surface variant="raised" padding="sm" className={cn('min-h-[108px] md:min-h-[148px] md:p-6', className)}>
+      <div className="flex h-full flex-col justify-between gap-3 md:gap-6">
+        <div className="flex items-start justify-between gap-2 md:gap-4">
+          <p className="text-[9px] md:text-[10px] font-semibold uppercase tracking-[0.22em] text-[color:var(--app-muted)] leading-tight">{label}</p>
           <span
-            className="mt-1 h-2.5 w-2.5 rounded-full bg-orange-500"
+            className="mt-1 h-2 w-2 md:h-2.5 md:w-2.5 shrink-0 rounded-full bg-orange-500"
             style={accentColor ? { backgroundColor: accentColor } : undefined}
           />
         </div>
 
         <div>
-          <p className="text-3xl font-bold tracking-[-0.05em] text-[color:var(--app-text)] sm:text-[2rem]">{value}</p>
+          <p className="text-2xl md:text-3xl font-bold tracking-[-0.05em] text-[color:var(--app-text)] sm:text-[2rem]">{value}</p>
           {subLabel && (
-            <p className={cn('mt-3 text-[11px] font-semibold uppercase tracking-[0.16em]', subColors[subType])}>
+            <p className={cn('mt-1.5 md:mt-3 text-[9px] md:text-[11px] font-semibold uppercase tracking-[0.16em] leading-tight', subColors[subType])}>
               {subLabel}
             </p>
           )}

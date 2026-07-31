@@ -61,9 +61,9 @@ const WORKSPACE_TABS: Array<{
   description: string
 }> = [
   { id: 'overview', label: 'Overview', mobileLabel: 'Overview', icon: 'dashboard', description: 'Readiness and key summary cards.' },
-  { id: 'scouting', label: 'Scouting Gallery', mobileLabel: 'Scouting Gallery', icon: 'photo_library', description: 'Location media and upload history.' },
+  { id: 'scouting', label: 'Scouting Gallery', mobileLabel: 'Scouting', icon: 'photo_library', description: 'Location media and upload history.' },
   { id: 'permissions', label: 'Permissions', mobileLabel: 'Permissions', icon: 'fact_check', description: 'Checklist-first permissions workflow.' },
-  { id: 'amenities', label: 'Nearby Amenities', mobileLabel: 'Nearby Amenities', icon: 'local_hospital', description: 'Mapbox-powered nearby essentials.' },
+  { id: 'amenities', label: 'Nearby Amenities', mobileLabel: 'Amenities', icon: 'local_hospital', description: 'Mapbox-powered nearby essentials.' },
   { id: 'documents', label: 'Documents', mobileLabel: 'Documents', icon: 'folder_open', description: 'Location documents and version history.' },
   { id: 'timeline', label: 'Timeline', mobileLabel: 'Timeline', icon: 'timeline', description: 'Audit-safe activity feed and comments.' },
 ]
@@ -1643,7 +1643,7 @@ export function LocationsView() {
                 <div className="mt-4 space-y-4">
                   <Field label="Name"><Input value={draft.name ?? ''} onChange={event => setAmenityDrafts(current => ({ ...current, [card.key]: { ...current[card.key], amenityType: card.key, name: event.target.value } }))} /></Field>
                   <Field label="Address"><Input value={draft.address ?? ''} onChange={event => setAmenityDrafts(current => ({ ...current, [card.key]: { ...current[card.key], amenityType: card.key, address: event.target.value } }))} /></Field>
-                  <div className="grid gap-4 md:grid-cols-2">
+                  <div className="grid grid-cols-2 gap-4 md:grid-cols-2">
                     <Field label="Phone"><Input value={draft.phoneNumber ?? ''} onChange={event => setAmenityDrafts(current => ({ ...current, [card.key]: { ...current[card.key], amenityType: card.key, phoneNumber: event.target.value } }))} /></Field>
                     <Field label="Distance Km"><Input type="number" step="0.01" min="0" value={draft.distanceKm ?? ''} onChange={event => setAmenityDrafts(current => ({ ...current, [card.key]: { ...current[card.key], amenityType: card.key, distanceKm: event.target.value ? Number(event.target.value) : undefined } }))} /></Field>
                   </div>
@@ -2501,7 +2501,7 @@ export function LocationsView() {
       >
         {editingLocation ? (
           <div className="space-y-5">
-            <div className="grid gap-4 md:grid-cols-2">
+            <div className="grid grid-cols-2 gap-4 md:grid-cols-2">
               <Field label="Location Label / Name" required><Input value={locationDraft.name} onChange={event => setLocationDraft(current => ({ ...current, name: event.target.value }))} /></Field>
               <Field label="Location Type" required><Select value={locationDraft.locationType} onChange={event => setLocationDraft(current => ({ ...current, locationType: event.target.value as LocationType }))}>{LOCATION_TYPES.map(type => <option key={type} value={type}>{labelize(type)}</option>)}</Select></Field>
               <Field label="Risk Level" required><Select value={locationDraft.riskLevel} onChange={event => setLocationDraft(current => ({ ...current, riskLevel: event.target.value as LocationRiskLevel }))}>{RISK_LEVELS.map(level => <option key={level} value={level}>{labelize(level)}</option>)}</Select></Field>
@@ -2510,7 +2510,7 @@ export function LocationsView() {
               <Field label="Shoot End Date"><Input type="date" min={activeProject?.startDate ?? undefined} max={activeProject?.endDate ?? undefined} value={locationDraft.shootEndDate ?? ''} onChange={event => setLocationDraft(current => ({ ...current, shootEndDate: event.target.value }))} /></Field>
             </div>
             <Field label="Address" required><Input value={locationDraft.address} onChange={event => setLocationDraft(current => ({ ...current, address: event.target.value }))} /></Field>
-            <div className="grid gap-4 md:grid-cols-2">
+            <div className="grid grid-cols-2 gap-4 md:grid-cols-2">
               <Field label="Latitude"><Input value={locationDraft.latitude ?? ''} onChange={event => setLocationDraft(current => ({ ...current, latitude: event.target.value ? Number(event.target.value) : undefined }))} /></Field>
               <Field label="Longitude"><Input value={locationDraft.longitude ?? ''} onChange={event => setLocationDraft(current => ({ ...current, longitude: event.target.value ? Number(event.target.value) : undefined }))} /></Field>
             </div>
@@ -2619,7 +2619,7 @@ export function LocationsView() {
                 </div>
               </div>
               <div className="space-y-4">
-                <div className="grid gap-4 md:grid-cols-2">
+                <div className="grid grid-cols-2 gap-4 md:grid-cols-2">
                   <Field label="Location Label / Name" required><Input value={locationDraft.name} onChange={event => setLocationDraft(current => ({ ...current, name: event.target.value }))} /></Field>
                   <Field label="Location Type" required><Select value={locationDraft.locationType} onChange={event => setLocationDraft(current => ({ ...current, locationType: event.target.value as LocationType }))}>{LOCATION_TYPES.map(type => <option key={type} value={type}>{labelize(type)}</option>)}</Select></Field>
                   <Field label="Risk Level" required><Select value={locationDraft.riskLevel} onChange={event => setLocationDraft(current => ({ ...current, riskLevel: event.target.value as LocationRiskLevel }))}>{RISK_LEVELS.map(level => <option key={level} value={level}>{labelize(level)}</option>)}</Select></Field>
@@ -2628,7 +2628,7 @@ export function LocationsView() {
                   <Field label="Status" required><Select value={locationDraft.status} onChange={event => setLocationDraft(current => ({ ...current, status: event.target.value as LocationStatus }))}><option value="draft">Draft</option><option value="recce_complete">Recce Complete</option><option value="permissions_pending">Permissions Pending</option><option value="shoot_ready">Shoot Ready</option><option value="completed">Completed</option></Select></Field>
                 </div>
                 <Field label="Resolved Address" required><Input value={locationDraft.address} readOnly /></Field>
-                <div className="grid gap-4 md:grid-cols-2">
+                <div className="grid grid-cols-2 gap-4 md:grid-cols-2">
                   <Field label="Latitude"><Input value={locationDraft.latitude ?? ''} readOnly /></Field>
                   <Field label="Longitude"><Input value={locationDraft.longitude ?? ''} readOnly /></Field>
                 </div>
@@ -2701,7 +2701,7 @@ export function LocationsView() {
                     placeholder="Search Chennai, Anna Nagar, or the exact street..."
                   />
                 </Field>
-                <div className="grid gap-4 md:grid-cols-2">
+                <div className="grid grid-cols-2 gap-4 md:grid-cols-2">
                   <Field label="Location Label / Name"><Input value={locationDraft.name} onChange={event => setLocationDraft(current => ({ ...current, name: event.target.value }))} /></Field>
                   <Field label="Location Type"><Select value={locationDraft.locationType} onChange={event => setLocationDraft(current => ({ ...current, locationType: event.target.value as LocationType }))}>{LOCATION_TYPES.map(type => <option key={type} value={type}>{labelize(type)}</option>)}</Select></Field>
                   <Field label="Risk Level"><Select value={locationDraft.riskLevel} onChange={event => setLocationDraft(current => ({ ...current, riskLevel: event.target.value as LocationRiskLevel }))}>{RISK_LEVELS.map(level => <option key={level} value={level}>{labelize(level)}</option>)}</Select></Field>
@@ -2710,7 +2710,7 @@ export function LocationsView() {
                   <Field label="Status"><Select value={locationDraft.status} onChange={event => setLocationDraft(current => ({ ...current, status: event.target.value as LocationStatus }))}><option value="draft">Draft</option><option value="recce_complete">Recce Complete</option><option value="permissions_pending">Permissions Pending</option><option value="shoot_ready">Shoot Ready</option><option value="completed">Completed</option></Select></Field>
                 </div>
                 <Field label="Resolved Address"><Input value={locationDraft.address} readOnly /></Field>
-                <div className="grid gap-4 md:grid-cols-2">
+                <div className="grid grid-cols-2 gap-4 md:grid-cols-2">
                   <Field label="Latitude"><Input value={locationDraft.latitude ?? ''} readOnly /></Field>
                   <Field label="Longitude"><Input value={locationDraft.longitude ?? ''} readOnly /></Field>
                 </div>
@@ -2766,7 +2766,7 @@ export function LocationsView() {
                     placeholder="https://maps.app.goo.gl/... or 12.9716, 77.5946 or full address"
                   />
                 </Field>
-                <div className="grid gap-4 md:grid-cols-2">
+                <div className="grid grid-cols-2 gap-4 md:grid-cols-2">
                   <Field label="Location Label / Name" required><Input value={locationDraft.name} onChange={event => setLocationDraft(current => ({ ...current, name: event.target.value }))} /></Field>
                   <Field label="Location Type" required><Select value={locationDraft.locationType} onChange={event => setLocationDraft(current => ({ ...current, locationType: event.target.value as LocationType }))}>{LOCATION_TYPES.map(type => <option key={type} value={type}>{labelize(type)}</option>)}</Select></Field>
                   <Field label="Risk Level" required><Select value={locationDraft.riskLevel} onChange={event => setLocationDraft(current => ({ ...current, riskLevel: event.target.value as LocationRiskLevel }))}>{RISK_LEVELS.map(level => <option key={level} value={level}>{labelize(level)}</option>)}</Select></Field>
@@ -2775,7 +2775,7 @@ export function LocationsView() {
                   <Field label="Status" required><Select value={locationDraft.status} onChange={event => setLocationDraft(current => ({ ...current, status: event.target.value as LocationStatus }))}><option value="draft">Draft</option><option value="recce_complete">Recce Complete</option><option value="permissions_pending">Permissions Pending</option><option value="shoot_ready">Shoot Ready</option><option value="completed">Completed</option></Select></Field>
                 </div>
                 <Field label="Resolved Address" required><Input value={locationDraft.address} readOnly /></Field>
-                <div className="grid gap-4 md:grid-cols-2">
+                <div className="grid grid-cols-2 gap-4 md:grid-cols-2">
                   <Field label="Latitude"><Input value={locationDraft.latitude ?? ''} readOnly /></Field>
                   <Field label="Longitude"><Input value={locationDraft.longitude ?? ''} readOnly /></Field>
                 </div>
@@ -2918,7 +2918,7 @@ export function LocationsView() {
             tabs={WORKSPACE_TABS.map(tab => ({
               id: tab.id,
               icon: tab.icon,
-              label: '', // Labels removed on mobile to save space
+              label: tab.mobileLabel, // Use shortened labels
             }))}
           />
         </div>

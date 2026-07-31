@@ -10,6 +10,8 @@ import { useAuthStore } from '@/features/auth/auth.store'
 import { useResolvedProjectContext } from '@/features/projects/useResolvedProjectContext'
 import { resolveErrorMessage, showError, showSuccess } from '@/lib/toast'
 import { formatCurrency, formatDate, timeAgo } from '@/utils'
+import { LiquidGlassNavbar } from '@/components/shared/LiquidGlassNavbar'
+import { useMobileScrollHide } from '@/hooks/useMobileScrollHide'
 import type { ProjectCurrency } from '@/types'
 import { foodBeveragesService } from '../service'
 import type {
@@ -28,8 +30,8 @@ const TAB_CONFIG: Array<{
   description: string
 }> = [
   { id: 'overview', label: 'Overview', mobileLabel: 'Overview', icon: 'dashboard', description: 'Daily forecast, waste, and cost snapshot.' },
-  { id: 'forecasting', label: 'Forecasting', mobileLabel: 'Forecasting', icon: 'schedule', description: 'Next-day meal counts and vendor details.' },
-  { id: 'meal-logs', label: 'Meal Logs', mobileLabel: 'Meal Logs', icon: 'restaurant', description: 'Actual consumption with linked forecast data.' },
+  { id: 'forecasting', label: 'Forecasting', mobileLabel: 'Forecast', icon: 'schedule', description: 'Next-day meal counts and vendor details.' },
+  { id: 'meal-logs', label: 'Meal Logs', mobileLabel: 'Meals', icon: 'restaurant', description: 'Actual consumption with linked forecast data.' },
   { id: 'invoices', label: 'Invoices', mobileLabel: 'Invoices', icon: 'receipt_long', description: 'Generated invoices, approvals, and PDF attachments.' },
   { id: 'analytics', label: 'Analytics', mobileLabel: 'Analytics', icon: 'analytics', description: 'Forecast coverage, waste, and cost trends.' },
   { id: 'timeline', label: 'Timeline', mobileLabel: 'Timeline', icon: 'timeline', description: 'Action history and variance alerts.' },
@@ -284,6 +286,8 @@ export function FoodBeveragesView() {
   const invoicePreviewFrameRef = useRef<HTMLIFrameElement | null>(null)
   const invoicePreviewRequestRef = useRef(0)
 
+  const { navRef: bottomNavRef, companionRef: floatingActionsRef } = useMobileScrollHide()
+
   useEffect(() => {
     if (!activeProjectId) return
     setForecastDraft(current => ({ ...current, projectId: activeProjectId }))
@@ -535,9 +539,9 @@ export function FoodBeveragesView() {
   }
 
   return (
-    <div className="min-h-screen bg-[color:var(--app-bg)] pb-10">
+    <div className="min-h-screen bg-[color:var(--app-bg)] pb-56 md:pb-10">
       <div className="mx-auto w-full max-w-7xl px-4 py-5 sm:px-6 lg:px-8">
-        <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
+        <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between hidden md:flex">
           <div className="max-w-3xl">
             <p className="text-[10px] font-semibold uppercase tracking-[0.26em] text-[color:var(--app-muted)]">Food &amp; Beverages</p>
             <h1 className="mt-2 text-4xl font-semibold tracking-[-0.06em] text-[color:var(--app-text)]">Catering control, forecasting, and cost accountability.</h1>
@@ -547,7 +551,15 @@ export function FoodBeveragesView() {
           </div>
         </div>
 
-        <Surface variant="table" padding="md" className="mt-6">
+        <div className="md:hidden w-full relative z-10 pt-2 pb-2">
+          <div className="overflow-hidden rounded-[28px] border border-zinc-200/80 bg-white/88 px-4 py-4 shadow-[0_18px_40px_rgba(15,23,42,0.08)] backdrop-blur-xl dark:border-white/8 dark:bg-zinc-900/82 dark:shadow-[0_20px_44px_rgba(0,0,0,0.32)]">
+            <span className="page-kicker text-orange-500">Food & Beverages</span>
+            <h1 className="page-title page-title-compact mt-1 text-zinc-900 dark:text-white">Catering & Costs</h1>
+            <p className="page-subtitle mt-2 text-zinc-500 dark:text-zinc-400">Manage daily forecasts, actuals, and vendor invoices.</p>
+          </div>
+        </div>
+
+        <Surface variant="table" padding="md" className="mt-6 hidden md:block">
           <div className="flex flex-col gap-4">
             <div className="flex items-center justify-between gap-4">
               <div>
@@ -566,7 +578,7 @@ export function FoodBeveragesView() {
               </button>
             </div>
 
-            <div className="hidden flex-wrap gap-2 md:flex">
+            <div className="flex flex-wrap gap-2 md:flex">
               {visibleTabConfig.map(tab => (
                 <button
                   key={tab.id}
@@ -596,7 +608,7 @@ export function FoodBeveragesView() {
 
         {selectedTab === 'overview' && canManage && (
           <div className="mt-6 space-y-6">
-            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+            <div className="grid grid-cols-2 gap-4 md:grid-cols-3">
               <KpiCard label="Today's Forecast" value={String(overviewQ.data?.todaysForecast ?? 0)} subLabel="Meals scheduled" />
               <KpiCard label="Meals Served" value={String(overviewQ.data?.mealsServed ?? 0)} subLabel="Actual consumption" />
               <KpiCard label="Variance" value={String(overviewQ.data?.variance ?? 0)} subLabel="Forecast minus served" />
@@ -650,7 +662,7 @@ export function FoodBeveragesView() {
         {selectedTab === 'forecasting' && (
           <div className="mt-6 space-y-6">
             <SectionCard title="Next-Day Forecast" subtitle="Department heads should be able to submit in under 10 seconds.">
-              <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+              <div className="grid grid-cols-2 gap-4 md:grid-cols-2 xl:grid-cols-3">
                 <Field label="Forecast Date" required>
                   <Input type="date" value={forecastDraft.forecastDate} onChange={event => setForecastDraft(current => ({ ...current, forecastDate: event.target.value }))} />
                 </Field>
@@ -664,7 +676,7 @@ export function FoodBeveragesView() {
                 </Field>
               </div>
 
-              <div className="mt-4 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+              <div className="mt-4 grid grid-cols-2 gap-4 md:grid-cols-2 xl:grid-cols-3">
                 <Field label="Vegetarian"><Input type="number" min="0" value={forecastDraft.vegCount ?? 0} onChange={event => setForecastDraft(current => ({ ...current, vegCount: Number(event.target.value) }))} /></Field>
                 <Field label="Non-Veg"><Input type="number" min="0" value={forecastDraft.nonVegCount ?? 0} onChange={event => setForecastDraft(current => ({ ...current, nonVegCount: Number(event.target.value) }))} /></Field>
                 <Field label="Egg"><Input type="number" min="0" value={forecastDraft.eggCount ?? 0} onChange={event => setForecastDraft(current => ({ ...current, eggCount: Number(event.target.value) }))} /></Field>
@@ -673,7 +685,7 @@ export function FoodBeveragesView() {
                 <Field label="Medical / Special"><Input type="number" min="0" value={forecastDraft.medicalCount ?? 0} onChange={event => setForecastDraft(current => ({ ...current, medicalCount: Number(event.target.value) }))} /></Field>
               </div>
 
-              <div className="mt-4 grid gap-4 md:grid-cols-2">
+              <div className="mt-4 grid grid-cols-2 gap-4 md:grid-cols-2">
                 <Field label="Vendor Name"><Input value={forecastDraft.vendorName ?? ''} onChange={event => setForecastDraft(current => ({ ...current, vendorName: event.target.value }))} /></Field>
                 <Field label="Vendor Contact Number"><Input value={forecastDraft.vendorContactNumber ?? ''} onChange={event => setForecastDraft(current => ({ ...current, vendorContactNumber: event.target.value }))} /></Field>
               </div>
@@ -682,7 +694,7 @@ export function FoodBeveragesView() {
                 <Field label="Notes" hint="Optional context for catering and production management.">
                   <Textarea rows={3} value={forecastDraft.notes ?? ''} onChange={event => setForecastDraft(current => ({ ...current, notes: event.target.value }))} />
                 </Field>
-                <div className="flex items-end">
+                <div className="hidden md:flex items-end">
                   <ActionButton
                     label="Submit Forecast"
                     icon="send"
@@ -716,51 +728,77 @@ export function FoodBeveragesView() {
                 </div>
               </div>
 
-              <div className="mt-4 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-                <Surface variant="muted" padding="md">
+              <div className="mt-4 grid grid-cols-2 gap-3 md:gap-4 xl:grid-cols-4">
+                <Surface variant="muted" padding="sm" className="md:p-4">
                   <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-zinc-500 dark:text-zinc-400">Crew Count</p>
-                  <p className="mt-2 text-2xl font-semibold text-zinc-900 dark:text-white">{forecastCrewCount}</p>
+                  <p className="mt-1 md:mt-2 text-xl md:text-2xl font-semibold text-zinc-900 dark:text-white">{forecastCrewCount}</p>
                 </Surface>
-                <Surface variant="muted" padding="md">
+                <Surface variant="muted" padding="sm" className="md:p-4">
                   <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-zinc-500 dark:text-zinc-400">Dietary Total</p>
-                  <p className={`mt-2 text-2xl font-semibold ${forecastOverflow > 0 ? 'text-red-500' : 'text-zinc-900 dark:text-white'}`}>{forecastDietaryTotal}</p>
+                  <p className={`mt-1 md:mt-2 text-xl md:text-2xl font-semibold ${forecastOverflow > 0 ? 'text-red-500' : 'text-zinc-900 dark:text-white'}`}>{forecastDietaryTotal}</p>
                 </Surface>
-                <Surface variant="muted" padding="md">
+                <Surface variant="muted" padding="sm" className="md:p-4">
                   <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-zinc-500 dark:text-zinc-400">Remaining</p>
-                  <p className="mt-2 text-2xl font-semibold text-zinc-900 dark:text-white">{forecastRemaining}</p>
+                  <p className="mt-1 md:mt-2 text-xl md:text-2xl font-semibold text-zinc-900 dark:text-white">{forecastRemaining}</p>
                 </Surface>
-                <Surface variant="muted" padding="md">
+                <Surface variant="muted" padding="sm" className="md:p-4">
                   <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-zinc-500 dark:text-zinc-400">Validation</p>
-                  <p className={`mt-2 text-sm font-semibold ${forecastOverflow > 0 ? 'text-red-500' : 'text-emerald-500'}`}>{forecastOverflow > 0 ? `${forecastOverflow} over limit` : 'Within crew count'}</p>
+                  <p className={`mt-1 md:mt-2 text-xs md:text-sm font-semibold ${forecastOverflow > 0 ? 'text-red-500' : 'text-emerald-500'}`}>{forecastOverflow > 0 ? `${forecastOverflow} over limit` : 'Within crew count'}</p>
                 </Surface>
               </div>
             </SectionCard>
 
             <SectionCard title="Forecast Ledger" subtitle="Submitted forecasts and estimated fallback values for the next meal cycle.">
               {forecastRows.length ? (
-                <div className="overflow-hidden rounded-[26px] border border-zinc-200 dark:border-zinc-800">
-                  <div className="grid grid-cols-12 bg-zinc-50 px-4 py-3 text-[10px] font-semibold uppercase tracking-[0.18em] text-zinc-500 dark:bg-zinc-900 dark:text-zinc-400">
-                    <div className="col-span-3">Department</div>
-                    <div className="col-span-2">Date</div>
-                    <div className="col-span-2">Crew</div>
-                    <div className="col-span-2">Period</div>
-                    <div className="col-span-3">Status</div>
-                  </div>
-                  <div className="divide-y divide-zinc-200 dark:divide-zinc-800">
-                    {forecastRows.map(row => (
-                      <div key={row.id} className="grid grid-cols-12 gap-2 px-4 py-4 text-sm">
-                        <div className="col-span-3 font-medium text-zinc-900 dark:text-white">{labelize(row.department)}</div>
-                        <div className="col-span-2 text-zinc-500 dark:text-zinc-400">{formatDate(row.forecastDate)}</div>
-                        <div className="col-span-2 text-zinc-900 dark:text-white">{row.expectedCrewCount ?? row.mealCount}</div>
-                        <div className="col-span-2 text-zinc-500 dark:text-zinc-400">{mealPeriodLabel(row.mealPeriod)}</div>
-                        <div className="col-span-3 flex flex-wrap items-center gap-2">
-                          <StatusBadge variant={row.isEstimated ? 'warning' : 'approved'} label={row.isEstimated ? 'Estimated' : 'Submitted'} />
-                          <span className="text-xs uppercase tracking-[0.16em] text-zinc-500 dark:text-zinc-400">{row.submittedByName ?? 'System'}</span>
+                <>
+                  <div className="hidden md:block overflow-hidden rounded-[26px] border border-zinc-200 dark:border-zinc-800">
+                    <div className="grid grid-cols-12 bg-zinc-50 px-4 py-3 text-[10px] font-semibold uppercase tracking-[0.18em] text-zinc-500 dark:bg-zinc-900 dark:text-zinc-400">
+                      <div className="col-span-3">Department</div>
+                      <div className="col-span-2">Date</div>
+                      <div className="col-span-2">Crew</div>
+                      <div className="col-span-2">Period</div>
+                      <div className="col-span-3">Status</div>
+                    </div>
+                    <div className="divide-y divide-zinc-200 dark:divide-zinc-800">
+                      {forecastRows.map(row => (
+                        <div key={row.id} className="grid grid-cols-12 gap-2 px-4 py-4 text-sm">
+                          <div className="col-span-3 font-medium text-zinc-900 dark:text-white">{labelize(row.department)}</div>
+                          <div className="col-span-2 text-zinc-500 dark:text-zinc-400">{formatDate(row.forecastDate)}</div>
+                          <div className="col-span-2 text-zinc-900 dark:text-white">{row.expectedCrewCount ?? row.mealCount}</div>
+                          <div className="col-span-2 text-zinc-500 dark:text-zinc-400">{mealPeriodLabel(row.mealPeriod)}</div>
+                          <div className="col-span-3 flex flex-wrap items-center gap-2">
+                            <StatusBadge variant={row.isEstimated ? 'warning' : 'approved'} label={row.isEstimated ? 'Estimated' : 'Submitted'} />
+                            <span className="text-xs uppercase tracking-[0.16em] text-zinc-500 dark:text-zinc-400">{row.submittedByName ?? 'System'}</span>
+                          </div>
                         </div>
-                      </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="md:hidden grid grid-cols-2 gap-3">
+                    {forecastRows.map(row => (
+                      <Surface key={row.id} variant="muted" padding="sm" className="md:p-4">
+                        <div className="flex flex-col gap-2">
+                          <div className="flex flex-col gap-1.5 items-start justify-between">
+                            <span className="font-semibold text-zinc-900 dark:text-white">{labelize(row.department)}</span>
+                            <StatusBadge variant={row.isEstimated ? 'warning' : 'approved'} label={row.isEstimated ? 'Estimated' : 'Submitted'} />
+                          </div>
+                          <div className="flex flex-col gap-1 items-start justify-between text-xs text-zinc-500 dark:text-zinc-400 mt-1">
+                            <span>{formatDate(row.forecastDate)}</span>
+                            <span>{mealPeriodLabel(row.mealPeriod)}</span>
+                          </div>
+                          <div className="mt-2 flex items-center justify-between border-t border-zinc-200 pt-2 dark:border-zinc-800">
+                            <span className="text-[9px] uppercase tracking-[0.16em] text-zinc-500">Crew/By</span>
+                            <div className="flex flex-col items-end gap-0.5">
+                              <span className="font-medium text-sm text-zinc-900 dark:text-white">{row.expectedCrewCount ?? row.mealCount}</span>
+                              <span className="text-[9px] uppercase text-zinc-400">{row.submittedByName ?? 'System'}</span>
+                            </div>
+                          </div>
+                        </div>
+                      </Surface>
                     ))}
                   </div>
-                </div>
+                </>
               ) : (
                 <EmptyState icon="schedule" title="No forecasts yet" description="The next forecast will appear here once it is submitted or estimated." />
               )}
@@ -771,7 +809,7 @@ export function FoodBeveragesView() {
         {selectedTab === 'meal-logs' && canManage && (
           <div className="mt-6 space-y-6">
             <SectionCard title="Meal Log Entry" subtitle="Record what was actually served and how much was wasted.">
-              <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+              <div className="grid grid-cols-2 gap-4 md:grid-cols-2 xl:grid-cols-4">
                 <Field label="Meal Date" required><Input type="date" value={mealDraft.mealDate} onChange={event => setMealDraft(current => ({ ...current, mealDate: event.target.value }))} /></Field>
                 <Field label="Department" required><Select value={mealDraft.department} onChange={event => setMealDraft(current => ({ ...current, department: event.target.value }))}>{DEPARTMENT_OPTIONS.map(option => <option key={option} value={option}>{labelize(option)}</option>)}</Select></Field>
                 <Field label="Meal Period" required><Select value={mealDraft.mealPeriod} onChange={event => setMealDraft(current => ({ ...current, mealPeriod: event.target.value as FoodBeverageMealLogInput['mealPeriod'] }))}>{MEAL_PERIOD_OPTIONS.map(option => <option key={option} value={option}>{mealPeriodLabel(option)}</option>)}</Select></Field>
@@ -796,23 +834,23 @@ export function FoodBeveragesView() {
               </div>
 
               {selectedMealForecast && (
-                <Surface variant="muted" padding="md" className="mt-4">
-                  <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+                <Surface variant="muted" padding="sm" className="md:p-4 mt-4">
+                  <div className="grid grid-cols-2 gap-3 md:gap-4 xl:grid-cols-4">
                     <div>
                       <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-zinc-500 dark:text-zinc-400">Forecast Date</p>
-                      <p className="mt-2 text-sm font-semibold text-zinc-900 dark:text-white">{formatDate(selectedMealForecast.forecastDate)}</p>
+                      <p className="mt-1 md:mt-2 text-sm font-semibold text-zinc-900 dark:text-white">{formatDate(selectedMealForecast.forecastDate)}</p>
                     </div>
                     <div>
                       <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-zinc-500 dark:text-zinc-400">Crew Count</p>
-                      <p className="mt-2 text-sm font-semibold text-zinc-900 dark:text-white">{selectedMealForecast.expectedCrewCount ?? selectedMealForecast.mealCount}</p>
+                      <p className="mt-1 md:mt-2 text-sm font-semibold text-zinc-900 dark:text-white">{selectedMealForecast.expectedCrewCount ?? selectedMealForecast.mealCount}</p>
                     </div>
                     <div>
                       <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-zinc-500 dark:text-zinc-400">Vendor</p>
-                      <p className="mt-2 text-sm font-semibold text-zinc-900 dark:text-white">{selectedMealForecast.vendorName ?? 'No vendor linked'}</p>
+                      <p className="mt-1 md:mt-2 text-sm font-semibold text-zinc-900 dark:text-white">{selectedMealForecast.vendorName ?? 'No vendor linked'}</p>
                     </div>
                     <div>
                       <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-zinc-500 dark:text-zinc-400">Contact</p>
-                      <p className="mt-2 text-sm font-semibold text-zinc-900 dark:text-white">{selectedMealForecast.vendorContactNumber ?? 'Unavailable'}</p>
+                      <p className="mt-1 md:mt-2 text-sm font-semibold text-zinc-900 dark:text-white">{selectedMealForecast.vendorContactNumber ?? 'Unavailable'}</p>
                     </div>
                   </div>
                 </Surface>
@@ -822,7 +860,7 @@ export function FoodBeveragesView() {
                 <Field label="Expense Notes">
                   <Textarea rows={3} value={mealDraft.expenseNotes ?? ''} onChange={event => setMealDraft(current => ({ ...current, expenseNotes: event.target.value }))} />
                 </Field>
-                <div className="flex items-end">
+                <div className="hidden md:flex items-end">
                   <ActionButton
                     label="Save Meal Log"
                     icon="save"
@@ -886,7 +924,7 @@ export function FoodBeveragesView() {
         {selectedTab === 'invoices' && canManage && (
           <div className="mt-6 space-y-6">
             <SectionCard title="Generated Invoices" subtitle="Meal logs automatically create draft invoices that can be reviewed, approved, rejected, exported, or updated with a PDF attachment.">
-              <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+              <div className="grid grid-cols-2 gap-4 md:grid-cols-2 xl:grid-cols-4">
                 <Field label="Meal Log">
                   <Select
                     value={invoiceDraft.mealLogId ?? ''}
@@ -943,7 +981,7 @@ export function FoodBeveragesView() {
                 <Field label="Notes">
                   <Textarea rows={3} value={invoiceDraft.notes ?? ''} onChange={event => setInvoiceDraft(current => ({ ...current, notes: event.target.value }))} />
                 </Field>
-                <div className="flex items-end">
+                <div className="hidden md:flex items-end">
                   <ActionButton
                     label={invoiceEditingId ? 'Update Invoice' : 'Submit Invoice'}
                     icon={invoiceEditingId ? 'save' : 'send'}
@@ -1163,7 +1201,7 @@ export function FoodBeveragesView() {
 
         {selectedTab === 'analytics' && canManage && (
           <div className="mt-6 space-y-6">
-            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+            <div className="grid grid-cols-2 gap-4 md:grid-cols-3">
               <KpiCard label="Coverage Submitted" value={String(analyticsQ.data?.forecastCoverage.submitted ?? 0)} subLabel="Forecast rows" />
               <KpiCard label="Estimated Rows" value={String(analyticsQ.data?.forecastCoverage.estimated ?? 0)} subLabel="Fallback values" />
               <KpiCard label="Forecast Accuracy" value={`${analyticsQ.data?.forecastAccuracy.averageVariancePercent?.toFixed(1) ?? '0.0'}%`} subLabel="Average variance" />
@@ -1349,6 +1387,127 @@ export function FoodBeveragesView() {
             </div>
           </div>
         )}
+      </div>
+
+      {/* Mobile Sticky Actions */}
+      <div ref={floatingActionsRef} className="fixed bottom-[88px] left-1/2 w-[calc(100vw-1.5rem)] max-w-sm -translate-x-1/2 z-40 md:hidden transition-transform duration-300">
+        {(selectedTab === 'forecasting' || (selectedTab === 'meal-logs' && canManage) || (selectedTab === 'invoices' && canManage)) && (
+          <div className="bg-[#111111] border border-[#222222] rounded-[32px] p-2.5 shadow-[0_20px_40px_rgba(0,0,0,0.5)]">
+            {selectedTab === 'forecasting' && (
+              <button
+                disabled={forecastOverflow > 0 || createForecastMutation.isPending}
+                onClick={() => {
+                  if (!forecastDraft.forecastDate.trim() || !forecastDraft.department.trim() || !Number.isFinite(forecastCrewCount) || forecastCrewCount <= 0) {
+                    showError('Please fill the required fields before submitting the forecast.')
+                    return
+                  }
+                  if (forecastOverflow > 0) {
+                    showError('Dietary counts must not exceed the expected crew count.')
+                    return
+                  }
+                  createForecastMutation.mutate({
+                    ...forecastDraft,
+                    projectId: activeProjectId,
+                    expectedCrewCount: forecastCrewCount,
+                    vegCount: Number(forecastDraft.vegCount) || 0,
+                    nonVegCount: Number(forecastDraft.nonVegCount) || 0,
+                    eggCount: Number(forecastDraft.eggCount) || 0,
+                    jainCount: Number(forecastDraft.jainCount) || 0,
+                    veganCount: Number(forecastDraft.veganCount) || 0,
+                    medicalCount: Number(forecastDraft.medicalCount) || 0,
+                    vendorName: forecastDraft.vendorName?.trim() || undefined,
+                    vendorContactNumber: forecastDraft.vendorContactNumber?.trim() || undefined,
+                    notes: forecastDraft.notes?.trim() || undefined,
+                  })
+                }}
+                className="w-full flex items-center justify-center rounded-[24px] bg-orange-500 py-3 font-bold text-zinc-950 transition active:scale-95 disabled:opacity-60 disabled:cursor-not-allowed"
+              >
+                {createForecastMutation.isPending ? <LoadingDots /> : <span className="material-symbols-outlined mr-2 text-[20px]">send</span>}
+                SUBMIT FORECAST
+              </button>
+            )}
+            {selectedTab === 'meal-logs' && canManage && (
+              <button
+                disabled={createMealLogMutation.isPending}
+                onClick={() => {
+                  const actualPeopleServed = Number(mealDraft.actualPeopleServed)
+                  if (!mealDraft.mealDate.trim() || !mealDraft.department.trim() || !mealDraft.mealPeriod || !Number.isFinite(actualPeopleServed) || actualPeopleServed <= 0) {
+                    showError('Please fill the required fields before saving the meal log.')
+                    return
+                  }
+                  createMealLogMutation.mutate({
+                    ...mealDraft,
+                    projectId: activeProjectId,
+                    mealDate: mealDraft.mealDate,
+                    department: mealDraft.department,
+                    mealPeriod: mealDraft.mealPeriod,
+                    forecastId: mealDraft.forecastId ?? null,
+                    forecastCount: Number(mealDraft.forecastCount) || 0,
+                    actualPeopleServed: Number(mealDraft.actualPeopleServed) || 0,
+                    mealsServed: Number(mealDraft.actualPeopleServed) || 0,
+                    unusedPlates: Number(mealDraft.unusedPlates) || 0,
+                    wasteCount: Number(mealDraft.wastedMeals) || 0,
+                    wastedMeals: Number(mealDraft.wastedMeals) || 0,
+                    plateCost: Number(mealDraft.plateCost) || 0,
+                    extraExpense: Number(mealDraft.extraExpense) || 0,
+                    expenseNotes: mealDraft.expenseNotes?.trim() || undefined,
+                    notes: mealDraft.notes?.trim() || undefined,
+                  })
+                }}
+                className="w-full flex items-center justify-center rounded-[24px] bg-orange-500 py-3 font-bold text-zinc-950 transition active:scale-95 disabled:opacity-60 disabled:cursor-not-allowed"
+              >
+                {createMealLogMutation.isPending ? <LoadingDots /> : <span className="material-symbols-outlined mr-2 text-[20px]">save</span>}
+                SAVE MEAL LOG
+              </button>
+            )}
+            {selectedTab === 'invoices' && canManage && (
+              <button
+                disabled={createInvoiceMutation.isPending}
+                onClick={() => {
+                  const amount = Number(invoiceDraft.amount)
+                  if (!invoiceDraft.invoiceNumber.trim() || !invoiceDraft.invoiceDate.trim() || !Number.isFinite(amount) || amount < 0) {
+                    showError('Please fill the required fields before submitting the invoice.')
+                    return
+                  }
+                  createInvoiceMutation.mutate({
+                    invoiceId: invoiceEditingId,
+                    file: selectedInvoiceFile,
+                    payload: {
+                      ...invoiceDraft,
+                      projectId: activeProjectId,
+                      mealLogId: invoiceDraft.mealLogId || undefined,
+                      forecastId: invoiceDraft.forecastId || undefined,
+                      vendorId: invoiceDraft.vendorId || undefined,
+                      vendorName: invoiceDraft.vendorName?.trim() || undefined,
+                      vendorContactNumber: invoiceDraft.vendorContactNumber?.trim() || undefined,
+                      department: invoiceDraft.department?.trim() || undefined,
+                      notes: invoiceDraft.notes?.trim() || undefined,
+                      expenseNotes: invoiceDraft.expenseNotes?.trim() || undefined,
+                      currencyCode: (invoiceDraft.currencyCode ?? 'INR').toUpperCase(),
+                    },
+                  })
+                }}
+                className="w-full flex items-center justify-center rounded-[24px] bg-orange-500 py-3 font-bold text-zinc-950 transition active:scale-95 disabled:opacity-60 disabled:cursor-not-allowed"
+              >
+                {createInvoiceMutation.isPending ? <LoadingDots /> : <span className="material-symbols-outlined mr-2 text-[20px]">{invoiceEditingId ? 'save' : 'send'}</span>}
+                {invoiceEditingId ? 'UPDATE INVOICE' : 'SUBMIT INVOICE'}
+              </button>
+            )}
+          </div>
+        )}
+      </div>
+
+      <div className="md:hidden">
+        <LiquidGlassNavbar
+          ref={bottomNavRef}
+          activeTabId={selectedTab}
+          onTabChange={(id) => handleTabSwitch(id as FoodBeveragesTabId)}
+          tabs={visibleTabConfig.map(tab => ({
+            id: tab.id,
+            icon: tab.icon,
+            label: tab.label
+          }))}
+        />
       </div>
 
       <SectionSelectorSheet

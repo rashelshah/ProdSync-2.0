@@ -43,7 +43,7 @@ export const LiquidGlassNavbar = forwardRef<HTMLElement, LiquidGlassNavbarProps>
         </defs>
       </svg>
 
-      <nav ref={forwardedRef} className="fixed bottom-6 left-1/2 z-40 w-[calc(100vw-3rem)] max-w-sm -translate-x-1/2 pointer-events-auto transition-transform duration-300 ease-[cubic-bezier(0.22,1,0.36,1)]">
+      <nav ref={forwardedRef} className="fixed bottom-6 left-1/2 z-40 w-[calc(100vw-1.5rem)] max-w-sm -translate-x-1/2 pointer-events-auto transition-transform duration-300 ease-[cubic-bezier(0.22,1,0.36,1)]">
         <div 
           ref={localNavRef}
           className="relative flex items-center h-[4.5rem] rounded-[2.25rem] bg-white/70 backdrop-blur-2xl shadow-[0_12px_40px_rgba(0,0,0,0.08)] border border-white/60 dark:bg-zinc-900/70 dark:border-white/10 dark:shadow-[0_12px_40px_rgba(0,0,0,0.3)]"
@@ -71,9 +71,10 @@ export const LiquidGlassNavbar = forwardRef<HTMLElement, LiquidGlassNavbarProps>
           </div>
 
           {/* Foreground Layer with Icons (no blur) */}
-          <div className="relative z-10 flex w-full h-full items-center justify-between px-2">
+          <div className="relative z-10 flex w-full h-full items-center justify-between px-1">
             {tabs.map((tab, index) => {
               const isActive = index === activeIndex
+              const isCrowded = tabs.length > 5
 
               return (
                 <button
@@ -85,10 +86,19 @@ export const LiquidGlassNavbar = forwardRef<HTMLElement, LiquidGlassNavbarProps>
                     isActive ? 'text-black dark:text-zinc-900' : 'text-zinc-500 dark:text-zinc-400'
                   )}
                 >
-                  <span className="material-symbols-outlined text-[24px] shrink-0" style={isActive ? { fontVariationSettings: "'FILL' 1" } : {}}>
+                  <span 
+                    className={cn(
+                      "material-symbols-outlined shrink-0", 
+                      isCrowded ? "text-[20px]" : "text-[24px]"
+                    )} 
+                    style={isActive ? { fontVariationSettings: "'FILL' 1" } : {}}
+                  >
                     {tab.icon}
                   </span>
-                  <span className="text-[9px] font-bold tracking-wide uppercase mt-0.5 px-0.5 w-full truncate text-center">
+                  <span className={cn(
+                    "font-bold uppercase mt-0.5 px-0.5 w-full truncate text-center",
+                    isCrowded ? "text-[8px] tracking-tight" : "text-[9px] tracking-wide"
+                  )}>
                     {tab.label}
                   </span>
                 </button>
