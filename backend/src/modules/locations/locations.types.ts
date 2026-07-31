@@ -101,6 +101,14 @@ export interface LocationDocumentRecord {
   uploadedBy: string | null
   uploadedByName: string | null
   createdAt: string
+  metadata: {
+    permissionId?: string | null
+    permissionName?: string | null
+    projectId?: string | null
+    locationId?: string | null
+    uploadSource?: string | null
+    permissionDeletedAt?: string | null
+  } | null
 }
 
 export interface LocationPermissionRecord {
@@ -117,6 +125,8 @@ export interface LocationPermissionRecord {
   notes: string | null
   createdAt: string
   updatedAt: string
+  deletedAt: string | null
+  deletedBy: string | null
 }
 
 export interface LocationAmenityRecord {

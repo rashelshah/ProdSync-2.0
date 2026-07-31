@@ -491,6 +491,7 @@ export function LocationsView() {
   const [searchParams, setSearchParams] = useSearchParams()
 
   const selectedLocationId = searchParams.get('locationId')
+  const selectedPermissionId = searchParams.get('permissionId')
   const workspaceTab = workspaceTabFromValue(searchParams.get('tab'))
   const { navRef: bottomNavRef } = useMobileScrollHide()
 
@@ -761,7 +762,7 @@ export function LocationsView() {
   const documentsQuery = useQuery<PaginatedLocationDocuments>({
     queryKey: ['location-documents', activeProjectId, selectedLocationId],
     queryFn: () => locationsService.getDocuments(activeProjectId!, selectedLocationId!, 1, 18),
-    enabled: Boolean(activeProjectId && selectedLocationId && selectedTab === 'documents'),
+    enabled: Boolean(activeProjectId && selectedLocationId && (selectedTab === 'documents' || selectedTab === 'permissions')),
     staleTime: 10_000,
   })
 
@@ -785,6 +786,26 @@ export function LocationsView() {
   })
 
   selectedDetailData = selectedDetailQuery.data ?? null
+
+  useEffect(() => {
+    if (!selectedPermissionId || selectedTab !== 'permissions' || !selectedDetailData) return
+
+    for (const item of PERMISSION_CHECKLIST) {
+      const permission = selectedDetailData.permissions.find(candidate => {
+        if (item.permissionType !== 'custom') {
+          return candidate.permissionType === item.permissionType
+        }
+
+        return candidate.permissionType === 'custom' && normalizeLabel(candidate.label) === normalizeLabel(item.label)
+      })
+
+      if (permission?.id === selectedPermissionId) {
+        setOpenPermissionId(item.key)
+        return
+      }
+    }
+  }, [selectedDetailData, selectedPermissionId, selectedTab])
+
   const selectedLocation = selectedDetailData?.location ?? null
   const locations = locationsQuery.data?.pages.flatMap(page => page.data) ?? []
 
@@ -1379,6 +1400,7 @@ export function LocationsView() {
 
               return permission.permissionType === 'custom' && normalizeLabel(permission.label) === normalizeLabel(item.label)
             }) ?? null
+            const attachedDocuments = documentsQuery.data?.data.filter(document => document.permissionId === existing?.id) ?? []
 
             if (!draft) return null
 
@@ -1400,15 +1422,15 @@ export function LocationsView() {
                         </span>
                         <div>
                           <p className="text-sm font-semibold text-zinc-900 dark:text-white">{item.label}</p>
-                          <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">{existing ? 'Tracked and editable' : 'Not started yet'}</p>
+                          <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">{existing ? (existing.deletedAt ? 'Linked record retained for documents' : 'Tracked and editable') : 'Not started yet'}</p>
                         </div>
                       </div>
                       <span className="material-symbols-outlined md:hidden text-[color:var(--app-muted)] transition-transform duration-200" style={{ transform: openPermissionId === item.key ? 'rotate(180deg)' : 'none' }}>
                         keyboard_arrow_down
                       </span>
-                      {existing && <div className="hidden md:block"><StatusBadge variant={permissionStatusVariant(existing.status)} label={labelize(existing.status)} /></div>}
+                      {existing && <div className="hidden md:block"><StatusBadge variant={existing.deletedAt ? 'flagged' : permissionStatusVariant(existing.status)} label={existing.deletedAt ? 'Deleted' : labelize(existing.status)} /></div>}
                     </div>
-                    {existing && <div className="mt-3 md:hidden"><StatusBadge variant={permissionStatusVariant(existing.status)} label={labelize(existing.status)} /></div>}
+                    {existing && <div className="mt-3 md:hidden"><StatusBadge variant={existing.deletedAt ? 'flagged' : permissionStatusVariant(existing.status)} label={existing.deletedAt ? 'Deleted' : labelize(existing.status)} /></div>}
                     <p className="mt-3 text-sm text-zinc-500 dark:text-zinc-400">Due date, assigned person, notes, and attachments are all handled here without leaving the location workspace.</p>
                   </div>
                   <div className={`flex flex-wrap gap-3 ${openPermissionId === item.key ? 'flex' : 'hidden'} md:flex`}>
@@ -1421,11 +1443,16 @@ export function LocationsView() {
                         setSearchParams(params => {
                           params.set('locationId', selectedLocation.id)
                           params.set('tab', 'documents')
+                          if (existing?.id) {
+                            params.set('permissionId', existing.id)
+                          } else {
+                            params.delete('permissionId')
+                          }
                           return params
                         })
                       }}
                     />
-                    {existing && (
+                    {existing && !existing.deletedAt && (
                       <ActionButton
                         label="Delete"
                         icon="delete"
@@ -1504,11 +1531,11 @@ export function LocationsView() {
                     <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-zinc-500 dark:text-zinc-400">Attachment Hint</p>
                     <p className="mt-2 text-sm leading-6 text-zinc-500 dark:text-zinc-400">Use Documents to attach the actual PDF or scan. The button above opens the upload flow already linked to this permission.</p>
                     <div className="mt-4 flex justify-end">
-                    <ActionButton
-                      label={existing ? 'Save Changes' : 'Create Item'}
-                      icon="save"
-                      loading={existing ? updatePermissionMutation.isPending : createPermissionMutation.isPending}
-                      onClick={() => {
+                      <ActionButton
+                        label={existing ? 'Save Changes' : 'Create Item'}
+                        icon="save"
+                        loading={existing ? updatePermissionMutation.isPending : createPermissionMutation.isPending}
+                        onClick={() => {
                           if (!selectedLocationId || !activeProjectId) return
                           const values: CreateLocationPermissionInput = {
                             projectId: activeProjectId,
@@ -1538,6 +1565,31 @@ export function LocationsView() {
                         }}
                       />
                     </div>
+                    {existing && attachedDocuments.length > 0 && (
+                      <div className="mt-4 space-y-2 rounded-[24px] border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-950">
+                        <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-zinc-500 dark:text-zinc-400">Attached Documents</p>
+                        {attachedDocuments.map(document => (
+                          <button
+                            key={document.id}
+                            type="button"
+                            className="flex w-full items-center justify-between gap-3 rounded-2xl border border-zinc-200 bg-zinc-50 px-4 py-3 text-left text-sm text-zinc-900 transition hover:border-orange-200 hover:bg-orange-50 dark:border-zinc-800 dark:bg-zinc-900 dark:text-white dark:hover:border-orange-500/30 dark:hover:bg-orange-500/10"
+                            onClick={() => {
+                              setSearchParams(params => {
+                                params.set('locationId', selectedLocation.id)
+                                params.set('tab', 'documents')
+                                if (document.permissionId) {
+                                  params.set('permissionId', document.permissionId)
+                                }
+                                return params
+                              })
+                            }}
+                          >
+                            <span className="truncate">{document.originalName}</span>
+                            <span className="material-symbols-outlined text-[16px] text-[color:var(--app-muted)]">open_in_new</span>
+                          </button>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>
@@ -1759,7 +1811,7 @@ export function LocationsView() {
           <Field label="Permission Link">
             <Select value={uploadPermissionId} onChange={event => setUploadPermissionId(event.target.value)}>
               <option value="">No linked permission</option>
-              {selectedDetailData?.permissions.map(permission => (
+              {selectedDetailData?.permissions.filter(permission => !permission.deletedAt).map(permission => (
                 <option key={permission.id} value={permission.id}>{permission.label}</option>
               ))}
             </Select>
@@ -1831,7 +1883,35 @@ export function LocationsView() {
                       <div className="flex flex-wrap items-center gap-3">
                         <p className="truncate text-sm font-semibold text-zinc-900 dark:text-white">{document.originalName}</p>
                         <StatusBadge variant="stable" label={`v${version}`} />
-                        {document.permissionId && <StatusBadge variant="approved" label="Linked" />}
+                        {(() => {
+                          const linkedPermission = document.permissionId
+                            ? selectedDetailData?.permissions.find(permission => permission.id === document.permissionId) ?? null
+                            : null
+                          const linkedPermissionName = linkedPermission?.label ?? document.metadata?.permissionName ?? 'Linked Permission'
+                          const linkedPermissionDeleted = Boolean(document.permissionId) && (!linkedPermission || Boolean(linkedPermission.deletedAt))
+
+                          return document.permissionId ? (
+                            <div className="flex flex-wrap items-center gap-2">
+                              <StatusBadge variant={linkedPermissionDeleted ? 'flagged' : 'approved'} label={linkedPermissionDeleted ? "Linked Permission Deleted" : "Linked Permission"} />
+                              <button
+                                type="button"
+                                className="text-xs font-semibold uppercase tracking-[0.14em] text-orange-600 transition hover:text-orange-700 dark:text-orange-300 dark:hover:text-orange-200"
+                                onClick={() => {
+                                  setSearchParams(params => {
+                                    params.set('locationId', selectedLocation.id)
+                                    params.set('tab', 'permissions')
+                                    if (document.permissionId) {
+                                      params.set('permissionId', document.permissionId)
+                                    }
+                                    return params
+                                  })
+                                }}
+                              >
+                                Permission: {linkedPermissionName}
+                              </button>
+                            </div>
+                          ) : null
+                        })()}
                       </div>
                       <p className="mt-2 text-xs text-zinc-500 dark:text-zinc-400">
                         {document.category} · {document.uploadedByName ?? 'ProdSync User'} · {formatDate(document.createdAt)}

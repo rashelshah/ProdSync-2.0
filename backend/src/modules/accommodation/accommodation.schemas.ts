@@ -7,7 +7,7 @@ export const accommodationProjectQuerySchema = z.object({
 })
 
 export const hotelCreateSchema = z.object({
-  projectId: uuidSchema.optional(),
+  projectId: uuidSchema,
   hotelName: z.string().trim().min(2).max(160),
   address: z.string().trim().min(3).max(300),
   city: z.string().trim().min(2).max(120),
@@ -17,7 +17,9 @@ export const hotelCreateSchema = z.object({
   longitude: z.coerce.number().min(-180).max(180).optional(),
 })
 
-export const hotelUpdateSchema = hotelCreateSchema.partial()
+export const hotelUpdateSchema = hotelCreateSchema.partial().extend({
+  projectId: uuidSchema,
+})
 
 export const allocationCreateSchema = z.object({
   projectId: uuidSchema,

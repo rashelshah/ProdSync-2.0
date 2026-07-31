@@ -1359,7 +1359,7 @@ function CrewDepartmentCard({
             <button type="button" className="btn-ghost px-3" onClick={onToggle}>
               {expanded ? 'Collapse' : 'Expand'}
             </button>
-            <button type="button" className="btn-ghost px-3 text-red-500 dark:text-red-300" onClick={onDeleteDepartment}>Delete</button>
+            <button type="button" className="btn-danger px-3" onClick={onDeleteDepartment}>Delete</button>
           </div>
         </div>
       </div>
@@ -1478,8 +1478,8 @@ function CrewRoleRow({
         <input className="project-modal-control" value={role.notes} onChange={event => onChange({ notes: event.target.value })} placeholder="Optional notes" />
       </PlanningCell>
       <div className="flex flex-wrap gap-2">
-        <button type="button" className="btn-soft px-3" onClick={onDuplicate}>Copy</button>
-        <button type="button" className="btn-ghost px-3" onClick={onRemove}>Remove</button>
+        <button type="button" className="btn-duplicate px-3" onClick={onDuplicate}>Duplicate</button>
+        <button type="button" className="btn-danger px-3" onClick={onRemove}>Remove</button>
       </div>
     </div>
   )
@@ -1528,8 +1528,14 @@ function CastStep({ rows, setRows, currency }: { rows: CastRow[]; setRows: React
                 <span className="mt-1 block">{formatCurrency(castRowTotal(row), currency)}</span>
               </div>
               <div className="flex flex-wrap gap-2">
-                <button type="button" className="btn-soft px-3" onClick={() => setRows(cur => [...cur, { ...row, id: crypto.randomUUID() }])}>Copy</button>
-                <button type="button" className="btn-ghost px-3" onClick={() => setRows(cur => cur.filter(item => item.id !== row.id))}>Remove</button>
+                <button type="button" className="btn-duplicate px-3" onClick={() => setRows(cur => {
+                  const index = cur.findIndex(item => item.id === row.id)
+                  if (index < 0) return cur
+                  const next = [...cur]
+                  next.splice(index + 1, 0, { ...row, id: crypto.randomUUID() })
+                  return next
+                })}>Duplicate</button>
+                <button type="button" className="btn-danger px-3" onClick={() => setRows(cur => cur.filter(item => item.id !== row.id))}>Remove</button>
               </div>
             </div>
           ))}
@@ -1978,7 +1984,7 @@ function ExpenseDepartmentCard({
             <button type="button" className="btn-ghost px-3" onClick={onToggle}>
               {expanded ? 'Collapse' : 'Expand'}
             </button>
-            <button type="button" className="btn-ghost px-3 text-red-500 dark:text-red-300" onClick={onDeleteDepartment}>Delete</button>
+            <button type="button" className="btn-danger px-3" onClick={onDeleteDepartment}>Delete</button>
           </div>
         </div>
       </div>
@@ -2111,8 +2117,8 @@ function ExpenseItemRow({
         <input className="project-modal-control" value={item.notes} onChange={event => onChange({ notes: event.target.value })} placeholder="Optional notes" />
       </PlanningCell>
       <div className="flex flex-wrap gap-2">
-        <button type="button" className="btn-soft px-3" onClick={onDuplicate}>Copy</button>
-        <button type="button" className="btn-ghost px-3" onClick={onRemove}>Remove</button>
+        <button type="button" className="btn-duplicate px-3" onClick={onDuplicate}>Duplicate</button>
+        <button type="button" className="btn-danger px-3" onClick={onRemove}>Remove</button>
       </div>
     </div>
   )

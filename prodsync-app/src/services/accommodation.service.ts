@@ -16,9 +16,8 @@ function withProjectId(projectId: string) {
 }
 
 export const accommodationService = {
-  async getHotels(projectId?: string | null): Promise<AccommodationHotel[]> {
-    const query = projectId ? `?${withProjectId(projectId)}` : ''
-    const response = await apiFetch(`/accommodation/hotels${query}`)
+  async getHotels(projectId: string): Promise<AccommodationHotel[]> {
+    const response = await apiFetch(`/accommodation/hotels?${withProjectId(projectId)}`)
     const payload = await readApiJson<{ hotels: AccommodationHotel[] }>(response)
     return payload.hotels ?? []
   },

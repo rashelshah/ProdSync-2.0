@@ -49,6 +49,14 @@ function isMissingRelationError(error: unknown, relationName?: string) {
       && (!relationName || message.includes(relationName.toLowerCase())))
 }
 
+function isMissingColumnError(error: unknown, columnName?: string) {
+  const message = errorMessage(error)
+  return errorCode(error) === '42703'
+    || (((message.includes('column') && message.includes('does not exist'))
+      || message.includes('not found in the schema cache'))
+      && (!columnName || message.includes(columnName.toLowerCase())))
+}
+
 function asString(value: unknown) {
   return typeof value === 'string' && value.trim().length > 0 ? value : null
 }
@@ -113,6 +121,7 @@ function buildAlert(type: AlertType, message: string, timestamp: string) {
 function mapHotelRow(row: DbRow) {
   return {
     id: String(row.id ?? ''),
+    projectId: asString(row.project_id) ?? '',
     hotelName: asString(row.hotel_name) ?? '',
     address: asString(row.address) ?? '',
     city: asString(row.city) ?? '',
@@ -293,30 +302,45 @@ async function ensureNoFallbackConflicts(store: AccommodationMetadataStore, proj
   }
 }
 
-export async function listHotels(projectId?: string | null): Promise<HotelRecord[]> {
+export async function listHotels(projectId: string): Promise<HotelRecord[]> {
   const { data, error } = await adminClient
     .from('hotels')
-    .select('id, hotel_name, address, city, contact_person, contact_number, latitude, longitude, created_at')
+    .select('id, project_id, hotel_name, address, city, contact_person, contact_number, latitude, longitude, created_at')
+    .eq('project_id', projectId)
     .order('hotel_name', { ascending: true })
 
   if (error) {
-    if (isMissingRelationError(error, 'hotels') && projectId) {
+    if (isMissingRelationError(error, 'hotels') || isMissingColumnError(error, 'project_id')) {
       const { store } = await getProjectMetadataStore(projectId)
-      return store.hotels.map(mapHotelRow).sort((left, right) => left.hotelName.localeCompare(right.hotelName))
-    }
-    if (isMissingRelationError(error, 'hotels')) {
-      return []
+      return store.hotels
+        .map(mapHotelRow)
+        .filter(row => !row.projectId || row.projectId === projectId)
+        .sort((left, right) => left.hotelName.localeCompare(right.hotelName))
     }
     throw error
   }
 
-  return ((data ?? []) as DbRow[]).map(mapHotelRow)
+  const rows = ((data ?? []) as DbRow[]).map(mapHotelRow)
+  if (rows.length === 0) {
+    const { store } = await getProjectMetadataStore(projectId)
+    const fallbackHotels = store.hotels
+      .map(mapHotelRow)
+      .filter(row => !row.projectId || row.projectId === projectId)
+      .sort((left, right) => left.hotelName.localeCompare(right.hotelName))
+
+    if (fallbackHotels.length > 0) {
+      return fallbackHotels
+    }
+  }
+
+  return rows
 }
 
 export async function createHotel(input: HotelCreateInput) {
   const insertion = await adminClient
     .from('hotels')
     .insert({
+      project_id: input.projectId,
       hotel_name: input.hotelName,
       address: input.address,
       city: input.city,
@@ -325,17 +349,18 @@ export async function createHotel(input: HotelCreateInput) {
       latitude: input.latitude ?? null,
       longitude: input.longitude ?? null,
     })
-    .select('id, hotel_name, address, city, contact_person, contact_number, latitude, longitude, created_at')
+    .select('id, project_id, hotel_name, address, city, contact_person, contact_number, latitude, longitude, created_at')
     .single()
 
   if (insertion.error) {
-    if (!isMissingRelationError(insertion.error, 'hotels') || !input.projectId) {
+    if (!isMissingRelationError(insertion.error, 'hotels') && !isMissingColumnError(insertion.error, 'project_id')) {
       throw insertion.error
     }
 
     const { metadata, store } = await getProjectMetadataStore(input.projectId)
     const hotelRow: DbRow = {
       id: randomUUID(),
+      project_id: input.projectId,
       hotel_name: input.hotelName,
       address: input.address,
       city: input.city,
@@ -357,6 +382,7 @@ export async function updateHotel(id: string, input: HotelUpdateInput) {
   const updateQuery = await adminClient
     .from('hotels')
     .update({
+      project_id: input.projectId,
       hotel_name: input.hotelName,
       address: input.address,
       city: input.city,
@@ -365,17 +391,18 @@ export async function updateHotel(id: string, input: HotelUpdateInput) {
       latitude: input.latitude,
       longitude: input.longitude,
     })
+    .eq('project_id', input.projectId)
     .eq('id', id)
-    .select('id, hotel_name, address, city, contact_person, contact_number, latitude, longitude, created_at')
+    .select('id, project_id, hotel_name, address, city, contact_person, contact_number, latitude, longitude, created_at')
     .maybeSingle()
 
   if (updateQuery.error) {
-    if (!isMissingRelationError(updateQuery.error, 'hotels') || !input.projectId) {
+    if (!isMissingRelationError(updateQuery.error, 'hotels') && !isMissingColumnError(updateQuery.error, 'project_id')) {
       throw updateQuery.error
     }
 
     const { metadata, store } = await getProjectMetadataStore(input.projectId)
-    const hotelIndex = store.hotels.findIndex(row => String(row.id ?? '') === id)
+    const hotelIndex = store.hotels.findIndex(row => String(row.id ?? '') === id && (!asString(row.project_id) || String(row.project_id ?? '') === input.projectId))
     if (hotelIndex < 0) {
       throw new HttpError(404, 'Hotel not found.')
     }
@@ -383,6 +410,7 @@ export async function updateHotel(id: string, input: HotelUpdateInput) {
     const current = store.hotels[hotelIndex]
     store.hotels[hotelIndex] = {
       ...current,
+      project_id: input.projectId,
       hotel_name: input.hotelName ?? current.hotel_name,
       address: input.address ?? current.address,
       city: input.city ?? current.city,

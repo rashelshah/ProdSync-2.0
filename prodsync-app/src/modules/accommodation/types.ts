@@ -1,5 +1,6 @@
 export interface AccommodationHotel {
   id: string
+  projectId: string
   hotelName: string
   address: string
   city: string
@@ -11,15 +12,19 @@ export interface AccommodationHotel {
 }
 
 export interface CreateAccommodationHotelInput {
-  projectId?: string
+  projectId: string
   hotelName: string
   address: string
   city: string
   contactPerson?: string
   contactNumber?: string
+  latitude?: number
+  longitude?: number
 }
 
-export interface UpdateAccommodationHotelInput extends Partial<CreateAccommodationHotelInput> {}
+export interface UpdateAccommodationHotelInput extends Partial<Omit<CreateAccommodationHotelInput, 'projectId'>> {
+  projectId: string
+}
 
 export interface HotelAllocation {
   id: string

@@ -4,7 +4,7 @@ import { accommodationService } from '@/services/accommodation.service'
 export function useAccommodationData(projectId: string | null) {
   const hotelsQ = useQuery({
     queryKey: ['accommodation-hotels', projectId],
-    queryFn: () => accommodationService.getHotels(projectId),
+    queryFn: () => accommodationService.getHotels(projectId!),
     staleTime: 15_000,
     enabled: Boolean(projectId),
   })

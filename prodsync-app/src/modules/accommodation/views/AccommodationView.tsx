@@ -404,7 +404,7 @@ export function AccommodationView() {
 
   const refreshAccommodation = async () => {
     await Promise.all([
-      queryClient.invalidateQueries({ queryKey: ['accommodation-hotels'] }),
+      queryClient.invalidateQueries({ queryKey: ['accommodation-hotels', activeProjectId] }),
       queryClient.invalidateQueries({ queryKey: ['accommodation-allocations', activeProjectId] }),
       queryClient.invalidateQueries({ queryKey: ['accommodation-reminders', activeProjectId] }),
       queryClient.invalidateQueries({ queryKey: ['accommodation-travel-sync', activeProjectId] }),
@@ -607,8 +607,10 @@ export function AccommodationView() {
   }
 
   function handleHotelSubmit() {
+    if (!activeProjectId) return
+
     const payload = {
-      projectId: activeProjectId ?? undefined,
+      projectId: activeProjectId,
       hotelName: hotelForm.hotelName.trim(),
       address: hotelForm.address.trim(),
       city: hotelForm.city.trim(),

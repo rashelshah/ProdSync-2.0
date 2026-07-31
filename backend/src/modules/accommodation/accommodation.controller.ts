@@ -13,9 +13,9 @@ import {
   updateHotel,
 } from './accommodation.service'
 
-export async function getHotelsController(_req: Request, res: Response) {
-  const projectId = typeof _req.query.projectId === 'string' ? _req.query.projectId : null
-  const hotels = await listHotels(projectId)
+export async function getHotelsController(req: Request, res: Response) {
+  const query = accommodationProjectQuerySchema.parse(req.query)
+  const hotels = await listHotels(query.projectId)
   res.json({ hotels })
 }
 

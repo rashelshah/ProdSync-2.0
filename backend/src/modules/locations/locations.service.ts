@@ -364,6 +364,8 @@ function mapPermissionRow(row: DbRow): LocationPermissionRecord {
     notes: asString(row.notes),
     createdAt: asIsoTimestamp(row.created_at),
     updatedAt: asIsoTimestamp(row.updated_at),
+    deletedAt: asString(row.deleted_at) ? asIsoTimestamp(row.deleted_at) : null,
+    deletedBy: asString(row.deleted_by),
   }
 }
 
@@ -448,6 +450,7 @@ function mapDocumentRow(row: DbRow, userNames: Map<string, string>): LocationDoc
     uploadedBy,
     uploadedByName: uploadedBy ? (userNames.get(uploadedBy) ?? 'ProdSync User') : null,
     createdAt: asIsoTimestamp(row.created_at),
+    metadata: asObject(row.metadata) as LocationDocumentRecord['metadata'],
   }
 }
 
@@ -517,7 +520,7 @@ async function loadLocationMetrics(projectId: string, locationIds: string[]) {
   const [mediaRows, documentRows, permissionRows, commentRows, costRows] = await Promise.all([
     adminClient.from('location_media').select('location_id').eq('project_id', projectId).in('location_id', locationIds),
     adminClient.from('location_documents').select('location_id').eq('project_id', projectId).in('location_id', locationIds),
-    adminClient.from('location_permissions').select('location_id, status, expiry_date').eq('project_id', projectId).in('location_id', locationIds),
+    adminClient.from('location_permissions').select('location_id, status, expiry_date, deleted_at').eq('project_id', projectId).in('location_id', locationIds),
     adminClient.from('location_comments').select('location_id').eq('project_id', projectId).in('location_id', locationIds),
     adminClient.from('location_costs').select('location_id, amount').eq('project_id', projectId).in('location_id', locationIds),
   ])
@@ -543,8 +546,9 @@ async function loadLocationMetrics(projectId: string, locationIds: string[]) {
     const locationId = String(row.location_id ?? '')
     const entry = metrics.get(locationId)
     if (!entry) continue
-    entry.permissionCount += 1
     const permission = mapPermissionRow(row)
+    if (permission.deletedAt) continue
+    entry.permissionCount += 1
     if (permission.status === 'approved') {
       entry.approvedPermissionCount += 1
     }
@@ -662,7 +666,7 @@ async function syncLocationReadiness(projectId: string, locationId: string, acto
   const [locationRow, mediaRows, permissionRows, amenityRows, documentRows, readinessCurrent] = await Promise.all([
     ensureLocation(projectId, locationId),
     adminClient.from('location_media').select('id').eq('project_id', projectId).eq('location_id', locationId),
-    adminClient.from('location_permissions').select('id, status, expiry_date').eq('project_id', projectId).eq('location_id', locationId),
+    adminClient.from('location_permissions').select('id, status, expiry_date, deleted_at').eq('project_id', projectId).eq('location_id', locationId),
     adminClient.from('location_amenities').select('amenity_type').eq('project_id', projectId).eq('location_id', locationId),
     adminClient.from('location_documents').select('id').eq('project_id', projectId).eq('location_id', locationId),
     adminClient.from('location_shoot_readiness').select('*').eq('project_id', projectId).eq('location_id', locationId).maybeSingle(),
@@ -673,9 +677,10 @@ async function syncLocationReadiness(projectId: string, locationId: string, acto
   }
 
   const permissionRecords = ((permissionRows.data ?? []) as DbRow[]).map(mapPermissionRow)
+  const activePermissionRecords = permissionRecords.filter(permission => !permission.deletedAt)
   const amenityTypes = new Set(((amenityRows.data ?? []) as DbRow[]).map(row => asString(row.amenity_type)).filter(Boolean))
   const recceComplete = ((mediaRows.data ?? []) as DbRow[]).length > 0 || (asString(locationRow.status) ?? 'draft') !== 'draft'
-  const permissionsComplete = permissionRecords.length > 0 && permissionRecords.every(permission => permission.status === 'approved')
+  const permissionsComplete = activePermissionRecords.length > 0 && activePermissionRecords.every(permission => permission.status === 'approved')
   const amenitiesAdded = amenityTypes.has('hospital') && amenityTypes.has('police_station') && amenityTypes.has('petrol_bunk')
   const documentsUploaded = ((documentRows.data ?? []) as DbRow[]).length > 0
   const nextReadiness = deriveReadinessState({ recceComplete, permissionsComplete, amenitiesAdded, documentsUploaded })
@@ -1171,6 +1176,29 @@ export async function uploadLocationDocument(projectId: string, locationId: stri
   const { extension, signatureKind } = validateUploadedFile(file, 'document')
   const saved = saveUploadedFile(file, 'documents')
 
+  let linkedPermission: DbRow | null = null
+  if (input.permissionId) {
+    const { data: permissionData, error: permissionError } = await adminClient
+      .from('location_permissions')
+      .select('id, project_id, location_id, permission_type, custom_label, authority_name, authority_contact, status, issue_date, expiry_date, notes, deleted_at, deleted_by, metadata, created_at, updated_at')
+      .eq('project_id', projectId)
+      .eq('location_id', locationId)
+      .eq('id', input.permissionId)
+      .maybeSingle()
+
+    if (permissionError) {
+      deleteStoredUpload(saved.storagePath)
+      throw permissionError
+    }
+
+    if (!permissionData) {
+      deleteStoredUpload(saved.storagePath)
+      throw new HttpError(404, 'Permission entry not found.')
+    }
+
+    linkedPermission = permissionData as DbRow
+  }
+
   const { data, error } = await adminClient
     .from('location_documents')
     .insert({
@@ -1189,6 +1217,12 @@ export async function uploadLocationDocument(projectId: string, locationId: stri
       uploaded_by: actorUserId,
       metadata: {
         signatureKind,
+        permissionId: linkedPermission ? String(linkedPermission.id ?? '') : null,
+        permissionName: linkedPermission ? formatPermissionLabel(linkedPermission) : null,
+        projectId,
+        locationId,
+        uploadSource: linkedPermission ? 'permission_record' : 'documents_tab',
+        permissionDeletedAt: linkedPermission && asString(linkedPermission.deleted_at) ? asIsoTimestamp(linkedPermission.deleted_at) : null,
       },
     })
     .select('*')
@@ -1443,7 +1477,11 @@ export async function deleteLocationPermission(projectId: string, locationId: st
 
   const deleteResult = await adminClient
     .from('location_permissions')
-    .delete()
+    .update({
+      deleted_at: new Date().toISOString(),
+      deleted_by: actorUserId,
+      updated_by: actorUserId,
+    })
     .eq('project_id', projectId)
     .eq('location_id', locationId)
     .eq('id', permissionId)
@@ -1770,7 +1808,7 @@ export async function deleteLocationCost(projectId: string, locationId: string, 
 export async function getLocationsDashboard(projectId: string): Promise<LocationDashboardRecord> {
   const [locationsResult, permissionsResult, recentTimelineResult] = await Promise.all([
     adminClient.from('locations').select('id, status').eq('project_id', projectId),
-    adminClient.from('location_permissions').select('id, location_id, status, expiry_date').eq('project_id', projectId),
+    adminClient.from('location_permissions').select('id, location_id, status, expiry_date, deleted_at').eq('project_id', projectId),
     adminClient.from('location_timeline').select('*').eq('project_id', projectId).order('event_at', { ascending: false }).limit(6),
   ])
 
@@ -1779,7 +1817,7 @@ export async function getLocationsDashboard(projectId: string): Promise<Location
   }
 
   const locations = (locationsResult.data ?? []) as DbRow[]
-  const permissions = ((permissionsResult.data ?? []) as DbRow[]).map(mapPermissionRow)
+  const permissions = ((permissionsResult.data ?? []) as DbRow[]).map(mapPermissionRow).filter(permission => !permission.deletedAt)
   const readinessMap = await loadReadinessMap(projectId, locations.map(row => String(row.id ?? '')))
   const recentRows = (recentTimelineResult.data ?? []) as DbRow[]
   const userNames = await getUserNameMap(recentRows.map(row => asString(row.created_by)))
