@@ -17,9 +17,25 @@ import type {
   CreateActorPaymentInput,
   CreateJuniorArtistLogInput,
 } from '@/modules/actors/types'
+import { LiquidGlassNavbar } from '@/components/shared/LiquidGlassNavbar'
 import { actorsService } from '@/services/actors.service'
 import { projectsService } from '@/services/projects.service'
-import { formatCurrency, formatDate } from '@/utils'
+import { cn, formatCurrency, formatDate } from '@/utils'
+
+type WorkspaceTab = 'overview' | 'juniors' | 'call-sheets' | 'payments' | 'looks'
+
+const WORKSPACE_TABS: Array<{
+  id: WorkspaceTab
+  label: string
+  mobileLabel: string
+  icon: string
+}> = [
+  { id: 'overview', label: 'Overview', mobileLabel: 'Overview', icon: 'dashboard' },
+  { id: 'juniors', label: 'Junior Artists', mobileLabel: 'Juniors', icon: 'groups' },
+  { id: 'call-sheets', label: 'Call Sheets', mobileLabel: 'Call Sheets', icon: 'event_note' },
+  { id: 'payments', label: 'Payments', mobileLabel: 'Payments', icon: 'payments' },
+  { id: 'looks', label: 'Look Tests', mobileLabel: 'Looks', icon: 'image' },
+]
 
 function SectionHeader({ title, subtitle }: { title: string; subtitle: string }) {
   return (
@@ -32,9 +48,9 @@ function SectionHeader({ title, subtitle }: { title: string; subtitle: string })
 
 function PanelStat({ label, value }: { label: string; value: string }) {
   return (
-    <Surface variant="muted" className="min-h-[120px]" padding="md">
-      <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-zinc-500 dark:text-zinc-400">{label}</p>
-      <p className="mt-4 text-3xl font-semibold text-zinc-900 dark:text-white">{value}</p>
+    <Surface variant="muted" className="min-h-[100px] md:min-h-[120px] flex flex-col justify-center" padding="sm">
+      <p className="text-[9px] md:text-[11px] font-semibold uppercase tracking-[0.22em] text-zinc-500 dark:text-zinc-400 line-clamp-1">{label}</p>
+      <p className="mt-2 md:mt-4 text-2xl md:text-3xl font-semibold text-zinc-900 dark:text-white truncate">{value}</p>
     </Surface>
   )
 }
@@ -122,6 +138,7 @@ export function ActorsView() {
     staleTime: 30_000,
   })
   const canManageActors = canManageActorsOperations(user)
+  const [selectedTab, setSelectedTab] = useState<WorkspaceTab>('overview')
   const [lookActorFilter, setLookActorFilter] = useState('')
   const [lookCharacterFilter, setLookCharacterFilter] = useState('')
 
@@ -399,7 +416,7 @@ export function ActorsView() {
   }
 
   return (
-    <div className="page-shell max-md:pt-16">
+    <div className="page-shell max-md:pt-16 max-md:pb-64">
       {planningQ.data?.sections.find(section => section.sectionType === 'cast_planning')?.payload?.estimatedCast ? (
         <Surface variant="warning" padding="md">
           <p className="text-sm font-semibold text-zinc-900 dark:text-white">Planning estimated {Number(planningQ.data.sections.find(section => section.sectionType === 'cast_planning')?.payload?.estimatedCast ?? 0)} cast and artist entries.</p>
@@ -407,7 +424,7 @@ export function ActorsView() {
         </Surface>
       ) : null}
 
-      <header className="page-header">
+      <header className="page-header hidden md:block">
         <div>
           <span className="page-kicker">Department Workspace</span>
           <h1 className="page-title mt-1">Actor & Juniors</h1>
@@ -417,41 +434,52 @@ export function ActorsView() {
         </div>
       </header>
 
-      <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+      <div className="md:hidden w-full relative z-10 pt-2 pb-2">
+        <div className="overflow-hidden rounded-[28px] border border-zinc-200/80 bg-white/88 px-4 py-4 shadow-[0_18px_40px_rgba(15,23,42,0.08)] backdrop-blur-xl dark:border-white/8 dark:bg-zinc-900/82 dark:shadow-[0_20px_44px_rgba(0,0,0,0.32)]">
+          <span className="page-kicker text-orange-500">Actor & Juniors</span>
+          <h1 className="page-title page-title-compact mt-1 text-zinc-900 dark:text-white">Cast & Crew</h1>
+          <p className="page-subtitle mt-2 text-zinc-500 dark:text-zinc-400">Manage junior artist supply, actor call sheets, batta, and look continuity.</p>
+        </div>
+      </div>
+
+      <section className={cn("grid grid-cols-2 gap-3 md:gap-4 xl:grid-cols-4", selectedTab !== 'overview' && 'hidden md:grid')}>
         <PanelStat label="Junior Spend" value={formatCurrency(totals.juniorCost, activeProject?.currency ?? 'INR')} />
         <PanelStat label="Pending Batta" value={String(totals.pendingBatta)} />
         <PanelStat label="Look Tests" value={String(totals.lookCount)} />
         <PanelStat label="Call Sheet Days" value={String(totals.callSheetDays)} />
       </section>
 
-      <Surface variant="raised" className="mt-6" padding="lg">
-        <SectionHeader title="Alerts" subtitle="Dynamic issues based on upcoming shoots, pending batta, and missing look continuity." />
-        {alerts.length === 0 ? (
-          <EmptyState icon="notifications" title="No actor alerts" description="Everything currently required for Actor & Juniors is in place." />
-        ) : (
-          <div className="space-y-3">
-            {alerts.map((alert, index) => (
-              <div
-                key={`${alert.timestamp}-${index}`}
-                className={`rounded-[22px] border px-4 py-4 ${
-                  alert.type === 'critical'
-                    ? 'border-red-200 bg-red-50/70 dark:border-red-500/20 dark:bg-red-500/10'
-                    : 'border-orange-200 bg-orange-50/70 dark:border-orange-500/20 dark:bg-orange-500/10'
-                }`}
-              >
-                <div className="flex items-center justify-between gap-4">
-                  <p className="text-sm font-semibold text-zinc-900 dark:text-white">{alert.message}</p>
-                  <span className="text-[11px] font-semibold uppercase tracking-[0.2em] text-zinc-500 dark:text-zinc-400">{alert.type}</span>
+      <div className={cn(selectedTab === 'overview' ? 'block' : 'hidden md:block')}>
+        <Surface variant="raised" className="mt-6" padding="lg">
+          <SectionHeader title="Alerts" subtitle="Dynamic issues based on upcoming shoots, pending batta, and missing look continuity." />
+          {alerts.length === 0 ? (
+            <EmptyState icon="notifications" title="No actor alerts" description="Everything currently required for Actor & Juniors is in place." />
+          ) : (
+            <div className="space-y-3">
+              {alerts.map((alert, index) => (
+                <div
+                  key={`${alert.timestamp}-${index}`}
+                  className={`rounded-[22px] border px-4 py-4 ${
+                    alert.type === 'critical'
+                      ? 'border-red-200 bg-red-50/70 dark:border-red-500/20 dark:bg-red-500/10'
+                      : 'border-orange-200 bg-orange-50/70 dark:border-orange-500/20 dark:bg-orange-500/10'
+                  }`}
+                >
+                  <div className="flex items-center justify-between gap-4">
+                    <p className="text-sm font-semibold text-zinc-900 dark:text-white">{alert.message}</p>
+                    <span className="text-[11px] font-semibold uppercase tracking-[0.2em] text-zinc-500 dark:text-zinc-400">{alert.type}</span>
+                  </div>
+                  <p className="mt-2 text-xs text-zinc-500 dark:text-zinc-400">{formatDate(alert.timestamp)}</p>
                 </div>
-                <p className="mt-2 text-xs text-zinc-500 dark:text-zinc-400">{formatDate(alert.timestamp)}</p>
-              </div>
-            ))}
-          </div>
-        )}
-      </Surface>
+              ))}
+            </div>
+          )}
+        </Surface>
+      </div>
 
       <div className="mt-6 grid gap-6 xl:grid-cols-2">
-        <Surface variant="raised" padding="lg">
+        <div className={cn(selectedTab === 'juniors' ? 'block' : 'hidden md:block')}>
+          <Surface variant="raised" padding="lg" className="h-auto md:h-full">
           <SectionHeader title="Junior Artist Bulk Management" subtitle="Track daily junior artist supply and auto-calculate total cost per agent." />
           <div className="grid gap-3 md:grid-cols-2">
             <input type="date" value={juniorForm.shootDate} onChange={event => setJuniorForm(current => ({ ...current, projectId: activeProjectId, shootDate: event.target.value }))} className={fieldClassName} />
@@ -486,8 +514,8 @@ export function ActorsView() {
             <p>Enter how many junior artists the agent supplied for that shoot day.</p>
             <p>Enter the payment amount for one artist for that day.</p>
           </div>
-          <div className="mt-4 flex items-center justify-between gap-4">
-            <p className="text-sm text-zinc-500 dark:text-zinc-400">
+          <div className="mt-4 flex flex-col md:flex-row items-center justify-between gap-4 md:static md:w-auto md:bg-transparent md:dark:bg-transparent md:p-0 fixed bottom-[110px] left-1/2 md:left-auto -translate-x-1/2 md:translate-x-0 w-[calc(100vw-3rem)] max-w-sm md:max-w-none z-30 md:z-auto bg-white/90 dark:bg-zinc-900/90 backdrop-blur-md md:backdrop-blur-none p-4 rounded-3xl md:rounded-none shadow-[0_12px_40px_rgba(0,0,0,0.12)] border border-zinc-200/60 dark:border-white/10 md:shadow-none md:border-none">
+            <p className="text-sm font-semibold md:font-normal text-zinc-900 dark:text-white md:text-zinc-500 md:dark:text-zinc-400 w-full text-center md:text-left">
               Total cost: {formatCurrency((juniorForm.numberOfArtists || 0) * (juniorForm.ratePerArtist || 0), activeProject?.currency ?? 'INR')}
             </p>
             <button
@@ -511,7 +539,7 @@ export function ActorsView() {
                 createJuniorMutation.mutate({ ...juniorForm, projectId: activeProjectId })
               }}
               disabled={createJuniorMutation.isPending || !canManageActors}
-              className="btn-primary"
+              className="btn-primary w-full md:w-auto"
             >
               Add Entry
             </button>
@@ -541,9 +569,11 @@ export function ActorsView() {
             )}
           </div>
         </Surface>
+        </div>
 
-        <Surface variant="raised" padding="lg">
-          <SectionHeader title="Call Sheet Generation" subtitle="Create production-aware actor and crew call sheets grouped by shoot date." />
+        <div className={cn(selectedTab === 'call-sheets' ? 'block' : 'hidden md:block')}>
+          <Surface variant="raised" padding="lg" className="h-auto md:h-full">
+            <SectionHeader title="Call Sheet Generation" subtitle="Create production-aware actor and crew call sheets grouped by shoot date." />
           <div className="grid gap-3 md:grid-cols-2">
             <input
               type="date"
@@ -632,7 +662,7 @@ export function ActorsView() {
               Add Assignee
             </button>
           </div>
-          <div className="mt-4 flex justify-end">
+          <div className="mt-4 flex flex-col md:flex-row items-center justify-end gap-4 md:static md:w-auto md:bg-transparent md:dark:bg-transparent md:p-0 fixed bottom-[110px] left-1/2 md:left-auto -translate-x-1/2 md:translate-x-0 w-[calc(100vw-3rem)] max-w-sm md:max-w-none z-30 md:z-auto bg-white/90 dark:bg-zinc-900/90 backdrop-blur-md md:backdrop-blur-none p-4 rounded-3xl md:rounded-none shadow-[0_12px_40px_rgba(0,0,0,0.12)] border border-zinc-200/60 dark:border-white/10 md:shadow-none md:border-none">
             <button
               onClick={() => {
                 if (!canManageActors) {
@@ -666,7 +696,7 @@ export function ActorsView() {
                 })
               }}
               disabled={createCallSheetMutation.isPending || projectLocations.length === 0 || !canManageActors}
-              className="btn-primary"
+              className="btn-primary w-full md:w-auto"
             >
               Create Call Sheet
             </button>
@@ -697,11 +727,13 @@ export function ActorsView() {
             )}
           </div>
         </Surface>
+        </div>
       </div>
 
       <div className="mt-6 grid gap-6 xl:grid-cols-2">
-        <Surface variant="raised" padding="lg">
-          <SectionHeader title="Batta & Payment Tracking" subtitle="Track batta separately from remuneration and update payout status inline." />
+        <div className={cn(selectedTab === 'payments' ? 'block' : 'hidden md:block')}>
+          <Surface variant="raised" padding="lg" className="h-auto md:h-full">
+            <SectionHeader title="Batta & Payment Tracking" subtitle="Track batta separately from remuneration and update payout status inline." />
           <div className="grid gap-3 md:grid-cols-2">
             <input type="text" value={paymentForm.actorName} onChange={event => setPaymentForm(current => ({ ...current, projectId: activeProjectId, actorName: event.target.value }))} placeholder="Actor name" className={fieldClassName} />
             <select value={paymentForm.paymentType} onChange={event => setPaymentForm(current => ({ ...current, projectId: activeProjectId, paymentType: event.target.value as CreateActorPaymentInput['paymentType'] }))} className={fieldClassName}>
@@ -734,7 +766,7 @@ export function ActorsView() {
             <p>Enter the total batta or remuneration amount to be paid.</p>
             <p>Select the date when this payment is due or was paid.</p>
           </div>
-          <div className="mt-4 flex justify-end">
+          <div className="mt-4 flex flex-col md:flex-row items-center justify-end gap-4 md:static md:w-auto md:bg-transparent md:dark:bg-transparent md:p-0 fixed bottom-[110px] left-1/2 md:left-auto -translate-x-1/2 md:translate-x-0 w-[calc(100vw-3rem)] max-w-sm md:max-w-none z-30 md:z-auto bg-white/90 dark:bg-zinc-900/90 backdrop-blur-md md:backdrop-blur-none p-4 rounded-3xl md:rounded-none shadow-[0_12px_40px_rgba(0,0,0,0.12)] border border-zinc-200/60 dark:border-white/10 md:shadow-none md:border-none">
             <button
               onClick={() => {
                 if (!canManageActors) {
@@ -752,7 +784,7 @@ export function ActorsView() {
                 createPaymentMutation.mutate({ ...paymentForm, projectId: activeProjectId })
               }}
               disabled={createPaymentMutation.isPending || !canManageActors}
-              className="btn-primary"
+              className="btn-primary w-full md:w-auto"
             >
               Add Payment
             </button>
@@ -761,7 +793,8 @@ export function ActorsView() {
             {payments.length === 0 ? (
               <EmptyState icon="payments" title="No actor payments yet" description="Batta and remuneration entries will appear here once they are created." />
             ) : (
-              <table className="min-w-full text-left text-sm">
+              <>
+              <table className="hidden md:table min-w-full text-left text-sm">
                 <thead>
                   <tr className="text-zinc-500 dark:text-zinc-400">
                     <th className="pb-3 font-medium">Actor</th>
@@ -795,19 +828,51 @@ export function ActorsView() {
                   ))}
                 </tbody>
               </table>
+
+              <div className="md:hidden space-y-4">
+                {payments.map(payment => (
+                  <div key={`mobile-${payment.id}`} className="rounded-[24px] border border-zinc-200 bg-zinc-50 px-4 py-4 dark:border-zinc-800 dark:bg-zinc-950">
+                    <div className="flex items-start justify-between gap-4">
+                      <div>
+                        <p className="text-sm font-semibold text-zinc-900 dark:text-white">{payment.actorName}</p>
+                        <p className="mt-1 text-sm capitalize text-zinc-500 dark:text-zinc-400">
+                          {payment.paymentType} • {formatDate(payment.paymentDate)}
+                        </p>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-sm font-semibold text-zinc-900 dark:text-white">{formatCurrency(payment.amount, activeProject?.currency ?? 'INR')}</p>
+                        <button
+                          onClick={() => updatePaymentMutation.mutate({ id: payment.id, status: payment.status === 'paid' ? 'pending' : 'paid' })}
+                          disabled={updatePaymentMutation.isPending || !canManageActors}
+                          className={`mt-2 rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] ${
+                            payment.status === 'paid'
+                              ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/12 dark:text-emerald-300'
+                              : 'bg-orange-100 text-orange-700 dark:bg-orange-500/12 dark:text-orange-300'
+                          }`}
+                        >
+                          {payment.status}
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+              </>
             )}
           </div>
         </Surface>
+        </div>
 
-        <Surface variant="raised" padding="lg">
-          <SectionHeader title="Costume / Look Test Tracking" subtitle="Upload look references for continuity and filter them by actor or character." />
+        <div className={cn(selectedTab === 'looks' ? 'block' : 'hidden md:block')}>
+          <Surface variant="raised" padding="lg" className="h-auto md:h-full">
+            <SectionHeader title="Costume / Look Test Tracking" subtitle="Upload look references for continuity and filter them by actor or character." />
           <div className="grid gap-3 md:grid-cols-2">
             <input type="text" value={lookForm.actorName} onChange={event => setLookForm(current => ({ ...current, actorName: event.target.value }))} placeholder="Actor name" className={fieldClassName} />
             <input type="text" value={lookForm.characterName} onChange={event => setLookForm(current => ({ ...current, characterName: event.target.value }))} placeholder="Character name" className={fieldClassName} />
             <input type="text" value={lookForm.notes} onChange={event => setLookForm(current => ({ ...current, notes: event.target.value }))} placeholder="Notes" className={fieldClassName} />
             <input type="file" accept="image/*" onChange={event => setLookForm(current => ({ ...current, image: event.target.files?.[0] ?? null }))} className="rounded-2xl border border-zinc-200 bg-white px-4 py-3 text-sm text-zinc-900 outline-none transition file:mr-3 file:rounded-full file:border-0 file:bg-orange-50 file:px-3 file:py-1.5 file:text-xs file:font-semibold file:text-orange-600 dark:border-zinc-800 dark:bg-zinc-950 dark:text-white dark:file:bg-orange-500/10 dark:file:text-orange-300" />
           </div>
-          <div className="mt-4 flex justify-end">
+          <div className="mt-4 flex flex-col md:flex-row items-center justify-end gap-4 md:static md:w-auto md:bg-transparent md:dark:bg-transparent md:p-0 fixed bottom-[110px] left-1/2 md:left-auto -translate-x-1/2 md:translate-x-0 w-[calc(100vw-3rem)] max-w-sm md:max-w-none z-30 md:z-auto bg-white/90 dark:bg-zinc-900/90 backdrop-blur-md md:backdrop-blur-none p-4 rounded-3xl md:rounded-none shadow-[0_12px_40px_rgba(0,0,0,0.12)] border border-zinc-200/60 dark:border-white/10 md:shadow-none md:border-none">
             <button
               onClick={() => {
                 if (!canManageActors) {
@@ -821,7 +886,7 @@ export function ActorsView() {
                 createLookMutation.mutate()
               }}
               disabled={createLookMutation.isPending || !canManageActors}
-              className="btn-primary"
+              className="btn-primary w-full md:w-auto"
             >
               Upload Look Test
             </button>
@@ -860,7 +925,23 @@ export function ActorsView() {
             )}
           </div>
         </Surface>
+        </div>
       </div>
+
+      {/* Mobile Bottom Navigation */}
+      <div className="md:hidden">
+        <LiquidGlassNavbar
+          activeTabId={selectedTab}
+          onTabChange={(id) => setSelectedTab(id as WorkspaceTab)}
+          tabs={WORKSPACE_TABS.map(tab => ({
+            id: tab.id,
+            icon: tab.icon,
+            label: tab.mobileLabel,
+          }))}
+        />
+      </div>
+      
+      {/* Pad bottom for mobile navbar/CTAs */}
     </div>
   )
 }
