@@ -260,10 +260,10 @@ export function CrewControlAdminMobile(props: CrewControlAdminMobileProps) {
 
             {payout.status === 'requested' && (
               <div className="grid grid-cols-2 gap-3 mt-5 border-t border-zinc-100 dark:border-white/5 pt-4">
-                 <button onClick={() => void props.handleApproveBatta(payout.id)} disabled={props.activeAction !== null} className="h-[44px] rounded-[14px] bg-orange-500 text-black font-bold text-[11px] uppercase tracking-widest active:scale-95 transition-transform shadow-lg shadow-orange-500/20 disabled:opacity-50">
+                 <button onClick={() => void props.handleApproveBatta(payout.id)} disabled={props.activeAction !== null} className="btn-approve h-[44px] text-[11px] tracking-widest">
                     {props.activeAction === `approve-${payout.id}` ? 'Approving' : 'Approve'}
                  </button>
-                 <button className="h-[44px] rounded-[14px] bg-zinc-100 dark:bg-white/5 text-zinc-400 dark:text-zinc-600 font-bold text-[11px] uppercase tracking-widest cursor-not-allowed">
+                 <button className="h-[44px] rounded-full border border-zinc-200 dark:border-white/10 text-zinc-400 dark:text-zinc-600 font-bold text-[11px] uppercase tracking-widest cursor-not-allowed">
                     Mark Paid
                  </button>
               </div>
@@ -283,7 +283,7 @@ export function CrewControlAdminMobile(props: CrewControlAdminMobileProps) {
                    </select>
                    <span className="material-symbols-outlined absolute right-3 top-3.5 text-[16px] text-zinc-500 pointer-events-none">expand_more</span>
                  </div>
-                 <button onClick={() => void props.handleMarkPaid(payout.id)} disabled={props.activeAction !== null} className="h-[44px] rounded-[14px] bg-zinc-900 dark:bg-white/10 text-white font-bold text-[11px] uppercase tracking-widest active:scale-95 transition-transform disabled:opacity-50">
+                 <button onClick={() => void props.handleMarkPaid(payout.id)} disabled={props.activeAction !== null} className="btn-approve h-[44px] text-[11px] tracking-widest">
                     {props.activeAction === `pay-${payout.id}` ? 'Paying' : 'Mark Paid'}
                  </button>
               </div>

@@ -52,15 +52,16 @@ export function primaryButtonStyle(disabled = false): CSSProperties {
     border: 0,
     fontSize: '0.94rem',
     fontWeight: 700,
-    color: '#111111',
-    background: 'linear-gradient(180deg, #ff8c60 0%, #ff6a3d 100%)',
-    boxShadow: '0 16px 26px rgba(255,106,61,0.22), inset 0 1px 1px rgba(255,255,255,0.42)',
+    color: '#000000',
+    background: '#f97316',
+    boxShadow: '0 16px 26px rgba(249, 115, 22, 0.22)',
     cursor: disabled ? 'not-allowed' : 'pointer',
-    opacity: disabled ? 0.72 : 1,
+    opacity: disabled ? 0.65 : 1,
     display: 'inline-flex',
     alignItems: 'center',
     justifyContent: 'center',
     gap: '10px',
+    transition: 'all 200ms ease-out',
   }
 }
 

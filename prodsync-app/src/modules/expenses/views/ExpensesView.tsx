@@ -1344,18 +1344,18 @@ export function ExpensesView() {
           />
           <div className="flex items-center gap-3">
             {canCreateExpenses && (
-              <button onClick={openExpenseModal} className="btn-soft">
-                Add Expense
+              <button onClick={openExpenseModal} className="btn-primary">
+                + Add Art Expense
               </button>
             )}
             {canManagePropsAccess && (
-              <button onClick={openCreatePropModal} className="btn-soft">
-                Add Prop
+              <button onClick={openCreatePropModal} className="btn-primary">
+                + Add Prop Master
               </button>
             )}
             {canManageSetsAccess && (
               <button onClick={openCreateSetModal} className="btn-primary">
-                Add Set
+                + Add Production Set
               </button>
             )}
           </div>

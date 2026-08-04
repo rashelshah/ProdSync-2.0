@@ -137,7 +137,7 @@ export function ApprovalsView() {
               loadingMessage: 'Approving all pending requests...',
               errorMessage: 'Bulk approval failed.',
             })}
-            className="btn-primary"
+            className="btn-approve"
             disabled={!activeProjectId || actionablePending.length === 0 || activeAction !== null}
           >
             <span className="material-symbols-outlined text-sm">done_all</span>
@@ -236,7 +236,7 @@ export function ApprovalsView() {
                             loadingMessage: 'Approving request...',
                             errorMessage: 'Approval failed.',
                           })}
-                          className="btn-primary px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.14em]"
+                          className="btn-approve px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.14em]"
                           disabled={!activeProjectId || activeAction !== null || item.canAct === false}
                         >
                           {activeAction === `approve-${item.id}` ? 'Approving...' : 'Approve'}
@@ -248,7 +248,7 @@ export function ApprovalsView() {
                             loadingMessage: 'Flagging request...',
                             errorMessage: 'Request could not be flagged.',
                           })}
-                          className="btn-ghost px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-red-500 dark:text-red-400"
+                          className="btn-danger px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.14em]"
                           disabled={!activeProjectId || activeAction !== null || item.canAct === false}
                         >
                           {activeAction === `reject-${item.id}` ? 'Denying...' : 'Deny'}
@@ -314,7 +314,7 @@ export function ApprovalsView() {
                   loadingMessage: 'Approving all pending requests...',
                   errorMessage: 'Bulk approval failed.',
               })}
-              className="bg-orange-500 text-white px-4 py-3 rounded-xl text-xs font-bold disabled:opacity-50 disabled:bg-zinc-300 dark:disabled:bg-zinc-700 disabled:text-zinc-500 tracking-wider shadow-md active:scale-95 transition-transform text-center"
+              className="btn-approve px-4 py-3 rounded-xl text-xs font-bold tracking-wider text-center"
               disabled={!activeProjectId || actionablePending.length === 0 || activeAction !== null}
              >
               Approve<br/>All
@@ -398,7 +398,7 @@ export function ApprovalsView() {
                             loadingMessage: 'Flagging request...',
                             errorMessage: 'Request could not be flagged.',
                           })}
-                          className="flex-1 py-3.5 bg-transparent text-red-500 dark:text-red-400 font-bold text-xs tracking-[0.2em] text-center uppercase transition-colors disabled:opacity-50"
+                          className="btn-danger flex-1 py-3 text-xs tracking-[0.14em]"
                           disabled={!activeProjectId || activeAction !== null || item.canAct === false}
                         >
                           {activeAction === `reject-${item.id}` ? 'DENYING' : 'DENY'}
@@ -410,7 +410,7 @@ export function ApprovalsView() {
                             loadingMessage: 'Approving request...',
                             errorMessage: 'Approval failed.',
                           })}
-                          className="flex-1 py-3.5 bg-orange-500 text-white font-bold text-xs tracking-[0.2em] text-center uppercase active:bg-orange-600 transition-colors shadow-inner disabled:bg-zinc-200 dark:disabled:bg-zinc-800 disabled:text-zinc-400 dark:disabled:text-zinc-500 disabled:shadow-none font-sans"
+                          className="btn-approve flex-1 py-3 text-xs tracking-[0.14em]"
                           disabled={!activeProjectId || activeAction !== null || item.canAct === false}
                         >
                           {activeAction === `approve-${item.id}` ? 'APPROVING' : 'APPROVE'}

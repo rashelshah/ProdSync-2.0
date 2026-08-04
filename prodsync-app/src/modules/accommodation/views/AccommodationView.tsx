@@ -189,7 +189,7 @@ function ConfirmModal({
             <h2 className="section-title mt-1">{title}</h2>
             <p className="mt-2 text-sm text-zinc-500 dark:text-zinc-400">{message}</p>
           </div>
-          <button onClick={onClose} disabled={isSubmitting} className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-[color:var(--app-border)] bg-[color:var(--app-surface-strong)] text-[color:var(--app-muted)] transition hover:border-orange-200 hover:bg-orange-50 hover:text-orange-600">
+          <button onClick={onClose} disabled={isSubmitting} className="btn-ghost h-11 w-11 shrink-0 p-0 flex items-center justify-center">
             <span className="material-symbols-outlined text-[18px]">close</span>
           </button>
         </div>
@@ -197,7 +197,7 @@ function ConfirmModal({
           <button onClick={onClose} disabled={isSubmitting} className="btn-ghost w-full sm:w-auto justify-center">
             Cancel
           </button>
-          <button onClick={onConfirm} disabled={isSubmitting} className="btn-primary w-full sm:w-auto justify-center disabled:opacity-60 bg-red-600 hover:bg-red-700 text-white">
+          <button onClick={onConfirm} disabled={isSubmitting} className="btn-danger w-full sm:w-auto justify-center">
             {isSubmitting ? 'Working...' : actionLabel}
           </button>
         </div>

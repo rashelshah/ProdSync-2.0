@@ -226,7 +226,7 @@ function ModalShell({
             <button
               type="button"
               onClick={onClose}
-              className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-[color:var(--app-border)] bg-[color:var(--app-surface-strong)] text-[color:var(--app-muted)] transition hover:border-orange-200 hover:bg-orange-50 hover:text-orange-600"
+              className="btn-ghost flex h-11 w-11 shrink-0 items-center justify-center p-0"
             >
               <span className="material-symbols-outlined text-[18px]">close</span>
             </button>
@@ -257,21 +257,30 @@ function ActionButton({
   label: string
   icon: string
   onClick?: (e: React.MouseEvent<HTMLButtonElement>) => void
-  tone?: 'default' | 'danger'
+  tone?: 'default' | 'primary' | 'approve' | 'danger'
   type?: 'button' | 'submit'
   disabled?: boolean
   loading?: boolean
 }) {
+  const toneClasses = {
+    primary:
+      'bg-orange-500 text-black hover:bg-orange-600 hover:-translate-y-[1px] hover:shadow-md hover:shadow-orange-500/20 focus-visible:ring-orange-500/40 active:scale-[0.99]',
+    approve:
+      'border border-emerald-500/40 bg-emerald-500/[0.08] text-emerald-700 hover:border-emerald-500/60 hover:bg-emerald-500/15 hover:text-emerald-800 hover:-translate-y-[1px] hover:shadow-sm dark:border-emerald-500/40 dark:bg-emerald-500/10 dark:text-emerald-300 dark:hover:bg-emerald-500/20 dark:hover:text-emerald-200 focus-visible:ring-emerald-500/40 active:scale-[0.99]',
+    danger:
+      'border border-red-200 bg-red-50 text-red-600 hover:border-red-300 hover:bg-red-100 hover:-translate-y-[1px] dark:border-red-500/20 dark:bg-red-500/10 dark:text-red-300 dark:hover:border-red-500/30 dark:hover:bg-red-500/15 focus-visible:ring-red-500/40 active:scale-[0.99]',
+    default:
+      'border border-zinc-200 bg-white text-zinc-900 hover:border-zinc-300 hover:bg-zinc-100 hover:-translate-y-[1px] hover:shadow-sm dark:border-zinc-800 dark:bg-zinc-900 dark:text-white dark:hover:border-zinc-700 dark:hover:bg-zinc-800 focus-visible:ring-orange-500/40 active:scale-[0.99]',
+  }
+
   return (
     <button
       type={type}
       onClick={onClick}
       disabled={disabled || loading}
-      className={`inline-flex items-center justify-center gap-2 rounded-full px-4 py-2.5 text-[11px] font-semibold uppercase tracking-[0.18em] transition ${
-        tone === 'danger'
-          ? 'border border-red-200 bg-red-50 text-red-600 hover:bg-red-100 dark:border-red-500/20 dark:bg-red-500/10 dark:text-red-300'
-          : 'border border-[color:var(--app-border)] bg-[color:var(--app-surface-strong)] text-[color:var(--app-text)] hover:border-orange-200 hover:bg-orange-50 hover:text-orange-600'
-      } ${(disabled || loading) ? 'cursor-not-allowed opacity-60' : ''}`}
+      className={`inline-flex items-center justify-center gap-2 rounded-full px-4 py-2.5 text-[11px] font-semibold uppercase tracking-[0.18em] transition-all duration-200 ease-out focus-visible:outline-none focus-visible:ring-2 ${
+        toneClasses[tone]
+      } ${(disabled || loading) ? 'cursor-not-allowed opacity-60 transform-none shadow-none' : ''}`}
     >
       {loading ? (
         <span aria-hidden="true" className="inline-flex items-center gap-1">
@@ -1274,7 +1283,7 @@ export function LocationsView() {
                 setMediaUploadLongitude('')
               }}
             />
-            <ActionButton label="Upload" icon="upload" loading={uploadMediaMutation.isPending} disabled={createLocationMutation.isPending || updateLocationMutation.isPending} onClick={() => mediaFileInputRef.current?.click()} />
+            <ActionButton label="Upload" icon="upload" tone="primary" loading={uploadMediaMutation.isPending} disabled={createLocationMutation.isPending || updateLocationMutation.isPending} onClick={() => mediaFileInputRef.current?.click()} />
           </div>
         </div>
 
@@ -1309,7 +1318,7 @@ export function LocationsView() {
                     {item.latitude != null && item.longitude != null && <StatusBadge variant="stable" label={`Geo ${item.latitude.toFixed(3)}, ${item.longitude.toFixed(3)}`} />}
                     {item.uploadedByName && <StatusBadge variant="stable" label={item.uploadedByName} />}
                   </div>
-                  {item.notes && <p className="text-sm leading-6 text-zinc-600 dark:text-zinc-300">{item.notes}</p>}
+                  {item.notes && <p className="text-sm leading-6 text-zinc-600 dark:bg-zinc-300">{item.notes}</p>}
                   <div className="flex flex-wrap gap-3">
                     <ActionButton
                       label="Open"
@@ -1534,6 +1543,7 @@ export function LocationsView() {
                       <ActionButton
                         label={existing ? 'Save Changes' : 'Create Item'}
                         icon="save"
+                        tone="primary"
                         loading={existing ? updatePermissionMutation.isPending : createPermissionMutation.isPending}
                         onClick={() => {
                           if (!selectedLocationId || !activeProjectId) return
@@ -1704,6 +1714,7 @@ export function LocationsView() {
                     <ActionButton
                       label="Save"
                       icon="save"
+                      tone="primary"
                       loading={upsertAmenityMutation.isPending}
                       onClick={() => {
                         if (!selectedLocationId || !activeProjectId) return
@@ -1800,7 +1811,7 @@ export function LocationsView() {
                 setDocumentUploadFile(file)
               }}
             />
-            <ActionButton label="Upload" icon="upload_file" onClick={() => documentFileInputRef.current?.click()} />
+            <ActionButton label="Upload" icon="upload_file" tone="primary" onClick={() => documentFileInputRef.current?.click()} />
           </div>
         </div>
 
@@ -1850,6 +1861,7 @@ export function LocationsView() {
           <ActionButton
             label="Upload Document"
             icon="upload_file"
+            tone="primary"
             loading={uploadDocumentMutation.isPending}
             onClick={() => {
               if (!selectedLocationId || !activeProjectId || !documentUploadFile) {
@@ -2038,6 +2050,7 @@ export function LocationsView() {
                 <ActionButton
                   label="Post Comment"
                   icon="send"
+                  tone="primary"
                   loading={createCommentMutation.isPending}
                   onClick={() => {
                     if (!selectedLocationId || !activeProjectId || !commentForm.message.trim()) return
@@ -2065,6 +2078,7 @@ export function LocationsView() {
                 <ActionButton
                   label="Add Event"
                   icon="event"
+                  tone="primary"
                   loading={createTimelineMutation.isPending}
                   onClick={() => {
                     if (!selectedLocationId || !activeProjectId || !timelineForm.title.trim()) return
@@ -2275,7 +2289,7 @@ export function LocationsView() {
                   <button
                     type="button"
                     onClick={() => setOpenMenuId(openMenuId === location.id ? null : location.id)}
-                    className="flex h-11 w-11 items-center justify-center rounded-full border border-[color:var(--app-border)] bg-[color:var(--app-surface-strong)] text-[color:var(--app-muted)] transition hover:border-orange-200 hover:bg-orange-50 hover:text-orange-600"
+                    className="btn-ghost flex h-11 w-11 items-center justify-center p-0"
                   >
                     <span className="material-symbols-outlined text-[18px]">more_vert</span>
                   </button>
@@ -2508,6 +2522,7 @@ export function LocationsView() {
               <ActionButton
                 label="Save Changes"
                 icon="save"
+                tone="primary"
                 loading={updateLocationMutation.isPending}
                 onClick={() => {
                   if (!editingLocation) return
@@ -2518,6 +2533,7 @@ export function LocationsView() {
               <ActionButton
                 label="Save Location"
                 icon="save"
+                tone="primary"
                 loading={createLocationMutation.isPending}
                 onClick={() => {
                   const projectStartDate = activeProject?.startDate ?? null
@@ -2887,7 +2903,7 @@ export function LocationsView() {
                 <button
                   type="button"
                   onClick={closeMediaViewer}
-                  className="flex h-11 w-11 items-center justify-center rounded-full border border-[color:var(--app-border)] bg-[color:var(--app-surface-strong)] text-[color:var(--app-muted)] transition hover:border-orange-200 hover:bg-orange-50 hover:text-orange-600"
+                  className="btn-ghost flex h-11 w-11 items-center justify-center p-0"
                 >
                   <span className="material-symbols-outlined text-[18px]">close</span>
                 </button>

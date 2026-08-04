@@ -1355,7 +1355,7 @@ function CrewDepartmentCard({
           </div>
 
           <div className="flex shrink-0 flex-wrap justify-end gap-2" onClick={event => event.stopPropagation()}>
-            <button type="button" className="btn-soft px-3" onClick={onAddRole}>+ Add Crew Role</button>
+            <button type="button" className="btn-primary px-3" onClick={onAddRole}>+ Add Crew Role</button>
             <button type="button" className="btn-ghost px-3" onClick={onToggle}>
               {expanded ? 'Collapse' : 'Expand'}
             </button>
@@ -1980,7 +1980,7 @@ function ExpenseDepartmentCard({
           </div>
 
           <div className="flex shrink-0 flex-wrap justify-end gap-2" onClick={event => event.stopPropagation()}>
-            <button type="button" className="btn-soft px-3" onClick={onAddItem}>Add Item</button>
+            <button type="button" className="btn-primary px-3" onClick={onAddItem}>Add Item</button>
             <button type="button" className="btn-ghost px-3" onClick={onToggle}>
               {expanded ? 'Collapse' : 'Expand'}
             </button>

@@ -152,19 +152,24 @@ function ActionButton({
   onClick?: () => void
   loading?: boolean
   disabled?: boolean
-  tone?: 'default' | 'danger'
+  tone?: 'default' | 'approve' | 'primary' | 'danger'
   type?: 'button' | 'submit'
 }) {
+  const toneClass =
+    tone === 'primary'
+      ? 'btn-primary'
+      : tone === 'approve'
+        ? 'btn-approve'
+        : tone === 'danger'
+          ? 'btn-danger'
+          : 'btn-soft'
+
   return (
     <button
       type={type}
       onClick={onClick}
       disabled={disabled || loading}
-      className={`inline-flex items-center justify-center gap-2 rounded-full px-4 py-2.5 text-[11px] font-semibold uppercase tracking-[0.18em] transition ${
-        tone === 'danger'
-          ? 'border border-red-200 bg-red-50 text-red-600 hover:bg-red-100 dark:border-red-500/20 dark:bg-red-500/10 dark:text-red-300'
-          : 'border border-[color:var(--app-border)] bg-[color:var(--app-surface-strong)] text-[color:var(--app-text)] hover:border-orange-200 hover:bg-orange-50 dark:hover:bg-zinc-900'
-      } ${(disabled || loading) ? 'cursor-not-allowed opacity-60' : ''}`}
+      className={`${toneClass} ${(disabled || loading) ? 'cursor-not-allowed opacity-60' : ''}`}
     >
       {loading ? (
         <LoadingDots />
@@ -1123,6 +1128,7 @@ export function FoodBeveragesView() {
                           <ActionButton
                             label="Approve"
                             icon="check"
+                            tone="approve"
                             disabled={createInvoiceMutation.isPending || invoice.status === 'approved'}
                             onClick={() => createInvoiceMutation.mutate({
                               invoiceId: invoice.id,
@@ -1357,7 +1363,7 @@ export function FoodBeveragesView() {
                   <button
                     type="button"
                     onClick={closeInvoicePreview}
-                    className="flex h-11 w-11 items-center justify-center rounded-full border border-[color:var(--app-border)] bg-[color:var(--app-surface-strong)] text-[color:var(--app-muted)] transition hover:border-orange-200 hover:bg-orange-50 hover:text-orange-600"
+                    className="btn-ghost flex h-11 w-11 items-center justify-center p-0"
                   >
                     <span className="material-symbols-outlined text-[18px]">close</span>
                   </button>

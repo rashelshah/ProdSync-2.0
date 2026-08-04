@@ -658,7 +658,7 @@ export function ActorsView() {
                 ))
               )}
             </div>
-            <button type="button" onClick={addCallSheetAssignment} disabled={!canManageActors} className="btn-soft">
+            <button type="button" onClick={addCallSheetAssignment} disabled={!canManageActors} className="btn-primary">
               Add Assignee
             </button>
           </div>

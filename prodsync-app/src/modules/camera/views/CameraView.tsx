@@ -24,7 +24,7 @@ import type {
   CameraWishlistItem,
 } from '@/modules/camera/types'
 import { cameraService } from '@/services/camera.service'
-import { formatCurrency, formatDate, formatTime, timeAgo } from '@/utils'
+import { cn, formatCurrency, formatDate, formatTime, timeAgo } from '@/utils'
 import { useMobileScrollHide } from '@/hooks/useMobileScrollHide'
 import { LiquidGlassNavbar } from '@/components/shared/LiquidGlassNavbar'
 
@@ -1296,14 +1296,14 @@ export function CameraView() {
                           {approvalStatus && (
                             <button
                               onClick={() => openApprovalModal(request, approvalStatus)}
-                              className="btn-primary px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.14em]"
+                              className={cn(request.status === 'pending_dop' ? 'btn-primary' : 'btn-approve', 'px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.14em]')}
                             >
                               {approvalLabel}
                             </button>
                           )}
                           <button
                             onClick={() => openApprovalModal(request, 'rejected')}
-                            className="btn-ghost px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-red-500 dark:text-red-400"
+                            className="btn-danger px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.14em]"
                           >
                             Reject
                           </button>
@@ -1489,11 +1489,11 @@ export function CameraView() {
                         {canReview && (
                           <div className="mt-3 flex gap-2 border-t border-zinc-200 pt-3 dark:border-zinc-800/60">
                             {approvalStatus && (
-                              <button onClick={() => openApprovalModal(request, approvalStatus)} className="flex-1 rounded-xl bg-orange-500 py-2 text-[10px] font-bold uppercase tracking-widest text-black active:scale-95 transition-transform">
+                              <button onClick={() => openApprovalModal(request, approvalStatus)} className={cn(request.status === 'pending_dop' ? 'btn-primary' : 'btn-approve', 'flex-1 py-2 text-[10px] font-bold tracking-widest')}>
                                 {approvalLabel}
                               </button>
                             )}
-                            <button onClick={() => openApprovalModal(request, 'rejected')} className="flex-1 rounded-xl border border-zinc-200 bg-zinc-100 py-2 text-[10px] font-bold uppercase tracking-widest text-red-500 active:scale-95 transition-transform dark:border-zinc-700 dark:bg-zinc-800">
+                            <button onClick={() => openApprovalModal(request, 'rejected')} className="btn-danger flex-1 py-2 text-[10px] font-bold tracking-widest">
                               Reject
                             </button>
                           </div>

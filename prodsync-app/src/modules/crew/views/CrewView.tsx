@@ -1260,7 +1260,7 @@ function ManagerQueueSection({
               </div>
               <p className="mt-4 text-sm text-zinc-600 dark:text-zinc-300">{formatCurrency(payout.amount)} | {payout.method}</p>
               <div className="mt-4 flex flex-wrap gap-3">
-                <button onClick={() => void handleApproveBatta(payout.id)} disabled={activeAction !== null || payout.status !== 'requested'} className="btn-primary px-4 py-2 text-[11px]">
+                <button onClick={() => void handleApproveBatta(payout.id)} disabled={activeAction !== null || payout.status !== 'requested'} className="btn-approve px-4 py-2 text-[11px]">
                   {activeAction === `approve-${payout.id}` ? 'Approving...' : 'Approve'}
                 </button>
                 <select
@@ -1272,7 +1272,7 @@ function ManagerQueueSection({
                   <option value="UPI">UPI</option>
                   <option value="BANK">Bank</option>
                 </select>
-                <button onClick={() => void handleMarkPaid(payout.id)} disabled={activeAction !== null || payout.status !== 'approved'} className={secondaryButtonClass}>
+                <button onClick={() => void handleMarkPaid(payout.id)} disabled={activeAction !== null || payout.status !== 'approved'} className="btn-approve px-4 py-2 text-[11px]">
                   {activeAction === `pay-${payout.id}` ? 'Paying...' : 'Mark Paid'}
                 </button>
               </div>

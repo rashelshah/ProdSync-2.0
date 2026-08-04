@@ -151,7 +151,7 @@ export function ReportsDashboard() {
           </div>
 
           <div className="page-toolbar">
-            <button className="btn-soft" onClick={() => handleExport('csv')} disabled={exportMutation.isPending}>
+            <button className="btn-primary" onClick={() => handleExport('csv')} disabled={exportMutation.isPending}>
               <span className="material-symbols-outlined text-sm">table_view</span>
               Export CSV
             </button>
@@ -159,7 +159,7 @@ export function ReportsDashboard() {
               <span className="material-symbols-outlined text-sm">picture_as_pdf</span>
               Export PDF
             </button>
-            <button className="btn-soft" onClick={() => void handleBudgetSheetExport()} disabled={exportMutation.isPending}>
+            <button className="btn-primary" onClick={() => void handleBudgetSheetExport()} disabled={exportMutation.isPending}>
               <span className="material-symbols-outlined text-sm">grid_on</span>
               Budget Sheet
             </button>

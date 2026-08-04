@@ -700,10 +700,10 @@ function JoinRequestRow({
         {request.message && <p className="mt-3 text-sm leading-6 text-zinc-600 dark:text-zinc-300">{request.message}</p>}
       </div>
       <div className="flex flex-wrap gap-3">
-        <button onClick={onReject} className="btn-soft" disabled={isBusy}>
+        <button onClick={onReject} className="btn-danger" disabled={isBusy}>
           {isBusy ? 'Working...' : 'Reject'}
         </button>
-        <button onClick={onApprove} className="btn-primary" disabled={isBusy}>
+        <button onClick={onApprove} className="btn-approve" disabled={isBusy}>
           {isBusy ? 'Working...' : 'Approve'}
         </button>
       </div>
