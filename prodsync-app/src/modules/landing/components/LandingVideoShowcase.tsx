@@ -113,17 +113,6 @@ export function LandingVideoShowcase() {
         </div>
       </motion.div>
       <div className="mt-4 sm:mt-6 flex w-full max-w-[1340px] 2xl:max-w-[1440px] justify-center px-4">
-        <p className="text-[11px] sm:text-[12px] font-semibold uppercase tracking-widest text-zinc-500 dark:text-zinc-400 text-center">
-          video credits: makers of KAITHI &{' '}
-          <a
-            href="https://youtu.be/_8TvuB3U5vc?si=3v3m9kNGQIXtSy05"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-orange-500 hover:text-orange-600 transition-colors dark:text-orange-400 dark:hover:text-orange-300 hover:underline"
-          >
-            Dream Warrior Pictures
-          </a>
-        </p>
       </div>
     </section>
   )

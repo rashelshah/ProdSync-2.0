@@ -330,7 +330,7 @@ export function LandingPage() {
               ))}
             </div>
 
-            <p className="text-sm text-zinc-500 dark:text-zinc-400 lg:self-end">© 2024 ProdSync. All rights reserved.</p>
+            <p className="text-sm text-zinc-500 dark:text-zinc-400 lg:self-end">© 2026 ProdSync. All rights reserved.</p>
           </div>
         </footer>
 
