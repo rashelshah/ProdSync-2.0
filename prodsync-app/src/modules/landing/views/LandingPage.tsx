@@ -13,6 +13,7 @@ import { modulesGallery } from '@/config/modulesGallery'
 import { PhoneShowcaseSection } from '@/modules/landing/components/PhoneShowcaseSection'
 import { LandingVideoShowcase } from '@/modules/landing/components/LandingVideoShowcase'
 import { FooterBranding } from '@/modules/landing/components/FooterBranding'
+import { AboutSection } from '@/modules/landing/components/AboutSection'
 import { useLiquidTransition } from '@/context/LiquidTransitionContext'
 import { useDevicePerformance } from '@/hooks/useDevicePerformance'
 
@@ -110,10 +111,11 @@ export function LandingPage() {
       { label: 'Features', href: '#features' },
       { label: 'Modules', href: '#modules' },
       { label: 'Pricing', href: '#cta' },
-      { label: 'About', href: '#footer' },
+      { label: 'About', href: '#about' },
     ],
     [],
   )
+
   const previewImageSrc = theme === 'light' ? '/landing/site-preview-light.png' : '/landing/site-preview-dark.png'
 
   // ── Liquid transition ──────────────────────────────────────────────────────
@@ -306,6 +308,8 @@ export function LandingPage() {
           <PhoneShowcaseSection />
 
           <LandingVideoShowcase />
+
+          <AboutSection />
         </main>
 
         <footer id="footer" className="mt-10 border-t border-zinc-200/80 px-4 py-10 dark:border-white/6 sm:px-6 lg:px-8">
