@@ -14,6 +14,7 @@ import { PhoneShowcaseSection } from '@/modules/landing/components/PhoneShowcase
 import { LandingVideoShowcase } from '@/modules/landing/components/LandingVideoShowcase'
 import { FooterBranding } from '@/modules/landing/components/FooterBranding'
 import { AboutSection } from '@/modules/landing/components/AboutSection'
+import { PricingSection } from '@/modules/landing/components/PricingSection'
 import { useLiquidTransition } from '@/context/LiquidTransitionContext'
 import { useDevicePerformance } from '@/hooks/useDevicePerformance'
 
@@ -110,7 +111,7 @@ export function LandingPage() {
     () => [
       { label: 'Features', href: '#features' },
       { label: 'Modules', href: '#modules' },
-      { label: 'Pricing', href: '#cta' },
+      { label: 'Pricing', href: '/pricing' },
       { label: 'About', href: '#about' },
     ],
     [],
@@ -150,13 +151,23 @@ export function LandingPage() {
 
             <nav className="hidden items-center gap-8 md:flex">
               {sectionLinks.map(link => (
-                <a
-                  key={link.label}
-                  href={link.href}
-                  className="text-sm font-medium text-zinc-500 transition-colors hover:text-orange-500 dark:text-zinc-400 dark:hover:text-orange-400"
-                >
-                  {link.label}
-                </a>
+                link.href.startsWith('/') ? (
+                  <Link
+                    key={link.label}
+                    to={link.href}
+                    className="text-sm font-medium text-zinc-500 transition-colors hover:text-orange-500 dark:text-zinc-400 dark:hover:text-orange-400"
+                  >
+                    {link.label}
+                  </Link>
+                ) : (
+                  <a
+                    key={link.label}
+                    href={link.href}
+                    className="text-sm font-medium text-zinc-500 transition-colors hover:text-orange-500 dark:text-zinc-400 dark:hover:text-orange-400"
+                  >
+                    {link.label}
+                  </a>
+                )
               ))}
             </nav>
 
@@ -328,9 +339,15 @@ export function LandingPage() {
 
             <div className="flex flex-wrap items-center gap-6 text-sm text-zinc-500 dark:text-zinc-400 lg:self-end">
               {sectionLinks.map(link => (
-                <a key={link.label} href={link.href} className="transition-colors hover:text-orange-500 dark:hover:text-orange-400">
-                  {link.label}
-                </a>
+                link.href.startsWith('/') ? (
+                  <Link key={link.label} to={link.href} className="transition-colors hover:text-orange-500 dark:hover:text-orange-400">
+                    {link.label}
+                  </Link>
+                ) : (
+                  <a key={link.label} href={link.href} className="transition-colors hover:text-orange-500 dark:hover:text-orange-400">
+                    {link.label}
+                  </a>
+                )
               ))}
             </div>
 

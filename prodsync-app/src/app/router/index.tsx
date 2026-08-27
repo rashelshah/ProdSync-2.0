@@ -4,6 +4,7 @@ import { AppLayout } from '@/components/layout/AppLayout'
 import { RouteAccessGuard } from '@/features/auth/access-control'
 import { ProtectedRoute, PublicOnlyRoute } from '@/features/auth/AuthRouteGate'
 import { LandingPage } from '@/modules/landing/views/LandingPage'
+import { PricingPage } from '@/modules/landing/views/PricingPage'
 import { AuthPage } from '@/modules/auth/views/AuthPage'
 import { GoogleAuthCallback } from '@/modules/auth/views/GoogleAuthCallback'
 import { DashboardView } from '@/modules/dashboard/views/DashboardView'
@@ -33,6 +34,7 @@ export function AppRouter() {
       <Route element={<PublicOnlyRoute />}>
         <Route path="/" element={<LandingPage />} />
         <Route path="/landing" element={<LandingPage />} />
+        <Route path="/pricing" element={<PricingPage />} />
         <Route path="/auth" element={<AuthPage />} />
       </Route>
 
