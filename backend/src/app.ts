@@ -21,6 +21,7 @@ import { mapRouter } from './modules/map/map.routes'
 import { locationsRouter } from './modules/locations/locations.routes'
 import { HttpError } from './utils/httpError'
 import { transportRouter } from './routes/transport.routes'
+import { publicRouter } from './routes/public.routes'
 import { runtimeProcess } from './utils/runtime'
 import { ZodError } from 'zod'
 
@@ -115,6 +116,7 @@ export function createApp() {
   app.use('/api/map', mapRouter)
   app.use('/api/locations', locationsRouter)
   app.use('/api', transportRouter)
+  app.use('/api/public', publicRouter)
 
   app.use((_req, _res, next) => {
     next(new HttpError(404, 'Route not found.'))

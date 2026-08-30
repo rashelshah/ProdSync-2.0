@@ -1,0 +1,36 @@
+User-agent: *
+Allow: /
+
+# Public pages — always crawlable
+Allow: /about
+Allow: /contact
+Allow: /privacy
+Allow: /pricing
+
+# Static/machine-readable resources
+Allow: /sitemap.xml
+Allow: /llms.txt
+Allow: /robots.txt
+Allow: /favicon.svg
+
+# Disallow authenticated application routes
+Disallow: /dashboard
+Disallow: /projects
+Disallow: /transport
+Disallow: /camera
+Disallow: /crew
+Disallow: /expenses
+Disallow: /actors
+Disallow: /wardrobe
+Disallow: /accommodation
+Disallow: /food-beverages
+Disallow: /locations
+Disallow: /approvals
+Disallow: /reports
+Disallow: /settings
+Disallow: /join/
+
+# Disallow backend API
+Disallow: /api/
+
+Sitemap: https://prodsync.in/sitemap.xml

@@ -107,12 +107,26 @@ export function LandingPage() {
     tiltScale.set(1)
   }
 
-  const sectionLinks = useMemo(
+  // Nav links — anchor scrolls on the landing page; only Pricing navigates to a page
+  const navLinks = useMemo(
     () => [
       { label: 'Features', href: '#features' },
       { label: 'Modules', href: '#modules' },
       { label: 'Pricing', href: '/pricing' },
       { label: 'About', href: '#about' },
+    ],
+    [],
+  )
+
+  // Footer links — includes real page links for crawlers/agents
+  const footerLinks = useMemo(
+    () => [
+      { label: 'Features', href: '#features' },
+      { label: 'Modules', href: '#modules' },
+      { label: 'Pricing', href: '/pricing' },
+      { label: 'About', href: '/about' },
+      { label: 'Contact', href: '/contact' },
+      { label: 'Privacy', href: '/privacy' },
     ],
     [],
   )
@@ -150,7 +164,7 @@ export function LandingPage() {
             </div>
 
             <nav className="hidden items-center gap-8 md:flex">
-              {sectionLinks.map(link => (
+              {navLinks.map(link => (
                 link.href.startsWith('/') ? (
                   <Link
                     key={link.label}
@@ -338,7 +352,7 @@ export function LandingPage() {
             </div>
 
             <div className="flex flex-wrap items-center gap-6 text-sm text-zinc-500 dark:text-zinc-400 lg:self-end">
-              {sectionLinks.map(link => (
+              {footerLinks.map(link => (
                 link.href.startsWith('/') ? (
                   <Link key={link.label} to={link.href} className="transition-colors hover:text-orange-500 dark:hover:text-orange-400">
                     {link.label}

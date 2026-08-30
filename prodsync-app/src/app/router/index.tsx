@@ -5,6 +5,10 @@ import { RouteAccessGuard } from '@/features/auth/access-control'
 import { ProtectedRoute, PublicOnlyRoute } from '@/features/auth/AuthRouteGate'
 import { LandingPage } from '@/modules/landing/views/LandingPage'
 import { PricingPage } from '@/modules/landing/views/PricingPage'
+import { AboutPage } from '@/modules/landing/views/AboutPage'
+import { ContactPage } from '@/modules/landing/views/ContactPage'
+import { PrivacyPage } from '@/modules/landing/views/PrivacyPage'
+import { NotFoundPage } from '@/modules/landing/views/NotFoundPage'
 import { AuthPage } from '@/modules/auth/views/AuthPage'
 import { GoogleAuthCallback } from '@/modules/auth/views/GoogleAuthCallback'
 import { DashboardView } from '@/modules/dashboard/views/DashboardView'
@@ -31,6 +35,7 @@ export function AppRouter() {
     <Routes>
       <Route path="/auth/callback" element={<GoogleAuthCallback />} />
 
+      {/* Public pages — accessible without authentication */}
       <Route element={<PublicOnlyRoute />}>
         <Route path="/" element={<LandingPage />} />
         <Route path="/landing" element={<LandingPage />} />
@@ -38,6 +43,13 @@ export function AppRouter() {
         <Route path="/auth" element={<AuthPage />} />
       </Route>
 
+      {/* Public informational pages — always accessible regardless of auth state.
+          These are NOT wrapped in PublicOnlyRoute so logged-in users can also visit them. */}
+      <Route path="/about" element={<AboutPage />} />
+      <Route path="/contact" element={<ContactPage />} />
+      <Route path="/privacy" element={<PrivacyPage />} />
+
+      {/* Authenticated application routes */}
       <Route element={<ProtectedRoute />}>
         <Route element={<AppLayout />}>
           <Route path="/dashboard" element={<RouteAccessGuard routeId="dashboard"><DashboardView /></RouteAccessGuard>} />
@@ -59,7 +71,10 @@ export function AppRouter() {
         </Route>
       </Route>
 
-      <Route path="*" element={<Navigate to="/" replace />} />
+      {/* Catch-all: renders 404 page for any unknown route within the SPA.
+          Real HTTP 404 for crawlers is enforced by Vercel config (vercel.json)
+          and the static public/404.html file. */}
+      <Route path="*" element={<NotFoundPage />} />
     </Routes>
   )
 }

@@ -1,0 +1,256 @@
+<!doctype html>
+<html lang="en" class="dark">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>404 — Page Not Found | ProdSync</title>
+    <meta name="description" content="The page you requested could not be found on ProdSync." />
+    <meta name="robots" content="noindex, nofollow" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+    <style>
+      *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+      :root {
+        --orange: #f97316;
+        --bg: #09090b;
+        --surface: rgba(255,255,255,0.03);
+        --border: rgba(255,255,255,0.06);
+        --text: #ffffff;
+        --muted: #a1a1aa;
+        --subtle: #52525b;
+      }
+
+      html, body {
+        height: 100%;
+        background: var(--bg);
+        color: var(--text);
+        font-family: 'Inter', system-ui, -apple-system, sans-serif;
+        -webkit-font-smoothing: antialiased;
+      }
+
+      .shell {
+        min-height: 100vh;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        padding: 2rem;
+        position: relative;
+        overflow: hidden;
+      }
+
+      /* Subtle glow orb */
+      .shell::before {
+        content: '';
+        position: absolute;
+        top: -8rem;
+        left: 50%;
+        transform: translateX(-50%);
+        width: 32rem;
+        height: 32rem;
+        border-radius: 50%;
+        background: radial-gradient(circle, rgba(99,102,241,0.18) 0%, rgba(249,115,22,0.14) 42%, transparent 72%);
+        pointer-events: none;
+      }
+
+      .card {
+        position: relative;
+        z-index: 1;
+        width: 100%;
+        max-width: 520px;
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 28px;
+        padding: 3rem 2.5rem;
+        text-align: center;
+        backdrop-filter: blur(20px);
+      }
+
+      .logo-row {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.75rem;
+        margin-bottom: 2rem;
+        text-decoration: none;
+      }
+
+      .logo-icon {
+        width: 2.5rem;
+        height: 2.5rem;
+        border-radius: 14px;
+        background: var(--orange);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
+      }
+
+      .logo-icon svg {
+        width: 1rem;
+        height: 1rem;
+        stroke: #000;
+        fill: none;
+        stroke-width: 2;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+      }
+
+      .logo-name {
+        font-size: 1.125rem;
+        font-weight: 600;
+        letter-spacing: -0.03em;
+        color: var(--text);
+      }
+
+      .error-code {
+        font-size: clamp(5rem, 18vw, 7rem);
+        font-weight: 800;
+        letter-spacing: -0.05em;
+        line-height: 1;
+        background: linear-gradient(135deg, #f97316, #8b5cf6, #38bdf8);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+        margin-bottom: 1rem;
+      }
+
+      .error-title {
+        font-size: 1.25rem;
+        font-weight: 700;
+        letter-spacing: -0.03em;
+        color: var(--text);
+        margin-bottom: 0.75rem;
+      }
+
+      .error-desc {
+        font-size: 0.9rem;
+        line-height: 1.7;
+        color: var(--muted);
+        margin-bottom: 2rem;
+        max-width: 380px;
+        margin-left: auto;
+        margin-right: auto;
+      }
+
+      .btn-row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.75rem;
+        justify-content: center;
+        margin-bottom: 2.5rem;
+      }
+
+      .btn-primary {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+        padding: 0.6rem 1.4rem;
+        border-radius: 999px;
+        background: var(--orange);
+        color: #000;
+        font-size: 0.875rem;
+        font-weight: 600;
+        text-decoration: none;
+        transition: opacity 0.15s;
+      }
+
+      .btn-primary:hover { opacity: 0.88; }
+
+      .btn-secondary {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+        padding: 0.6rem 1.4rem;
+        border-radius: 999px;
+        border: 1px solid var(--border);
+        background: var(--surface);
+        color: var(--text);
+        font-size: 0.875rem;
+        font-weight: 600;
+        text-decoration: none;
+        transition: border-color 0.15s;
+      }
+
+      .btn-secondary:hover { border-color: rgba(249,115,22,0.4); }
+
+      .nav-links {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 1.25rem;
+        justify-content: center;
+        padding-top: 1.5rem;
+        border-top: 1px solid var(--border);
+      }
+
+      .nav-links a {
+        font-size: 0.8rem;
+        color: var(--subtle);
+        text-decoration: none;
+        transition: color 0.15s;
+      }
+
+      .nav-links a:hover { color: var(--orange); }
+
+      .footer-note {
+        margin-top: 2rem;
+        font-size: 0.75rem;
+        color: var(--subtle);
+      }
+
+      .footer-note a {
+        color: var(--muted);
+        text-decoration: none;
+      }
+
+      .footer-note a:hover { color: var(--orange); }
+    </style>
+  </head>
+  <body>
+    <div class="shell">
+      <div class="card">
+        <a href="/" class="logo-row" aria-label="ProdSync home">
+          <span class="logo-icon">
+            <!-- Clapperboard icon -->
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="m2 6 10.455-3.819A1 1 0 0 1 13.802 3l2.684 6.5"/>
+              <path d="M4.147 15.143 2 12l10.455-4h2.563M17 3l5 12H7l-3-7"/>
+              <rect width="20" height="8" x="2" y="14" rx="2"/>
+              <path d="M6 18h.01M10 18h.01"/>
+            </svg>
+          </span>
+          <span class="logo-name">ProdSync</span>
+        </a>
+
+        <div class="error-code" aria-label="Error 404">404</div>
+        <h1 class="error-title">Page Not Found</h1>
+        <p class="error-desc">
+          The page you're looking for doesn't exist or has been moved.
+          If you followed a link, it may be outdated.
+        </p>
+
+        <div class="btn-row">
+          <a href="/" class="btn-primary">
+            ← Back to Home
+          </a>
+          <a href="/sitemap.xml" class="btn-secondary">
+            Sitemap
+          </a>
+        </div>
+
+        <nav class="nav-links" aria-label="Public pages">
+          <a href="/pricing">Pricing</a>
+          <a href="/about">About</a>
+          <a href="/contact">Contact</a>
+          <a href="/privacy">Privacy</a>
+        </nav>
+      </div>
+
+      <p class="footer-note">
+        Looking for ProdSync documentation? Visit <a href="/llms.txt">llms.txt</a> or <a href="/sitemap.xml">sitemap.xml</a>.
+      </p>
+    </div>
+  </body>
+</html>
